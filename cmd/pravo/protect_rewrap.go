@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -15,7 +16,8 @@ import (
 )
 
 func protectRewrapCmd() *cobra.Command {
-	var all, removeRecovery, yes bool
+	var all, removeRecovery, yes, allowNoAdmin bool
+	var readd []string
 	var recovery string
 	cmd := &cobra.Command{
 		Use:   "rewrap",
@@ -50,17 +52,19 @@ It needs an identity that is a reader of the state, and the readers file.
 			if err != nil {
 				return err
 			}
-			return p.rewrap(all, recovery, removeRecovery, yes)
+			return p.rewrap(all, recovery, removeRecovery, yes, allowNoAdmin, readd)
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "seal every record, the outputs and the stored plans again under the current key")
 	cmd.Flags().StringVar(&recovery, "recovery", "", "set or replace the recovery recipient, as K/N: N shares, any K rebuild its key")
 	cmd.Flags().BoolVar(&removeRecovery, "remove-recovery", false, "take the recovery recipient out of the state")
 	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask before a recovery is replaced or removed")
+	cmd.Flags().StringArrayVar(&readd, "readd", nil, "NAME of a former key that the readers file lists again, and that you mean to add back")
+	cmd.Flags().BoolVar(&allowNoAdmin, "allow-no-admin", false, "allow a change that leaves no admin among the readers")
 	return cmd
 }
 
-func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes bool) error {
+func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes, allowNoAdmin bool, readd []string) error {
 	if recoverySpec != "" && removeRecovery {
 		return errors.New("set the recovery or remove it, not both")
 	}
@@ -97,6 +101,16 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes b
 		return err
 	}
 	added, removed := readersDiff(prot, p.rf)
+	if err := p.refuseFormer(st, added, readd); err != nil {
+		return err
+	}
+	if len(removed) > 0 && !allowNoAdmin {
+		// The roles that decide are those in the state when they are pinned, and the readers
+		// of the file are who remains after the rewrap.
+		if eff, _, err := p.rf.withRoles(st); err == nil && protect.RolesOn(eff.Readers) && !hasAdmin(eff.Readers, p.rf.Readers) {
+			return engine.WithCode(engine.ExitRefused, noAdminError(removed, "removes"))
+		}
+	}
 	// Without a flag the repository decides: a recovery file that names a key that
 	// the state does not have is set in the state, without new shares.
 	rcf := loadRecoveryFile(p.rf)
@@ -259,4 +273,68 @@ func plansInUseLine(n int, again bool) string {
 		return "1 stored plan in use was not " + sealed + "; run pravo protect rewrap --all when it is done."
 	}
 	return fmt.Sprintf("%d stored plans in use were not %s; run pravo protect rewrap --all when they are done.", n, sealed)
+}
+
+// hasAdmin tells whether one of the keys of the readers file is an admin in roles. A key that
+// the file dropped keeps its role in the roles of the state, and can no longer read it.
+func hasAdmin(roles, file []protect.Reader) bool {
+	for _, r := range roles {
+		if r.Role != protect.RoleAdmin {
+			continue
+		}
+		for _, f := range file {
+			if protect.SSHFingerprint(f.Sign) == protect.SSHFingerprint(r.Sign) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// noAdminError is the refusal of a change that leaves nobody who may change who reads the state.
+func noAdminError(who []string, verb string) error {
+	return fmt.Errorf("this %s %s, and no admin would be left to read the state and change its readers or roles. Make another key an admin first, or pass --allow-no-admin (a recovery set is then the only way back).", verb, nameList(safeNames(who)))
+}
+
+// refuseFormer stops a key that the roles in the state record as former, because an admin took
+// it out, from being wrapped for again by a checkout whose readers file still lists it. names are
+// the keys to add, and readd the ones the admin said to add back.
+func (p *protectRun) refuseFormer(st *state.Store, names, readd []string) error {
+	chain, err := st.RolesChain(p.ctx)
+	if err != nil || chain.Head() == nil {
+		return nil // no roles, or a chain that is judged elsewhere
+	}
+	return formerListed(chain.Head().Former, p.rf.Readers, names, readd)
+}
+
+// formerListed refuses the readers among names (all of them when names is nil) that are
+// former keys of the roles, unless their name is in readd.
+func formerListed(former []protect.FormerKey, file []protect.Reader, names, readd []string) error {
+	if len(former) == 0 {
+		return nil
+	}
+	in := func(list []string, name string) bool {
+		for _, n := range list {
+			if n == name {
+				return true
+			}
+		}
+		return false
+	}
+	var refused []string
+	for _, r := range file {
+		if names != nil && !in(names, r.Name) {
+			continue
+		}
+		fp := protect.SSHFingerprint(r.Sign)
+		for _, f := range former {
+			if f.Key == fp && !in(readd, r.Name) {
+				refused = append(refused, r.Name)
+			}
+		}
+	}
+	if len(refused) == 0 {
+		return nil
+	}
+	return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s was taken out of the roles of the state (it is a former key), and the readers file lists it again. A checkout whose readers file is out of date does that. If you mean to add it back, run this again with --readd %s.", nameList(refused), strings.Join(refused, " --readd ")))
 }

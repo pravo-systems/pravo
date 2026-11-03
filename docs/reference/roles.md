@@ -43,8 +43,8 @@ A sealed state says who may read it. Roles say who may change it. A key has one 
 
 | Role | May |
 |---|---|
-| `reader` | Open the state, read it, and plan (or ask `why`) without changing it. Store a plan with `plan --store`. Read a secret: `secret get`, `secret exec`, and a run that reads one. |
-| `writer` | Change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `state push`, `discover adopt`, and a plan that writes the records it refreshed. Add and edit a policy. Set a secret with `secret set`. Approve a plan, where a policy asks for a writer's approval. |
+| `reader` | Open the state, read it, and plan (or ask `why`, or run `discover`, which only lists) without changing it. Store a plan with `plan --store`. Read a secret: `secret get`, `secret exec`, and a run that reads one. |
+| `writer` | Change the state: `apply`, `destroy`, `import`, `state mv`, `state rm`, `state push`, `discover adopt` (a reader who runs it writes nothing), and a plan that writes the records it refreshed. Add and edit a policy. Set a secret with `secret set`. Approve a plan, where a policy asks for a writer's approval. |
 | `admin` | Remove a policy, or change one that asks for approvals. Remove a secret and forget its old values (`secret rm`, `secret purge`). Change who reads the state (`protect rewrap`), change roles (`protect roles`), collect garbage (`protect gc`) and take the seal off (`protect unseal`). Apply a plan without the approvals a policy asks for. |
 
 The role is the fifth field of the line of the key in the readers file, which the repository holds:
@@ -89,13 +89,19 @@ The state is opened as it is and what a plan writes stays in memory: the refresh
 
 | Who | Command | Message | Exit |
 |---|---|---|---|
-| A reader | `apply`, `destroy`, `import`, `state mv`, `state rm`, `state push`, `discover adopt` | `your identity is a reader in .pravo/access/readers.txt, and a writer is needed to change the state.` | 5 |
+| A reader | `apply`, `destroy`, `import`, `state mv`, `state rm`, `state push` | `your identity is a reader in .pravo/access/readers.txt, and a writer is needed to change the state.` | 5 |
 | A reader or a writer | `protect rewrap`, `protect gc`, `protect unseal` | `your identity is a reader in .pravo/access/readers.txt, and an admin is needed to change who reads the state.` | 5 |
 | A reader or a writer | `protect roles` | `your identity is a reader in the roles in the state, and an admin is needed to store the roles.` | 5 |
 | A writer | An apply that removes a policy, or changes one that asks for approvals | Refused before it changes anything. | 5 |
 | A key that is not in the file | Any command that changes the state, when the file has roles | Has no role, and is refused as well. | 5 |
 
-The shares of a recovery key are not an identity, so the roles do not apply to `protect recover`: K holders of shares can read the state together.
+The shares of a recovery key are not an identity, so the roles do not apply to who may run `protect recover`: K holders of shares can read the state together. They cannot sign, though, and the admins of the roles may be the keys that were lost. When the state holds roles, `protect recover` therefore stores them again as version 1, from the readers file, with the key of the person who runs it as an admin (that line must say `role:admin`), vouches for the transactions of the keys that are gone, and replaces the `roles-genesis` line. Commit the file. If the record of an environment pinned the old roles, it is stored again with the new pin. The recovery shares are the break-glass of the roles, and the old chain is not kept.
+
+**The last admin.** `protect rewrap` that removes the only admin from the readers, and `protect roles` that demotes or drops the only admin, stop with exit 5 and `no admin would be left`. Make another key an admin first, or pass `--allow-no-admin` when you mean it: a recovery set is then the only way back.
+
+**A key that was taken off.** The roles of the state remember a key that an admin removed. A checkout whose readers file is out of date and still lists it is refused by `protect rewrap` and `protect roles` (`dan was taken out of the roles of the state`); `--readd NAME` says that you mean to add it back.
+
+**Roles without the pin line.** A state that holds roles that the readers file does not pin is judged by the roles in the state for every command that changes it, so deleting the `roles-genesis` line from a local file, and giving yourself `role:admin` in it, changes nothing. The refusal says `in the roles in the state` when those roles decided, and names the readers file only when the file did.
 
 **Policies.** A writer adds a policy and edits one. Only an admin removes one, because a removal is the change that lets a plan through that the policy would have stopped, and only an admin changes a policy that asks for approvals, for the same reason. A version that was signed by a key whose role the file has lowered since reads as `role_changed` in the viewer and is accepted, as a version signed by a key that left reads as `key_not_in_file`: nothing says whether the key had the role when it signed.
 
@@ -187,7 +193,7 @@ PRAVO_CONFIG_DIR=people/dan pravo protect roles --yes; echo "exit=$?"
 ```
 
 ```text out
-Error: your identity is a reader in .pravo/access/readers.txt, and an admin is needed to change who reads the state.
+Error: your identity is a reader in the roles in the state, and an admin is needed to change who reads the state.
 exit=5
 
 Error: your identity is a reader in the roles in the state, and an admin is needed to store the roles.

@@ -424,6 +424,24 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 	}
 	added, removed := readersDiff(prot, p.rf)
 	names := nameList(readerNames(p.rf.Readers))
+	// A state that holds roles keeps them pinned by the repository, and every admin of them
+	// may be gone with their keys. Recovery is break-glass: it stores the roles again, from
+	// the readers file, with the recovering key as an admin.
+	resetRoles := false
+	if chain, err := locked.RolesChain(p.ctx); err != nil {
+		if p.rf.Pin == "" {
+			return engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
+		}
+		resetRoles = true // a chain that does not verify is replaced, as the pin was lost with it
+	} else if chain.Head() != nil || p.rf.Pin != "" {
+		resetRoles = true
+	}
+	if resetRoles && !protect.RolesOn(p.rf.Readers) {
+		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the state holds roles, and %s gives none. Add role:reader, role:writer or role:admin to its lines; your own line gets role:admin.", p.rf.shown()))
+	}
+	if resetRoles && !hasAdmin(p.rf.Readers, p.rf.Readers) {
+		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the state holds roles, and %s lists no admin. Give your own line role:admin: recovery stores the roles again with your key as an admin.", p.rf.shown()))
+	}
 	out.Printf("Recovery key rebuilt from %s.\n", plural(len(shares), "share", "shares"))
 	out.Printf("%-8s %s  (%s)\n", "Readers", p.rf.shown(), names)
 	out.Println("This will:")
@@ -442,6 +460,9 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 	}
 	if all {
 		step("seal every record, the outputs and the stored plans again under the new key")
+	}
+	if resetRoles {
+		step("store the roles again as version 1, with your key as an admin, and pin them in " + p.rf.shown() + " (the admins of the old roles may be gone)")
 	}
 	if newRec != nil {
 		step(fmt.Sprintf("replace the recovery key: %d new shares, any %d rebuild it, and the old shares open nothing written from now on", newRec.N, newRec.K))
@@ -495,9 +516,18 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 			return fmt.Errorf("the new recovery is in the state, but %s could not be written: %w. Write this line to it:\n%s", rcf.shown(), err, newRec.Line())
 		}
 	}
+	var rolesInfo *recoveredRoles
+	if resetRoles {
+		if rolesInfo, err = p.recoverRoles(b); err != nil {
+			return err
+		}
+	}
 	if flags.JSON {
 		j := map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup,
 			"resealed": res.Resealed, "recovery_replaced": newRec != nil}
+		if rolesInfo != nil {
+			j["roles"] = map[string]any{"version": 1, "pin": rolesInfo.Pin, "admin": rolesInfo.Admin}
+		}
 		if newRec != nil {
 			j["recovery"] = recoveryJSON("replaced", newRec, rcf, true)
 		}
@@ -510,10 +540,83 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 	if all {
 		out.Printf("Sealed %s again in %s.\n", counted(res.Resealed, "record", "records"), elapsed(time.Since(began)))
 	}
+	if rolesInfo != nil {
+		out.Printf("Stored the roles again as version 1, with %s as an admin. Commit %s: it holds the new %s line.\n", rolesInfo.Admin, p.rf.shown(), protect.RolesGenesisKey)
+		if rolesInfo.Record {
+			out.Println("The record of the environment pinned the old roles; it pins the new ones now.")
+		}
+		if len(rolesInfo.Others) > 0 {
+			out.Printf("The readers file also gives admin to %s.\n", nameList(rolesInfo.Others))
+		}
+	}
 	if newRec != nil {
 		printShares(newRec, newShares, rcf)
 	} else {
 		out.Println(out.C(ui.Yellow, "The recovery key was rebuilt on this machine. Replace it: pravo protect rewrap --recovery K/N"))
 	}
 	return nil
+}
+
+// recoveredRoles is what recover stored as the roles of the state.
+type recoveredRoles struct {
+	Pin    string
+	Admin  string
+	Others []string
+	// Record is set when the record of the environment was stored again with the new pin.
+	Record bool
+}
+
+// recoverRoles replaces the roles chain of the state, whose admins may all be gone, by a new
+// first version: the roles of the readers file with the recovering identity as an admin. The
+// readers file is the trust anchor, so its pin is replaced with the digest of the new first
+// version; whoever commits it decides. The state must already be opened to the new readers.
+func (p *protectRun) recoverRoles(b state.Backend) (*recoveredRoles, error) {
+	st, id, idErr, err := p.open(b, true, true)
+	if err != nil {
+		return nil, err
+	}
+	if st.Locked() || id == nil {
+		return nil, engine.WithCode(engine.ExitRefused, notReaderError(p.rf, id, idErr))
+	}
+	me := st.SigningKey()
+	file := make([]protect.Reader, len(p.rf.Readers))
+	copy(file, p.rf.Readers)
+	admin, found := "", false
+	var others []string
+	for _, r := range file {
+		if protect.SSHFingerprint(r.Sign) == me && r.Role == protect.RoleAdmin {
+			admin, found = r.Name, true
+		}
+	}
+	if !found {
+		return nil, engine.WithCode(engine.ExitRefused, fmt.Errorf("your identity is not an admin in %s. Give your own line role:admin and run protect recover again: recovery stores the roles again with your key as an admin.", p.rf.shown()))
+	}
+	for _, r := range file {
+		if r.Role == protect.RoleAdmin && r.Name != admin {
+			others = append(others, r.Name)
+		}
+	}
+	seen, _, err := unlistedSigners(st, file, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	next, nextFormer := protect.NextRoles(file, nil, nil, seen)
+	vouches, err := newVouches(p.ctx, st, &state.RolesChain{}, nil, next, seen, true)
+	if err != nil {
+		return nil, err
+	}
+	text := protect.FormatRolesSet(next, nextFormer, vouches)
+	if err := st.ReplaceRoles(p.ctx, text, time.Now()); err != nil {
+		return nil, err
+	}
+	digest := state.TextDigest(text)
+	if err := setPin(p.rf.Path, digest); err != nil {
+		return nil, fmt.Errorf("the roles are in the state, but %s could not be written: %w. Put this line in it:\n%s %s", p.rf.shown(), err, protect.RolesGenesisKey, digest)
+	}
+	// A record of the environment that pins the old roles is stored again with the new pin.
+	recorded, err := st.ReplaceEnvironmentRecord(p.ctx, digest)
+	if err != nil {
+		return nil, fmt.Errorf("the roles are stored, and the record of the environment could not be: %w. Run the recovery again", err)
+	}
+	return &recoveredRoles{Pin: digest, Admin: admin, Others: others, Record: recorded}, nil
 }

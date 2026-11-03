@@ -297,22 +297,40 @@ func protectedNames(prot state.Protection) []string {
 // pravo; a state that was written by a key without the role is found by the signatures (see
 // sealed-state.md), and only the credentials of the bucket stop a write.
 func roleProblem(rf readersFile, st *state.Store, need protect.Role, what string) (string, engine.ExitCode) {
-	rf, _, err := rf.withRoles(st)
+	rf, rs, err := rf.withRoles(st)
 	if err != nil {
 		return printable(err.Error()), engine.ExitUntrusted
 	}
-	if !rf.Found || rf.Err != nil || !protect.RolesOn(rf.Readers) {
+	key := st.SigningKey()
+	// Where the roles come from, as the refusal names it: the roles in the state when they
+	// decide, and also when the state holds some that the readers file does not pin, since a
+	// local file that dropped the pin line must not turn a reader into an admin.
+	source := rf.shown()
+	readers := rf.Readers
+	switch {
+	case rs.Source == "state":
+		source = "the roles in the state"
+	case rs.Unpinned:
+		role := protect.RoleReader
+		if r, ok := protect.RoleOf(rs.Stored, key); ok {
+			role = r
+		}
+		if role.Allows(need) {
+			return "", engine.ExitRefused
+		}
+		return fmt.Sprintf("your identity is %s in the roles stored in the state, and %s is needed to %s. %s does not pin those roles, so the roles in the state decide; commit the %s line that pravo protect roles printed.", article(role), article(need), what, rf.shown(), protect.RolesGenesisKey), engine.ExitRefused
+	}
+	if !rf.Found || rf.Err != nil || !protect.RolesOn(readers) {
 		return "", engine.ExitRefused
 	}
-	key := st.SigningKey()
-	role, ok := protect.RoleOf(rf.Readers, key)
+	role, ok := protect.RoleOf(readers, key)
 	if !ok {
-		return fmt.Sprintf("your identity is not in %s, so its role is not known, and %s is needed to %s.", rf.shown(), article(need), what), engine.ExitRefused
+		return fmt.Sprintf("your identity is not in %s, so its role is not known, and %s is needed to %s.", source, article(need), what), engine.ExitRefused
 	}
 	if role.Allows(need) {
 		return "", engine.ExitRefused
 	}
-	return fmt.Sprintf("your identity is %s in %s, and %s is needed to %s.", article(role), rf.shown(), article(need), what), engine.ExitRefused
+	return fmt.Sprintf("your identity is %s in %s, and %s is needed to %s.", article(role), source, article(need), what), engine.ExitRefused
 }
 
 // article puts a or an before the name of a role.

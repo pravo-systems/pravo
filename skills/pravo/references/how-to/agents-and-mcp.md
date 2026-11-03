@@ -281,7 +281,7 @@ Output:
 ```text
 {"id":2,"isError":false,"exit_code":0}
 {"id":3,"isError":true,"exit_code":5}
-Error: your identity is a reader in .pravo/access/readers.txt, and a writer is needed to change the state.
+Error: your identity is a reader in the roles in the state, and a writer is needed to change the state.
 plan-<id>  pending  agent  just now  +1 ~0 -0  expires in 7 days
 ```
 
