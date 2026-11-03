@@ -136,6 +136,10 @@ func (e *Engine) moveNode(fromAddr, toAddr string, target *config.Resource, stag
 	}
 	moved.Revision = from.Revision
 	before := from.Revision
+	// The transaction is in the state before the records it writes.
+	if err := e.txn.Ensure(); err != nil {
+		return nil, err
+	}
 	if _, err := e.State.Remove(fromAddr); err != nil {
 		return nil, err
 	}
@@ -153,9 +157,12 @@ func (e *Engine) moveNode(fromAddr, toAddr string, target *config.Resource, stag
 			}
 		}
 		if changed {
+			was := other.Revision
 			if err := e.State.Set(other, e.txnID()); err != nil {
 				return nil, err
 			}
+			// The transaction names the revision it wrote, as for every record.
+			e.txn.Record(d, "relink", was, other.Revision)
 			e.touched(d)
 		}
 	}
@@ -312,7 +319,12 @@ func (e *Engine) relabelProviders(stage bool) ([]Relabel, error) {
 		moved := *n
 		moved.Provider = req.Source.String()
 		before := n.Revision
+		if err := e.txn.Ensure(); err != nil {
+			_ = e.State.Unlock(addr)
+			return nil, err
+		}
 		if err := e.State.Set(&moved, e.txnID()); err != nil {
+			_ = e.State.Unlock(addr)
 			return nil, err
 		}
 		e.txn.Record(addr, "provider-move", before, moved.Revision)

@@ -467,9 +467,10 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			return result, err
 		}
 	}
-	if locked > 0 {
+	if locked > 0 || e.txn.Started() {
 		// An apply that is killed from here on leaves a transaction that is still
-		// running, and locks that go stale.
+		// running, and locks that go stale. One that started for the moves it committed
+		// is written again, with the policies that judged the plan.
 		if err := e.txn.Start(); err != nil {
 			return fail(err)
 		}
