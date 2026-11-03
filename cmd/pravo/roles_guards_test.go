@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // A state whose roles are pinned, with every admin's key lost: recovery is break-glass. It stores
@@ -180,5 +183,24 @@ func TestAdminHandoverInOneEditIsRefusedAndTheRightOrderWorks(t *testing.T) {
 	}
 	if text, code := runPravo(t, s.dir, "--identity", "zoe", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("zoe stores roles: exit %d\n%s", code, text)
+	}
+}
+
+// Roles are read back before a command reports success or pins them: a version that does not
+// parse is reported, not pinned.
+func TestRolesAreReadBackBeforeTheyAreReportedStored(t *testing.T) {
+	s := plannableBucket(t)
+	ctx := context.Background()
+	st, err := state.OpenBackendWith(ctx, s.backend(t), state.Options{Identity: s.ada})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &protectRun{ctx: ctx}
+	if err := st.PutRolesVersion(ctx, 1, "this is not a roles set\n", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	err = p.verifyRolesStored(st, 1, "this is not a roles set\n")
+	if err == nil || !strings.Contains(err.Error(), "reading them back failed") {
+		t.Fatalf("a version that does not parse was reported stored: %v", err)
 	}
 }
