@@ -430,7 +430,8 @@ func (m *model) changeIn(po *planOverlay, mn *mnode) *Change {
 		}
 	case engine.ActionDelete:
 		after = tftypes.Value{}
-	case engine.ActionNoop:
+	case engine.ActionNoop, engine.ActionDefer:
+		// A deferred change has no planned value: the next plan makes one.
 		return c
 	}
 	d := &differ{secrets: j.text, taint: j.fields}

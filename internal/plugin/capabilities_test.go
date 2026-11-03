@@ -237,7 +237,7 @@ var wantCaps = map[int][]string{
 }
 
 // checkCaps asserts that every recorded request with a client_capabilities
-// field announces write-only attributes and does not allow deferral, and that
+// field announces write-only attributes and allows deferral, and that
 // the requests in want were all seen.
 func checkCaps(t *testing.T, seen []proto.Message, want []string) {
 	t.Helper()
@@ -258,8 +258,8 @@ func checkCaps(t *testing.T, seen []proto.Message, want []string) {
 		if !c.Get(c.Descriptor().Fields().ByName("write_only_attributes_allowed")).Bool() {
 			t.Errorf("%s does not announce write-only attributes", name)
 		}
-		if c.Get(c.Descriptor().Fields().ByName("deferral_allowed")).Bool() {
-			t.Errorf("%s allows deferral, which pravo does not handle", name)
+		if !c.Get(c.Descriptor().Fields().ByName("deferral_allowed")).Bool() {
+			t.Errorf("%s does not allow deferral, which a plan handles", name)
 		}
 	}
 	var names []string

@@ -666,13 +666,14 @@ export class Inspector {
     wrap.append(h('section', { class: 'sec' },
       h('div', { class: 'chg-head' }, h('span', { class: 'b ' + actClass(c.action) }, h('span', { class: 'sq ' + (a ? a.cls : '') }), a ? a.label : c.action),
         c.action === 'replace' ? h('span', { class: 'dim' }, 'destroyed and created again') : null,
+        c.action === 'defer' ? h('span', { class: 'dim' }, 'to the next plan: the apply leaves it alone') : null,
         c.applied ? h('span', { class: 'b ok' }, icon('check'), 'applied') : null),
       (c.reasons || []).length ? h('ul', { class: 'reasons' }, c.reasons.map((r) => h('li', null, r))) : null,
       (c.requires_replace || []).length ? h('p', { class: 'forces' }, 'Forces replacement: ', c.requires_replace.map((p) => h('code', null, p))) : null));
     const rr = new Set(c.requires_replace || []);
     const diffs = h('section', { class: 'sec flush' });
     for (const ch of c.attrs || []) diffs.append(this.diffRow(ch, rr));
-    if (!(c.attrs || []).length) diffs.append(h('div', { class: 'blank' }, icon('info'), h('p', null, 'No attribute is listed for this change.')));
+    if (!(c.attrs || []).length) diffs.append(h('div', { class: 'blank' }, icon('info'), h('p', null, c.action === 'defer' ? 'The provider could not plan it yet. The next plan, made after this one is applied, shows what changes.' : 'No attribute is listed for this change.')));
     wrap.append(diffs);
     const open = this.openPlans(node);
     if (open) wrap.append(open);

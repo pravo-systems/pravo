@@ -64,6 +64,8 @@ type Change struct {
 	PreventDestroy      bool
 	// Deferred marks a data source whose configuration is not yet known.
 	Deferred bool
+	// DeferReason says why a change of ActionDefer is deferred to the next plan.
+	DeferReason string
 	// Skipped marks a node that was not planned because nothing about it
 	// changed; Prior and Planned hold its recorded state.
 	Skipped bool
@@ -245,7 +247,7 @@ func (p *Plan) PendingCount() int {
 		if c.Applied {
 			continue
 		}
-		if c.Action != ActionNoop && c.Action != ActionRead && c.Action != ActionOpen && c.Action != ActionCall && c.Action != ActionMove {
+		if c.Action != ActionNoop && c.Action != ActionRead && c.Action != ActionOpen && c.Action != ActionCall && c.Action != ActionMove && c.Action != ActionDefer {
 			n++
 		}
 	}
@@ -259,7 +261,7 @@ func (p *Plan) PendingAddrs() []string {
 		if c.Applied {
 			continue
 		}
-		if c.Action != ActionNoop && c.Action != ActionRead && c.Action != ActionOpen && c.Action != ActionCall && c.Action != ActionMove {
+		if c.Action != ActionNoop && c.Action != ActionRead && c.Action != ActionOpen && c.Action != ActionCall && c.Action != ActionMove && c.Action != ActionDefer {
 			out = append(out, c.Addr)
 		}
 	}
@@ -278,7 +280,7 @@ func (p *Plan) hasProviderChanges() bool {
 		if c.Applied {
 			continue
 		}
-		if c.Action != ActionNoop && c.Action != ActionRead && c.Action != ActionOpen && c.Action != ActionCall && c.Action != ActionMove {
+		if c.Action != ActionNoop && c.Action != ActionRead && c.Action != ActionOpen && c.Action != ActionCall && c.Action != ActionMove && c.Action != ActionDefer {
 			return true
 		}
 	}

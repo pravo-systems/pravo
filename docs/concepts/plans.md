@@ -148,7 +148,7 @@ Graph: planned 2
 | `hints`, `providers` | The hints, and the provider version of each provider. |
 | `format`, `created`, `actor`, `reason`, `git_revision`, `trace_id`, `destroy` | The context of the run. |
 
-A change always has `addr`, `mode`, `type`, `name` and `action`. When they apply, it also has `provider`, `reasons`, `requires_replace`, `before`, `after`, `deferred`, `skipped`, `refreshed`, `drifted`, `applied`, `dependencies`, `dependents` and `warnings`. A value that is not known until apply is `{"$unknown": true}`.
+A change always has `addr`, `mode`, `type`, `name` and `action`. When they apply, it also has `provider`, `reasons`, `requires_replace`, `before`, `after`, `deferred`, `defer_reason`, `skipped`, `refreshed`, `drifted`, `applied`, `dependencies`, `dependents` and `warnings`. A value that is not known until apply is `{"$unknown": true}`.
 
 The plan ran the nodes it changes, deletes, moves or imports, the ephemeral resources it opens and the functions it calls. A node it left alone has no entry. `pravo plan --json --include-skipped` lists it too, as an entry with `addr`, `mode`, `type`, `name`, the action `no-op` and `skipped`. A policy is judged against the document built from the plan file, which has no entry for a node the plan left alone: see [The plan document in a policy](../reference/policies-plan-document.md).
 
@@ -323,6 +323,31 @@ Plan: 1 to add, 0 to change, 0 to destroy.
 `copy` reads `report.filename`, and `report` has a pending create. The read waits.
 
 A data source whose read returned what its record holds is not a change. The apply does not write it, takes no lock for it and leaves its revision as it is. A resource that reads it gets the value of the record. A saved plan that reads the data source stays current while nothing writes it. When the refresh age of the data source is a duration, the plan records the time of the read and keeps the revision, so the next plan within the age does not read it again. With the age `always`, the default, the plan reads the data source every time. With `never` it does not read it until the configuration changes. Neither records the time.
+
+### Changes deferred to the next plan
+
+Some providers cannot plan a resource until a value they need is known. The Kubernetes provider needs the address of the cluster to reach it, and a `kubernetes_manifest` of a kind that a Helm chart installs cannot be planned before the chart is there. pravo tells each provider that it may answer "not yet", and a provider that supports it does so instead of failing the plan. pravo then defers the change to the next plan:
+
+```text
+  # cert_manager (helm_release) is deferred to the next plan
+    Why: the provider cannot plan it yet: provider configuration unknown. The apply leaves it alone, and the next plan plans it.
+  # issuer (kubernetes_manifest) is deferred to the next plan
+    Why: it reads cert_manager, which is deferred. The apply leaves it alone, and the next plan plans it.
+Plan: 1 to add, 0 to change, 0 to destroy, 2 deferred to the next plan.
+```
+
+A deferred change has no planned value, and nothing that reads it can be planned either: a resource or data source that reads it is deferred too, and an output that reads it keeps the value it has. The apply makes the other changes and leaves these alone. Its last line counts them:
+
+```text
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
+2 changes were deferred to the next plan. Plan again: what they wait for is known now.
+```
+
+The next plan has the values that the apply made known, and plans the deferred changes as any other. A plan file and a stored plan keep their deferred changes, and their apply leaves them alone in the same way. A plan defers; an apply does not. A provider that answers "not yet" during an apply for a change the plan did not defer stops it with exit code 3, and the error says to plan again.
+
+In a state that serves an [environment](../reference/spec-environments.md), the note of the apply says how many changes it deferred. The environment runs the release in part: [`pravo environments`](../reference/environments.md) shows it, and [`pravo promote`](../reference/promote.md) does not take the release from it until an apply there defers nothing.
+
+A provider that does not support deferral answers as it always has: with an error, or with a plan that holds unknown values.
 
 ## Scoped plans
 

@@ -769,8 +769,12 @@ func reportApply(res *engine.ApplyResult, destroy bool, kind, planfile, again st
 		if kind == "" {
 			kind = "planfile"
 		}
-		emitLine(map[string]any{"kind": "apply", "phase": "done", "txn": res.Txn, "added": res.Added, "changed": res.Changed,
-			"destroyed": res.Destroyed, "policies": policiesWritten(res.Policies), "outputs": unwrapAll(res.Outputs), kind: planfile, "remaining": remaining})
+		line := map[string]any{"kind": "apply", "phase": "done", "txn": res.Txn, "added": res.Added, "changed": res.Changed,
+			"destroyed": res.Destroyed, "policies": policiesWritten(res.Policies), "outputs": unwrapAll(res.Outputs), kind: planfile, "remaining": remaining}
+		if res.Deferred > 0 {
+			line["deferred"] = res.Deferred
+		}
+		emitLine(line)
 		return
 	}
 	out.Println()
@@ -793,6 +797,13 @@ func reportApply(res *engine.ApplyResult, destroy bool, kind, planfile, again st
 		out.Printf("Policies: +%d new, ~%d changed, -%d removed.\n", added, changed, removed)
 	}
 	out.Printf("%s Resources: %d added, %d changed, %d destroyed. %s\n", out.C(ui.Bold+ui.Green, verb+" complete!"), res.Added, res.Changed, res.Destroyed, out.C(ui.Dim, "[txn "+res.Txn+"]"))
+	if res.Deferred > 0 {
+		noun := "changes were"
+		if res.Deferred == 1 {
+			noun = "change was"
+		}
+		out.Printf("%d %s deferred to the next plan. Plan again: what they wait for is known now.\n", res.Deferred, noun)
+	}
 	if remaining > 0 {
 		noun := "changes remain"
 		if remaining == 1 {

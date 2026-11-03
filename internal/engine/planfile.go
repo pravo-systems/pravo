@@ -120,15 +120,16 @@ type savedChange struct {
 	RequiresReplace []string `json:"requires_replace,omitempty"`
 	Deps            []string `json:"dependencies,omitempty"`
 
-	CreateBeforeDestroy bool `json:"create_before_destroy,omitempty"`
-	PreventDestroy      bool `json:"prevent_destroy,omitempty"`
-	Deferred            bool `json:"deferred,omitempty"`
-	Skipped             bool `json:"skipped,omitempty"`
-	Refreshed           bool `json:"refreshed,omitempty"`
-	Kept                bool `json:"kept,omitempty"`
-	Drifted             bool `json:"drifted,omitempty"`
-	Forced              bool `json:"forced,omitempty"`
-	Fresh               bool `json:"fresh,omitempty"`
+	CreateBeforeDestroy bool   `json:"create_before_destroy,omitempty"`
+	PreventDestroy      bool   `json:"prevent_destroy,omitempty"`
+	Deferred            bool   `json:"deferred,omitempty"`
+	DeferReason         string `json:"defer_reason,omitempty"`
+	Skipped             bool   `json:"skipped,omitempty"`
+	Refreshed           bool   `json:"refreshed,omitempty"`
+	Kept                bool   `json:"kept,omitempty"`
+	Drifted             bool   `json:"drifted,omitempty"`
+	Forced              bool   `json:"forced,omitempty"`
+	Fresh               bool   `json:"fresh,omitempty"`
 
 	// PriorRevision is the state node's revision when the plan was made (0
 	// when the node did not exist), and PriorGeneration its generation (empty
@@ -208,7 +209,7 @@ func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFi
 			Addr: ch.Addr, Mode: ch.Mode, Type: ch.Type, Name: ch.Name, Action: ch.Action, ProviderKey: ch.ProviderKey,
 			ConfigHash: ch.ConfigHash, PriorPrivate: ch.PriorPrivate, PlannedPrivate: ch.PlannedPrivate, CreatePrivate: ch.CreatePrivate,
 			Deps: ch.Deps, CreateBeforeDestroy: ch.CreateBeforeDestroy, PreventDestroy: ch.PreventDestroy,
-			Deferred: ch.Deferred, Skipped: ch.Skipped, Refreshed: ch.Refreshed, Kept: ch.Kept, Drifted: ch.Drifted, Forced: ch.Forced, Fresh: ch.Fresh,
+			Deferred: ch.Deferred, DeferReason: ch.DeferReason, Skipped: ch.Skipped, Refreshed: ch.Refreshed, Kept: ch.Kept, Drifted: ch.Drifted, Forced: ch.Forced, Fresh: ch.Fresh,
 			Imported: ch.Imported, ImportID: ch.ImportID, ImportIdentity: ch.ImportIdentity, MovedFrom: ch.MovedFrom, Reasons: ch.Reasons, Template: ch.Template,
 		}
 		sc.PriorRevision, sc.PriorGeneration = ch.PriorRevision, ch.PriorGeneration
@@ -495,7 +496,7 @@ func (e *Engine) restoreChange(sc savedChange) (*Change, error) {
 		Addr: sc.Addr, Mode: sc.Mode, Type: sc.Type, Name: sc.Name, Action: sc.Action, ProviderKey: sc.ProviderKey,
 		ConfigHash: sc.ConfigHash, PriorPrivate: sc.PriorPrivate, PlannedPrivate: sc.PlannedPrivate, CreatePrivate: sc.CreatePrivate,
 		Deps: sc.Deps, CreateBeforeDestroy: sc.CreateBeforeDestroy, PreventDestroy: sc.PreventDestroy,
-		Deferred: sc.Deferred, Skipped: sc.Skipped, Refreshed: sc.Refreshed, Kept: sc.Kept, Drifted: sc.Drifted, Forced: sc.Forced, Fresh: sc.Fresh,
+		Deferred: sc.Deferred, DeferReason: sc.DeferReason, Skipped: sc.Skipped, Refreshed: sc.Refreshed, Kept: sc.Kept, Drifted: sc.Drifted, Forced: sc.Forced, Fresh: sc.Fresh,
 		Applied: sc.Applied, AppliedTxn: sc.AppliedTxn, Imported: sc.Imported, ImportID: sc.ImportID, ImportIdentity: sc.ImportIdentity, MovedFrom: sc.MovedFrom,
 		Reasons: sc.Reasons, Template: sc.Template, PriorRevision: sc.PriorRevision, PriorGeneration: sc.PriorGeneration,
 	}

@@ -57,8 +57,9 @@ type EnvironmentEntry struct {
 	Sealed bool   `json:"sealed"`
 	// Runs is the newest note of what the state runs.
 	Runs *EnvironmentRun `json:"runs,omitempty"`
-	// Release is how the release of the directory stands here: "runs", "promoted", "waived",
-	// "ready" (every environment before runs it) or empty.
+	// Release is how the release of the directory stands here: "runs", "partial" (its apply
+	// deferred changes to the next plan), "promoted", "waived", "ready" (every environment
+	// before runs it) or empty.
 	Release  string                `json:"release,omitempty"`
 	Promoted *EnvironmentPromotion `json:"promoted,omitempty"`
 	// OtherTags is set when it runs the specification of the directory with other tags.
@@ -76,6 +77,8 @@ type EnvironmentRun struct {
 	At          time.Time `json:"at"`
 	By          string    `json:"by,omitempty"`
 	Verified    bool      `json:"verified"`
+	// Deferred is the number of changes the apply deferred to the next plan.
+	Deferred int `json:"deferred,omitempty"`
 }
 
 // EnvironmentPromotion is the promotion of the release into an environment.

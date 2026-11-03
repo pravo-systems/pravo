@@ -93,6 +93,13 @@ type fakeProvider struct {
 	importable map[string]string
 	// importTargets are the targets that ImportResourceState was asked for.
 	importTargets []plugin.ImportTarget
+	// defersUnknown makes PlanResourceChange answer that it cannot plan a resource
+	// whose content is not known yet, as a provider that allows deferral does for a
+	// kind that a chart installs.
+	defersUnknown bool
+	// defersNamed makes PlanResourceChange of the resource with this name defer,
+	// whatever its content.
+	defersNamed map[string]bool
 }
 
 // canImport makes ImportResourceState find the object with this id.
@@ -451,7 +458,11 @@ func (f *fakeProvider) PlanResourceChange(_ context.Context, _ string, prior, pr
 	_ = m["name"].As(&planned)
 	f.mu.Lock()
 	content, replanned := f.replanned[planned]
+	defers, named := f.defersUnknown, f.defersNamed[planned]
 	f.mu.Unlock()
+	if c, ok := m["content"]; named || ok && defers && !c.IsFullyKnown() {
+		return nil, plugin.Diagnostics{{Severity: plugin.SeverityDeferred, Summary: plugin.DeferredResourceConfigUnknown}}, nil
+	}
 	if replanned {
 		m["content"] = tftypes.NewValue(tftypes.String, content)
 	}

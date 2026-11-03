@@ -90,6 +90,8 @@ func actionSymbol(a engine.Action) (sym, color string) {
 		return "-", Red
 	case engine.ActionRead:
 		return "<=", Cyan
+	case engine.ActionDefer:
+		return "?", Dim
 	}
 	return " ", ""
 }
@@ -106,6 +108,8 @@ func actionVerb(a engine.Action) string {
 		return "will be destroyed"
 	case engine.ActionRead:
 		return "will be read"
+	case engine.ActionDefer:
+		return "is deferred to the next plan"
 	}
 	return "is unchanged"
 }
@@ -172,6 +176,10 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 			header += p.C(Dim, " (already applied in txn "+c.AppliedTxn+")")
 		}
 		p.Println(p.C(Bold, header))
+		if c.Action == engine.ActionDefer {
+			p.Println(p.C(Dim, "    "+deferWhy(c)))
+			continue
+		}
 		if c.Action == engine.ActionNoop {
 			continue
 		}
@@ -204,7 +212,13 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 	if moves > 0 {
 		declared += fmt.Sprintf(", %s to move", p.C(Cyan, strconv.Itoa(moves)))
 	}
+	if n := plan.DeferredCount(); n > 0 {
+		declared += fmt.Sprintf(", %d deferred to the next plan", n)
+	}
 	p.Printf("%s %s to add, %s to change, %s to destroy%s.\n", p.C(Bold, "Plan:"), p.C(Green, strconv.Itoa(add)), p.C(Yellow, strconv.Itoa(change)), p.C(Red, strconv.Itoa(destroy)), declared)
+	if plan.DeferredCount() > 0 {
+		p.Println(p.C(Dim, "A deferred change waits for a value that this apply makes known. Plan again once it is done."))
+	}
 	p.renderPolicies(plan)
 	for _, h := range plan.Hints {
 		p.Println(p.C(Yellow, "Hint: ") + h)
@@ -248,6 +262,15 @@ func noChanges(plan *engine.Plan) string {
 		return fmt.Sprintf("The specification matches the state. %d records were not read; run pravo drift to compare them with the infrastructure.", plan.Stats.NotRead)
 	}
 	return "Your infrastructure matches the configuration."
+}
+
+// deferWhy says why a change is deferred to the next plan, and what happens next.
+func deferWhy(c *engine.Change) string {
+	why := c.DeferReason
+	if why == "" {
+		why = "the provider cannot plan it yet"
+	}
+	return "Why: " + why + ". The apply leaves it alone, and the next plan plans it."
 }
 
 // addrWithType is the address with the provider type beside it, so a reader

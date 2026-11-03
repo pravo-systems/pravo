@@ -45,6 +45,10 @@ normalize:
 | `--only ADDR,...` | none | With a plan file or a plan id: apply these changes now and leave the rest in the file or in the state. Each name must be a change in the plan: a node that the plan left alone has none. The selection must be closed under dependencies. Repeatable, or comma-separated. For a stored plan that is [partly stale](#a-partly-stale-plan), the set that `pravo plan list` and `pravo plan show` print. |
 | `-t`, `--tag key=value`, `-T` | none | Tags, as for `pravo plan`. Refused with a plan file: the plan carries its own tags. With a plan id they must be the ones the plan was made with: see [The tags of a stored plan](#the-tags-of-a-stored-plan). |
 
+### Deferred changes
+
+A change that the plan [deferred to the next plan](../concepts/plans.md#changes-deferred-to-the-next-plan) is left alone, and so is everything that reads it. The apply makes the rest, and a line after `Apply complete!` counts what it left: plan again, since what those changes wait for is known now. With `--json`, the last event has `deferred`, the count.
+
 ### Reads after the apply
 
 When an apply has written its nodes, it reads each of them once more from its provider and records what the provider returns, with no drift mark. A resource that is made later in the same run can change one that was made earlier: a policy attached to a role changes the role, and a queue policy changes the queue. Without the read, the next one finds the records out of date and reports drift that no one caused.
@@ -61,7 +65,7 @@ The [global flags](global-flags.md) apply. With `--json`, a plain apply needs `-
 |---|---|
 | 0 | Applied, or the saved plan has nothing left to apply. |
 | 1 | An error: the prompt was answered with anything but `yes`, a provider failed, the apply was interrupted, a flag does not combine with the form, `--only` names a node that has no change in the plan file, `--json` without `--auto-approve`, an id that no stored plan has, `-t` and `-T` that differ from the ones a stored plan was made with, or a stored plan that cannot be claimed for a reason other than a collection. |
-| 3 | The saved plan is stale, or an apply found that a resource is not what the plan said: a node that another command wrote since, or a provider that plans the resource differently. The reasons follow the error. A stored plan whose time to live ended before it was applied, or that a collection is removing, is refused with this code, and so is a stored plan that is [partly stale](#a-partly-stale-plan) when the apply includes a change that conflicts, as the whole plan does. |
+| 3 | The saved plan is stale, or an apply found that a resource is not what the plan said: a node that another command wrote since, a provider that plans the resource differently, or one that cannot plan it yet although the plan did not defer it. The reasons follow the error. A stored plan whose time to live ended before it was applied, or that a collection is removing, is refused with this code, and so is a stored plan that is [partly stale](#a-partly-stale-plan) when the apply includes a change that conflicts, as the whole plan does. |
 | 4 | Rejected: a node is locked or reserved by another actor, before anything changes, or a lock was taken over while the apply ran (`lock lost`). |
 | 5 | A policy refused the plan, the root declares a policy and the state is not sealed, or a CUE module does not match its lock. The record of the state names another environment, or other environments before it, than the specification does. The environment follows another, its state is sealed, and the release was not promoted into it ([pravo promote](promote.md)). |
 | 6 | The specification does not load or evaluate. |

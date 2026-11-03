@@ -55,6 +55,8 @@ type Summary struct {
 	Change  int `json:"change"`
 	Destroy int `json:"destroy"`
 	Read    int `json:"read"`
+	// Deferred is the number of changes deferred to the next plan.
+	Deferred int `json:"deferred,omitempty"`
 	// BlastRadius is the number of distinct nodes a change touches,
 	// including the dependents recorded in state of every changed node.
 	BlastRadius int `json:"blast_radius"`
@@ -75,13 +77,15 @@ type ChangeView struct {
 	Before          any      `json:"before,omitempty"`
 	After           any      `json:"after,omitempty"`
 	Deferred        bool     `json:"deferred,omitempty"`
-	Skipped         bool     `json:"skipped,omitempty"`
-	Refreshed       bool     `json:"refreshed,omitempty"`
-	Drifted         bool     `json:"drifted,omitempty"`
-	Applied         bool     `json:"applied,omitempty"`
-	Dependencies    []string `json:"dependencies,omitempty"`
-	Dependents      []string `json:"dependents,omitempty"`
-	Warnings        []string `json:"warnings,omitempty"`
+	// DeferReason says why a change of action "defer" waits for the next plan.
+	DeferReason  string   `json:"defer_reason,omitempty"`
+	Skipped      bool     `json:"skipped,omitempty"`
+	Refreshed    bool     `json:"refreshed,omitempty"`
+	Drifted      bool     `json:"drifted,omitempty"`
+	Applied      bool     `json:"applied,omitempty"`
+	Dependencies []string `json:"dependencies,omitempty"`
+	Dependents   []string `json:"dependents,omitempty"`
+	Warnings     []string `json:"warnings,omitempty"`
 	// Template is the template instance that holds the node, when one does.
 	Template *TemplateRef `json:"template,omitempty"`
 }
@@ -148,6 +152,7 @@ func (e *Engine) NewView(plan *Plan, opts ViewOptions) *View {
 	}
 	v.Changes = []ChangeView{}
 	v.Summary.Add, v.Summary.Change, v.Summary.Destroy, v.Summary.Read = plan.Counts()
+	v.Summary.Deferred = plan.DeferredCount()
 	touched := map[string]bool{}
 	var changed []string
 	for _, ch := range plan.Changes {
@@ -211,7 +216,7 @@ func addOutputs(v *View, plan *Plan) {
 // that the state adds.
 func changeViewOf(ch *Change) ChangeView {
 	cv := ChangeView{Addr: ch.Addr, Mode: ch.Mode, Type: ch.Type, Name: ch.Name, Action: ch.Action, Provider: ch.ProviderKey,
-		Reasons: ch.Reasons, Deferred: ch.Deferred, Skipped: ch.Skipped, Refreshed: ch.Refreshed, Drifted: ch.Drifted,
+		Reasons: ch.Reasons, Deferred: ch.Deferred, DeferReason: ch.DeferReason, Skipped: ch.Skipped, Refreshed: ch.Refreshed, Drifted: ch.Drifted,
 		Applied: ch.Applied, Dependencies: ch.Deps, Template: ch.Template}
 	for _, p := range ch.RequiresReplace {
 		if steps := p.Steps(); len(steps) > 0 {

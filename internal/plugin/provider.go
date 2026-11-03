@@ -26,16 +26,32 @@ const CoreVersion = "1.9.8"
 // A write-only attribute is a configuration value that the provider reads and
 // does not store. pravo handles one like any other attribute, so the
 // capability is always announced; a provider built on the plugin framework
-// refuses a non-null write-only attribute without it. pravo does not act on a
-// deferred response, so it never allows deferral.
+// refuses a non-null write-only attribute without it. Deferral lets a provider
+// answer that it cannot plan or read something yet, because a value it needs is
+// not known: the plan defers the change to the next plan (see SeverityDeferred).
 const (
 	writeOnlyAttributesAllowed = true
-	deferralAllowed            = false
+	deferralAllowed            = true
+)
+
+// SeverityDeferred is the severity of the diagnostic that stands for a deferred
+// response: the provider cannot answer the request until a value it needs is
+// known. Summary holds the reason. A deferred diagnostic counts as an error, so
+// that a caller that does not handle deferral fails; a caller that does checks
+// Deferred first.
+const SeverityDeferred = "deferred"
+
+// Deferral reasons, as Deferred returns them.
+const (
+	DeferredProviderConfigUnknown = "provider configuration unknown"
+	DeferredResourceConfigUnknown = "resource configuration unknown"
+	DeferredAbsentPrereq          = "a prerequisite is absent"
+	DeferredUnknownReason         = "no reason given"
 )
 
 // Diagnostic mirrors a provider diagnostic.
 type Diagnostic struct {
-	Severity string // "error" or "warning"
+	Severity string // "error", "warning" or SeverityDeferred
 	Summary  string
 	Detail   string
 	Path     *tftypes.AttributePath
@@ -44,14 +60,30 @@ type Diagnostic struct {
 // Diagnostics is a list of provider diagnostics.
 type Diagnostics []Diagnostic
 
-// HasErrors reports whether any diagnostic is an error.
+// HasErrors reports whether any diagnostic is an error. A deferred response
+// counts as one.
 func (d Diagnostics) HasErrors() bool {
 	for _, x := range d {
-		if x.Severity == "error" {
+		if x.Severity == "error" || x.Severity == SeverityDeferred {
 			return true
 		}
 	}
 	return false
+}
+
+// Deferred returns the reason of a deferred response, and whether the
+// provider deferred.
+func (d Diagnostics) Deferred() (string, bool) {
+	for _, x := range d {
+		if x.Severity == SeverityDeferred {
+			return x.Summary, true
+		}
+	}
+	return "", false
+}
+
+func deferredDiag(reason string) Diagnostic {
+	return Diagnostic{Severity: SeverityDeferred, Summary: reason}
 }
 
 // Err returns the diagnostics as an error if any is an error.
@@ -65,6 +97,10 @@ func (d Diagnostics) Err() error {
 func (d Diagnostics) Error() string {
 	var parts []string
 	for _, x := range d {
+		if x.Severity == SeverityDeferred {
+			parts = append(parts, "the provider cannot answer yet ("+x.Summary+"), and pravo cannot defer this request")
+			continue
+		}
 		if x.Severity != "error" {
 			continue
 		}

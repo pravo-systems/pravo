@@ -478,8 +478,9 @@ func (n *EnvironmentNote) Line(root *config.Root) string {
 // noteRun writes, after a complete apply, the record of the environment if the state has none
 // and a note of what the state now runs. txn is the transaction of the apply, empty for one that
 // found nothing to change; such an apply writes a note only when the newest one names another
-// release.
-func (e *Engine) noteRun(ctx context.Context, admitted *state.Admission, txn string) error {
+// release. deferred is the number of changes the plan deferred to the next plan: the note says
+// that the state runs the release in part, and promote refuses to take it further.
+func (e *Engine) noteRun(ctx context.Context, admitted *state.Admission, txn string, deferred int) error {
 	if e.Root.Environment == "" || e.Opts.Destroy {
 		return nil
 	}
@@ -503,20 +504,23 @@ func (e *Engine) noteRun(ctx context.Context, admitted *state.Admission, txn str
 	}
 	if txn == "" {
 		last, _, err := e.State.LatestRun(ctx, e.clock())
-		if err == nil && rel.Same(last) && last.GitRevision == e.Opts.GitRevision {
+		if err == nil && rel.Same(last) && last.GitRevision == e.Opts.GitRevision && last.Deferred == deferred {
 			if st, _ := last.Verify(e.State.Lineage(), e.Opts.Readers); st == protect.SigVerified || last.Signature == nil && e.State.Sealer() == nil {
 				return nil
 			}
 		}
 	}
-	n := &state.RunNote{Environment: e.Root.Environment, Fingerprint: rel.Fingerprint, Tags: rel.Tags, GitRevision: e.Opts.GitRevision, Txn: txn, Admitted: admitted}
+	n := &state.RunNote{Environment: e.Root.Environment, Fingerprint: rel.Fingerprint, Tags: rel.Tags, GitRevision: e.Opts.GitRevision, Txn: txn, Admitted: admitted, Deferred: deferred}
 	if err := e.State.PutRunNote(ctx, n); err != nil {
 		if errors.Is(err, state.ErrNotReader) {
 			return nil // a reader plans in memory and notes nothing
 		}
 		return fmt.Errorf("noting what %s runs: %w", e.Root.Environment, err)
 	}
-	if txn == "" {
+	switch {
+	case deferred > 0:
+		e.Opts.Progress("Noted that %s runs this release in part: %s deferred to the next plan.", e.Root.Environment, countOf(deferred, "change is", "changes are"))
+	case txn == "":
 		e.Opts.Progress("Noted that %s runs this release.", e.Root.Environment)
 	}
 	return nil
@@ -588,4 +592,12 @@ func Steps(root *config.Root, to string) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// countOf is n with the noun that fits it: "1 change is", "2 changes are".
+func countOf(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return fmt.Sprintf("%d %s", n, many)
 }
