@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -143,5 +144,27 @@ func TestDriftDueClosesWhatItOpened(t *testing.T) {
 	}
 	if o, c := h.fake.called("OpenEphemeral"), h.fake.called("CloseEphemeral"); o != 1 || c != 1 {
 		t.Errorf("opened %d and closed %d ephemeral resources, want 1 and 1", o, c)
+	}
+}
+
+// A provider whose configuration refers to a resource the plan has still to create is
+// configured at the plan with an unknown value. The apply starts it again, after the
+// resource exists, and configures it with the value: what it applies goes where the
+// configuration points.
+func TestApplyConfiguresAgainAProviderThePlanConfiguredWithAnUnknown(t *testing.T) {
+	s := spec{
+		cue:       "base: " + thing("base", "") + "\nprov: {region: \"r-\\(base.id)\"}\na: " + thing("a", "") + "\n",
+		resources: []string{"base", "a"}, providers: map[string]string{"fake": "prov", "fake.docs": "unset"},
+		keys: map[string]string{"base": "fake.docs"},
+	}
+	h := newHarness(t)
+	h.apply(s)
+	var attrs struct{ ID string }
+	n := h.state.Get("base")
+	if n == nil || json.Unmarshal(n.Attributes, &attrs) != nil || attrs.ID == "" {
+		t.Fatalf("base has no id in the state")
+	}
+	if got := h.fake.regions(); len(got) == 0 || got[len(got)-1] != "r-"+attrs.ID {
+		t.Fatalf("regions configured %q, want the last to be %q", got, "r-"+attrs.ID)
 	}
 }
