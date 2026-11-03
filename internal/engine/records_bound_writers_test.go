@@ -252,7 +252,7 @@ func TestFromListMovesTheFirstAddressThatExists(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(t)
 			h.apply(spec{cue: tc.have + ": " + thing("x", `content: "one"`) + "\n", resources: []string{tc.have}})
-			id := fmt.Sprintf("%s", h.state.Get(tc.have).Attributes)
+			id := string(h.state.Get(tc.have).Attributes)
 			id = strings.Join(strings.Fields(id), "")
 			e := h.engine(spec{cue: "c: " + thing("x", `content: "one"`) + "\n", resources: []string{"c"}}, Options{})
 			e.Root.Moves = []config.Move{{From: tc.from, Also: tc.also, To: "c"}}

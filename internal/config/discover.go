@@ -83,9 +83,11 @@ func (r *Root) checkCaseCollisions() error {
 }
 
 type pendingMove struct {
-	to    string
-	from  []string // the addresses the record may have; the first that exists in the state wins
-	group bool // a struct of resources: every record under from moves under to
+	to string
+	// from lists the addresses the record may have; the first that exists in the state wins.
+	from []string
+	// group means a struct of resources: every record under from moves under to.
+	group bool
 }
 
 // resolveMoves turns the $from declarations into moves. A resource's $from is
