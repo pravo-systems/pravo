@@ -189,7 +189,9 @@ func (e *environmentsOf) open(ctx context.Context, name string) *envState {
 		}
 	}
 	if note != nil {
-		if t, err := st.LatestTransaction(); err == nil && t != nil && t.Kind == "destroy" && t.Status == "applied" && t.Started.After(note.At) {
+		// The newest apply or destroy decides: a plan, an edit or a secret set after the
+		// destroy does not bring the environment back.
+		if t, err := st.LatestOfKinds("apply", "destroy"); err == nil && t != nil && t.Kind == "destroy" && t.Status == "applied" && t.Started.After(note.At) {
 			s.Destroyed = true
 		}
 	}
@@ -399,6 +401,11 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 				seq := 1
 				if rec != nil {
 					seq = rec.Seq + 1
+				}
+				// Raising the format of the state is the put of an admin in a bucket with a
+				// policy by role: a writer is told so, with the command, before anything changes.
+				if err := st.EnsureEnvironmentFormat(next.RolesPin != ""); err != nil {
+					return engine.WithCode(engine.ExitRefused, fmt.Errorf("this state does not yet record that it serves %s, and your key cannot write that (%v).\n\nNothing was changed. An admin records it once:\n\n    %s", env, err, engine.RecordCommand(root)))
 				}
 				if err := st.PutEnvironmentRecord(ctx, seq, next); err != nil {
 					return secretErr(fmt.Errorf("recording the state %s follows: %w", env, err))

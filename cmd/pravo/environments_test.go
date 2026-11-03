@@ -686,3 +686,58 @@ func TestPromotionAfterAWithdrawalSaysWhoWithdrewIt(t *testing.T) {
 		t.Fatalf("promote after the withdrawal:\n%s", text)
 	}
 }
+
+// A secret set in a destroyed environment is a transaction after the destroy, and it does not
+// make the environment promotable again: only a new apply does.
+func TestADestroyedEnvironmentStaysDestroyedAfterASecretIsSet(t *testing.T) {
+	l := newLadder(t, "ada")
+	l.must(t, "ada", "apply", "-t", "env=dev", "--auto-approve")
+	l.must(t, "ada", "promote", "staging", "--auto-approve")
+	l.must(t, "ada", "destroy", "-t", "env=staging", "--auto-approve")
+	stdinIs(t, "x")
+	l.must(t, "ada", "secret", "set", "db_password", "-t", "env=staging")
+	text := l.must(t, "ada", "environments")
+	if !strings.Contains(text, "destroyed after it ran this release") {
+		t.Fatalf("environments after the destroy and a secret:\n%s", text)
+	}
+	text, code := l.as(t, "ada", "promote", "prod", "--sign-only")
+	if code != 5 || !strings.Contains(text, "staging was destroyed after it ran this release") {
+		t.Fatalf("promote from a destroyed environment after a secret: exit %d\n%s", code, text)
+	}
+	// A new apply makes it promotable again.
+	l.must(t, "ada", "apply", "-t", "env=staging", "--auto-approve")
+	if text, code := l.as(t, "ada", "promote", "prod", "--sign-only"); code != 0 {
+		t.Fatalf("promote after the apply: exit %d\n%s", code, text)
+	}
+}
+
+// A state mv in a state with roles writes the record bound to its transaction, so that
+// protect status counts it as bound and not as from before the roles.
+func TestStateMvBindsTheRecordItWrites(t *testing.T) {
+	l := newLadder(t, "ada:admin")
+	l.must(t, "ada", "apply", "-t", "env=dev", "--auto-approve")
+	l.must(t, "ada", "state", "mv", "app", "app2", "-t", "env=dev")
+	text := l.must(t, "ada", "protect", "status", "-t", "env=dev")
+	if strings.Contains(text, "before roles") || !strings.Contains(text, "bound to a transaction of a writer") {
+		t.Fatalf("protect status after state mv:\n%s", text)
+	}
+}
+
+// A writer who cannot raise the format of the state is told before the promotion changes
+// anything, with the command an admin runs.
+func TestPromoteWithoutARecordTellsTheWriterWhatAnAdminRuns(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("file permissions do not stop root")
+	}
+	l := newLadder(t, "ada:admin", "bob:writer")
+	l.must(t, "ada", "apply", "-t", "env=dev", "--auto-approve")
+	dir := filepath.Join(l.dir, "state", "staging")
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+	text, code := l.as(t, "bob", "promote", "staging", "--sign-only")
+	if code != 5 || !strings.Contains(text, "Nothing was changed. An admin records it once:") || !strings.Contains(text, "pravo environments record --env staging") {
+		t.Fatalf("promote by a writer without a record: exit %d\n%s", code, text)
+	}
+}

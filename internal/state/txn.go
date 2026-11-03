@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -397,4 +398,44 @@ func (t *Txn) Len() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return len(t.t.Changes)
+}
+
+// LatestOfKinds reads the newest recorded transaction of one of the kinds (such as "apply"
+// and "destroy"), nil when there is none. It goes back from the newest object and stops at
+// the first match, so a plan, an edit or a secret that came after does not hide it.
+func (s *Store) LatestOfKinds(kinds ...string) (*Transaction, error) {
+	keys, err := s.b.List(s.cx(), "txn")
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, k := range keys {
+		if strings.HasSuffix(k, ".json") {
+			ids = append(ids, k)
+		}
+	}
+	sort.Strings(ids)
+	var best *Transaction
+	for i := len(ids) - 1; i >= 0; i-- {
+		at, _, _ := strings.Cut(strings.TrimPrefix(ids[i], "txn/"), "-")
+		if best != nil {
+			// Ids begin with the time to the second: an earlier second cannot be newer.
+			if bat, _, _ := strings.Cut(best.ID, "-"); at != bat {
+				break
+			}
+		}
+		data, err := s.b.Get(s.cx(), ids[i])
+		if err != nil {
+			return nil, err
+		}
+		var t Transaction
+		if json.Unmarshal(data, &t) != nil || ids[i] != "txn/"+t.ID+".json" || !slices.Contains(kinds, t.Kind) {
+			continue
+		}
+		if best == nil || t.Started.After(best.Started) {
+			tt := t
+			best = &tt
+		}
+	}
+	return best, nil
 }
