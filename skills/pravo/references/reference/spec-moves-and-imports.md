@@ -8,7 +8,7 @@ An address is where a resource sits in the specification. A rename, or a move to
 
 | Field | Set on | Value | Effect, when the plan is applied |
 |---|---|---|---|
-| `$from` | a resource or data source | the old address | The record is renamed. The object is not touched. |
+| `$from` | a resource or data source | the old address, or a list of addresses | The record is renamed. The object is not touched. |
 | `$from` | a struct that holds resources | the old path | Every record below the old path moves to the same place below the struct. |
 | `$from` | a provider | the old registry address | Records written under that address are relabelled. |
 | `$import` | a managed resource | the provider's id for the object, or its identity | The provider reads the object at the plan, and what it read becomes the record. |
@@ -125,9 +125,19 @@ Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <id>]
 
 The plan writes nothing: the state holds `hello` until the apply, which renames the record before it walks any node. The nodes that the plan plans see the record at `greeting`, so it compares the right record with the specification. `$from` is harmless after use. Leave it or remove it in a later change. If the old record is gone and the new one exists, the move is complete and nothing happens. Data sources take `$from` too.
 
+### A list of old addresses
+
+The environments of one specification do not all rename at the same time. A development state may already hold `greeting`, staging may hold `hello`, and a state that lags further may still hold the address from before `hello`. Name every address the record can have, and the first one that exists in the state is the one that moves:
+
+```cue
+greeting: $local.#Resource.local_file & {$from: ["hello", "hi"], filename: "hello.txt", content: "hello"}
+```
+
+The state that holds `hi` moves it to `greeting` in one step, so the object is not destroyed and created again. A state that holds `greeting` already is complete and nothing happens. If the record sits at an address in the list and also at the new one, the move is refused as for a single address. On a group, every listed path moves the records below it.
+
 ## $from on a group
 
-`$from` on a struct that holds resources moves every record below the old path to the same place below the struct. This moves an instance of a definition. The definition must accept the field: embed `pravo.#Movable`, which declares `$from?: string`. The definitions generated for resources and data sources declare it already.
+`$from` on a struct that holds resources moves every record below the old path to the same place below the struct. This moves an instance of a definition. The definition must accept the field: embed `pravo.#Movable`, which declares `$from?: string | [...string]`. The definitions generated for resources and data sources declare it already.
 
 File `main.cue`:
 

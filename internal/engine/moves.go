@@ -51,8 +51,29 @@ type movePair struct {
 // expandMove turns a $from declaration into the single moves it stands for.
 func (e *Engine) expandMove(mv config.Move) ([]movePair, error) {
 	if !mv.Prefix {
-		return []movePair{{from: mv.From, to: mv.To, target: e.Root.Resource(mv.To)}}, nil
+		// A list of addresses: the first one that has a record is the one that moves.
+		from := mv.From
+		for _, a := range append([]string{mv.From}, mv.Also...) {
+			if e.State.Get(a) != nil {
+				from = a
+				break
+			}
+		}
+		return []movePair{{from: from, to: mv.To, target: e.Root.Resource(mv.To)}}, nil
 	}
+	var pairs []movePair
+	for _, from := range append([]string{mv.From}, mv.Also...) {
+		more, err := e.expandPrefix(config.Move{From: from, To: mv.To, Prefix: true})
+		if err != nil {
+			return nil, err
+		}
+		pairs = append(pairs, more...)
+	}
+	return pairs, nil
+}
+
+// expandPrefix is expandMove for a group and one old path.
+func (e *Engine) expandPrefix(mv config.Move) ([]movePair, error) {
 	fromP, toP := cue.ParsePath(mv.From), cue.ParsePath(mv.To)
 	if fromP.Err() != nil {
 		return nil, fmt.Errorf("$from %s -> %s: %q is not a path", mv.From, mv.To, mv.From)

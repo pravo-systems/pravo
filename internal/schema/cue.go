@@ -73,7 +73,7 @@ func providerMeta(source string) string {
 // fromMeta lets a resource or data source say where its record used to be.
 const fromMeta = `		// The address the record had before this resource was written here. Moves
 		// the record to this address at the next plan.
-		$from?: __string
+		$from?: __string | [...__string]
 `
 
 // importMeta lets a managed resource adopt an existing object.

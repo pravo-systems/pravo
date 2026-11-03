@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -231,5 +232,45 @@ func TestPlanWithoutRefreshWritesNothing(t *testing.T) {
 	plan(t, e)
 	if got := b.crash.seen.Load() - before; got != 0 {
 		t.Errorf("a plan that reads nothing made %d writes", got)
+	}
+}
+
+// $from may list the addresses a record can have: the first that exists in the state moves,
+// so one specification renames across environments that are at different steps of a chain.
+func TestFromListMovesTheFirstAddressThatExists(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		have     string // the address the state has
+		from     string
+		also     []string
+		wantMove bool
+	}{
+		{"the first address", "a", "a", []string{"b"}, true},
+		{"a later address", "b", "a", []string{"b"}, true},
+		{"already moved", "c", "a", []string{"b"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.apply(spec{cue: tc.have + ": " + thing("x", `content: "one"`) + "\n", resources: []string{tc.have}})
+			id := fmt.Sprintf("%s", h.state.Get(tc.have).Attributes)
+			id = strings.Join(strings.Fields(id), "")
+			e := h.engine(spec{cue: "c: " + thing("x", `content: "one"`) + "\n", resources: []string{"c"}}, Options{})
+			e.Root.Moves = []config.Move{{From: tc.from, Also: tc.also, To: "c"}}
+			p := plan(t, e)
+			if got := p.Changes != nil && changeOf(t, p, "c").Action == ActionMove; got != tc.wantMove {
+				t.Fatalf("a move is planned = %v, want %v", got, tc.wantMove)
+			}
+			if _, err := e.Apply(context.Background(), p); err != nil {
+				t.Fatal(err)
+			}
+			h.reopen()
+			n := h.state.Get("c")
+			if n == nil || h.state.Get(tc.have) != nil && tc.have != "c" {
+				t.Fatalf("the record is not at c only: c=%v %s=%v", n != nil, tc.have, h.state.Get(tc.have) != nil)
+			}
+			if got := strings.Join(strings.Fields(string(n.Attributes)), ""); tc.wantMove && got != id {
+				t.Errorf("the object changed: %s, was %s", got, id)
+			}
+		})
 	}
 }
