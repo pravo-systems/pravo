@@ -129,6 +129,16 @@ func TestALadderTakesOnlyWhatWasPromoted(t *testing.T) {
 	}
 	l.must(t, "ada", "apply", "-t", "env=prod", "--auto-approve")
 
+	// Promoting what prod already runs signs nothing and applies nothing.
+	text = l.must(t, "ada", "promote", "prod", "--auto-approve")
+	if !strings.Contains(text, "prod already runs this release") || !strings.Contains(text, "applied by ada") || !strings.Contains(text, "promoted by ada") ||
+		!strings.Contains(text, "Nothing to promote.") || strings.Contains(text, "Apply complete!") {
+		t.Fatalf("promote prod again:\n%s", text)
+	}
+	if es, _ := os.ReadDir(filepath.Join(l.dir, "state", "prod", "promotions")); len(es) != 1 {
+		t.Fatalf("promote again signed another promotion: %d", len(es))
+	}
+
 	text = l.must(t, "ada", "environments", "--json")
 	var ladder struct {
 		Flow         string

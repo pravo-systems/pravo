@@ -278,7 +278,7 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s has no state yet, and a promotion is kept in it, signed. Seal one first: pravo protect init --encrypt --env %s", env, env))
 	}
 	envs := &environmentsOf{root: root}
-	var line string
+	var line, already string
 	err = func() error {
 		st, err := openStateStore(ctx, root)
 		if err != nil {
@@ -318,6 +318,12 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 		rel, err := engine.ReleaseOf(root)
 		if err != nil {
 			return err
+		}
+		if o.revoke == "" && o.waive == "" {
+			if msg := alreadyRuns(ctx, st, envs, env, gate, rec, rel, eff.Readers); msg != "" {
+				already = msg
+				return nil
+			}
 		}
 		p := &state.Promotion{Kind: state.PromotionPromoted, Environment: env, Fingerprint: rel.Fingerprint, Tags: rel.Tags, Note: o.note}
 		switch {
@@ -376,6 +382,15 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 	if err != nil {
 		return err
 	}
+	if already != "" {
+		if flags.JSON {
+			rel, _ := engine.ReleaseOf(root)
+			emitLine(map[string]any{"kind": "already_running", "environment": env, "fingerprint": rel.Fingerprint})
+		} else {
+			out.Println(already)
+		}
+		return nil
+	}
 	if o.revoke != "" || o.signOnly {
 		if !flags.JSON {
 			out.Println(line)
@@ -392,6 +407,28 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 	// The apply is the one "pravo apply" makes. Where the policies of the environment ask for
 	// approvals it is refused, and says how to store the plan.
 	return runApply(cmd, o.refresh, o.full, o.autoApprove, false, nil)
+}
+
+// alreadyRuns says that env already runs the release, or "" when it does not: its newest
+// note, signed there by a writer, names the release, and a promotion of the release still
+// counts. Promoting again would sign a second promotion and apply nothing new.
+func alreadyRuns(ctx context.Context, st *state.Store, envs *environmentsOf, env string, gate []string, rec *state.EnvironmentRecord, rel engine.Release, readers []protect.Reader) string {
+	now := time.Now()
+	note, _, err := st.LatestRun(ctx, now)
+	if err != nil || note == nil || !rel.Same(note) || engine.NoteProblem(note, env, st.Lineage(), readers, now) != "" {
+		return ""
+	}
+	c := engine.GateReader{State: st, Environment: env, Readers: readers, Upstream: envs.readers, Now: now}.Check(ctx, gate, rec, rel)
+	if !c.Met || c.Admission == nil {
+		return ""
+	}
+	_, by := note.Verify(st.Lineage(), readers)
+	how := "promoted"
+	if c.Admission.Kind == state.PromotionWaived {
+		how = "let in by a waiver"
+	}
+	return fmt.Sprintf("%s already runs this release (%s): applied by %s %s ago, %s by %s. Nothing to promote.\nTo bring %s back in line with it, apply it again:\n\n    %s",
+		env, engine.ShortID(rel.Fingerprint), engine.PlainText(by), engine.RoundAge(now.Sub(note.At)), how, engine.PlainText(c.Admission.By), env, engine.ApplyCommand(envs.root, env))
 }
 
 func mustCurrent(root *config.Root) config.Environment {

@@ -41,6 +41,10 @@ pravo promote prod -t image=1.4
 
 `--waive` and `--revoke` exclude each other. The readers file of ENVIRONMENT is the one that `--access-dir`, `PRAVO_ACCESS_DIR`, `$settings.access.dir` of that environment or `.pravo/access` names, in this order. The readers file of each environment before it is the one that its own `$settings.access.dir` names, else `.pravo/access`.
 
+## When it already runs the release
+
+When the newest note of ENVIRONMENT names the release of this directory, and a promotion of that release still counts there, `promote` says so, signs nothing, applies nothing and exits 0. To bring ENVIRONMENT back in line with the release, apply it again with `pravo apply --env ENVIRONMENT`. A promotion withdrawn by `--revoke` does not count, so after it `promote` signs a new one.
+
 ## What is checked
 
 Before it signs, `promote` checks:
