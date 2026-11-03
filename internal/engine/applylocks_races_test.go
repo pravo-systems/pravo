@@ -400,7 +400,8 @@ func TestMoveWritesDependentsUnderTheirLocks(t *testing.T) {
 }
 
 // The locks of an apply are not renewed before the first heartbeat, and the
-// heartbeat does not come within two minutes.
+// heartbeat does not come within two minutes. The one write that each create makes
+// to its lock is the note that a create began (see MarkCreating).
 func TestNoLockIsWrittenTwiceInAShortApply(t *testing.T) {
 	if state.HeartbeatInterval < 2*time.Minute {
 		t.Fatalf("the heartbeat is %s", state.HeartbeatInterval)
@@ -410,8 +411,8 @@ func TestNoLockIsWrittenTwiceInAShortApply(t *testing.T) {
 	p := plan(t, e)
 	h.backend.Reset()
 	apply(t, e, p)
-	if got := h.backend.Count("Put", "locks"); got != 0 {
-		t.Errorf("%d lock writes in an apply of 20 nodes", got)
+	if got := h.backend.Count("Put", "locks"); got != 20 {
+		t.Errorf("%d lock writes in an apply of 20 creates, want the 20 notes of a create", got)
 	}
 	if got := h.backend.Count("PutIfAbsent", "locks"); got != 20 {
 		t.Errorf("%d locks taken, want 20", got)

@@ -31,6 +31,10 @@ type Lock struct {
 	// RenewedAt is bumped by the holder's heartbeat; a lock not renewed for
 	// StaleAfter may be reclaimed.
 	RenewedAt time.Time `json:"renewed_at"`
+	// Creating is set by the holder just before it asks a provider to create the object, and
+	// stays until the lock is released: a lock that went stale with it set belongs to a
+	// command that stopped while a create may have reached the cloud.
+	Creating bool `json:"creating,omitempty"`
 	// Stale is set by Locks on a lock that may be reclaimed. It is not stored.
 	Stale bool `json:"stale,omitempty"`
 }
@@ -450,6 +454,42 @@ func (s *Store) Renew(addr string) error {
 			return nil, false
 		}
 		l.RenewedAt = time.Now().UTC()
+		data, _ := indentJSON(l)
+		return data, true
+	})
+	switch {
+	case err != nil:
+		return err
+	case ok:
+		return nil
+	case broken != nil:
+		return fmt.Errorf("the lock on %s cannot be read: %w", addr, broken)
+	}
+	if other.Addr == "" {
+		other.Addr = addr
+	}
+	return &ErrLocked{Lock: other}
+}
+
+// MarkCreating notes on the lock this process holds for addr that a provider is about to
+// be asked to create the object, so that a command that stops from here on leaves a lock
+// that says so. The note is written before the call is made.
+func (s *Store) MarkCreating(addr string) error {
+	var (
+		other  Lock
+		broken error
+	)
+	ok, err := s.b.ReplaceIf(s.cx(), lockKey(addr), func(current []byte) ([]byte, bool) {
+		var l Lock
+		if err := json.Unmarshal(current, &l); err != nil {
+			broken = err
+			return nil, false
+		}
+		if l.Nonce != s.nonce {
+			other = l
+			return nil, false
+		}
+		l.Creating = true
 		data, _ := indentJSON(l)
 		return data, true
 	})

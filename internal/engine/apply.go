@@ -204,6 +204,13 @@ func (e *Engine) applyChange(ctx context.Context, prov plugin.Provider, ch *Chan
 			return nil, err
 		}
 	}
+	// A create is noted on the lock before the provider is asked, so that an apply that is
+	// killed from here on is known to have maybe created the object.
+	if prior.IsNull() && !planned.IsNull() && e.held != nil {
+		if err := e.State.MarkCreating(ch.Addr); err != nil {
+			return nil, fmt.Errorf("%s: noting the create on its lock: %w", ch.Addr, err)
+		}
+	}
 	what := mutation(prior, planned)
 	e.fly(ch.Addr, what)
 	// The provider finishes what it began. A run that stops starting tasks, because
@@ -409,6 +416,9 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			}
 			return &ApplyResult{Outputs: map[string]json.RawMessage{}, Deferred: plan.DeferredCount()}, nil
 		}
+	}
+	if err := e.checkInterruptedCreates(plan); err != nil {
+		return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
 	}
 	e.txn = e.State.Begin(kind, e.Opts.Command)
 	e.txn.SetPlan(e.planID, e.planDigest)

@@ -477,7 +477,7 @@ func addRunFlags(cmd *cobra.Command, refresh *string, full *bool) {
 func applyCmd() *cobra.Command {
 	var refresh string
 	var autoApprove, full bool
-	var only, replace, allowDestroy []string
+	var only, replace, allowDestroy, allowCreate []string
 	var webhook string
 	cmd := &cobra.Command{
 		Use:   "apply [planfile|plan-id]",
@@ -500,18 +500,19 @@ func applyCmd() *cobra.Command {
 					return errors.New("-replace is decided when the plan is made: use \"pravo plan -replace <addr> -out <file>\"")
 				}
 				if isStoredRef(args[0]) {
-					return applyStored(cmd, args[0], refresh, full, only, webhook)
+					return applyStored(cmd, args[0], refresh, full, only, webhook, allowCreate)
 				}
-				return applySaved(cmd, args[0], refresh, full, only)
+				return applySaved(cmd, args[0], refresh, full, only, allowCreate)
 			}
 			if len(only) > 0 {
 				return errors.New("-only applies to a saved plan: run \"pravo plan -out <file>\" first, then \"pravo apply <file> -only ...\"")
 			}
-			return runApply(cmd, refresh, full, autoApprove, false, replace, allowDestroy)
+			return runApply(cmd, refresh, full, autoApprove, false, replace, allowDestroy, allowCreate)
 		},
 	}
 	cmd.Flags().StringSliceVar(&replace, "replace", nil, "destroy and create this resource again even though the specification did not change (repeatable)")
 	cmd.Flags().StringSliceVar(&allowDestroy, "allow-destroy", nil, "with --auto-approve: a resource whose $lifecycle.prevent_destroy went with its block that the plan may destroy (repeatable)")
+	cmd.Flags().StringSliceVar(&allowCreate, "allow-create", nil, "a resource to create although an apply that stopped may already have created it: you know the create never reached the cloud (repeatable)")
 	cmd.Flags().StringSliceVar(&only, "only", nil, "with a saved plan: apply only these resources (and nothing they depend on is left out); the rest of the plan stays in the file")
 	cmd.Flags().StringVar(&webhook, "webhook", "", "with a stored plan: POST a plan.applied event, or a plan.refused one when the apply fails, as JSON to this URL")
 	addRunFlags(cmd, &refresh, &full)
@@ -529,7 +530,7 @@ func destroyCmd() *cobra.Command {
 		Short: "Destroy every resource recorded in state",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runApply(cmd, refresh, true, autoApprove, true, nil, allowDestroy)
+			return runApply(cmd, refresh, true, autoApprove, true, nil, allowDestroy, nil)
 		},
 	}
 	cmd.Flags().StringVar(&refresh, "refresh", "age", "when to read real state from providers: age, expired, false or all")
@@ -542,7 +543,7 @@ func destroyCmd() *cobra.Command {
 
 // applySaved applies a plan file: no prompt, and every change is checked
 // against the saved one.
-func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []string) error {
+func applySaved(cmd *cobra.Command, path, refresh string, full bool, only, allowCreate []string) error {
 	ctx := cmd.Context()
 	streamEvents = true
 	if sealed, _ := engine.PlanFileSealed(path); !sealed && (len(flags.Tags) > 0 || flags.SysTags) {
@@ -574,7 +575,7 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	if flags.Reason == "" {
 		flags.Reason = pf.Reason
 	}
-	eng := s.engine(engine.Options{Refresh: engine.RefreshNone})
+	eng := s.engine(engine.Options{Refresh: engine.RefreshNone, AllowCreate: allowCreate})
 	eng.SetPlan("", pf.Digest)
 	mark := func(applied []string, txn string, pending []string, finished bool) error {
 		mark := engine.MarkApplied
@@ -700,7 +701,7 @@ func reportPartial(p *pravo.PartialApply, name string) {
 	out.Printf("%d %s applied before the error and %s recorded in %s; %s.\n", p.Count, noun, are, name, p.Next)
 }
 
-func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy bool, replace, allowDestroy []string) error {
+func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy bool, replace, allowDestroy, allowCreate []string) error {
 	ctx := cmd.Context()
 	streamEvents = true
 	mode, err := parseRefresh(refresh)
@@ -712,7 +713,7 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 		return err
 	}
 	defer s.close()
-	eng := s.engine(engine.Options{Refresh: mode, Destroy: destroy, Full: full, Replace: replace})
+	eng := s.engine(engine.Options{Refresh: mode, Destroy: destroy, Full: full, Replace: replace, AllowCreate: allowCreate})
 	plan, err := eng.Plan(ctx)
 	if err != nil {
 		return err
@@ -769,7 +770,7 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 			return errors.New("apply cancelled")
 		}
 	}
-	opts := engine.Options{Refresh: mode, Destroy: destroy, Full: full, Replace: replace}
+	opts := engine.Options{Refresh: mode, Destroy: destroy, Full: full, Replace: replace, AllowCreate: allowCreate}
 	for round := 1; ; round++ {
 		res, err := eng.Apply(ctx, plan)
 		if err != nil {

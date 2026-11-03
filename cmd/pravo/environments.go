@@ -468,7 +468,7 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 	}
 	// The apply is the one "pravo apply" makes. Where the policies of the environment ask for
 	// approvals it is refused, and says how to store the plan.
-	return runApply(cmd, o.refresh, o.full, o.autoApprove, false, nil, nil)
+	return runApply(cmd, o.refresh, o.full, o.autoApprove, false, nil, nil, nil)
 }
 
 // storePromotedPlan stores the plan of the apply in the state, as "pravo plan --store" does.

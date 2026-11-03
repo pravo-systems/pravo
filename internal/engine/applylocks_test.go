@@ -984,7 +984,8 @@ func TestOverlappingAppliesLoseNoRecord(t *testing.T) {
 
 // Against a backend where every call takes 10 ms, an apply that creates 501
 // resources takes the time of its writes and not of its locks: each node costs
-// one lock, one read to check it, one write and one release.
+// one lock, one read to check it, one write that notes the create on the lock
+// (a read and a write), one write and one release.
 func TestApplyOverASlowBackend(t *testing.T) {
 	const n = 501
 	delay := 10 * time.Millisecond
@@ -1017,9 +1018,9 @@ func TestApplyOverASlowBackend(t *testing.T) {
 	}{
 		{"PutIfAbsent", "locks", n},
 		{"Get", "resources", n},
-		{"Get", "locks", n},
+		{"Get", "locks", 2 * n},
 		{"Delete", "locks", n},
-		{"Put", "locks", 0},
+		{"Put", "locks", n},
 	}...) {
 		if got := h.backend.Count(c.op, c.prefix); got != c.want {
 			t.Errorf("%s on %s: %d calls, want %d", c.op, c.prefix, got, c.want)

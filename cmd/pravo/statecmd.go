@@ -594,10 +594,24 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// The lock of an apply that stopped while it created a node is the only trace of
+			// the create: releasing it ends the refusal to create the node again.
+			creating := map[string]bool{}
+			if suspects, err := st.Suspects(); err == nil {
+				for a, l := range suspects {
+					creating[a] = l.Creating
+				}
+			}
+			note := func(a string) {
+				if creating[a] && st.Get(a) == nil {
+					out.Printf("  %s has no record: an apply stopped while it was creating it. Look for the object in the cloud (pravo discover) before the next apply, or the next apply will create it again.\n", a)
+				}
+			}
 			if stale {
 				released, err := st.ReleaseStale()
 				for _, a := range released {
 					out.Printf("Unlocked %s\n", a)
+					note(a)
 				}
 				if err != nil {
 					return err
@@ -615,6 +629,7 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 				out.Printf("%s was not locked\n", args[0])
 			} else {
 				out.Printf("Unlocked %s\n", args[0])
+				note(args[0])
 			}
 			return nil
 		},

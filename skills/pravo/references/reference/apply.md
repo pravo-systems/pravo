@@ -22,6 +22,7 @@ Plan, ask for confirmation and apply, or apply a saved plan or a plan stored in 
 |---|---|---|
 | `--auto-approve` | off | Apply without asking. |
 | `--allow-destroy ADDR` | none | With `--auto-approve`: a resource that carried `$lifecycle.prevent_destroy` and whose block is gone, which the plan may destroy. Without it, `--auto-approve` refuses such a plan. Repeatable, or comma-separated. |
+| `--allow-create ADDR` | none | A resource to create although an apply that was killed while it created the resource left its lock behind and the state has no record of it. The object may exist already, so the apply refuses to create it again: it exits 5 and changes nothing. This flag says that you know the create never reached the cloud. Adopt the object with `pravo discover` or `pravo import` instead when it exists. Repeatable, or comma-separated. Works with a plan file and a stored plan too. |
 | `--refresh=age\|expired\|false\|all` | `age` | As for [`pravo plan`](plan.md#refresh). Refused with a plan file or a plan id. |
 | `--full` | off | As for `pravo plan`. Refused with a plan file or a plan id. |
 | `--replace ADDR` | none | As for `pravo plan`. Refused with a plan file or a plan id: the replacement is decided when the plan is made. |
