@@ -1,0 +1,124 @@
+/* The Environments view and the environment button of the top bar. Tokens only, so that it follows the theme. Square
+   throughout: the promotion flow is a flow from left to right, a box for each environment and a line between the steps. */
+
+/* environments: copies of one specification, stacked; the promotion flow: a release that goes from one box on to the next */
+.i-envs { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1.6 5.6h8.8v8.8H1.6zM5.6 5.6V1.6h8.8v8.8h-4' fill='none' stroke='black' stroke-width='1.2'/%3E%3C/svg%3E"); }
+.i-flow { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1 6.5h3.5v3.5H1zM11.5 1.5H15V5h-3.5zM11.5 11H15v3.5h-3.5z' fill='black'/%3E%3Cpath d='M4.5 8.25h3M7.5 3.25v9.5M7.5 3.25h2.4M7.5 12.75h2.4' fill='none' stroke='black' stroke-width='1.2'/%3E%3Cpath d='M9.6 1.6l1.9 1.65-1.9 1.65zM9.6 11.1l1.9 1.65-1.9 1.65z' fill='black'/%3E%3C/svg%3E"); }
+
+/* ---- the button of the top bar: which environment the page reads, and how many wait for a step ---- */
+.envsw { position: relative; display: inline-flex; align-items: center; gap: .45rem; align-self: stretch; margin-left: .9rem; padding: 0 .7rem; border: 0; border-left: 1px solid var(--line); border-right: 1px solid var(--line); background: none; color: var(--text-2); font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; transition: color var(--t-fast), background var(--t-fast); }
+.envsw:hover { color: var(--text); background: var(--surface-2); }
+.envsw[aria-pressed="true"] { color: var(--text); background: var(--accent-wash); }
+.envsw .i { width: .95rem; height: .95rem; color: var(--text-3); }
+.envsw[aria-pressed="true"] .i { color: var(--accent); }
+.envsw .nm { font: 500 var(--fs-3)/1 var(--font-mono); letter-spacing: 0; text-transform: none; color: var(--text); white-space: nowrap; }
+.envsw .cnt { display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.1rem; padding: 0 .3rem; font: 600 var(--fs-1)/1 var(--font-mono); letter-spacing: 0; color: var(--surface); background: var(--change); }
+:root[data-theme="dark"] .envsw .cnt { color: var(--bg); }
+.envsw .cnt[hidden] { display: none; }
+/* Opening another environment: the button names where it goes and its mark blinks; the page under the card is the one
+   before, dimmed and out of reach until the new one is shown. */
+.envsw.going { color: var(--text); cursor: progress; }
+.envsw.going .i { color: var(--accent); animation: busy-blink 1.1s steps(2, jump-none) infinite; }
+.envsw.going .cnt { display: none; }
+.env-busy { position: absolute; inset: 0; z-index: 50; display: grid; place-items: center; padding: 1rem; background: color-mix(in srgb, var(--bg) 60%, transparent); cursor: progress; animation: ui-fade .16s ease; }
+.env-busy .busy { width: min(24rem, 100%); }
+.env-busy-d { margin: 0; color: var(--text-2); font: 400 var(--fs-2)/1.5 var(--font-ui); text-wrap: pretty; }
+.env-busy-d code { font-family: var(--font-mono); color: var(--text); }
+@media (prefers-reduced-motion: reduce) { .envsw.going .i, .env-busy { animation: none; } }
+:root[data-motion="off"] .envsw.going .i, :root[data-motion="off"] .env-busy { animation: none; }
+
+/* ---- the menu of the button: a switch is one choice, and the graph stays where it was ---- */
+.env-menu { position: fixed; z-index: 60; min-width: 17rem; max-width: min(24rem, calc(100vw - 2rem)); max-height: calc(100vh - 6rem); overflow: auto; padding: .35rem 0; border: 1px solid var(--line-strong); background: var(--surface); box-shadow: var(--shadow-1); animation: ui-fade .12s ease; }
+.em-h { margin: 0; padding: .45rem .9rem .35rem; font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+.em-fl { margin-left: .6rem; font: 500 var(--fs-2)/1 var(--font-mono); letter-spacing: 0; text-transform: none; color: var(--text-2); }
+.em-row { display: flex; align-items: flex-start; gap: .65rem; width: 100%; padding: .5rem .9rem; border: 0; background: none; color: var(--text-2); text-align: left; cursor: pointer; }
+.em-row:hover, .em-row:focus-visible { background: var(--surface-2); color: var(--text); outline: none; }
+.em-row:focus-visible { box-shadow: inset 2px 0 0 var(--accent); }
+.em-mk { flex: none; width: .6rem; height: .6rem; margin-top: .3rem; border: 1px solid var(--text-3); }
+.em-row.on .em-mk { border-color: var(--accent); background: var(--accent); }
+.em-tx { display: grid; gap: .25rem; min-width: 0; }
+.em-nm { display: flex; align-items: center; gap: .5rem; font: 500 var(--fs-3)/1.2 var(--font-mono); color: var(--text); }
+.em-tag { font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.em-ln { font: 400 var(--fs-2)/1.35 var(--font-ui); color: var(--text-3); overflow-wrap: anywhere; }
+.em-ln.ok { color: var(--accent); }
+.em-ln.chg { color: var(--change); }
+.em-ln.bad { color: var(--conflict); }
+.em-sep { margin: .35rem 0; border: 0; border-top: 1px solid var(--line); }
+.em-page > .i { flex: none; width: .95rem; height: .95rem; margin-top: .05rem; color: var(--text-3); }
+.em-pg { font: 500 var(--fs-3)/1.2 var(--font-ui); color: var(--text); }
+@media (prefers-reduced-motion: reduce) { .env-menu { animation: none; } }
+:root[data-motion="off"] .env-menu { animation: none; }
+
+.envs-pane { overflow: auto; padding: var(--page-pad); }
+.envs-pane :is(button, [tabindex]) { scroll-margin: .5rem; }
+.ev { display: grid; gap: 1.6rem; width: 100%; max-width: 72rem; margin: 0 auto; }
+.ev .h { margin: 0 0 .8rem; }
+.ev-sec { min-width: 0; }
+.ev code { font: 400 var(--fs-2)/1.4 var(--font-mono); overflow-wrap: anywhere; }
+.ev .dim { color: var(--text-3); }
+.ev-empty { margin: 0; padding: .8rem 1rem; border: 1px dashed var(--line-strong); color: var(--text-2); font-size: var(--fs-3); max-width: 46rem; }
+
+/* ---- the page: it has the whole width, and none of the Inventory's filters, plan or counts ---- */
+[data-view="environments"] .toolbar, [data-view="environments"] #pills { display: none; }
+body:has(.app[data-view="environments"]) .planstrip, body:has(.app[data-view="environments"]) #st-plan, body:has(.app[data-view="environments"]) #st-notread { display: none; }
+.app[data-view="environments"] { grid-template-columns: minmax(0, 1fr); }
+.app[data-view="environments"] .insp { display: none; }
+
+.ev-head { --hc: var(--accent); }
+.ev-head.chg { --hc: var(--change); }
+.ev-order { margin-left: .7rem; font: 500 var(--fs-3)/1 var(--font-mono); letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.ev-lede { margin: .45rem 0 0; max-width: 50rem; color: var(--text-2); font-size: var(--fs-5); line-height: 1.55; text-wrap: pretty; }
+
+/* ---- the promotion flow: columns of boxes, by step, with a line and an arrowhead between them ---- */
+.ev-lad { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: .4rem; }
+.ev-col { display: flex; flex-direction: column; gap: .8rem; flex: none; }
+.ev-flow { position: relative; flex: none; width: 2.4rem; align-self: stretch; }
+.ev-flow::before { content: ""; position: absolute; top: 1.35rem; left: .2rem; right: .45rem; border-top: 1px solid var(--line-strong); }
+.ev-arrow { position: absolute; top: 1.35rem; right: .2rem; width: 0; height: 0; margin-top: -.3rem; border-top: .3rem solid transparent; border-bottom: .3rem solid transparent; border-left: .45rem solid var(--line-strong); }
+
+.ev-box { --c: var(--line-strong); display: grid; gap: .55rem; align-content: start; width: 17rem; padding: .75rem .85rem .85rem; border: 1px solid var(--line-strong); border-top: 3px solid var(--c); background: var(--surface); }
+.ev-box.ok { --c: var(--accent); }
+.ev-box.chg { --c: var(--change); }
+.ev-box.bad { --c: var(--conflict); }
+.ev-box.reading { outline: 1px solid var(--accent); outline-offset: 2px; }
+.ev-name { display: flex; align-items: baseline; flex-wrap: wrap; gap: .35rem .5rem; }
+.ev-name code { font: 600 var(--fs-4)/1.2 var(--font-mono); color: var(--text); }
+.ev-tag { padding: .16rem .38rem; border: 1px solid var(--line-strong); font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.ev-tag.on { border-color: color-mix(in srgb, var(--accent) 60%, transparent); color: var(--accent); background: var(--accent-wash); }
+.ev-after { margin: -.2rem 0 0; font-size: var(--fs-2); color: var(--text-3); }
+.ev-after code { color: var(--text-2); }
+.ev-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .25rem .7rem; margin: 0; padding: .5rem 0 0; border-top: 1px dashed var(--line); }
+.ev-f { display: contents; }
+.ev-f dt { font: 600 var(--fs-1)/1.5 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
+.ev-f dd { margin: 0; min-width: 0; font-size: var(--fs-3); color: var(--text); overflow-wrap: anywhere; }
+.ev-st { display: flex; align-items: baseline; gap: .45rem; margin: 0; font-size: var(--fs-3); line-height: 1.45; color: var(--text-2); }
+.ev-st.ok { color: var(--accent); }
+.ev-st.chg { color: var(--change); }
+.ev-st.bad { color: var(--conflict); }
+.ev-st .i { flex: none; width: .85rem; height: .85rem; margin-top: .1rem; }
+.ev-dot { flex: none; width: .5rem; height: .5rem; background: currentColor; transform: translateY(-.05rem); }
+.ev-note { margin: 0; font-size: var(--fs-2); line-height: 1.45; color: var(--text-3); }
+.ev-open { justify-self: start; padding: .35rem .7rem; font-size: var(--fs-2); }
+.ev-cmd { display: flex; gap: .6rem; width: fit-content; max-width: 100%; padding: .4rem .3rem .4rem .7rem; font-size: var(--fs-2); box-shadow: none; }
+.ev-cmd code { min-width: 0; overflow-wrap: anywhere; }
+.ev-box .ev-cmd { width: 100%; }
+
+.ev-rel { margin: 0 0 .6rem; font-size: var(--fs-4); color: var(--text-2); }
+.ev-foot { margin: 0; padding-top: .8rem; border-top: 1px solid var(--line); font: 400 var(--fs-2)/1.4 var(--font-mono); color: var(--text-3); }
+
+@media (max-width: 47.5em) {
+  .envs-pane { padding: .75rem .75rem 2rem; }
+  .ev-lad { flex-direction: column; overflow-x: visible; }
+  .ev-flow { width: auto; height: 1.6rem; }
+  .ev-flow::before { inset: .2rem auto .45rem 1.2rem; border-top: 0; border-left: 1px solid var(--line-strong); }
+  .ev-arrow { inset: auto auto .2rem calc(1.2rem - .3rem); margin-top: 0; border-left: .3rem solid transparent; border-right: .3rem solid transparent; border-top: .45rem solid var(--line-strong); border-bottom: 0; }
+  .ev-box { width: 100%; }
+  .envsw { margin-left: .4rem; padding: 0 .45rem; }
+  .envsw .k { display: none; }
+}
+/* A phone has room for the mark only: the name is in the label of the button and on the page, and a count sits over the mark. */
+@media (max-width: 40em) {
+  .envsw { margin-left: 0; padding: 0 .35rem; }
+  .envsw .nm { display: none; }
+  .envsw .cnt { position: absolute; top: .4rem; right: -.05rem; min-width: .95rem; height: .85rem; padding: 0 .2rem; font-size: .5625rem; }
+}

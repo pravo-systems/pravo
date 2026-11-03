@@ -202,7 +202,14 @@ func RemoteBackend(ctx context.Context, st config.StateConfig, e env.Env) (state
 	if st.Backend == "http" {
 		token := st.Token
 		if token == "" && st.Username == "" {
-			token = e.Get("PRAVO_STATE_TOKEN")
+			name := st.TokenEnv
+			if name == "" {
+				name = "PRAVO_STATE_TOKEN"
+			}
+			token = e.Get(name)
+			if token == "" && st.TokenEnv != "" {
+				return nil, fmt.Errorf("the state at %s is opened with the token in %s, which is not set ($settings.state.token_env)", st.URL, st.TokenEnv)
+			}
 		}
 		return state.NewHTTPBackend(state.HTTPConfig{URL: st.URL, Token: token, Username: st.Username, Password: st.Password})
 	}

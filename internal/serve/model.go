@@ -78,6 +78,9 @@ type model struct {
 	// secs is the secrets of the state set against the specification, and its bytes.
 	secs     *Secrets
 	secsJSON []byte
+	// envJSON is the answer of /api/environments, read once for the model when it is asked for.
+	envOnce sync.Once
+	envJSON []byte
 	// secRules are the rules the versions of the secrets were judged by, for the history of one secret.
 	secRules state.RecordRules
 
@@ -156,7 +159,7 @@ func (s *Server) newModel(ctx context.Context, rev string, ss *specState, store 
 
 	// The protection of the state, and the records that cannot be opened: they are
 	// listed without a value, whatever the store returned for them.
-	accessPath := s.accessPath()
+	accessPath := s.accessPath(root)
 	m.acc = newAccessModel(s.protection(ctx, store, accessPath), store)
 
 	// The nodes: every declared resource and every record, and the outputs, which
@@ -875,6 +878,7 @@ func (m *model) project() Project {
 	p := Project{Dir: m.srv.opts.Dir, Version: m.srv.opts.Version, LoadedAt: m.built, SpecError: m.spec.err}
 	if m.spec.root != nil {
 		p.Package = m.spec.root.PkgName
+		p.Environment, p.Environments = m.spec.root.Environment, m.spec.root.EnvironmentNames()
 	}
 	backend := "local"
 	if m.root != nil && m.root.State.Backend != "" {

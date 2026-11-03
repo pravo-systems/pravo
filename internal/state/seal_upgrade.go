@@ -124,6 +124,9 @@ func (s *Store) upgradeSealed(ctx context.Context, o UpgradeOptions) (UpgradeRes
 	if err := s.redactHistory(ctx); err != nil {
 		return res, err
 	}
+	if err := s.dropEnvironmentAdvice(ctx); err != nil {
+		return res, err
+	}
 	if err := s.sweepRecords(func(group string) bool { return group != "" }); err != nil {
 		return res, err
 	}

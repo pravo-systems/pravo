@@ -412,6 +412,8 @@ func TestScrubCommand(t *testing.T) {
 		"pravo apply -t k=v -t j=w plan.json":           "pravo apply -t k=" + mask + " -t j=" + mask + " " + mask,
 		"pravo apply --password two words --yes":        "pravo apply --password " + mask + " " + mask + " --yes",
 		"pravo apply --tag=a=b":                         "pravo apply --tag=a=" + mask,
+		"pravo apply --env prod --auto":                 "pravo apply --env " + mask + " --auto",
+		"pravo apply --env=prod":                        "pravo apply --env=" + mask,
 		"pravo apply -ta=b":                             "pravo apply -ta=" + mask,
 		"pravo apply --password x":                      "pravo apply --password " + mask,
 		"pravo apply --api_key=x":                       "pravo apply --api_key=" + mask,

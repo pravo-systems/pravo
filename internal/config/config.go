@@ -7,12 +7,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -134,6 +136,18 @@ type Root struct {
 	StatePath string
 	// State holds the remote state settings when $settings.state.backend is set.
 	State StateConfig
+	// AccessDir is $settings.access.dir: the directory of the readers file of this
+	// root's state, as written (relative to Dir unless absolute). Empty when unset.
+	AccessDir string
+	// Environments are the rows of $environments, in the order of the promotion flow (see
+	// environments.go). Nil for a specification that declares none.
+	Environments []Environment
+	// Environment is the environment the root was loaded for: the one -t env= names, or
+	// the default row. Empty when the specification declares no environments.
+	Environment string
+	// Tags are the tags the specification was evaluated with, as "name=value": the -t
+	// values without the selector of the environment.
+	Tags []string
 	// Refresh is the default refresh age from $settings.refresh.
 	Refresh string
 	// Moves are the $from declarations: the record at From now belongs to
@@ -224,6 +238,9 @@ type StateConfig struct {
 	Token    string
 	Username string
 	Password string
+	// TokenEnv names the environment variable that holds the token of the http
+	// backend. Empty means PRAVO_STATE_TOKEN.
+	TokenEnv string
 }
 
 // Remote reports whether the state is on a server and not in a directory.
@@ -244,6 +261,13 @@ type LoadOptions struct {
 	// relative to the package directory. Nothing is written. The viewer uses it to
 	// load the specification as it would be with a snippet pasted in.
 	Extra map[string]string
+
+	// environment is the environment that Load picked, for the settings that are read
+	// again while the package loads: Tags no longer holds the selector then.
+	environment string
+	// declaredOnly reads $environments without selecting one of them, for a command that
+	// looks at them all.
+	declaredOnly bool
 }
 
 // stage starts the span of a stage of loading.
@@ -266,17 +290,54 @@ func Load(dir string, opts LoadOptions) (*Root, error) {
 	if err != nil {
 		return nil, err
 	}
-	opts.Env = RegistryEnv(opts.Env, abs)
-	if overlay := pruneOverlay(abs, opts.Env); len(overlay) > 0 {
-		if r, err := loadPackage(abs, files, opts, extraOverlay(abs, overlay, opts.Extra)); err == nil {
-			r.Pruned = true
-			return r, nil
+	// A specification that declares environments is loaded for one of them: the
+	// selector comes off the tags, and $environment is filled in by a file laid over the
+	// package.
+	var envs []Environment
+	env := ""
+	if mayDeclareEnvironments(abs, files) {
+		src, err := readSettingsSource(abs, opts)
+		if err != nil {
+			return nil, err
 		}
-		// Whatever failed is loaded again with the packages whole, which is how a
-		// type that the scan missed is found, and how the message names a position
-		// in the file on disk.
+		if src.envs != nil {
+			envs, env = src.envs, src.env
+			extra := map[string]string{}
+			for k, v := range opts.Extra {
+				extra[k] = v
+			}
+			extra[envOverlayName] = environmentFile(src.pkg, env)
+			opts.Tags, opts.Extra, opts.environment = src.tags, extra, env
+		}
 	}
-	return loadPackage(abs, files, opts, extraOverlay(abs, nil, opts.Extra))
+	opts.Env = RegistryEnv(opts.Env, abs)
+	r, err := func() (*Root, error) {
+		if overlay := pruneOverlay(abs, opts.Env); len(overlay) > 0 {
+			if r, err := loadPackage(abs, files, opts, extraOverlay(abs, overlay, opts.Extra)); err == nil {
+				r.Pruned = true
+				return r, nil
+			}
+			// Whatever failed is loaded again with the packages whole, which is how a
+			// type that the scan missed is found, and how the message names a position
+			// in the file on disk.
+		}
+		return loadPackage(abs, files, opts, extraOverlay(abs, nil, opts.Extra))
+	}()
+	if err != nil {
+		if env != "" {
+			err = fmt.Errorf("%w\n(evaluated for the environment %s)", err, env)
+		}
+		return nil, err
+	}
+	r.Tags = opts.Tags
+	if envs != nil {
+		r.Environments, r.Environment = envs, env
+		r.Sources = slices.DeleteFunc(r.Sources, func(f string) bool { return f == filepath.Join(abs, envOverlayName) })
+		if err := r.checkEnvironments(opts); err != nil {
+			return nil, err
+		}
+	}
+	return r, nil
 }
 
 // extraOverlay adds the files of LoadOptions.Extra to an overlay.
@@ -444,9 +505,9 @@ func (r *Root) extractSettings(v cue.Value) error {
 	if fs, err := v.Fields(); err == nil {
 		for fs.Next() {
 			switch name := fs.Selector().Unquoted(); name {
-			case "state", "refresh":
+			case "state", "refresh", "access":
 			default:
-				return fmt.Errorf("$settings.%s is not a setting (the block takes state and refresh)", name)
+				return fmt.Errorf("$settings.%s is not a setting (the block takes state, access and refresh)", name)
 			}
 		}
 	}
@@ -459,6 +520,13 @@ func (r *Root) extractSettings(v cue.Value) error {
 		if path != "" {
 			r.StatePath = path
 		}
+	}
+	if ab := v.LookupPath(cue.ParsePath("access")); ab.Exists() {
+		dir, err := parseAccess(ab)
+		if err != nil {
+			return err
+		}
+		r.AccessDir = dir
 	}
 	if rp := v.LookupPath(cue.ParsePath("refresh")); rp.Exists() {
 		s, err := rp.String()
@@ -492,39 +560,134 @@ func LoadSettingsWith(dir string, opts LoadOptions) (*Root, error) {
 // loadSettings is LoadSettingsWith that also returns the environment variables
 // that the block reads through a pravo.#Env and that have no value.
 func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, notes envNotes, err error) {
-	abs, err := filepath.Abs(dir)
+	src, err := readSettingsSource(dir, opts)
 	if err != nil {
 		return nil, notes, err
+	}
+	ctx := src.ctx
+	otherDecls, notes := readableDecls(ctx, src.others, opts.Env)
+	build := func(decls []ast.Decl) (cue.Value, error) { return compileDecls(ctx, decls) }
+	v, err := build(append(append([]ast.Decl{}, otherDecls...), src.pravoDecls...))
+	if err != nil {
+		// Something the block does not need could not be evaluated; read the
+		// block on its own.
+		if v, err = build(src.pravoDecls); err != nil {
+			return nil, notes, fmt.Errorf("evaluating pravo settings:\n%s", cueerrors.Details(err, nil))
+		}
+	}
+	r := &Root{Dir: src.abs, PkgName: src.pkg, Ctx: ctx, Value: v, Providers: map[string]*ProviderReq{}, StatePath: DefaultStatePath, ModRoot: FindModuleRoot(src.abs),
+		Environments: src.envs, Environment: src.env}
+	if settings := v.LookupPath(cue.MakePath(cue.Str("$settings"))); settings.Exists() {
+		if err := r.extractSettings(settings); err != nil {
+			if src.env != "" {
+				err = fmt.Errorf("%w\n(in the settings of the environment %s)", err, src.env)
+			}
+			return nil, notes, err
+		}
+	}
+	if !scan {
+		return r, notes, nil
+	}
+	// The providers the code needs are the ones whose definitions it imports;
+	// the module, not just this root, may import them.
+	scanDir := src.abs
+	if r.ModRoot != "" {
+		scanDir = r.ModRoot
+	}
+	reqs, err := ScanProviders(scanDir)
+	if err != nil {
+		return nil, notes, err
+	}
+	r.Providers = reqs
+	return r, notes, nil
+}
+
+// settingsSource is what the settings of a root are read from without the imports:
+// the declarations of the block, and the other top-level declarations it may refer to.
+type settingsSource struct {
+	abs, pkg string
+	ctx      *cue.Context
+	// pravoDecls are $settings, $environments and the $environment that pravo fills,
+	// each with the references into imported packages taken out.
+	pravoDecls []ast.Decl
+	others     candidates
+	// envs and env are the environments that $environments declares and the one this
+	// read is for; nil and "" without $environments.
+	envs []Environment
+	env  string
+	// files are the files of the package, as the loader parsed them.
+	files []*ast.File
+	// tags are the tags that the CUE loader was given: the selector -t env= is not one
+	// of them when the specification declares environments.
+	tags []string
+}
+
+// readSettingsSource parses the files of the package in dir, with the tags injected and the
+// imports unresolved, and gathers what $settings may refer to. When the files declare
+// $environments, it reads them, picks the environment of the run, and adds the
+// declaration of $environment.
+func readSettingsSource(dir string, opts LoadOptions) (*settingsSource, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, err
 	}
 	names, err := checkPackageClauses(abs)
 	if err != nil {
-		return nil, notes, err
+		return nil, err
 	}
-	var files []*ast.File
-	pkg := ""
-	if len(names) > 0 {
+	src := &settingsSource{abs: abs, ctx: cuecontext.New(), tags: opts.Tags}
+	parse := func(tags []string) error {
+		src.files, src.pkg = nil, ""
+		if len(names) == 0 {
+			return nil
+		}
 		// The loader reads the files and injects the tags; the imports stay
 		// unresolved.
-		cfg := &load.Config{Dir: abs, Tags: opts.Tags, SkipImports: true, Env: loaderEnv(opts.Env)}
+		cfg := &load.Config{Dir: abs, Tags: tags, SkipImports: true, Env: loaderEnv(opts.Env)}
 		if opts.SysTags {
 			cfg.TagVars = load.DefaultTagVars()
 		}
 		insts := load.Instances([]string{"."}, cfg)
 		if len(insts) == 0 {
-			return nil, notes, fmt.Errorf("no CUE package found in %s", abs)
+			return fmt.Errorf("no CUE package found in %s", abs)
 		}
 		if insts[0].Err != nil {
-			return nil, notes, fmt.Errorf("loading %s:\n%s", abs, cueerrors.Details(insts[0].Err, nil))
+			return fmt.Errorf("loading %s:\n%s", abs, cueerrors.Details(insts[0].Err, nil))
 		}
-		files, pkg = insts[0].Files, insts[0].PkgName
+		src.files, src.pkg = insts[0].Files, insts[0].PkgName
+		return nil
 	}
-	ctx := cuecontext.New()
+	envName, envGiven := "", false
+	withEnvs := mayDeclareEnvironments(abs, names)
+	if withEnvs {
+		src.tags, envName, envGiven = splitEnvTag(opts.Tags)
+		if opts.environment != "" {
+			envName, envGiven = opts.environment, true
+		}
+	}
+	if err := parse(src.tags); err != nil {
+		return nil, err
+	}
+	if withEnvs && !topEnvironments(src.files) {
+		// The text looked like a declaration and is not one at the top level: the tags are
+		// the specification's own.
+		withEnvs, src.tags = false, opts.Tags
+		if envGiven {
+			if err := parse(src.tags); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if withEnvs {
+		if where := envTagField(abs, src.files); where != "" {
+			return nil, fmt.Errorf("%s: a field carries @tag(%s), and $environments selects the environment with --env NAME: remove the tag, and read the name as $environment.$name", where, EnvTag)
+		}
+	}
 	// The pravo block is read before the imports can resolve. It may refer to
 	// other top-level fields (a tagged env, say), so those that do not
 	// themselves depend on an import are included.
-	var pravoDecls []ast.Decl
-	var others candidates
-	for _, f := range files {
+	var envDecls []ast.Decl
+	for _, f := range src.files {
 		if strings.HasSuffix(f.Filename, "_gen.cue") {
 			continue
 		}
@@ -545,14 +708,15 @@ func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, notes en
 		}
 		for _, d := range f.Decls {
 			if let, ok := d.(*ast.LetClause); ok {
-				others = append(others, candidate{decl: let, val: let.Expr, label: let.Ident.Name, imports: mentionsAny(let.Expr, aliases)})
+				src.others = append(src.others, candidate{decl: let, val: let.Expr, label: let.Ident.Name, imports: mentionsAny(let.Expr, aliases)})
 				continue
 			}
 			fld, ok := d.(*ast.Field)
 			if !ok {
 				continue
 			}
-			if name, _, _ := ast.LabelName(fld.Label); name == "$settings" {
+			switch name, _, _ := ast.LabelName(fld.Label); {
+			case name == "$settings" || (withEnvs && name == "$environments"):
 				// $settings: pravo.#Settings & {...} is read as $settings: {...}.
 				cp := *fld
 				if v := dropImportRefs(fld.Value, aliases); v != nil {
@@ -560,8 +724,11 @@ func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, notes en
 				} else {
 					cp.Value = &ast.StructLit{}
 				}
-				pravoDecls = append(pravoDecls, &cp)
-			} else {
+				src.pravoDecls = append(src.pravoDecls, &cp)
+				if name == "$environments" {
+					envDecls = append(envDecls, &cp)
+				}
+			default:
 				c := candidate{decl: fld, val: fld.Value, label: name}
 				// A pravo.#Env is read from its variable, as the run does, so
 				// that a setting can name a bucket by one.
@@ -569,41 +736,51 @@ func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, notes en
 					c.val, c.env = plain, true
 				}
 				c.imports = mentionsAny(c.val, aliases)
-				others = append(others, c)
+				// A definition of your own, such as #Row: pravo.#Environment & {...}, and a
+				// typed $environment: #Row are read without the schema, as $settings is, so
+				// that the rows can be typed by it.
+				if c.imports && (strings.HasPrefix(name, "#") || name == "$environment") {
+					if v := dropImportRefs(c.val, aliases); v != nil && !mentionsAny(v, aliases) {
+						// What the schema allowed, such as $after, stays allowed.
+						v = &ast.StructLit{Elts: []ast.Decl{&ast.EmbedDecl{Expr: v}, &ast.Ellipsis{}}}
+						cp := *fld
+						cp.Value = v
+						c.decl, c.val, c.imports = &cp, v, false
+					}
+				}
+				src.others = append(src.others, c)
 			}
 		}
 	}
-	otherDecls, notes := readableDecls(ctx, others, opts.Env)
-	build := func(decls []ast.Decl) (cue.Value, error) { return compileDecls(ctx, decls) }
-	v, err := build(append(append([]ast.Decl{}, otherDecls...), pravoDecls...))
+	if !withEnvs {
+		return src, nil
+	}
+	// The rows may refer to other top-level fields, as the settings may.
+	otherDecls, _ := readableDecls(src.ctx, src.others, opts.Env)
+	ev, err := compileDecls(src.ctx, append(append([]ast.Decl{}, otherDecls...), envDecls...))
 	if err != nil {
-		// Something the block does not need could not be evaluated; read the
-		// block on its own.
-		if v, err = build(pravoDecls); err != nil {
-			return nil, notes, fmt.Errorf("evaluating pravo settings:\n%s", cueerrors.Details(err, nil))
+		first := err
+		if ev, err = compileDecls(src.ctx, envDecls); err != nil {
+			// The rows need the fields beside them, such as a #Row that types them: the first
+			// error says what is wrong with the rows.
+			return nil, fmt.Errorf("evaluating $environments:\n%s", cueerrors.Details(first, nil))
 		}
 	}
-	r := &Root{Dir: abs, PkgName: pkg, Ctx: ctx, Value: v, Providers: map[string]*ProviderReq{}, StatePath: DefaultStatePath, ModRoot: FindModuleRoot(abs)}
-	if settings := v.LookupPath(cue.MakePath(cue.Str("$settings"))); settings.Exists() {
-		if err := r.extractSettings(settings); err != nil {
-			return nil, notes, err
-		}
+	if src.envs, err = parseEnvironments(ev.LookupPath(cue.MakePath(cue.Str("$environments")))); err != nil {
+		return nil, err
 	}
-	if !scan {
-		return r, notes, nil
+	if opts.declaredOnly {
+		return src, nil
 	}
-	// The providers the code needs are the ones whose definitions it imports;
-	// the module, not just this root, may import them.
-	scanDir := abs
-	if r.ModRoot != "" {
-		scanDir = r.ModRoot
+	if src.env, err = selectEnvironment(src.envs, envName, envGiven); err != nil {
+		return nil, err
 	}
-	reqs, err := ScanProviders(scanDir)
+	decls, err := environmentDecls(src.env)
 	if err != nil {
-		return nil, notes, err
+		return nil, err
 	}
-	r.Providers = reqs
-	return r, notes, nil
+	src.pravoDecls = append(src.pravoDecls, decls...)
+	return src, nil
 }
 
 // StateFile returns the absolute path of the state directory.
@@ -781,6 +958,35 @@ func mentionsAny(e ast.Expr, names map[string]bool) bool {
 	return found
 }
 
+// envVarRe is what the name of an environment variable may be.
+var envVarRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// parseAccess reads $settings.access: the directory of the readers file.
+func parseAccess(ab cue.Value) (string, error) {
+	if fs, err := ab.Fields(); err == nil {
+		for fs.Next() {
+			if name := fs.Selector().Unquoted(); name != "dir" {
+				return "", fmt.Errorf("$settings.access.%s is not a setting (the block takes dir)", name)
+			}
+		}
+	}
+	d := ab.LookupPath(cue.ParsePath("dir"))
+	if !d.Exists() {
+		return "", nil
+	}
+	s, err := d.String()
+	if err != nil {
+		if !d.IsConcrete() {
+			return "", fmt.Errorf("$settings.access.dir is not concrete: %w\n(if it depends on the environment, write it with $environment.$name)", err)
+		}
+		return "", fmt.Errorf("$settings.access.dir: %w", err)
+	}
+	if strings.TrimSpace(s) == "" {
+		return "", errors.New("$settings.access.dir is empty: leave it out to use .pravo/access")
+	}
+	return s, nil
+}
+
 // parseState reads a state location, as it appears in $settings.state and in
 // a pravo.#RemoteOutputs: the s3 settings, or a local directory path. label
 // names it in errors.
@@ -819,7 +1025,7 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 	fields := map[string]*string{
 		"backend": &st.Backend, "bucket": &st.Bucket, "prefix": &st.Prefix, "region": &st.Region,
 		"endpoint": &st.Endpoint, "profile": &st.Profile, "access_key": &st.AccessKey, "secret_key": &st.SecretKey,
-		"url": &st.URL, "token": &st.Token, "username": &st.Username, "password": &st.Password,
+		"url": &st.URL, "token": &st.Token, "username": &st.Username, "password": &st.Password, "token_env": &st.TokenEnv,
 	}
 	for name, dst := range fields {
 		if *dst, err = str(name); err != nil {
@@ -857,7 +1063,7 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 		}
 	}
 	if st.Backend != "http" {
-		for _, f := range []string{"url", "token", "username", "password"} {
+		for _, f := range []string{"url", "token", "username", "password", "token_env"} {
 			if sb.LookupPath(cue.ParsePath(f)).Exists() {
 				return st, "", fmt.Errorf("%s.%s belongs to the http backend: set backend: \"http\", or remove it", label, f)
 			}
@@ -875,6 +1081,12 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 		}
 		if st.Token != "" && (st.Username != "" || st.Password != "") {
 			return st, "", fmt.Errorf("%s: set token, or username and password, not both", label)
+		}
+		if st.TokenEnv != "" && st.Token != "" {
+			return st, "", fmt.Errorf("%s: set token, or token_env, not both: token_env names the variable that holds the token", label)
+		}
+		if st.TokenEnv != "" && !envVarRe.MatchString(st.TokenEnv) {
+			return st, "", fmt.Errorf("%s.token_env: %q is not the name of an environment variable; it names the variable that holds the token, never the token", label, st.TokenEnv)
 		}
 	}
 	return st, path, nil

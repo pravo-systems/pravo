@@ -146,7 +146,9 @@ Presence says where a node is written.
 </svg>
 :::
 
-The page words presence as the state of the record. A node that is `both` and has no mark reads `in sync`. A node that is `spec` reads `declared only`, and `status:declared` finds it. A node that is `state` reads `orphan`, and `status:orphan` finds it.
+The page words presence as the state of the record. A node that is `both` and has no mark reads `in sync`. A node that is `spec` reads `declared only`, and `status:declared` finds it. The graph marks it with a filled square among the marks at the right of the node, whose tip says `declared only`, or `not published` on an output, and the legend names it. A group carries the square with the number of such resources: filled when none of its resources exists yet, half filled when some already do, and its tip says, for example, `2 of 3 declared only`. A click on the square shows only what is declared only; `status:declared` does the same. A node that is `state` reads `orphan`, and `status:orphan` finds it.
+
+A state that holds no record of anything that the specification declares, such as an environment where nothing was applied yet, makes every resource `spec`. A note above the graph then says that nothing is created yet and names the command that creates it.
 
 A specification that does not load cannot say what is declared. The viewer then shows the state alone, marks every node `state` and shows the error from the specification as a warning. The nodes are still the records that exist.
 

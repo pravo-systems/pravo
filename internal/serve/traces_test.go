@@ -239,3 +239,22 @@ func TestSpanKinds(t *testing.T) {
 		}
 	}
 }
+
+// A run is judged by its exit code: spans that failed on the way, as calls that a provider
+// stopped waiting for, do not make a command that ended with 0 a failed one.
+func TestTracesJudgeARunByItsExitCode(t *testing.T) {
+	rt := sampleRun("")
+	rt.Spans[0].Attrs["pravo.exit_code"] = 0.0
+	if got := summarize(traceA, rt); got.Status != "ok" || got.Errors != 1 {
+		t.Fatalf("exit 0 with a failed span: %+v", got)
+	}
+	delete(rt.Spans[0].Attrs, "pravo.exit_code")
+	if got := summarize(traceA, rt); got.Status != "unfinished" {
+		t.Fatalf("no exit code: %+v", got)
+	}
+	rt.Spans[0].Attrs["pravo.exit_code"] = 6.0
+	rt.Spans[2].Status = ""
+	if got := summarize(traceA, rt); got.Status != "error" || got.Errors != 0 {
+		t.Fatalf("exit 6 and no failed span: %+v", got)
+	}
+}

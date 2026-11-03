@@ -2,9 +2,9 @@
 
 # Settings
 
-The $settings block. It sets where the state lives and the default refresh age, and nothing else.
+The $settings block. It sets where the state lives, where its readers file is and the default refresh age, and nothing else.
 
-`$settings` is the one top-level field that pravo reads for itself. It takes two keys. Any other key is an error.
+`$settings` is the one top-level field that pravo reads for itself, besides [`$environments`](spec-environments.md). It takes three keys. Any other key is an error.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
@@ -12,6 +12,7 @@ The $settings block. It sets where the state lives and the default refresh age, 
 | `state.backend` | `"local"`, `"s3"` or `"http"` | `"local"` | Where the state is kept. A `bucket` without a `backend` selects `"s3"`. |
 | `state.bucket` and the other S3 keys | string, bool | none | The S3 backend. See [S3 keys](#s3-keys). |
 | `state.url` and the other HTTP keys | string | none | The http backend. See [HTTP keys](#http-keys). |
+| `access.dir` | string | `.pravo/access` | Directory of the readers file of the state, relative to the root. See [access](#access). |
 | `refresh` | `"always"`, `"never"` or a duration | `"always"` | The default [refresh age](glossary.md#refresh-age) of every resource. |
 
 Write the block as `pravo.#Settings & {...}`. The schema comes from the generated `pravo.dev/pravo` package. It lets editors complete the keys, and CUE rejects a misspelt key or a value of the wrong type. Work in an empty directory.
@@ -23,10 +24,14 @@ package demo
 
 import "pravo.dev/pravo"
 
-env: *"dev" | "staging" | "prod" @tag(env)
+$environments: pravo.#Environments & {
+	dev: {$default: true}
+	staging: {}
+	prod: {}
+}
 
 $settings: pravo.#Settings & {
-	state: path: "state/\(env)"
+	state: path: "state/\($environment.$name)"
 	refresh: "1h"
 }
 ```
@@ -34,7 +39,7 @@ $settings: pravo.#Settings & {
 ```sh
 pravo init
 pravo eval -e '$settings.state.path'
-pravo eval -t env=prod -e '$settings.state.path'
+pravo eval --env prod -e '$settings.state.path'
 pravo eval -e '$settings.refresh'
 ```
 
@@ -51,7 +56,7 @@ pravo has been initialised. Run "pravo plan" to see what it would do.
 "1h"
 ```
 
-The state path depends on the tag `env`. When `env` has no default and no tag is given, the path is not concrete, and pravo says so:
+The block is read once for each environment, so the state path follows `--env`. [Environments](spec-environments.md) describes `$environments`. A setting can also depend on a tag of your own. When the tag has no default and no `-t` gives it, the path is not concrete, and pravo says so:
 
 File `main.cue`:
 
@@ -134,19 +139,19 @@ Error: evaluating .:
 $settings.state: 4 errors in empty disjunction:
 $settings.state.backend: 2 errors in empty disjunction:
 $settings.state.backend: conflicting values "http" and "s3":
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:241:10
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:255:17
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:258:32
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:243:10
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:293:17
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:296:32
     ./main.cue:5:12
     ./main.cue:6:19
 $settings.state.backend: conflicting values "local" and "s3":
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:241:10
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:255:33
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:277:12
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:243:10
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:293:33
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:316:12
     ./main.cue:5:12
     ./main.cue:6:19
 $settings.state.path: field not allowed:
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:259:2
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:297:2
     ./main.cue:6:48
 ```
 
@@ -182,6 +187,7 @@ The graph can live in an S3 bucket or in any store that speaks the S3 API. The l
 | `region` | Region to sign for. Default: the AWS configuration, then `us-east-1`. |
 | `endpoint` | Service URL of an S3-compatible store. Implies path-style addressing. |
 | `path_style` | Forces path-style addressing: `host/bucket/key`. |
+| `profile` | A profile of the shared AWS configuration to open the bucket with, in place of `AWS_PROFILE`. With `$environments`, each environment can name its own, so that a run reads the state of another environment with that environment's credentials. |
 | `snapshot` | `false` keeps pravo from reading the state through `snapshot.json`, an object that holds a copy of every resource, which makes opening a state with thousands of resources one read and a listing. Default: `true`. See [State format](state-format.md). |
 | `access_key`, `secret_key` | Static credentials, used when both are set. They are stored in the configuration. |
 
@@ -226,9 +232,10 @@ The graph can live on a server that speaks pravo's object protocol over HTTP: on
 | `backend` | `"http"`. Required for these keys. |
 | `url` | The base URL of the state, such as `https://state.example.com/team/app`. It must be an `http` or `https` URL with no user name, query or fragment. Required. |
 | `token` | A bearer token. Default: the environment variable `PRAVO_STATE_TOKEN`, when `username` is not set. |
+| `token_env` | The name of the environment variable that holds the bearer token, in place of `PRAVO_STATE_TOKEN`. A variable that is not set is an error. With `$environments`, each environment can name its own. It cannot be given with `token`. |
 | `username`, `password` | Basic authentication, used when there is no token. |
 
-A token or password in the specification is stored in the configuration. Prefer `PRAVO_STATE_TOKEN`.
+A token or password in the specification is stored in the configuration. Prefer `PRAVO_STATE_TOKEN`, or `token_env`, which names a variable and holds no secret.
 
 File `main.cue`:
 
@@ -275,6 +282,42 @@ Output:
 Error: $settings.state.backend: unknown backend "gcs" (want local, s3 or http)
 ```
 
+## access
+
+`access.dir` is the directory of the readers file of the state, `readers.txt`, relative to the root. It decides who may read a sealed state and which role each reader has ([pravo protect](protect.md)). Without it, pravo looks in `.pravo/access` of the root and of each parent directory up to the one that holds `.git`. `--access-dir` and `PRAVO_ACCESS_DIR` take precedence over it.
+
+With `$environments`, give each environment a directory of its own, and a writer of staging is not a writer of prod:
+
+File `main.cue`:
+
+```cue
+package demo
+
+import "pravo.dev/pravo"
+
+$environments: pravo.#Environments & {
+	staging: {$default: true}
+	prod: {$after: "staging"}
+}
+
+$settings: pravo.#Settings & {
+	state: path: "state/\($environment.$name)"
+	access: dir: ".pravo/access/\($environment.$name)"
+}
+```
+
+```sh
+pravo eval -e '$settings.access.dir' --env prod
+```
+
+Output:
+
+```text
+".pravo/access/prod"
+```
+
+`pravo promote` checks the note of each environment before against the readers file that the `access.dir` of that environment names ([pravo promote](promote.md#flags)).
+
 ## refresh
 
 `refresh` is the default refresh age: how old a record may be before a plan that looks at the resource reads it from its provider again. A plan looks at the resources it reaches and at the resources they read; the rest are not read, whatever their age. See [Plans](../concepts/plans.md#refresh-age).
@@ -309,16 +352,16 @@ Output:
 Error: evaluating .:
 $settings.refresh: 3 errors in empty disjunction:
 $settings.refresh: conflicting values "always" and "soon":
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:245:12
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:255:12
     ./main.cue:5:12
     ./main.cue:5:40
 $settings.refresh: conflicting values "never" and "soon":
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:245:23
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:255:23
     ./main.cue:5:12
     ./main.cue:5:40
 $settings.refresh: invalid value "soon" (out of bound =~"^[0-9]+(ms|s|m|h|d)$"):
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:245:33
-    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:245:12
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:255:33
+    ./cue.mod/gen/pravo.dev/pravo/settings_gen.cue:255:12
     ./main.cue:5:40
 ```
 
@@ -344,7 +387,7 @@ Error: $settings.refresh: "soon" is not a refresh age; want "always", "never" or
 
 ## Unknown keys
 
-`$settings` takes `state` and `refresh`. A plan policy is a `pravo.#Policy` node of the root, and `$settings` has no key for it. See [Policies](policies-overview.md#naming-a-policy).
+`$settings` takes `state`, `access` and `refresh`. A plan policy is a `pravo.#Policy` node of the root, and `$settings` has no key for it. See [Policies](policies-overview.md#naming-a-policy).
 
 File `main.cue`:
 
@@ -361,11 +404,11 @@ pravo validate
 Output:
 
 ```text
-Error: $settings.policy is not a setting (the block takes state and refresh)
+Error: $settings.policy is not a setting (the block takes state, access and refresh)
 ```
 
 ## See also
 
 - [Keep the state in a shared store](../how-to/keep-the-state-in-a-shared-store.md) moves a root to S3.
-- [Run one specification in several environments](../how-to/environments.md) computes the state path from a tag.
+- [Run one specification in several environments](../how-to/environments.md) computes the state path from the environment, and [Environments](spec-environments.md) describes `$environments`.
 - [State format](state-format.md) describes the files that `state.path` holds, and [Plans](../concepts/plans.md#refresh-age) explains the refresh age.

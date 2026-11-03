@@ -374,6 +374,12 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
 		}
 	}
+	// The state must serve the environment of the run, and an environment that follows
+	// another takes only a release that was promoted into it.
+	admitted, err := e.admit(ctx)
+	if err != nil {
+		return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
+	}
 	var sc *applyScope
 	if !e.Opts.Destroy {
 		var err error
@@ -384,7 +390,13 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			e.adjustScope(sc)
 		}
 		if !plan.NeedsApply() {
-			// Nothing to write and no output to record or remove: no lock, no record, no transaction.
+			// Nothing to write and no output to record or remove: no lock, no record, no
+			// transaction. A state of an environment notes that it runs this release.
+			if !plan.Partial {
+				if err := e.noteRun(ctx, admitted, ""); err != nil {
+					return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
+				}
+			}
 			return &ApplyResult{Outputs: map[string]json.RawMessage{}}, nil
 		}
 	}
@@ -519,7 +531,17 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	}
 	result.Applied = e.completedAddrs()
 	summary := fmt.Sprintf("%d added, %d changed, %d destroyed", result.Added, result.Changed, result.Destroyed)
-	return result, e.finishPhase(ctx, "applied", summary, true)
+	if err := e.finishPhase(ctx, "applied", summary, true); err != nil {
+		return result, err
+	}
+	// The state of an environment notes what it runs now: what the environments after it
+	// are promoted from. A partial apply leaves part of the specification unapplied.
+	if !plan.Partial && !e.Opts.Destroy {
+		if err := e.noteRun(ctx, admitted, e.txn.ID()); err != nil {
+			return result, err
+		}
+	}
+	return result, nil
 }
 
 // tally counts the changes this apply made.

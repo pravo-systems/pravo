@@ -16,11 +16,12 @@ A root is a directory that holds one CUE package. pravo unifies every `.cue` fil
 | Function call | `$aws.#Function.<name> & {args: [...]}` | [Resources](spec-resources.md#function-calls) |
 | Discovery | `$aws.#Discovery.<type> & {...}` | [Discovery](../concepts/discovery.md) |
 | Output | `pravo.#Output & {value: ...}` | [Outputs](spec-outputs.md) |
-| Environment variable | `pravo.#Env`, `pravo.#SecretEnv` | [Environment and remote outputs](spec-env.md) |
-| Outputs of another root | `pravo.#RemoteOutputs` | [Environment and remote outputs](spec-env.md#remote-outputs) |
+| Environment variable | `pravo.#Env`, `pravo.#SecretEnv` | [Environment variables and remote outputs](spec-env.md) |
+| Outputs of another root | `pravo.#RemoteOutputs` | [Environment variables and remote outputs](spec-env.md#remote-outputs) |
 | Rename, move, adopt | `$from`, `$import` | [Moves and imports](spec-moves-and-imports.md) |
 | Dependencies, lifecycle | `$depends_on`, `$lifecycle` | [Meta fields](spec-meta-fields.md) |
 | Input | a field with `@tag(name)` | [Tags and variables](spec-tags-and-variables.md) |
+| Environments | `$environments`, read as `$environment` | [Environments](spec-environments.md) |
 | Reuse | a definition that contains resources, or a package of them | [Reuse](spec-reuse.md) |
 | Provider and `pravo` packages | `cue.mod/gen/` | [Generated packages](spec-generated-packages.md) |
 

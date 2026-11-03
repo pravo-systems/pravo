@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 )
@@ -86,7 +87,30 @@ func (rf readersFile) problem() string {
 // symbolic link that leaves the access directory. An error never holds a line of
 // the file.
 func loadReadersFile(rootDir, flagDir string) readersFile {
-	dirs := accessDirs(rootDir, flagDir)
+	return loadReadersFileFrom(rootDir, flagDir, "")
+}
+
+// readersOf finds the readers file of the root: --access-dir, $PRAVO_ACCESS_DIR, then
+// $settings.access.dir, then the directories loadReadersFile looks in.
+func readersOf(root *config.Root) readersFile {
+	return loadReadersFileFrom(root.Dir, flags.AccessDir, root.AccessDir)
+}
+
+// loadReadersFileFrom is loadReadersFile with the directory that the settings name, which
+// comes after the flag and the variable.
+func loadReadersFileFrom(rootDir, flagDir, settingsDir string) readersFile {
+	return loadReadersFileIn(rootDir, accessDirs(rootDir, flagDir, settingsDir))
+}
+
+// readersOfEnvironment finds the readers file of another environment of the root: the
+// directory its settings name, else the directories looked in by default. The flag and the
+// variable name the readers file of the environment the command runs in, not of this one.
+func readersOfEnvironment(root *config.Root, es config.EnvironmentSettings) readersFile {
+	return loadReadersFileIn(root.Dir, accessDirsFrom(root.Dir, es.AccessDir))
+}
+
+// loadReadersFileIn reads the first readers file of dirs.
+func loadReadersFileIn(rootDir string, dirs []string) readersFile {
 	rf := readersFile{Dir: dirs[0], Path: filepath.Join(dirs[0], readersFileName)}
 	for _, d := range dirs {
 		p := filepath.Join(d, readersFileName)
@@ -116,11 +140,20 @@ func loadReadersFile(rootDir, flagDir string) readersFile {
 }
 
 // accessDirs lists the directories the readers file is looked for in.
-func accessDirs(rootDir, flagDir string) []string {
+func accessDirs(rootDir, flagDir, settingsDir string) []string {
 	explicit := flagDir
 	if explicit == "" {
 		explicit = os.Getenv("PRAVO_ACCESS_DIR")
 	}
+	if explicit == "" {
+		explicit = settingsDir
+	}
+	return accessDirsFrom(rootDir, explicit)
+}
+
+// accessDirsFrom lists the directories the readers file is looked for in when explicit
+// names the directory, or is empty.
+func accessDirsFrom(rootDir, explicit string) []string {
 	if explicit != "" {
 		if !filepath.IsAbs(explicit) {
 			explicit = filepath.Join(rootDir, explicit)

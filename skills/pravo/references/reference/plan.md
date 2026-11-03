@@ -35,6 +35,7 @@ Show the actions that apply takes. A plan changes no infrastructure, and it can 
 | `--reserve DURATION` | none | Reserve the nodes that have pending changes for `DURATION`, for example `15m`. |
 | `-t`, `--tag key=value` | none | Inject a value for an `@tag()` field. Repeatable. The subcommands take it too: the tags select the state. |
 | `-T`, `--inject-vars` | off | Inject the system variables of CUE into tags written `@tag(name,var=os)`. The subcommands take it too. |
+| `--env NAME` | none | Select an environment of [`$environments`](spec-environments.md), as `-t env=NAME` does. The subcommands take it too. |
 
 The [global flags](global-flags.md) apply. A single dash works as well: `-refresh=false`. The value of `--refresh` follows `=`. A word after the flag is an argument, and `plan` takes none, so `-refresh false` is an error.
 
@@ -65,7 +66,7 @@ The [global flags](global-flags.md) apply. A single dash works as well: `-refres
 | 1 | An error: a provider failed, `--replace` names a resource that cannot be replaced, an argument was given: `plan` takes none, `--ttl` without `--store`, an id that no stored plan has. |
 | 2 | With `--detailed-exitcode`: the plan has changes. |
 | 4 | Rejected: another actor holds a lock or a reservation on a node. |
-| 5 | A policy refused the plan, the root declares a policy and the state is not sealed, or a CUE module does not match its lock. |
+| 5 | A policy refused the plan, the root declares a policy and the state is not sealed, or a CUE module does not match its lock. The record of the state names another environment, or other environments before it, than the specification does. |
 | 6 | The specification does not load or evaluate. |
 
 ## Examples
@@ -400,7 +401,7 @@ The fields are listed in [The plan document](plan-document.md).
 
 ### Markdown
 
-`--markdown` prints the plan as a comment for a pull request. A table lists each change with its action, its address and its type. For an update it names the attributes that change, and for a replacement the ones that force it. It never prints a value, because the readers of a pull request are not always the readers of the state. The plan is judged before it is printed, so a refusal is part of the comment, and the exit code is 5 as always. With `--store` the comment says where the plan is stored and gives the command that applies it. The comment is kept under 60000 bytes, a little less than GitHub accepts, and says how many changes it left out.
+`--markdown` prints the plan as a comment for a pull request. A table lists each change with its action, its address and its type. For an update it names the attributes that change, and for a replacement the ones that force it. It never prints a value, because the readers of a pull request are not always the readers of the state. The plan is judged before it is printed, so a refusal is part of the comment, and the exit code is 5 as always. With `--store` the comment says where the plan is stored and gives the command that applies it. In a specification that declares [environments](spec-environments.md), the heading names the environment, `pravo plan for prod`, so that one pull request can hold a comment for each, and the comment carries the `Promotion:` or `Environment:` line in bold, with the commands it names as a block. The comment is kept under 60000 bytes, a little less than GitHub accepts, and says how many changes it left out.
 
 ```sh
 pravo plan --markdown 2>/dev/null

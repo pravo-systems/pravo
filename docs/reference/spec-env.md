@@ -1,5 +1,5 @@
 ---
-title: Environment and remote outputs
+title: Environment variables and remote outputs
 description: pravo.#Env and pravo.#SecretEnv read environment variables, pravo.#Secret reads the sealed state, and pravo.#RemoteOutputs reads the outputs of another root.
 order: 26
 group: Language

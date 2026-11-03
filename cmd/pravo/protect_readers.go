@@ -198,7 +198,7 @@ func downgradeProblem(rf readersFile) string {
 // writer would make it in format 1, in the clear, and the guard would then have
 // nothing to say but that it is not sealed.
 func missingStateProblem(rf readersFile) string {
-	return fmt.Sprintf("the repository lists readers in %s, but the state does not exist yet. Create it sealed with: pravo protect init --encrypt", rf.shown())
+	return fmt.Sprintf("the repository lists readers in %s, but the state does not exist yet. Create it sealed with: %s", rf.shown(), strings.TrimSpace("pravo protect init --encrypt "+engine.TagFlags(flags.Tags)))
 }
 
 // expectsSealed reports whether the repository expects the state to be sealed:
@@ -215,7 +215,7 @@ func expectsSealed(prot state.Protection, rf readersFile) bool {
 // sealed yet, or it was downgraded in the bucket.
 func checkReadersFile(root *config.Root, st *state.Store, write bool) error {
 	prot := st.Protection()
-	rf := loadReadersFile(root.Dir, flags.AccessDir)
+	rf := readersOf(root)
 	if !isSealed(prot) {
 		if !expectsSealed(prot, rf) {
 			return nil

@@ -234,7 +234,7 @@ func TestSecretSetGetListAndHistory(t *testing.T) {
 		if text, code := runPravo(t, s.dir, "secret", "list"); code != 0 || !strings.Contains(text, "prod/db_password") {
 			t.Errorf("list without a key: exit %d\n%s", code, text)
 		}
-		for _, args := range [][]string{{"secret", "get", "prod/db_password"}, {"secret", "set", "x"}, {"secret", "exec", "--env", "A=prod/db_password", "--", "true"}} {
+		for _, args := range [][]string{{"secret", "get", "prod/db_password"}, {"secret", "set", "x"}, {"secret", "exec", "--var", "A=prod/db_password", "--", "true"}} {
 			if text, code := runPravo(t, s.dir, args...); code != 5 || !strings.Contains(text, "you are not a reader of this state") {
 				t.Errorf("%v without a key: exit %d\n%s", args, code, text)
 			}
@@ -440,7 +440,7 @@ func TestSecretRolesGateTheCommands(t *testing.T) {
 	if code != 7 || !strings.Contains(text, "run by dan, who is a reader") || strings.Contains(text, "pw-from-the-key-of-a-reader") {
 		t.Errorf("a version of a reader: exit %d\n%s", code, text)
 	}
-	if text, code := run(nil, "secret", "exec", "--env", "PW=db", "--", "true"); code != 7 {
+	if text, code := run(nil, "secret", "exec", "--var", "PW=db", "--", "true"); code != 7 {
 		t.Errorf("exec on a version of a reader: exit %d\n%s", code, text)
 	}
 	if text, code := run(nil, "secret", "get", "db", "--version", "1"); code != 0 || text != "pw-from-a-writer" {
@@ -524,7 +524,7 @@ func TestSecretExec(t *testing.T) {
 	t.Setenv("PRAVO_TEST_EXEC_HELPER", "DB_PASSWORD OLD_PASSWORD BLOB UNRELATED")
 	t.Setenv("UNRELATED", "stays")
 
-	text, code := runPravo(t, s.dir, append([]string{"secret", "exec", "--env", "DB_PASSWORD=db", "--env", "OLD_PASSWORD=db@1", "--env", "BLOB=multi", "--"}, helper...)...)
+	text, code := runPravo(t, s.dir, append([]string{"secret", "exec", "--var", "DB_PASSWORD=db", "--var", "OLD_PASSWORD=db@1", "--var", "BLOB=multi", "--"}, helper...)...)
 	for _, want := range []string{"DB_PASSWORD=second\n", "OLD_PASSWORD=first\n", "BLOB=line one\nline two\n", "UNRELATED=stays\n"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the command's environment lacks %q:\n%s", want, text)
@@ -536,23 +536,23 @@ func TestSecretExec(t *testing.T) {
 
 	// The exit code is the command's, and pravo says nothing more.
 	t.Setenv("PRAVO_TEST_EXEC_EXIT", "1")
-	text, code = runPravo(t, s.dir, append([]string{"secret", "exec", "--env", "DB_PASSWORD=db", "--"}, helper...)...)
+	text, code = runPravo(t, s.dir, append([]string{"secret", "exec", "--var", "DB_PASSWORD=db", "--"}, helper...)...)
 	if code != 3 || !strings.HasSuffix(text, "Error: \n") || strings.Count(text, "Error") != 1 {
 		t.Errorf("a command that fails: exit %d\n%s", code, text)
 	}
 	t.Setenv("PRAVO_TEST_EXEC_EXIT", "")
 
 	// A secret that cannot be read means the command does not run.
-	text, code = runPravo(t, s.dir, append([]string{"secret", "exec", "--env", "DB_PASSWORD=db", "--env", "BLOB=nope", "--"}, helper...)...)
+	text, code = runPravo(t, s.dir, append([]string{"secret", "exec", "--var", "DB_PASSWORD=db", "--var", "BLOB=nope", "--"}, helper...)...)
 	if code == 0 || strings.Contains(text, "DB_PASSWORD=") || !strings.Contains(text, "there is no such secret") {
 		t.Errorf("a missing secret: exit %d\n%s", code, text)
 	}
 	for _, c := range []struct{ args, want string }{
-		{"--env DB_PASSWORD", "want VAR=NAME"},
-		{"--env 1X=db", "want VAR=NAME"},
-		{"--env A=db --env A=multi", "is set twice"},
-		{"--env A=db@0", "a version is a number from 1"},
-		{"--env A=bad..name!", "is not the name of a secret"},
+		{"--var DB_PASSWORD", "want VAR=NAME"},
+		{"--var 1X=db", "want VAR=NAME"},
+		{"--var A=db --var A=multi", "is set twice"},
+		{"--var A=db@0", "a version is a number from 1"},
+		{"--var A=bad..name!", "is not the name of a secret"},
 		{"", "name at least one secret"},
 	} {
 		args := append([]string{"secret", "exec"}, strings.Fields(c.args)...)
@@ -565,15 +565,15 @@ func TestSecretExec(t *testing.T) {
 	if _, err := exec.LookPath("pravo-no-such-command"); err == nil {
 		t.Skip("a command that should not exist does")
 	}
-	text, code = runPravo(t, s.dir, "secret", "exec", "--env", "A=db", "--", "pravo-no-such-command")
+	text, code = runPravo(t, s.dir, "secret", "exec", "--var", "A=db", "--", "pravo-no-such-command")
 	if code == 0 || !strings.Contains(text, "pravo-no-such-command") {
 		t.Errorf("a command that is not there: exit %d\n%s", code, text)
 	}
 }
 
 func TestArgumentsAfterTheDashesBelongToTheCommand(t *testing.T) {
-	got := normaliseArgs([]string{"pravo", "-auto-approve", "secret", "exec", "-env", "A=db", "--", "ls", "-la", "-refresh=false", "--", "-x"})
-	want := []string{"pravo", "--auto-approve", "secret", "exec", "--env", "A=db", "--", "ls", "-la", "-refresh=false", "--", "-x"}
+	got := normaliseArgs([]string{"pravo", "-auto-approve", "secret", "exec", "-var", "A=db", "--", "ls", "-la", "-refresh=false", "--", "-x"})
+	want := []string{"pravo", "--auto-approve", "secret", "exec", "--var", "A=db", "--", "ls", "-la", "-refresh=false", "--", "-x"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("got  %q\nwant %q", got, want)
 	}

@@ -70,11 +70,11 @@ With `-t name=value` on any command that evaluates the specification. It sets th
 
 ## How do I pass a secret?
 
-Not with `-t`: a tag value is written into saved plans and stored plans. Read it from the environment with `pravo.#SecretEnv` and use it in provider configuration, in a write-only attribute or in another ephemeral resource. pravo does not let it reach anything that is recorded. See [Environment and remote outputs](spec-env.md#secret-env).
+Not with `-t`: a tag value is written into saved plans and stored plans. Read it from the environment with `pravo.#SecretEnv` and use it in provider configuration, in a write-only attribute or in another ephemeral resource. pravo does not let it reach anything that is recorded. See [Environment variables and remote outputs](spec-env.md#secret-env).
 
 ## How does one root use the outputs of another?
 
-With `pravo.#RemoteOutputs`. Only the other root's `outputs.json` is read, so read access to that one object is enough. Apply the producer first. See [Environment and remote outputs](spec-env.md#remote-outputs).
+With `pravo.#RemoteOutputs`. Only the other root's `outputs.json` is read, so read access to that one object is enough. Apply the producer first. See [Environment variables and remote outputs](spec-env.md#remote-outputs).
 
 ## How do I enforce rules on plans?
 

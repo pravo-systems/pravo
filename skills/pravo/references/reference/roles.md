@@ -103,7 +103,7 @@ They are checked by a pravo that reads the readers file and the roles in the sta
 | `writer` | Get, put, delete and list on the prefix, except `meta.json`, `policy/`, `roles/` and `secret/`, where a writer has get and list and may put a new object under `policy/` and under `secret/`. |
 | `admin` | Everything on the prefix, `meta.json`, `policy/`, `roles/` and `secret/` included. |
 
-A job that only plans runs with the first row. The first secret of a state raises `meta.json` to format 5, which needs the put of an admin; a writer sets every later version with a put of a new object. `secret rm` writes a new object too, and `secret purge` and `rewrap --all` replace objects of `secret/`, so they need an admin's credentials as well as an admin's role.
+A job that only plans runs with the first row. The first secret of a state raises `meta.json` to format 5, which needs the put of an admin; a writer sets every later version with a put of a new object. `secret rm` writes a new object too, and `secret purge` and `rewrap --all` replace objects of `secret/`, so they need an admin's credentials as well as an admin's role. In a state of an [environment](spec-environments.md), the first signed record or note raises `meta.json` to format 6 in the same way, so an admin applies first, or runs `pravo environments record`; a writer then puts the notes below `runs/` and the promotions below `promotions/`. A withdrawal and a waiver are objects below `promotions/` whose names end in `.revoked.json` and `.waived.json`; a bucket policy that matches those names keeps them to an admin's credentials as well.
 
 ## Example
 

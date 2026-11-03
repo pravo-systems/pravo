@@ -465,13 +465,25 @@ func AdoptSnippet(root *config.Root, d *DiscoveryView, l state.Listed, body stri
 	default:
 		label += " " + quoteCUE(oneLine(l.ID))
 	}
-	fmt.Fprintf(&b, "// Adopts the %s that the discovery %s found.\n", label, oneLine(d.Name))
+	// The specification is shared by every environment, and the object is in one of them: the
+	// resource that adopts it is declared in that one alone.
+	env := root.Environment
+	if env != "" {
+		fmt.Fprintf(&b, "// Adopts the %s that the discovery %s found in %s.\n", label, oneLine(d.Name), env)
+		b.WriteString("// The condition keeps it out of the other environments, which do not have the object.\n")
+		fmt.Fprintf(&b, "if $environment.$name == %s {\n", quoteCUE(env))
+	} else {
+		fmt.Fprintf(&b, "// Adopts the %s that the discovery %s found.\n", label, oneLine(d.Name))
+	}
 	fmt.Fprintf(&b, "%s: %s.#Resource.%s & {\n", SnippetName(root, l), prov, fieldPath(d.Type))
 	// The identity is what the provider lists the object by, and what it imports it
 	// by: no id has to be told from it.
 	b.WriteString(importIdentity(l.Identity, "\t"))
 	b.WriteString(body)
 	b.WriteString("}\n")
+	if env != "" {
+		b.WriteString("}\n")
+	}
 	return b.String()
 }
 

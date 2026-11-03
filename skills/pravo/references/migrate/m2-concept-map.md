@@ -222,7 +222,7 @@ env: conflicting values "staging" and "qa":
 | `variable` with `sensitive = true`, fed by `TF_VAR_x` | `x: pravo.#SecretEnv & {name: "X"}` | Ephemeral. Never written to state or to a saved plan. Use `x.value`. |
 | `.tfvars`, `-var-file` | No equivalent | Pass each value with `-t key=value`. |
 
-[M4, step 2](m4-translate-the-specification.md#step-2-variables) translates variables with lists, maps and defaults, and [Environment and remote outputs](../reference/spec-env.md) describes `#Env` and `#SecretEnv`.
+[M4, step 2](m4-translate-the-specification.md#step-2-variables) translates variables with lists, maps and defaults, and [Environment variables and remote outputs](../reference/spec-env.md) describes `#Env` and `#SecretEnv`.
 
 ## Names and results
 

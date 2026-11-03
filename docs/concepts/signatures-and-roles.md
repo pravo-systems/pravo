@@ -156,7 +156,7 @@ A key that left and kept the data key can still write to a bucket that its crede
 
 ## Secrets
 
-A sealed state can keep secrets of its own. A secret is sealed like a record: one object for each version, `secret/NAME@NUMBER.json`, with the value and its note encrypted to the readers of the state. [`pravo secret`](../reference/secret.md) sets, reads and removes them, and a run reads one with `pravo.#Secret` ([Environment and remote outputs](../reference/spec-env.md#secrets-of-the-sealed-state)). A state that holds a secret is in format 5.
+A sealed state can keep secrets of its own. A secret is sealed like a record: one object for each version, `secret/NAME@NUMBER.json`, with the value and its note encrypted to the readers of the state. [`pravo secret`](../reference/secret.md) sets, reads and removes them, and a run reads one with `pravo.#Secret` ([Environment variables and remote outputs](../reference/spec-env.md#secrets-of-the-sealed-state)). A state that holds a secret is in format 5.
 
 Each `secret` command is a transaction that the identity signs, and the finish signature covers the version it wrote, as it covers the key of a record. The history of a secret says who set each version, from which machine and for which reason. With [roles](#roles), only a writer sets a value and only an admin removes or forgets one, and a version that no signed transaction of such a key accounts for is refused with exit code 7. A reader holds the data key and can seal a value that opens for everyone, and cannot make a writer's transaction name it.
 
@@ -212,7 +212,7 @@ These are limits of the version that exists. Each is a fact to plan around.
 
 **A state in a local directory is not shared.** The compare-and-swap of a directory is a lock of one user. `pravo protect check` refuses a local directory unless `--allow-local` says that only you use it.
 
-**Earlier versions of pravo refuse a sealed state, and a line with a role.** They stop with `state at LOCATION was written by a newer pravo (format 3)`, and do not read or write it. A readers file with a `role:` field is refused by a pravo that does not know roles, so it fails closed. A state that holds a secret is in format 5, and a pravo that does not know secrets refuses it in the same way.
+**Earlier versions of pravo refuse a sealed state, and a line with a role.** They stop with `state at LOCATION was written by a newer pravo (format 3)`, and do not read or write it. A readers file with a `role:` field is refused by a pravo that does not know roles, so it fails closed. A state that holds a secret is in format 5, and a sealed state of an environment that keeps its record, its notes or a promotion is in format 6; a pravo that does not know them refuses it in the same way.
 
 **Sealing can be taken off, and it takes the protection with it.** `pravo protect unseal` writes every record, the outputs and the stored plans in the open. From then on anyone who can read the bucket can read every value. A copy of the bucket made while it was sealed still opens with the key of a reader. Values that sealing replaced by a tag in the command lines of old transactions are not restored. The state stays in the same lineage and the same format; see [protect unseal](../reference/protect.md#protect-unseal).
 

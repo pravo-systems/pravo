@@ -44,7 +44,7 @@ normalize:
 | 0 | Everything in the state was destroyed, or the state was empty. |
 | 1 | An error: the prompt was answered with anything but `yes`, a provider failed, `--json` without `--auto-approve`, a resource has `prevent_destroy`. |
 | 4 | Rejected: a node is locked or reserved by another actor. |
-| 5 | A policy refused the plan, or the root declares a policy and the state is not sealed. |
+| 5 | A policy refused the plan, the root declares a policy and the state is not sealed, or the record of the state names another environment, or other environments before it, than the specification does. |
 | 6 | The specification does not load or evaluate. |
 
 ## Examples

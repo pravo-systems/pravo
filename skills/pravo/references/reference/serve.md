@@ -237,6 +237,7 @@ Flags:
       --chat string            turn on the read-only assistant: anthropic or openai-compatible, or off ($PRAVO_CHAT, also provider:model)
       --chat-endpoint string   the base URL of an openai-compatible provider, such as http://localhost:11434/v1 ($PRAVO_CHAT_ENDPOINT)
       --chat-model string      the model the assistant asks ($PRAVO_CHAT_MODEL)
+      --env NAME               work on the environment NAME of $environments; --env prod is -t env=prod
   -h, --help                   help for serve
   -T, --inject-vars            inject system tag variables (os, arch, cwd, ...)
       --no-open                do not open a browser

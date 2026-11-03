@@ -416,8 +416,18 @@ func TestAdoptSnippet(t *testing.T) {
 	if !strings.Contains(withBody, "\t$import: {\n\t\tid: \"i-1\"\n\t}\n\tcontent: \"x\"\n}") {
 		t.Errorf("%s", withBody)
 	}
+	// With environments, the object is in the environment of the run, and the resource that
+	// adopts it is declared in that environment alone.
+	e.Root.Environment = "prod"
+	guarded := FormatCUE(AdoptSnippet(e.Root, v, state.ListedOf(map[string]any{"id": "i-2"}, ""), ""))
+	e.Root.Environment = ""
+	for _, want := range []string{`that the discovery vms found in prod.`, "if $environment.$name == \"prod\" {\n\t", "\t\t$import: {\n\t\t\tid: \"i-2\"\n\t\t}\n\t}\n}\n"} {
+		if !strings.Contains(guarded, want) {
+			t.Errorf("the snippet in an environment lacks %q:\n%s", want, guarded)
+		}
+	}
 	// The snippet is CUE.
-	for _, s := range []string{got, noID, withBody} {
+	for _, s := range []string{got, noID, withBody, guarded} {
 		if FormatCUE(s) == s && !strings.HasSuffix(s, "}\n") {
 			t.Errorf("not formatted: %s", s)
 		}

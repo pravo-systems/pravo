@@ -1,57 +1,55 @@
 ---
 title: Run one specification in several environments
-description: Select dev, staging or prod with a tag, keep the differences in one table and give each environment its own state.
+description: Declare dev, staging and prod in $environments, keep what differs in their rows, give each a state of its own and check every one before a merge.
 order: 1
-minutes: 8
+minutes: 10
 needs: pravo on your PATH and an empty directory. B4 teaches the idea; this page is the recipe.
-done_when: "`pravo apply -t env=prod` and the same command for dev write separate state directories, and an environment without a row in the table is caught before an apply."
+done_when: "`pravo validate` checks dev, staging and prod, `pravo apply --env prod` writes a state of its own, and a row that misses a field is caught before a plan."
 level: intermediate
 normalize:
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
   - pattern: '\[txn [0-9TZ]+-[0-9a-f]{6}\]'
     replace: '[txn <id>]'
+  - pattern: '\b[0-9a-f]{12}\b'
+    replace: '<release-id>'
+  - pattern: '\b[0-9]s ago'
+    replace: '0s ago'
 group: Specify
-keywords: "workspace workspaces tfvars -var-file environments dev staging prod"
+keywords: "workspace workspaces tfvars -var-file environments dev staging prod env"
 ---
 
-One specification serves every environment. A tag selects the environment, one table holds what differs, and the state path follows the tag.
+One specification serves every environment. `$environments` names them and holds what differs between them, `--env NAME` selects one, and the state path follows the name.
 
 Work in an empty directory. The commands are for a POSIX shell.
 
-## 1. Declare the environment
+## 1. Declare the environments
 
-`env.cue` holds the environment, the table and the state path.
+`env.cue` declares the three environments and the state path.
 
-```cue file=env.cue title="env.cue" hl="6,16,19"
+```cue file=env.cue title="env.cue" hl="6-10,13"
 package estate
 
 import "pravo.dev/pravo"
 
-// The environment: dev unless -t env=... says otherwise.
-env: *"dev" | "staging" | "prod" @tag(env)
-
-// What differs between environments.
-_envs: {
-	dev: {workers: 1, retention: 7}
-	staging: {workers: 2, retention: 30}
-	prod: {workers: 3, retention: 90}
+// The environments, and what differs between them.
+$environments: pravo.#Environments & {
+	dev: {workers: 1, retention: 7, $default: true}
+	staging: {workers: 2, retention: 30, $after: "dev"}
+	prod: {workers: 3, retention: 90, $after: "staging"}
 }
 
-// The row of the selected environment.
-cfg: _envs[env]
-
 // One state directory per environment.
-$settings: pravo.#Settings & {state: path: "state/\(env)"}
+$settings: pravo.#Settings & {state: path: "state/\($environment.$name)"}
 ```
 
-- The disjunction lists the allowed values, `*` marks the default and `@tag(env)` lets `-t env=...` fill the field.
-- `_envs` is hidden, so pravo does not send it to a provider. `cfg` is the row that `env` selects.
-- `state.path` is computed from `env`, so each environment has its own state.
+- Each key of `$environments` is an environment, and its row holds your fields. The fields that start with `$` are pravo's: `$default: true` marks the environment that a command without `--env` uses, and `$after` names the environment that this one takes its releases from.
+- Before the specification is evaluated, pravo fills `$environment` with the row that `--env NAME` selects, and adds `$name`, the name of the row.
+- `state.path` is computed from `$environment.$name`, so each environment has its own state. Two environments with one state are refused.
 
 ## 2. Write the resources once
 
-`main.cue` reads `cfg` and never names an environment.
+`main.cue` reads `$environment` and never names an environment.
 
 ```cue file=main.cue title="main.cue"
 package estate
@@ -64,13 +62,15 @@ import (
 $random: rnd.#Provider
 $local:  loc.#Provider
 
-server: $random.#Resource.random_pet & {length: cfg.workers}
+server: $random.#Resource.random_pet & {length: $environment.workers}
 
 conf: $local.#Resource.local_file & {
-	filename: "\(env).conf"
-	content:  "env \(env)\nserver \(server.id)\nretention \(cfg.retention)\n"
+	filename: "\($environment.$name).conf"
+	content:  "env \($environment.$name)\nworkers \($environment.workers)\nretention \($environment.retention)\n"
 }
 ```
+
+`pravo validate` checks the specification once for each environment.
 
 ```sh run
 pravo init > /dev/null
@@ -78,32 +78,33 @@ pravo validate
 ```
 
 ```text out
-Success! 2 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 2 providers.
+✓ dev: 2 resources, 0 data sources, 0 outputs.
+✓ staging: 2 resources, 0 data sources, 0 outputs.
+✓ prod: 2 resources, 0 data sources, 0 outputs.
+Success! The specification is valid in dev, staging and prod.
 ```
 
 ## 3. Select an environment
 
-`pravo eval -e` prints one expression. Ask for the row with and without a tag.
+`pravo eval -e` prints one expression. Ask for a field of the row with and without a tag.
 
 ```sh run
-pravo eval -e cfg
-pravo eval -e cfg -t env=prod
+pravo eval -e '$environment.workers'
+pravo eval -e '$environment.workers' --env prod
 ```
 
 ```text out
-workers:   1
-retention: 7
-workers:   3
-retention: 90
+1
+3
 ```
 
-Without a tag, `env` takes its default. pravo keeps no current environment. Every command evaluates the specification again with the tags it receives, so pass the same `-t` to `plan`, `apply` and `destroy`.
+Without a tag, the row marked `$default: true` is used. pravo keeps no current environment. Every command evaluates the specification again with the tags it receives, so pass the same `-t` to `plan`, `apply` and `destroy`.
 
 ## 4. Apply each environment
 
 ```sh run
 pravo apply -auto-approve | grep '^Apply complete'
-pravo apply -auto-approve -t env=prod | grep '^Apply complete'
+pravo apply -auto-approve --env prod | grep '^Apply complete'
 ```
 
 ```text out
@@ -128,7 +129,7 @@ retention 90
 The `pravo state` commands take `-t`, and read the state of the environment they name. Without `-t` they read the default environment.
 
 ```sh run
-pravo state list -t env=prod
+pravo state list --env prod
 ```
 
 ```text out
@@ -136,125 +137,132 @@ conf
 server
 ```
 
-## 5. Add an environment
+Prod follows staging, and was applied before staging. Its state is not sealed, so it takes any release, and the apply says so on a line that starts with `Environment:`. To hold prod to what staging runs, seal its state and promote each release into it: [Promote a release from one environment to the next](promote-a-release.md).
 
-A new environment is a new value in the disjunction and a new row in the table. Start with the value only.
+## 5. See every environment
 
-```cue file=env.cue title="env.cue" hl="6" status=unintended
+`pravo environments` reads the state of each environment and says what it runs: the release of the specification by its id, when it was applied and by whom. It needs no key and starts no provider.
+
+```sh run
+pravo environments
+```
+
+```text out
+dev → staging → prod
+
+ENV      FOLLOWS  RUNS          GIT  SINCE   BY
+dev      -        <release-id>       0s ago  -   runs this directory
+staging  dev      -                              nothing applied yet; not sealed, takes any release
+prod     staging  <release-id>       0s ago  -   runs this directory; not sealed, takes any release
+
+This directory: <release-id>
+Next: pravo apply --env staging
+```
+
+`pravo environments diff` compares what the specification declares in two environments, resource by resource, without a state or a provider.
+
+```sh run
+pravo environments diff dev prod
+```
+
+```text out
+Comparing dev with prod:
+
+  ~ server
+      length: 1 → 3
+  ~ conf
+      content: "env dev\nworkers 1\nretention 7\n" → "env prod\nworkers 3\nretention 90\n"
+      filename: "dev.conf" → "prod.conf"
+
+2 resources differ; 0 are the same.
+```
+
+## 6. Add an environment
+
+A new environment is a new row. Start with a row that misses a field.
+
+```cue file=env.cue title="env.cue" hl="9" status=unintended
 package estate
 
 import "pravo.dev/pravo"
 
-// The environment: dev unless -t env=... says otherwise.
-env: *"dev" | "staging" | "prod" | "qa" @tag(env)
-
-// What differs between environments.
-_envs: {
-	dev: {workers: 1, retention: 7}
-	staging: {workers: 2, retention: 30}
-	prod: {workers: 3, retention: 90}
+// The environments, and what differs between them.
+$environments: pravo.#Environments & {
+	dev: {workers: 1, retention: 7, $default: true}
+	staging: {workers: 2, retention: 30, $after: "dev"}
+	qa: {workers: 1, $after: "dev"}
+	prod: {workers: 3, retention: 90, $after: "staging"}
 }
 
-// The row of the selected environment.
-cfg: _envs[env]
-
 // One state directory per environment.
-$settings: pravo.#Settings & {state: path: "state/\(env)"}
+$settings: pravo.#Settings & {state: path: "state/\($environment.$name)"}
 ```
 
-`qa` is allowed and has no row. `pravo validate` does not notice, because a value that is not yet concrete is not an error for it.
+`pravo validate` compares the rows, and names the field that `qa` misses.
 
-```sh run exit=1
-pravo validate -t env=qa
-pravo plan -t env=qa
-```
-
-```text out
-Success! 2 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 2 providers.
-
-Error: server.length: cfg: undefined field: qa
-```
-
-`pravo eval -c` requires every value to be concrete. Run it on `cfg` for every environment, in a loop, before you merge.
-
-```sh run exit=1
-for e in dev staging prod qa; do pravo eval -c -e cfg -t env=$e; done
+```sh run exit=6
+pravo validate
 ```
 
 ```text out
-workers:   1
-retention: 7
-workers:   2
-retention: 30
-workers:   3
-retention: 90
+✓ dev: 2 resources, 0 data sources, 0 outputs.
+✓ staging: 2 resources, 0 data sources, 0 outputs.
+✗ qa
+✓ prod: 2 resources, 0 data sources, 0 outputs.
 
-Error: -e "cfg": undefined field: qa:
-    ./env.cue:16:12
+Error: the specification is not valid in qa: $environments.qa has no retention, which dev, staging and prod have
 ```
 
-The message names the row that is missing. Add it.
+Add the field.
 
-```cue file=env.cue title="env.cue" hl="12"
+```cue file=env.cue title="env.cue" hl="9"
 package estate
 
 import "pravo.dev/pravo"
 
-// The environment: dev unless -t env=... says otherwise.
-env: *"dev" | "staging" | "prod" | "qa" @tag(env)
-
-// What differs between environments.
-_envs: {
-	dev: {workers: 1, retention: 7}
-	staging: {workers: 2, retention: 30}
-	qa: {workers: 1, retention: 14}
-	prod: {workers: 3, retention: 90}
+// The environments, and what differs between them.
+$environments: pravo.#Environments & {
+	dev: {workers: 1, retention: 7, $default: true}
+	staging: {workers: 2, retention: 30, $after: "dev"}
+	qa: {workers: 1, retention: 14, $after: "dev"}
+	prod: {workers: 3, retention: 90, $after: "staging"}
 }
 
-// The row of the selected environment.
-cfg: _envs[env]
-
 // One state directory per environment.
-$settings: pravo.#Settings & {state: path: "state/\(env)"}
+$settings: pravo.#Settings & {state: path: "state/\($environment.$name)"}
 ```
 
 ```sh run
-for e in dev staging prod qa; do pravo eval -c -e cfg -t env=$e > /dev/null; done
-pravo plan -t env=qa | grep '^Plan'
+pravo validate | tail -n 1
+pravo plan --env qa | grep '^Plan'
 ```
 
 ```text out
+Success! The specification is valid in dev, staging, qa and prod.
 Plan: 2 to add, 0 to change, 0 to destroy.
 ```
 
-## 6. Refuse an unknown environment
+A field that every row has and that one row leaves without a value, such as `zone: string`, is caught the same way.
 
-A value outside the disjunction is rejected when pravo evaluates the specification, before any provider starts.
+## 7. Refuse an unknown environment
+
+A name that is not a key of `$environments` is refused before the specification is evaluated, and before any provider starts.
 
 ```sh run exit=6
-pravo plan -t env=sandbox
+pravo plan --env sandbox
 ```
 
 ```text out
-Error: evaluating .:
-env: 4 errors in empty disjunction:
-env: conflicting values "dev" and "sandbox":
-    ./env.cue:6:7
-env: conflicting values "prod" and "sandbox":
-    ./env.cue:6:27
-env: conflicting values "qa" and "sandbox":
-    ./env.cue:6:36
-env: conflicting values "staging" and "sandbox":
-    ./env.cue:6:15
+Error: "sandbox" is not an environment of this specification; the environments are dev, staging, qa and prod (pass --env NAME)
 ```
 
-To make the tag mandatory, remove `*"dev" |` from the field. A command without `-t`, including each `pravo state` command, then stops with `$settings.state.path is not concrete`. `pravo providers lock`, `pravo providers schema` and `pravo mod verify` do not apply `-t`, so in such a root they stop with the same error.
+To make `--env` mandatory, remove `$default: true` from the row of dev. A command without `--env`, including each `pravo state` command, then stops and lists the environments.
 
 ## Clean up
 
 ```sh run
 pravo destroy -auto-approve | grep '^Destroy complete'
-pravo destroy -auto-approve -t env=prod | grep '^Destroy complete'
+pravo destroy -auto-approve --env prod | grep '^Destroy complete'
 ```
 
 ```text out
@@ -264,7 +272,8 @@ Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <id>]
 
 ## What next
 
+- [Promote a release from one environment to the next](promote-a-release.md) holds prod to what staging runs.
 - [B4, Inputs, tags, environments](../learn/b04-inputs-tags-environments.md) teaches each part of this recipe.
 - [Keep the state in a shared store](keep-the-state-in-a-shared-store.md) puts one prefix per environment in a shared bucket.
 - [CI](ci.md) runs one job per environment.
-- [Tags and variables](../reference/spec-tags-and-variables.md) and [Settings](../reference/spec-settings.md) are the reference for `@tag` and `$settings`.
+- [Environments](../reference/spec-environments.md) and [Settings](../reference/spec-settings.md) are the reference for `$environments` and `$settings`, and [pravo environments](../reference/environments.md) for the command.

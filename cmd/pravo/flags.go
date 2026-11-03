@@ -11,7 +11,9 @@ type rootFlags struct {
 	// Tags and SysTags select the tags of the specification (-t, -T).
 	Tags    []string
 	SysTags bool
-	JSON    bool
+	// Env is --env NAME, which the root command folds into Tags as env=NAME.
+	Env  string
+	JSON bool
 	// Markdown is the --markdown flag of plan and show: the plan as a comment.
 	Markdown bool
 	Actor    string

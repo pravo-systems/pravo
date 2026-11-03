@@ -29,6 +29,7 @@ func stateCmd() *cobra.Command {
 	// for the commands that load the specification.
 	pf := cmd.PersistentFlags()
 	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
+	addEnvFlag(pf)
 	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
 	// Subcommands run with their own context; the parent's is never set.
 	load := func() (*state.Store, error) {
@@ -37,6 +38,23 @@ func stateCmd() *cobra.Command {
 			return nil, err
 		}
 		return openState(context.Background(), root)
+	}
+	// loadEdit is load for a subcommand that changes the records, as an apply does: a state
+	// whose record serves another environment is refused, as an apply is.
+	loadEdit := func() (*state.Store, error) {
+		root, err := loadRoot()
+		if err != nil {
+			return nil, err
+		}
+		st, err := openState(context.Background(), root)
+		if err != nil {
+			return nil, err
+		}
+		if err := refuseOtherEnvironment(context.Background(), root, st); err != nil {
+			st.Close()
+			return nil, err
+		}
+		return st, nil
 	}
 	// loadRead is for the subcommands that only look: a state that does not
 	// exist is empty, and none is created.
@@ -85,8 +103,8 @@ func stateCmd() *cobra.Command {
 		verifyCmd(),
 		stateListCmd(loadRead),
 		stateShowCmd(loadValues),
-		stateRmCmd(load),
-		stateMvCmd(load),
+		stateRmCmd(loadEdit),
+		stateMvCmd(loadEdit),
 		stateLogCmd(loadRead),
 		stateProbeCmd(),
 		stateLocksCmd(loadRead),
@@ -97,7 +115,7 @@ func stateCmd() *cobra.Command {
 		stateEdgesCmd(loadRead),
 		stateDependentsCmd(loadRead),
 		stateQueryCmd(loadValues),
-		stateImportTfstateCmd(load),
+		stateImportTfstateCmd(loadEdit),
 	)
 	return cmd
 }
@@ -291,7 +309,7 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 			readers, checked := []protect.Reader(nil), false
 			if prot := st.Protection(); prot.Sealed != nil {
 				if root, err := loadRoot(); err == nil {
-					readers, checked = attributionReaders(loadReadersFile(root.Dir, flags.AccessDir))
+					readers, checked = attributionReaders(readersOf(root))
 				}
 			}
 			verdicts := make([]state.TxnVerdict, len(txns))

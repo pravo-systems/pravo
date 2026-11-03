@@ -17,7 +17,7 @@ Seal the state to a list of readers, check that the seal holds, change the reade
 
 Protection is off by default. A state with protection off is unchanged: format 1, with the layout that every version of pravo reads. These commands turn protection on for one state, show where it stands and keep it in line with the list of readers. Each reader is an identity that [`pravo id`](id.md) makes, and each may have a [role](roles.md). [Signatures and roles](../concepts/signatures-and-roles.md) says what the seal covers and what it leaves open.
 
-A state has five formats. A sealed state is one in format 3 or above that has a sealed part in `meta.json`.
+A state has six formats. A sealed state is one in format 3 or above that has a sealed part in `meta.json`.
 
 | Format | Name | What it is |
 |---|---|---|
@@ -26,6 +26,7 @@ A state has five formats. A sealed state is one in format 3 or above that has a 
 | 3 | sealed | Format 2, and while the state is sealed, the attributes and private data of each record, the outputs, the stored plans and the values in command lines are encrypted to a list of readers. The address, type, name, dependencies and revision stay readable. A state that was unsealed stays in format 3, with nothing encrypted. |
 | 4 | policies | Format 3, with `policy/NAME@NUMBER.json`, the signed versions of the policies of the root. The first policy raises the state to it. |
 | 5 | secrets | Format 4, with `secret/NAME@NUMBER.json`, the versions of the secrets of the state, each sealed to the readers. The first secret raises the state to it. |
+| 6 | environments | Format 5, with `environment/`, `runs/` and `promotions/`: the signed record of the [environment](spec-environments.md) the state serves, the notes of what it runs and the promotions into it. The first signed one raises the state to it. |
 
 `pravo protect init --encrypt` takes a state from format 1 to format 3. A pravo that does not know format 3 refuses the state with `state at LOCATION was written by a newer pravo (format 3)`.
 

@@ -72,6 +72,10 @@ type Options struct {
 	// pinned in the state. See state.RecordRules.
 	Vouched    map[string]protect.Vouch
 	StrictKeys bool
+	// UpstreamReaders returns the readers of the state of another environment of the
+	// specification, from its readers file: the signed notes that a promotion carries from
+	// there are checked against them. Nil checks them against Readers.
+	UpstreamReaders func(env string) ([]protect.Reader, error)
 	// Judged is called when an apply judges its plan, before the verdict is known.
 	Judged   func()
 	Progress func(format string, args ...any)
@@ -387,6 +391,10 @@ func (e *Engine) replaceRequested(addr string) bool {
 func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 	_, done := e.phase(ctx, "check specification")
 	err := e.checkSpec()
+	if err == nil {
+		// A plan of one environment against the state of another says nothing true.
+		_, err = e.checkEnvironment(ctx)
+	}
 	done(err)
 	if err != nil {
 		return nil, err

@@ -243,16 +243,54 @@ package pravo
 	outputs: {...}
 }
 
-// The shape of the $settings block.
+// The shape of the $settings block. With $environments it is read once for
+// each environment, so a setting that differs between them is written with
+// $environment.$name.
 #Settings: {
 	// Where the state is kept: a local directory (the default), an
 	// S3-compatible bucket or a server that speaks the http protocol.
 	state?: #StateSettings
 
+	// Who may read and write the state: the directory of its readers file,
+	// relative to the root. Without it, .pravo/access. --access-dir and
+	// PRAVO_ACCESS_DIR take precedence. Give each environment a directory of
+	// its own, and a writer of staging is not a writer of prod.
+	access?: {
+		dir?: string
+	}
+
 	// The default refresh age: "always", "never" or a duration such as
 	// "30m", "6h" or "7d". A resource overrides it with $lifecycle.refresh.
 	refresh?: "always" | "never" | =~"^[0-9]+(ms|s|m|h|d)$"
 
+}
+
+// The environments that one specification is applied to, each with a state of
+// its own. Declare them in the top-level field $environments; each key is an
+// environment, and the row holds what differs between them, in fields of your
+// own. -t env=NAME picks a row, and pravo fills $environment with it and with
+// $name, the name of the row, before the specification is evaluated.
+//
+//	$environments: pravo.#Environments & {
+//		dev:     {workers: 1, $default: true}
+//		staging: {workers: 2, $after: "dev"}
+//		prod:    {workers: 3, $after: "staging"}
+//	}
+//	$settings: pravo.#Settings & {state: path: "state/\($environment.$name)"}
+//	workers: $environment.workers
+#Environments: [Name=string]: #Environment
+
+// One row of $environments.
+#Environment: {
+	// The environment whose release this one takes, or a list of them: an
+	// apply here is refused until "pravo promote" has brought the release from
+	// there. Without it, the environment takes anything.
+	$after?: string | [...string]
+	// Used when a command names no environment with -t env=NAME.
+	$default?: bool
+	// Filled in by pravo in $environment: the name of the row.
+	$name?: string
+	...
 }
 
 // The state backend is a choice with its own fields: S3 fields are an error
@@ -277,6 +315,7 @@ package pravo
 	secret_key?: string
 	url?:        string
 	token?:      string
+	token_env?:  string
 	username?:   string
 	password?:   string
 }
@@ -304,7 +343,9 @@ package pravo
 	// Keep a snapshot of the state in the bucket so that opening it reads
 	// one object and a listing. Default true.
 	snapshot?: bool
-	// A shared-configuration profile.
+	// A shared-configuration profile: the AWS profile this state is opened
+	// with. With $environments, each environment can name its own, so that one
+	// run can read the state of another environment with its own credentials.
 	profile?: string
 	// Static credentials. Prefer the environment or a profile: these end up
 	// in the configuration.
@@ -317,9 +358,12 @@ package pravo
 	// The base URL of the state, such as https://state.example.com/team/app.
 	// The server keeps one object for each key under it.
 	url: string
-	// A bearer token. Prefer PRAVO_STATE_TOKEN: a token here ends up in the
-	// configuration.
+	// A bearer token. Prefer PRAVO_STATE_TOKEN or token_env: a token here
+	// ends up in the configuration.
 	token?: string
+	// The environment variable that holds the bearer token, in place of
+	// PRAVO_STATE_TOKEN. With $environments, each environment can name its own.
+	token_env?: =~"^[A-Za-z_][A-Za-z0-9_]*$"
 	// Basic authentication, used when there is no token.
 	username?: string
 	password?: string

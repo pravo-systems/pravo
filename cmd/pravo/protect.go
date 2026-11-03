@@ -54,6 +54,7 @@ that nothing is sealed in any more.`,
 	pf.StringVar(&flags.AccessDir, "access-dir", "", accessDirUsage)
 	// The tags select the state, so the commands that open it take them too.
 	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
+	addEnvFlag(pf)
 	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
 	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectRolesCmd(), protectRecoverCmd(), protectUnsealCmd(), protectGCCmd())
 	return cmd
@@ -72,7 +73,7 @@ func newProtectRun(cmd *cobra.Command) (*protectRun, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &protectRun{ctx: cmd.Context(), root: root, rf: loadReadersFile(root.Dir, flags.AccessDir)}, nil
+	return &protectRun{ctx: cmd.Context(), root: root, rf: readersOf(root)}, nil
 }
 
 // needAdmin refuses an identity that is not an admin in the readers file of the repository.

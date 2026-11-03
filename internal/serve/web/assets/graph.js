@@ -63,13 +63,29 @@ function glyph(name, x, y, size, cls) {
   return g;
 }
 
+// declMark is the marker of what is declared and not created yet: a square, filled when all of it is, half filled when
+// part of it is. The shape tells the two apart, not a colour.
+function declMark(x, y, part) {
+  const g = s('g', { class: 'dm', transform: `translate(${x} ${y})` });
+  g.append(s('rect', { class: 'dmo', x: 0.5, y: 0.5, width: 8, height: 8 }), s('rect', { class: 'dmf', x: 0.5, y: 0.5, width: part === 'some' ? 4 : 8, height: 8 }));
+  return g;
+}
+
+// declGlyph is the mark of the declared only among the marks of a node or a card, with its words for a hover. It sits
+// where the other marks sit, so it takes no edge from the badge of the kind or the discs of the plans.
+function declGlyph(x, y, part, words) {
+  const g = s('g', { class: 'mk mk-decl' });
+  g.append(s('title', null, words), declMark(x, y, part));
+  return facet(g, 'status', 'declared', `${words.charAt(0).toUpperCase() + words.slice(1)}: show only what is declared and not created yet (shift: hide it)`);
+}
+
 // what an item shows: when it changes the element is built again
 function itemSig(x, ctx) {
   if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, pvClass(providerOf(x.n.type, x.n.provider)), ctx.hasPlan, x.look, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0].join('|');
   if (x.kind === 'ctl') return [x.shown, x.total].join('|');
   const a = x.agg;
   const pi = plansIn(x, ctx);
-  return [x.kind, pi.list.map((p) => p.id).join(','), pi.overlap ? 1 : 0, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, x.look, x.h, x.kind === 'namespace' ? x.ns.kids.length : '', x.kind === 'namespace' && x.ns.template ? x.ns.template.name : ''].join('|');
+  return [x.kind, pi.list.map((p) => p.id).join(','), pi.overlap ? 1 : 0, a.n, a.out, a.plan, a.create, a.update, a.replace, a.delete, a.drifted, a.gone, a.sensitive, a.locked, a.orphan, a.decl, a.managed, x.look, x.h, x.kind === 'namespace' ? x.ns.kids.length : '', x.kind === 'namespace' && x.ns.template ? x.ns.template.name : ''].join('|');
 }
 
 const trunc = (t, n) => (t.length > n ? t.slice(0, Math.max(1, n - 1)) + '…' : t);
@@ -149,8 +165,13 @@ function planBadges(agg, x, y, anchorRight, bare) {
   return g;
 }
 
+// declNote words the resources of a group that are declared and not created yet: "declared only" when every one is,
+// "3 of 5 declared only" when some are, and nothing when none is.
+const declNote = (agg) => (!agg.decl ? '' : agg.decl === agg.managed ? 'declared only' : `${agg.decl} of ${agg.managed} declared only`);
+
 const stateMarks = (agg) => {
   const m = [];
+  if (agg.decl) m.push(['decl', agg.decl]);
   if (agg.drifted || agg.gone) m.push(['drift', agg.drifted + agg.gone]);
   if (agg.sensitive) m.push(['lock', agg.sensitive]);
   return m;
@@ -226,6 +247,7 @@ export class GraphView {
     }
     // a card is a shade lighter at the top than at the bottom
     defs.append(s('linearGradient', { id: 'card-fill', x1: 0, y1: 0, x2: 0, y2: 1 }, s('stop', { offset: '0', class: 'cf0' }), s('stop', { offset: '1', class: 'cf1' })));
+    // a resource that is declared and not created yet is hatched, as a drawing marks what is planned and not built
     this.defs = defs;
     this.svg.append(defs);
     this.vp = s('g', { class: 'vp' });
@@ -581,6 +603,7 @@ export class GraphView {
     const marks = [];
     if (n.sensitive > 0) marks.push('lock');
     if (n.presence === 'state') marks.push('orphan');
+    if (n.presence === 'spec') marks.push('decl');
     const g = s('g', { class: nodeClasses(n, this.ctx) + ' neutral', role: 'button', 'aria-label': describeNode(n, this.ctx) });
     const inn = s('g', { class: 'in' });
     g.append(zone(W, H));
@@ -599,7 +622,7 @@ export class GraphView {
       inn.append(b);
     }
     let mx = W - 12 - 13;
-    for (const m of marks) { inn.append(glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
+    for (const m of marks) { inn.append(m === 'decl' ? declGlyph(mx + 2, 30, 'all', 'not published') : glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
     inn.append(this.kindBadge('output', H));
     g.append(inn);
     return g;
@@ -614,6 +637,7 @@ export class GraphView {
     if (n.drifted && !n.gone) marks.push('drift');
     if (n.gone) marks.push('gone');
     if (n.presence === 'state') marks.push('orphan');
+    if (n.presence === 'spec' && n.mode === 'managed') marks.push('decl');
     const act = actionOf(n.action);
     const badge = !!(act && act.glyph);
     const pv = providerOf(n.type, n.provider);
@@ -641,7 +665,7 @@ export class GraphView {
       inn.append(b);
     }
     let mx = W - 12 - 13;
-    for (const m of marks) { inn.append(glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
+    for (const m of marks) { inn.append(m === 'decl' ? declGlyph(mx + 2, 30, 'all', 'declared only') : glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
     const kind = isEnv(n) ? 'env' : isSecret(n) ? 'secret' : n.mode === 'data' || n.mode === 'ephemeral' ? n.mode : '';
     if (kind) inn.append(this.kindBadge(kind, H));
     const aus = this.authorBadges(authorsOf(n, this.ctx), W);
@@ -694,7 +718,8 @@ export class GraphView {
     const pv = it.look ? ' ' + it.look : '';
     const outs = it.mode === 'output';
     const outsNote = agg.out ? `, ${agg.out} ${agg.out === 1 ? 'output' : 'outputs'}` : '';
-    const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': isNs ? `group ${it.ns.name}, ${agg.n} resources${outsNote}, collapsed` : outs ? `${agg.n} outputs, grouped` : `${it.type}, ${agg.n} resources, grouped` });
+    const decl = declNote(agg);
+    const g = s('g', { class: cls + (agg.plan ? ' has-plan' : '') + pv, role: 'button', 'aria-label': (isNs ? `group ${it.ns.name}, ${agg.n} resources${outsNote}, collapsed` : outs ? `${agg.n} outputs, grouped` : `${it.type}, ${agg.n} resources, grouped`) + (decl ? ', ' + decl : '') });
     const inn = s('g', { class: 'in' });
     g.append(zone(W, H));
     inn.append(s('rect', { class: 'halo', x: -6, y: -6, width: W + 12, height: H + 12, rx: 0 }), reticle(W, H));
@@ -749,7 +774,8 @@ export class GraphView {
       const t = String(count);
       mx -= t.length * 7 + 15;
       const mg = s('g', { class: 'mkc mk-' + m });
-      mg.append(glyph(m, mx, 33, 13, 'mk mk-' + m), s('text', { class: 'mkn', x: mx + 16, y: 44 }, t));
+      if (m === 'decl') mg.append(declGlyph(mx + 2, 35, agg.decl === agg.managed ? 'all' : 'some', declNote(agg)), s('text', { class: 'mkn', x: mx + 16, y: 44 }, t));
+      else mg.append(glyph(m, mx, 33, 13, 'mk mk-' + m), s('text', { class: 'mkn', x: mx + 16, y: 44 }, t));
       inn.append(mg);
       mx -= 8;
     }
@@ -828,9 +854,21 @@ export class GraphView {
     r.tt.textContent = tmark ? `An instance of the template ${ns.template.title}` : '';
     r.cnt.setAttribute('x', 20 + w + 6 + tmark);
     const cw = agg ? count.length * 7.4 + 6 + tmark : 0;
-    if (agg && agg.plan) pb.append(planBadges(agg, 20 + w + 6 + cw + 10, 1, false));
+    let x = 20 + w + 6 + cw + 10;
+    if (agg && agg.plan) {
+      pb.append(planBadges(agg, x, 1, false));
+      x += [agg.create, agg.update + agg.replace, agg.delete].filter(Boolean).reduce((a, n) => a + 17 + String(n).length * 6.4, 0) + 6;
+    }
+    // what inside is declared and not created yet, as the card of the group would say it
+    const decl = agg ? declNote(agg) : '';
+    if (decl) {
+      const dg = s('g', { class: 'lpt' });
+      dg.append(declGlyph(x, 2.5, agg.decl === agg.managed ? 'all' : 'some', decl), s('text', { class: 'bandc', x: x + 14, y: 11 }, String(agg.decl)));
+      pb.append(dg);
+      x += 13 + String(agg.decl).length * 7 + 6;
+    }
     // how far the title may be scaled up before it outgrows the lane
-    const textW = 20 + w + 6 + cw + 6;
+    const textW = decl || (agg && agg.plan) ? x : 20 + w + 6 + cw + 6;
     r.hg.style.setProperty('--cap', Math.max(1, (L.w - 28) / textW).toFixed(2));
     r.label = label;
   }
@@ -1085,6 +1123,7 @@ export class GraphView {
     if (a.delete) chips.push(h('span', { class: 'gchip a-delete' }, `${a.delete} delete`));
     if (a.sensitive) chips.push(h('span', { class: 'gchip sens' }, `${a.sensitive} sensitive`));
     if (a.drifted + a.gone) chips.push(h('span', { class: 'gchip drift' }, `${a.drifted + a.gone} drifted`));
+    if (a.decl) chips.push(h('span', { class: 'gchip skip' }, declNote(a)));
     if (chips.length) out.push(h('div', { class: 'gtip-row' }, chips));
     this.tipPlans(out, plansIn({ kind: 'namespace', ns }, this.ctx));
     out.push(h('div', { class: 'gtip-meta' }, open ? 'click to select, chevron to close' : 'click or press Enter to open'));
@@ -1099,6 +1138,7 @@ export class GraphView {
     if (a.update + a.replace) chips.push(h('span', { class: 'gchip a-update' }, `${a.update + a.replace} change`));
     if (a.delete) chips.push(h('span', { class: 'gchip a-delete' }, `${a.delete} delete`));
     if (a.sensitive) chips.push(h('span', { class: 'gchip sens' }, `${a.sensitive} sensitive`));
+    if (a.decl) chips.push(h('span', { class: 'gchip skip' }, declNote(a)));
     if (chips.length) out.push(h('div', { class: 'gtip-row' }, chips));
     this.tipPlans(out, plansIn(it, this.ctx));
     out.push(h('div', { class: 'gtip-meta' }, 'click or press Enter to show the group'));

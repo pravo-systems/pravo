@@ -311,7 +311,7 @@ pravo validate
 Output:
 
 ```text
-Error: $settings.policy is not a setting (the block takes state and refresh)
+Error: $settings.policy is not a setting (the block takes state, access and refresh)
 ```
 
 ```sh

@@ -95,7 +95,7 @@
 .lod-low .ec { opacity: 0; }
 .lod-far .ge { marker-end: none; marker-start: none; }
 /* far out the text is gone (opacity 0 already): taking it out of the tree makes a heavy picture cheap to zoom */
-.lod-far .node :is(.nm, .ty, .tile, .mk, .act, .kb), .lod-far .ns-item :is(.nm, .ty, .cells, .mkc, .pb, .cico), .lod-far .cluster-item :is(.nm, .ty, .cells, .mkc, .pb, .cico), .lod-far .ec { display: none; }
+.lod-far .node :is(.nm, .ty, .tile, .mk, .act, .kb), .lod-far .ns-item :is(.nm, .ty, .cells, .mkc, .pb, .cico, .kb), .lod-far .cluster-item :is(.nm, .ty, .cells, .mkc, .pb, .cico, .kb), .lod-far .ec { display: none; }
 .lod-far .node .ring { animation: none; }
 
 /* ---- items ---- */
@@ -154,7 +154,12 @@
 .node .act .ag { fill: none; stroke: var(--on-accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .node.notread { opacity: .5; }
 .node.notread .bar { opacity: .35; }
-.node.spec .box { stroke-dasharray: 5 3; }
+:is(.ns-item, .cluster-item) .kb { opacity: var(--lab); transition: opacity .2s; }
+/* declared only: a square among the marks, filled when all of it is, half filled when part of it is */
+.mk-decl .dmo { fill: none; stroke: var(--text-2); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.mk-decl .dmf { fill: var(--text-2); }
+.mk-decl.fx:hover .dmo { stroke: var(--accent); }
+.mk-decl.fx:hover .dmf { fill: var(--accent); }
 .node.orphan .box { stroke: var(--conflict); stroke-dasharray: 2 3; }
 .node.gone .box { stroke: var(--conflict); stroke-dasharray: 6 3; }
 .mk { opacity: var(--sub); transition: opacity .2s; }

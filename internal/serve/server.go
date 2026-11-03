@@ -118,6 +118,10 @@ type Options struct {
 	Token string
 	// Chat turns the read-only chat on (README rule 12). Nil is off.
 	Chat *ChatOptions
+	// Environments reads the promotion flow of a specification that declares $environments: what the
+	// state of each environment runs and how the release of the directory stands there. It
+	// opens the states without a key and writes nothing. Nil leaves the page without it.
+	Environments func(ctx context.Context, root *config.Root) (*Environments, error)
 }
 
 // staleModelFor is how long the last model is served when the project cannot be
@@ -147,6 +151,9 @@ type Server struct {
 
 	mu  sync.RWMutex
 	cur *model
+	// envName is the environment the page reads, empty until the first model names it or for
+	// a specification without environments.
+	envName string
 
 	hostMu sync.RWMutex
 	hosts  map[string]bool
@@ -360,8 +367,9 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "forbidden")
 		return
 	}
-	// The studio takes a plan file that a person drops on it: the one request that is not a GET. It judges and keeps nothing on disk.
-	if r.Method == http.MethodPost && (r.URL.Path == "/api/studio/plan" || r.URL.Path == "/api/chat") {
+	// The studio takes a plan file that a person drops on it, the chat a question, and the page the environment to read:
+	// the requests that are not a GET. None of them writes anything.
+	if r.Method == http.MethodPost && (r.URL.Path == "/api/studio/plan" || r.URL.Path == "/api/chat" || r.URL.Path == "/api/environment") {
 		s.api(w, r)
 		return
 	}
@@ -462,7 +470,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/trace":
 		s.trace(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/secrets", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan", "/api/templates", "/api/templates/try", "/api/templates/refs", "/api/templates/choices", "/api/templates/entities":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/secrets", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan", "/api/templates", "/api/templates/try", "/api/templates/refs", "/api/templates/choices", "/api/templates/entities", "/api/environments", "/api/environment":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -497,6 +505,10 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		writeRaw(w, http.StatusOK, m.polJSON)
 	case "/api/secrets":
 		writeRaw(w, http.StatusOK, m.secsJSON)
+	case "/api/environments":
+		s.environmentsHandler(w, r, m)
+	case "/api/environment":
+		s.switchEnvironment(w, r, m)
 	case "/api/studio":
 		writeJSON(w, http.StatusOK, s.studio(m))
 	case "/api/studio/plan":
@@ -726,11 +738,20 @@ func (s *Server) build() (*model, error) {
 	sig := s.watch.specNow()
 	var loadStart time.Time
 	loaded := false
-	if s.spec == nil || s.spec.sig != sig {
+	lo := s.loadOptions()
+	env, _ := config.EnvironmentOf(lo.Tags)
+	if s.spec == nil || s.spec.sig != sig || s.spec.env != env {
 		loadStart = time.Now()
-		s.spec = loadSpec(s.opts, sig)
+		s.spec = loadSpec(lo, sig)
+		s.spec.env = env
 		loaded = true
 		s.watch.setSpecFiles(s.spec.files)
+	}
+	if r := s.spec.root; r != nil && r.Environment != "" {
+		s.mu.Lock()
+		s.envName = r.Environment
+		s.mu.Unlock()
+		s.watch.setEnvironment(r.Environment)
 	}
 	ss := s.spec
 	ss.cueMu.Lock()
@@ -741,7 +762,7 @@ func (s *Server) build() (*model, error) {
 		local = root.StateFile()
 	}
 	s.watch.setState(local, nil)
-	s.watch.setAccess(s.accessPath())
+	s.watch.setAccess(s.accessPath(root))
 	rev, sigs := s.watch.sample()
 	if loaded && sigs["spec"] != sig && !modifiedSince(ss.files, loadStart) {
 		// The file list grew with the load; that is not a change of the files.

@@ -167,7 +167,7 @@ pravo apply change.plan -t env=prod
 ```
 
 ```text out
-Error: -t and -T cannot be combined with a saved plan; the plan carries its own tags
+Error: -t, --env and -T cannot be combined with a saved plan; the plan carries its own tags
 ```
 
 ## A plan applies only to what it was made for

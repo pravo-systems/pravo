@@ -223,7 +223,7 @@ export class TracesView {
         'aria-label': `${t.command}, ${relTime(t.start)}, ${fmtDur(t.duration_us)}${failed ? ', failed' : ''}`, on: { click: () => this.pick(t.id) } },
       h('span', { class: 'tr-st', 'aria-hidden': 'true' }),
       h('span', { class: 'tr-r1' }, h('span', { class: 'tr-cmd' }, t.line || t.command), h('span', { class: 'tr-dur' }, fmtDur(t.duration_us))),
-      h('span', { class: 'tr-r2' }, h('span', null, relTime(t.start)), h('span', null, t.resources ? plural(t.resources, 'resource') : plural(t.span_count, 'span')), failed ? h('span', { class: 'tr-bad' }, 'failed') : null),
+      h('span', { class: 'tr-r2' }, h('span', null, relTime(t.start)), h('span', null, t.resources ? plural(t.resources, 'resource') : plural(t.span_count, 'span')), t.exit >= 0 ? h('span', { class: failed ? 'tr-bad' : 'tr-exit' }, `exit ${t.exit}`) : h('span', { class: 'tr-open' }, 'did not finish')),
       t.reason ? h('span', { class: 'tr-r3' }, t.reason) : null));
     });
     return h('nav', { class: 'tr-runs', 'aria-label': 'Recorded runs' },
@@ -251,8 +251,9 @@ export class TracesView {
     return h('div', { class: 'tr-sum' + (failed ? ' bad' : '') },
       h('div', { class: 'tr-sumhead' },
         h('h3', { class: 'tr-name' }, d.line || d.command),
-        failed ? h('span', { class: 'b bad' }, icon('bang'), `${plural(d.errors, 'span')} failed`) : h('span', { class: 'b ok' }, icon('check'), 'no span failed'),
-        d.exit >= 0 ? h('span', { class: 'b' }, `exit ${d.exit}`) : null),
+        d.exit >= 0 ? h('span', { class: 'b ' + (failed ? 'bad' : 'ok') }, icon(failed ? 'bang' : 'check'), `exit ${d.exit}`)
+          : h('span', { class: 'b chg' }, 'did not finish'),
+        d.errors ? h('span', { class: 'b' }, plural(d.errors, 'span') + ' with an error') : null),
       h('ul', { class: 'tr-facts' },
         fact('Started', h('span', { 'data-tip': stamp(d.start) }, relTime(d.start))),
         fact('Took', fmtDur(d.duration_us)),
@@ -351,7 +352,7 @@ export class TracesView {
     this.bindPlot();
     return h('div', { class: 'tr-chart' },
       this.plot,
-      h('p', { class: 'tr-hint' }, 'Ctrl or ⌘ and scroll zoom. Drag moves along the run. Double click a span to fit it. Beside each attribute, Only and Hide filter by it.'));
+      h('p', { class: 'tr-hint' }, 'Ctrl or ⌘ and scroll zoom. Drag moves along the run. Double click a span to focus on it. Beside each attribute, Only and Hide filter by it.'));
   }
 
   layoutPlot() {
@@ -645,9 +646,9 @@ export class TracesView {
     if (!sp) return h('aside', { class: 'tr-detail empty', 'aria-label': 'Span inspector' },
       h('p', { class: 'tr-note' }, 'Click a span to inspect it here. The arrow keys step from span to span, and the inspector follows.'));
     const total = this.doc.duration_us || 1;
-    const chain = pathOf(sp);
+    const chain = pathOf(sp).slice(0, -1); // the span itself is the title above
     const crumbs = h('ol', { class: 'tr-crumbs', 'aria-label': 'Where the span is' });
-    chain.forEach((c, i) => crumbs.append(h('li', null, i === chain.length - 1 ? h('span', { 'aria-current': 'true' }, labelOf(c)) : h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.select(c.id) } }, labelOf(c)))));
+    chain.forEach((c) => crumbs.append(h('li', null, h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.select(c.id) } }, labelOf(c)))));
     const attrs = Object.entries(sp.attrs || {}).sort(([a], [b]) => a.localeCompare(b));
     const events = sp.events || [];
     const kids = sp.kids.slice().sort((a, b) => b.dur_us - a.dur_us);
@@ -658,7 +659,7 @@ export class TracesView {
     const forAddr = sp.attrs && sp.attrs['pravo.resource.address'] ? String(sp.attrs['pravo.resource.address']) : '';
     const copy = sp.kind === 'resource' || sp.kind === 'provider' ? forAddr : '';
     const fit = this.mode === 'flame'
-      ? h('button', { class: 'tr-tool', type: 'button', title: 'Zoom the timeline to this span', on: { click: () => this.zoomTo(sp) } }, 'Fit')
+      ? h('button', { class: 'tr-tool', type: 'button', title: 'Zoom the timeline in on this span ( Enter )', on: { click: () => this.zoomTo(sp) } }, 'Focus')
       : h('button', { class: 'tr-tool', type: 'button', title: 'Show this span in the timeline', on: { click: () => { this.setMode('flame'); this.zoomTo(sp); } } }, 'Timeline');
     let body;
     if (tab === 'attrs') body = this.attrsPanel(attrs);
@@ -679,14 +680,14 @@ export class TracesView {
       h('div', { class: 'tr-dsub' },
         h('span', { class: 'b' }, KIND[sp.kind] || 'span'),
         sp.status === 'error' ? h('span', { class: 'b bad' }, icon('bang'), 'failed') : null,
-        crumbs),
+        chain.length ? crumbs : null),
       sp.kind === 'provider' && forAddr ? h('div', { class: 'tr-metas' }, meta('For resource', forAddr, sp.attrs['pravo.resource.type'])) : null,
       h('div', { class: 'tr-metas' },
         meta('Took', fmtDur(sp.dur_us), `${pct.toFixed(sp.dur_us / total < 0.1 ? 1 : 0)}% of the run`),
         meta('In itself', fmtDur(sp.self), sp.kids.length ? `${Math.round((sp.self / Math.max(sp.dur_us, 1)) * 100)}%` : 'no parts'),
         meta('From', fmtDur(sp.start_us), 'to ' + fmtDur(sp.end))),
       h('div', { class: 'tr-where', role: 'img', 'aria-label': `From ${fmtDur(sp.start_us)} to ${fmtDur(sp.end)} of ${fmtDur(total)}` },
-        h('span', { class: 'tr-wb k-' + sp.kind + (sp.status === 'error' ? ' err' : ''), style: `left:${Math.min(99.5, (sp.start_us / total) * 100)}%;width:max(3px,${pct}%)` })),
+        h('span', { class: 'tr-wb k-' + sp.kind + (sp.status === 'error' ? ' failed' : ''), style: `--l:${Math.min(100, Math.max(0, (sp.start_us / total) * 100))}%;--w:${pct}%` })),
       sp.status === 'error' && sp.message ? h('pre', { class: 'tr-err' }, sp.message) : null,
       tabs.length ? h('div', { class: 'tr-tabs', role: 'tablist', 'aria-label': 'What to show of the span' },
         tabs.map(([k, label, n]) => h('button', { type: 'button', role: 'tab', class: 'tr-tab', 'aria-selected': k === tab ? 'true' : 'false', 'data-fk': 'dtab-' + k,

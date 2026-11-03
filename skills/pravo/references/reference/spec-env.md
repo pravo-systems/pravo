@@ -1,6 +1,6 @@
 <!-- Generated from docs/reference/spec-env.md by tools/skillgen. Do not edit. -->
 
-# Environment and remote outputs
+# Environment variables and remote outputs
 
 pravo.#Env and pravo.#SecretEnv read environment variables, pravo.#Secret reads the sealed state, and pravo.#RemoteOutputs reads the outputs of another root.
 

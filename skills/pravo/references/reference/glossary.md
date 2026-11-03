@@ -9,7 +9,7 @@ A term links to the lesson that teaches it, or to the page that describes it. A 
 | Group | Terms |
 |---|---|
 | CUE | [attribute](#attribute), [bottom](#bottom), [bound](#bound), [closed](#closed), [comprehension](#comprehension), [concrete](#concrete), [conflict](#conflict), [constraint](#constraint), [default](#default), [definition](#definition), [disjunction](#disjunction), [embedding](#embedding), [evaluation](#evaluation), [field](#field), [hidden field](#hidden-field), [import](#import), [incomplete](#incomplete), [interpolation](#interpolation), [let](#let), [list](#list), [open](#open), [optional field](#optional-field), [package](#package), [pattern](#pattern), [reference](#reference), [regular field](#regular-field), [required field](#required-field), [standard library](#standard-library), [struct](#struct), [tag](#tag), [type](#type), [unification](#unification) |
-| pravo | [acknowledgement](#acknowledgement), [actor](#actor), [address](#address), [adoption](#adoption), [approval](#approval), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [discovery](#discovery), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [generated package](#generated-package), [group](#group), [identity](#identity), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [node](#node), [output](#output), [partly stale](#partly-stale), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [provider](#provider), [reach](#reach), [reader](#reader), [readers file](#readers-file), [refresh age](#refresh-age), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [role](#role), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sealed state](#sealed-state), [secret](#secret), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [template](#template), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [write-only attribute](#write-only-attribute) |
+| pravo | [acknowledgement](#acknowledgement), [actor](#actor), [address](#address), [adoption](#adoption), [approval](#approval), [blast radius](#blast-radius), [call](#call), [collection](#collection), [data source](#data-source), [dependency](#dependency), [discovery](#discovery), [done when](#done-when), [drift](#drift), [ephemeral resource](#ephemeral-resource), [ephemeral value](#ephemeral-value), [environment](#environment), [generated package](#generated-package), [group](#group), [identity](#identity), [input](#input), [lineage](#lineage), [lock](#lock), [lock file](#lock-file), [mark](#mark), [meta field](#meta-field), [module](#module), [move](#move), [node](#node), [output](#output), [partly stale](#partly-stale), [plan](#plan), [plan document](#plan-document), [plan id](#plan-id), [policy](#policy), [promotion](#promotion), [promotion flow](#promotion-flow), [provider](#provider), [reach](#reach), [reader](#reader), [readers file](#readers-file), [refresh age](#refresh-age), [release](#release), [replacement](#replacement), [reservation](#reservation), [resource](#resource), [role](#role), [root](#root), [saved plan](#saved-plan), [scoped plan](#scoped-plan), [sealed state](#sealed-state), [secret](#secret), [sensitive value](#sensitive-value), [specification](#specification), [state](#state), [stored plan](#stored-plan), [template](#template), [transaction](#transaction), [trust anchor](#trust-anchor), [unknown value](#unknown-value), [viewer](#viewer), [waiver](#waiver), [write-only attribute](#write-only-attribute) |
 
 ## Terms of CUE
 
@@ -303,6 +303,12 @@ A value of an ephemeral resource, of `pravo.#SecretEnv` or of `pravo.#Secret`. I
 
 Taught in [B6](../learn/b06-reuse-providers-credentials.md). See [Environment](spec-env.md#secret-env).
 
+### environment
+
+One of the places that one [specification](#specification) is applied to, such as dev, staging or prod, declared as a key of `$environments`. Its row holds what differs, `--env NAME` selects it, and it has a [state](#state) of its own, which records the environment it serves and the ones it follows.
+
+Taught in [B4](../learn/b04-inputs-tags-environments.md). See [Environments](spec-environments.md).
+
 ### generated package
 
 A CUE package that `pravo init` writes under `cue.mod/gen/`: one for each provider, and `pravo.dev/pravo`. A specification imports them to build resources.
@@ -411,6 +417,18 @@ A `pravo.#Policy` node of the specification whose rule is CUE text that a plan m
 
 Taught in [B11](https://pravo.systems/learn/b11-policy.html). See [Policies](policies-overview.md).
 
+### promotion
+
+A signature, kept in the [state](#state) of an [environment](#environment), that lets a [release](#release) into it. It carries the signed notes that the environments before run the release, and an apply checks it and them before it changes anything. `pravo promote` writes it; a [waiver](#waiver) is a promotion without the notes.
+
+See [Promote a release from one environment to the next](../how-to/promote-a-release.md) and [pravo promote](promote.md).
+
+### promotion flow
+
+The order of the [environments](#environment) that `$after` makes: each environment takes the [release](#release) that the ones it follows run. An environment may follow several, and several may follow one, so the flow can fork and join. `pravo environments` prints it as `dev → staging → prod`.
+
+See [Environments](spec-environments.md#the-promotion-flow).
+
 ### provider
 
 A struct built from the `#Provider` definition of a generated package. It tells pravo which OpenTofu provider to run, at which version, and with which configuration. Resources are built through it.
@@ -440,6 +458,12 @@ See [pravo id and pravo protect](protect.md#the-readers-file).
 How old a record may be before a plan that looks at the resource reads it from its provider again. A record is within its refresh age while its age is no greater than the refresh age, and older than it once its age is greater. `always` is an age of zero, `never` is no limit, and `"30m"` is a duration. It is set per root and per resource. [Reach](#reach) decides what a plan looks at; the refresh age decides whether a record that it looks at is read.
 
 See [Settings](spec-settings.md#refresh) and [Meta fields](spec-meta-fields.md#refresh).
+
+### release
+
+The [specification](#specification) of a directory, named by its fingerprint, with the values of its [tags](#tag) other than `env`. An apply notes in its state which release it applied, and a [promotion](#promotion) lets one release into the next [environment](#environment).
+
+See [Environments](spec-environments.md#the-gate).
 
 ### replacement
 
@@ -548,6 +572,12 @@ Taught in [B2](../learn/b02-reading-a-plan.md). See [The plan document](policies
 The read-only web page that `pravo serve` runs on the loopback interface. It shows the specification, the state and a saved plan as a graph of [groups](#group) and resources. A node's presence says whether it is declared, recorded or both.
 
 See [The viewer](../concepts/the-viewer.md) and [`pravo serve`](serve.md).
+
+### waiver
+
+A [promotion](#promotion) that an admin signs without the notes of the environments before, with a reason, when their states cannot be read. It holds for one [release](#release), and the reason is written into the note of the apply.
+
+See [pravo promote](promote.md#a-waiver).
 
 ### write-only attribute
 

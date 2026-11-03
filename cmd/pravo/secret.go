@@ -64,6 +64,7 @@ parts, such as prod/db_password.`,
 	pf.StringVar(&flags.AccessDir, "access-dir", "", accessDirUsage)
 	// The tags select the state, so the commands that open it take them too.
 	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
+	addEnvFlag(pf)
 	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
 	cmd.AddCommand(secretSetCmd(), secretGetCmd(), secretListCmd(), secretHistoryCmd(), secretRmCmd(), secretPurgeCmd(), secretExecCmd())
 	return cmd
@@ -97,7 +98,7 @@ func openSecrets(cmd *cobra.Command, access secretAccess) (*secretRun, error) {
 	if err != nil {
 		return nil, err
 	}
-	rf := loadReadersFile(root.Dir, flags.AccessDir)
+	rf := readersOf(root)
 	if access == secretWrite && stateMissing(ctx, root) {
 		// Opening a store for writing would make one, and a first writer makes it in the clear.
 		if rf.Found {
@@ -122,6 +123,12 @@ func openSecrets(cmd *cobra.Command, access secretAccess) (*secretRun, error) {
 	if err != nil {
 		st.Close()
 		return nil, engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
+	}
+	if access == secretWrite {
+		if err := refuseOtherEnvironmentFor(ctx, root, st, eff.Readers); err != nil {
+			st.Close()
+			return nil, err
+		}
 	}
 	return &secretRun{ctx: ctx, root: root, st: st, rf: rf, rules: recordRules(eff.Readers, rs)}, nil
 }
@@ -504,7 +511,7 @@ It needs an identity that is an admin when the readers file gives roles.`,
 
 var envVarName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// secretBinding is one --env VAR=NAME[@VERSION] of exec.
+// secretBinding is one --var VAR=NAME[@VERSION] of exec.
 type secretBinding struct {
 	variable, name string
 	version        int
@@ -512,28 +519,28 @@ type secretBinding struct {
 
 func parseSecretBindings(specs []string) ([]secretBinding, error) {
 	if len(specs) == 0 {
-		return nil, errors.New("name at least one secret to put in the environment: --env VAR=NAME")
+		return nil, errors.New("name at least one secret to put in the environment: --var VAR=NAME")
 	}
 	seen := map[string]bool{}
 	var out []secretBinding
 	for _, spec := range specs {
 		variable, ref, ok := strings.Cut(spec, "=")
 		if !ok || !envVarName.MatchString(variable) {
-			return nil, fmt.Errorf("--env %q: want VAR=NAME, with a variable name of letters, digits and underscores", spec)
+			return nil, fmt.Errorf("--var %q: want VAR=NAME, with a variable name of letters, digits and underscores", spec)
 		}
 		if seen[variable] {
-			return nil, fmt.Errorf("--env: the variable %s is set twice", variable)
+			return nil, fmt.Errorf("--var: the variable %s is set twice", variable)
 		}
 		seen[variable] = true
 		name, vs, hasVersion := strings.Cut(ref, "@")
 		b := secretBinding{variable: variable, name: name}
 		if err := state.ValidSecretName(name); err != nil {
-			return nil, fmt.Errorf("--env %q: %w", spec, err)
+			return nil, fmt.Errorf("--var %q: %w", spec, err)
 		}
 		if hasVersion {
 			n, err := strconv.Atoi(vs)
 			if err != nil || n < 1 {
-				return nil, fmt.Errorf("--env %q: a version is a number from 1, as in %s@3", spec, name)
+				return nil, fmt.Errorf("--var %q: a version is a number from 1, as in %s@3", spec, name)
 			}
 			b.version = n
 		}
@@ -545,9 +552,9 @@ func parseSecretBindings(specs []string) ([]secretBinding, error) {
 func secretExecCmd() *cobra.Command {
 	var bindings []string
 	cmd := &cobra.Command{
-		Use:   "exec --env VAR=NAME... -- COMMAND [ARGUMENTS]",
+		Use:   "exec --var VAR=NAME... -- COMMAND [ARGUMENTS]",
 		Short: "Run a command with secrets in its environment",
-		Long: `Reads the secrets, puts each in the environment variable that --env names (--env
+		Long: `Reads the secrets, puts each in the environment variable that --var names (--var
 VAR=NAME, or VAR=NAME@3 for version 3 of it) and runs the command with that environment. The
 values are not written to a file, and only the command sees them. Everything before the command
 is read by pravo and everything after it belongs to the command. If a secret cannot be read, the
@@ -555,7 +562,7 @@ command does not run. The exit code is that of the command.
 
 It needs an identity that is a reader of the state. Secrets with a null byte cannot be put in
 an environment variable.`,
-		Example: `  pravo secret exec --env PGPASSWORD=prod/db_password -- psql -h db.internal -U app`,
+		Example: `  pravo secret exec --var PGPASSWORD=prod/db_password -- psql -h db.internal -U app`,
 		Args:    cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			parsed, err := parseSecretBindings(bindings)
@@ -605,7 +612,7 @@ an environment variable.`,
 			return err
 		},
 	}
-	cmd.Flags().StringArrayVar(&bindings, "env", nil, "put a secret in an environment variable: --env VAR=NAME, or VAR=NAME@3 for a version")
+	cmd.Flags().StringArrayVar(&bindings, "var", nil, "put a secret in an environment variable: --var VAR=NAME, or VAR=NAME@3 for a version")
 	// What follows the first word that is not a flag belongs to the command.
 	cmd.Flags().SetInterspersed(false)
 	return cmd

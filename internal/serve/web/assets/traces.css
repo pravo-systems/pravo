@@ -52,6 +52,8 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-dur { font: 400 var(--fs-2)/1 var(--font-mono); color: var(--text-2); white-space: nowrap; }
 .tr-r2 { display: flex; flex-wrap: wrap; gap: .1rem .7rem; font-size: var(--fs-1); color: var(--text-3); }
 .tr-bad { color: var(--conflict); font-weight: 600; }
+.tr-exit { font-family: var(--font-mono); }
+.tr-open { color: var(--change); }
 .tr-r3 { font-size: var(--fs-2); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- the run ---- */
@@ -180,19 +182,26 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-detail.empty p { margin: 0; }
 .tr-detail.bad { background: linear-gradient(var(--conflict-wash), var(--conflict-wash)), var(--surface); }
 .tr-detail > * { flex: none; }
-.tr-dhead { display: flex; align-items: center; gap: .4rem; padding: .55rem .6rem .4rem .8rem; min-width: 0; }
+.tr-dhead { display: flex; align-items: center; gap: .4rem; padding: .6rem .8rem .45rem; min-width: 0; }
+/* The buttons of the head share one height and never shrink, so Close is never cut. */
+.tr-dhead > button { flex: none; box-sizing: border-box; height: 2rem; }
+.tr-dhead .iconbtn, .tr-dhead .cpbtn { width: 2rem; padding: 0; }
+.tr-dhead .cpbtn { border-color: var(--line-strong); background: var(--surface); }
 .tr-dhead .tr-sw { width: .9rem; height: .9rem; }
-.tr-dname { margin: 0; min-width: 0; font: 500 var(--fs-4)/1.25 var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A long name takes a second line before it is cut. */
+.tr-dname { flex: 1 1 auto; margin: 0; min-width: 0; font: 500 var(--fs-4)/1.25 var(--font-mono); overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .tr-dhead .grow { flex: 1 0 0; }
 .tr-tool { flex: none; height: 1.75rem; padding: 0 .65rem; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
 .tr-tool:hover { background: var(--text); color: var(--bg); }
 .tr-tool:focus-visible { outline: 2px solid var(--key); outline-offset: 1px; }
-.tr-dsub { display: flex; align-items: baseline; flex-wrap: wrap; gap: .3rem .6rem; padding: 0 .8rem .55rem; }
+.tr-dsub { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .6rem; padding: 0 .8rem .55rem; }
 .tr-crumbs { display: flex; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; font: 400 var(--fs-1)/1.5 var(--font-mono); color: var(--text-3); min-width: 0; }
 .tr-crumbs li { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tr-crumbs li + li::before { content: "/"; margin: 0 .35rem; color: var(--text-3); }
+/* The slash ends a line, so a wrapped line starts with a name. */
+.tr-crumbs li:not(:last-child)::after { content: "/"; margin: 0 .35rem; color: var(--text-3); }
 .tr-crumbs [aria-current] { color: var(--text); }
 .tr-crumbs .linkbtn { font: inherit; }
+.tr-dsub .b { height: 1.4rem; box-sizing: border-box; }
 .tr-metas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .tr-m { display: grid; gap: .15rem; padding: .5rem .8rem; border-left: 1px solid var(--line); min-width: 0; }
 .tr-m:first-child { border-left: 0; }
@@ -200,8 +209,9 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-m b { font: 500 1.05rem/1.1 var(--font-mono); letter-spacing: -.01em; }
 .tr-m .sub { font-size: var(--fs-1); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tr-where { position: relative; height: .5rem; margin: .55rem .8rem 0; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
-.tr-wb { position: absolute; top: 0; bottom: 0; box-sizing: border-box; background: color-mix(in srgb, var(--k, var(--text-3)) 40%, var(--surface)); box-shadow: inset 0 0 0 1px var(--k, var(--text-3)); }
-.tr-wb.err { --k: var(--conflict); }
+/* A short span keeps 3px, and a span at the end of the run stays inside the strip. */
+.tr-wb { position: absolute; top: 0; bottom: 0; box-sizing: border-box; width: max(3px, var(--w)); left: min(var(--l), calc(100% - max(3px, var(--w)))); background: color-mix(in srgb, var(--k, var(--text-3)) 40%, var(--surface)); box-shadow: inset 0 0 0 1px var(--k, var(--text-3)); }
+.tr-wb.failed { --k: var(--conflict); }
 .tr-err { max-height: 7rem; overflow: auto; margin: .6rem .8rem 0; padding: .5rem .65rem; border: 1px solid var(--conflict); background: var(--conflict-wash); font: 400 var(--fs-2)/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
 .tr-tabs { display: flex; margin-top: .6rem; border-bottom: 1px solid var(--line-strong); padding: 0 .8rem; gap: 1.1rem; }
 .tr-tab { position: relative; display: inline-flex; align-items: baseline; gap: .4rem; padding: .45rem 0 .5rem; color: var(--text-3); font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; cursor: pointer; }

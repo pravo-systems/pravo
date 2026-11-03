@@ -267,6 +267,15 @@ func planCmd() *cobra.Command {
 			}
 			if flags.Markdown {
 				opts := engine.MarkdownOptions{Refused: refusal(policyErr)}
+				// A comment on a pull request may hold the plans of several environments.
+				if env := s.root.Environment; env != "" {
+					opts.Title = "pravo plan for " + env
+					if !destroy {
+						if line, err := eng.EnvironmentLine(cmd.Context()); err == nil && line != "" {
+							opts.Notes = append(opts.Notes, engine.MarkdownNote(line))
+						}
+					}
+				}
 				if stored != nil {
 					opts.ID, opts.Expires, opts.Apply = stored.Meta.ID, stored.Meta.Expires, stored.Meta.ApplyCommand()
 				}
@@ -346,6 +355,7 @@ func planCmd() *cobra.Command {
 	// The tags select the state, so the commands that list stored plans take them too.
 	pf := cmd.PersistentFlags()
 	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
+	addEnvFlag(pf)
 	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
 	cmd.AddCommand(planCommands()...)
 	return cmd
@@ -533,7 +543,7 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 	ctx := cmd.Context()
 	streamEvents = true
 	if sealed, _ := engine.PlanFileSealed(path); !sealed && (len(flags.Tags) > 0 || flags.SysTags) {
-		return errors.New("-t and -T cannot be combined with a saved plan; the plan carries its own tags")
+		return errors.New("-t, --env and -T cannot be combined with a saved plan; the plan carries its own tags")
 	}
 	if cmd.Flags().Changed("refresh") || full {
 		return errors.New("-refresh and -full do not apply to a saved plan")
@@ -705,12 +715,22 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 		emitLine(map[string]any{"kind": "plan", "phase": "done", "plan": view})
 	} else {
 		out.RenderPlan(plan)
+		if !destroy {
+			if line, err := eng.EnvironmentLine(ctx); err == nil && line != "" {
+				out.Println(line)
+			}
+		}
+	}
+	// An environment that follows another is refused here, before the question, when the
+	// release was not promoted into it.
+	if err := eng.CheckAdmission(ctx); err != nil {
+		return err
 	}
 	if !plan.HasWrites() {
 		// The plan has nothing to change. What it still writes is the record of a
 		// node whose configuration changed and whose object did not, and an output
-		// whose value changed.
-		if !destroy && plan.NeedsApply() {
+		// whose value changed. The state of an environment notes the release it runs.
+		if !destroy && (plan.NeedsApply() || s.root.Environment != "") {
 			if _, err := eng.Apply(ctx, plan); err != nil {
 				return err
 			}
@@ -900,6 +920,9 @@ func importCmd() *cobra.Command {
 				return err
 			}
 			defer s.close()
+			if err := refuseOtherEnvironment(ctx, s.root, s.state); err != nil {
+				return err
+			}
 			res := s.root.Resource(args[0])
 			if res == nil {
 				return fmt.Errorf("%s is not declared in the configuration; add it before importing", args[0])
@@ -1130,6 +1153,17 @@ func validateCmd() *cobra.Command {
 		Short: "Evaluate the configuration and check it against provider schemas",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// A specification with environments is valid when it is valid in each of them. -t
+			// env=NAME checks the one.
+			if _, given := config.EnvironmentOf(flags.Tags); !given {
+				list, err := config.ReadEnvironmentSettings(".", config.LoadOptions{Tags: flags.Tags, SysTags: flags.SysTags, Env: environment()})
+				if err != nil {
+					return engine.WithCode(engine.ExitInvalid, err)
+				}
+				if len(list) > 0 {
+					return validateEnvironments(cmd, list)
+				}
+			}
 			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true})
 			if err != nil {
 				return engine.WithCode(engine.ExitInvalid, err)
@@ -1153,6 +1187,149 @@ func validateCmd() *cobra.Command {
 	}
 	addTagFlags(cmd)
 	return cmd
+}
+
+// validateEnvironments validates the specification in each environment, and says for each what
+// it declares or why it is not valid.
+// rowProblem checks the row of one environment in $environments against the others: a field
+// that another row has and this one does not, or a value that is not concrete, is found here
+// rather than in a plan of that environment, where it would stop the run or wait for the apply.
+// The fields of pravo, which begin with $, are left out.
+func rowProblem(v cue.Value, envs []config.Environment, name string) string {
+	all := v.LookupPath(cue.MakePath(cue.Str("$environments")))
+	if !all.Exists() {
+		return ""
+	}
+	fields := func(row cue.Value) []string {
+		var out []string
+		it, err := row.Fields()
+		if err != nil {
+			return nil
+		}
+		for it.Next() {
+			if l := it.Selector().String(); !strings.HasPrefix(l, "$") {
+				out = append(out, l)
+			}
+		}
+		return out
+	}
+	mine := fields(all.LookupPath(cue.MakePath(cue.Str(name))))
+	holders := map[string][]string{}
+	var order []string
+	for _, e := range envs {
+		if e.Name == name {
+			continue
+		}
+		for _, f := range fields(all.LookupPath(cue.MakePath(cue.Str(e.Name)))) {
+			if !slices.Contains(mine, f) {
+				if _, ok := holders[f]; !ok {
+					order = append(order, f)
+				}
+				holders[f] = append(holders[f], e.Name)
+			}
+		}
+	}
+	if len(order) > 0 {
+		f := order[0]
+		return fmt.Sprintf("$environments.%s has no %s, which %s %s", name, f, joinAnd(holders[f]), map[bool]string{true: "has", false: "have"}[len(holders[f]) == 1])
+	}
+	row := all.LookupPath(cue.MakePath(cue.Str(name)))
+	for _, f := range mine {
+		if err := row.LookupPath(cue.ParsePath(f)).Validate(cue.Concrete(true)); err != nil {
+			return fmt.Sprintf("$environments.%s.%s has no value: %s", name, f, firstLine(err))
+		}
+	}
+	return ""
+}
+
+func validateEnvironments(cmd *cobra.Command, list []config.EnvironmentSettings) error {
+	saved := flags.Tags
+	defer func() { flags.Tags = saved }()
+	type result struct {
+		Environment string `json:"environment"`
+		Valid       bool   `json:"valid"`
+		Resources   int    `json:"resources"`
+		DataSources int    `json:"data_sources"`
+		Outputs     int    `json:"outputs"`
+		Error       string `json:"error,omitempty"`
+		// Settings says why the settings of the environment cannot be read here.
+		Settings string `json:"settings,omitempty"`
+	}
+	var results []result
+	var failed []string
+	for _, es := range list {
+		flags.Tags = config.WithEnvironment(saved, es.Name)
+		r := result{Environment: es.Name}
+		if es.Err != nil {
+			r.Settings = firstLine(es.Err)
+		}
+		err := func() error {
+			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true})
+			if err != nil {
+				return err
+			}
+			defer s.close()
+			if err := engine.CheckGraph(s.root, s.value); err != nil {
+				return err
+			}
+			if p := rowProblem(s.value, s.root.Environments, es.Name); p != "" {
+				return errors.New(p)
+			}
+			r.Resources, r.DataSources, r.Outputs = countMode(s.root, "managed"), countMode(s.root, "data"), len(s.root.Outputs)
+			return nil
+		}()
+		r.Valid = err == nil
+		if err != nil {
+			r.Error = err.Error()
+			failed = append(failed, es.Name)
+		}
+		results = append(results, r)
+	}
+	if flags.JSON {
+		if err := emitJSON(map[string]any{"valid": len(failed) == 0, "environments": results}); err != nil {
+			return err
+		}
+		if len(failed) > 0 {
+			return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the specification is not valid in %s", joinAnd(failed)))
+		}
+		return nil
+	}
+	// An error that several environments share, such as a mistake in $environments itself, is
+	// written once, with the environments it is about.
+	var texts []string
+	byText := map[string][]string{}
+	for _, r := range results {
+		switch {
+		case r.Valid:
+			out.Printf("%s %s: %d resources, %d data sources, %d outputs.\n", out.C(ui.Green, "✓"), r.Environment, r.Resources, r.DataSources, r.Outputs)
+		default:
+			out.Printf("%s %s\n", out.C(ui.Red, "✗"), r.Environment)
+			text := strings.TrimSuffix(r.Error, "\n(evaluated for the environment "+r.Environment+")")
+			if _, ok := byText[text]; !ok {
+				texts = append(texts, text)
+			}
+			byText[text] = append(byText[text], r.Environment)
+		}
+		if r.Settings != "" {
+			out.Printf("  %s\n", out.C(ui.Dim, "its settings cannot be read here: "+r.Settings))
+		}
+	}
+	if len(failed) > 0 {
+		if len(texts) == 1 {
+			return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the specification is not valid in %s: %s", joinAnd(failed), texts[0]))
+		}
+		errs := make([]string, len(texts))
+		for i, t := range texts {
+			errs[i] = joinAnd(byText[t]) + ": " + t
+		}
+		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the specification is not valid in %s:\n\n%s", joinAnd(failed), strings.Join(errs, "\n\n")))
+	}
+	names := make([]string, len(results))
+	for i, r := range results {
+		names[i] = r.Environment
+	}
+	out.Printf("%s The specification is valid in %s.\n", out.C(ui.Bold+ui.Green, "Success!"), joinAnd(names))
+	return nil
 }
 
 func countMode(root *config.Root, mode string) int {
