@@ -252,6 +252,15 @@ Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <id>]
 
 A writer who is not an admin cannot waive. Dev is behind prod now, and the next release starts there again.
 
+## The viewer shows the flow
+
+The Environments section of `pravo serve`, or `v` in the viewer, draws the promotion flow from left to right. Each card shows the release that its environment runs, when and by whom, and the next environment that can take a release is marked with the command that promotes it. The page runs nothing and writes nothing.
+
+:::figure The promotion flow of three environments, with dev one release ahead of staging and prod.
+<a class="shot shot-dark" href="../img/serve/environments-flow-dark.png"><img src="../img/serve/environments-flow-dark.png" width="1440" height="900" alt="The Environments section of the viewer. Three cards joined by arrows from left to right: dev, staging and prod. Dev runs the newest release and is the one that was read. Staging and prod run the release before it, and staging is marked ready to promote from dev, with the command pravo promote staging under it." loading="lazy"></a>
+<a class="shot shot-light" href="../img/serve/environments-flow-light.png"><img src="../img/serve/environments-flow-light.png" width="1440" height="900" alt="The Environments section of the viewer. Three cards joined by arrows from left to right: dev, staging and prod. Dev runs the newest release and is the one that was read. Staging and prod run the release before it, and staging is marked ready to promote from dev, with the command pravo promote staging under it." loading="lazy"></a>
+:::
+
 ## What next
 
 - [pravo promote](../reference/promote.md) lists every flag, the checks of the apply and the exit codes.

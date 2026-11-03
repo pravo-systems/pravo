@@ -80,7 +80,7 @@ type Fragment struct {
 var (
 	fragmentTabs   = []string{"state", "source", "schema", "history", "change"}
 	fragmentThemes = []string{"light", "dark"}
-	fragmentViews  = []string{"graph", "list", "state", "plans", "discovery", "policies", "templates", "traces"}
+	fragmentViews  = []string{"graph", "list", "state", "plans", "discovery", "policies", "templates", "traces", "environments"}
 )
 
 // String is the fragment without the leading #, in the order of the deep-link
@@ -460,6 +460,8 @@ func allShots() []Shot {
 	// that the replacement spreads to selected.
 	s = append(s, both("b02-plan", "b02", situationPlan, Fragment{Sel: "web", Tab: "change"})...)
 	// B3: the record of a resource, and the outputs at the right of the graph.
+	// Environments: the promotion flow, dev ahead of staging and prod.
+	s = append(s, both("environments-flow", "environments", situationClean, Fragment{View: "environments"})...)
 	s = append(s, both("b03-state", "b03", situationClean, Fragment{Sel: "web", Tab: "state"})...)
 	// B5: six resources from one rule, in two groups, and the rule in the Source tab.
 	s = append(s, both("b05-groups", "b05", situationClean, Fragment{Sel: "conf.web", Tab: "source"})...)

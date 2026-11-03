@@ -1,0 +1,41 @@
+{
+  "blocks": [
+    {
+      "block": 3,
+      "command": "mkdir -p .pravo/access/dev .pravo/access/staging .pravo/access/prod\nPRAVO_CONFIG_DIR=people/ada pravo id new --name ada > /dev/null\nPRAVO_CONFIG_DIR=people/dan pravo id new --name dan > /dev/null\nADA=$(PRAVO_CONFIG_DIR=people/ada pravo id show | tail -n 1 | sed 's/^ *//')\nDAN=$(PRAVO_CONFIG_DIR=people/dan pravo id show | tail -n 1 | sed 's/^ *//')\nfor e in dev staging; do\n  printf '%s role:admin\\n%s role:writer\\n' \"$ADA\" \"$DAN\" > .pravo/access/$e/readers.txt\ndone\nprintf '%s role:admin\\n%s role:reader\\n' \"$ADA\" \"$DAN\" > .pravo/access/prod/readers.txt\npravo init > /dev/null\nfor e in dev staging prod; do pravo protect init --encrypt --allow-local --yes --env $e > /dev/null; done\nPRAVO_CONFIG_DIR=people/dan pravo apply --auto-approve > /dev/null",
+      "exit": 0,
+      "expect_exit": 0,
+      "hidden": true,
+      "line": 63,
+      "ok": true,
+      "output": "",
+      "stage": "main"
+    },
+    {
+      "block": 4,
+      "command": "pravo promote prod",
+      "exit": 5,
+      "expect_exit": 5,
+      "line": 80,
+      "ok": true,
+      "output": "Error: staging does not run this release: nothing has been applied there yet.\n\nRun these, skipping a step that is already done:\n\n    pravo apply --env dev\n    pravo promote staging\n    pravo apply --env staging\n    pravo promote prod",
+      "stage": "main"
+    },
+    {
+      "block": 6,
+      "command": "pravo environments",
+      "exit": 0,
+      "expect_exit": 0,
+      "line": 95,
+      "ok": true,
+      "output": "dev → staging → prod\n\nENV      FOLLOWS  RUNS          GIT  SINCE   BY\ndev      -        <release-id>       0s ago  dan  runs this directory\nstaging  dev      -                               nothing applied yet; ready to promote\nprod     staging  -                               nothing applied yet\n\nThis directory: <release-id>\nNext: pravo promote staging",
+      "stage": "main"
+    }
+  ],
+  "page": "site/demos/environments/page.md",
+  "title": "Environments scenario",
+  "version": [
+    "pravo 0.1.0-dev",
+    "cue v0.17.1"
+  ]
+}

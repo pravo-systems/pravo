@@ -1,0 +1,34 @@
+/* ==========================================================================
+   99 landing: environments. The tabs of the hero beside three cards: the
+   specification, the refusal of a release that was not promoted and the
+   table of environments.
+   ========================================================================== */
+
+.env-band .band-title em { font-style: italic; color: var(--accent); }
+.env-band .band-lede { max-width: 54rem; }
+.env-split { grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); align-items: start; }
+@media (max-width: 59.99rem) { .env-split { grid-template-columns: minmax(0, 1fr); } }
+.env-cards { grid-template-columns: minmax(0, 1fr); }
+.env-cards .card { padding: 1.15rem 1.3rem 1.2rem; gap: .45rem; }
+.env-cards .card-title { font-size: var(--fs-7); }
+.env-cards .card-text { font-size: var(--fs-4); line-height: 1.5; }
+.env-stage { min-width: 0; }
+.env-stack .hs-p { align-self: start; }
+.env-stack .hs-p .code, .env-stack .hs-p .term { height: auto; }
+.env-stack .code-body, .env-stack .term-body { overflow: auto; }
+@media (min-width: 60rem) and (min-height: 43rem) and (max-height: 62rem) {
+  .env-cards .card { padding: .85rem 1.1rem .9rem; }
+  .env-cards .card-text { font-size: var(--fs-3); }
+}
+.env-stack .vw-shot { aspect-ratio: 2160 / 1031; }
+@media (max-width: 30rem) {
+  .env-stack .hs-tabs button { padding: .65rem .6rem; gap: .35rem; letter-spacing: .04em; }
+}
+.env-full { margin: .6rem 0 0; }
+.env-full summary { cursor: pointer; width: fit-content; padding: .3rem 0; font: 500 var(--fs-2)/1.2 var(--font-mono); letter-spacing: .04em; color: var(--accent); }
+.env-full[open] summary { margin-bottom: .6rem; }
+.env-less, .env-full[open] .env-more { display: none; }
+.env-full[open] .env-less { display: inline; }
+/* open in place: the whole file takes the place of the excerpt, and the page scrolls, not the panel */
+.hs-p:has(.env-full[open]) .env-cut { display: none; }
+.env-full .code-body { max-height: none; overflow: visible; }
