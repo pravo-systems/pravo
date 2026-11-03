@@ -154,7 +154,13 @@ func NextRoles(file []Reader, prev []Reader, prevFormer []FormerKey, seen []stri
 		base, n := name, 1
 		for names[strings.ToLower(name)] {
 			n++
-			name = fmt.Sprintf("%s-%d", base, n)
+			suffix := fmt.Sprintf("-%d", n)
+			// The name with its suffix has to stay a valid name, at most 64 characters.
+			b := base
+			if len(b)+len(suffix) > maxNameLen {
+				b = b[:maxNameLen-len(suffix)]
+			}
+			name = b + suffix
 		}
 		names[strings.ToLower(name)] = true
 		former = append(former, FormerKey{Name: name, Key: fp})

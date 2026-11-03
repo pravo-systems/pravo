@@ -183,6 +183,9 @@ func (p *protectRun) roles(yes, adoptUnsigned, allowNoAdmin bool, readd []string
 		} else if !ok {
 			return errors.New("protect roles cancelled; nothing was written")
 		}
+		if err := checkRolesText(text); err != nil {
+			return err
+		}
 		if err := st.PutRolesVersion(p.ctx, seq, text, time.Now()); err != nil {
 			if errors.Is(err, state.ErrRolesChanged) {
 				return engine.WithCode(engine.ExitStale, errors.New("another admin changed the roles while this ran; run it again"))
@@ -384,10 +387,19 @@ func setPin(path, digest string) error {
 
 // verifyRolesStored reads the roles back from the state, as every other command will, before the
 // command reports success or pins them: roles that do not parse or verify would lock everybody out.
+// checkRolesText refuses roles that would not parse again, before anything is stored: roles
+// that nobody can read make every command exit 7 for everybody.
+func checkRolesText(text string) error {
+	if _, _, _, err := protect.ParseRolesSet(text); err != nil {
+		return engine.WithCode(engine.ExitRefused, fmt.Errorf("these roles would not parse again (%s), so nothing was stored and the readers file is unchanged. Fix the readers file and run the command again.", printable(err.Error())))
+	}
+	return nil
+}
+
 func (p *protectRun) verifyRolesStored(st *state.Store, seq int, text string) error {
 	chain, err := st.RolesChain(p.ctx)
 	if err != nil {
-		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("the roles were stored as version %d, and reading them back failed: %s. Nothing is pinned; do not rely on this version.", seq, printable(err.Error())))
+		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("the roles were stored as version %d, and reading them back failed: %s. Nothing is pinned; do not rely on this version. Way out: delete roles/%08d.json in the bucket, fix the readers file, run pravo protect rewrap and then pravo protect roles.", seq, printable(err.Error()), seq))
 	}
 	if head := chain.Head(); head == nil || head.Seq != seq || head.Text != text {
 		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("the roles were stored as version %d, and reading them back gave something else. Nothing is pinned; run pravo protect check.", seq))

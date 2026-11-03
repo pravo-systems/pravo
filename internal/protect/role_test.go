@@ -129,3 +129,26 @@ func TestParseRolesSetReadsOldFormerNamesWithSlash(t *testing.T) {
 		t.Fatalf("roles stored by v0.1.4 do not parse: %v", err)
 	}
 }
+
+func TestAReadersFileWithOneSigningKeyOnTwoLinesIsRefused(t *testing.T) {
+	a, line := roleLine(t, "ada", "")
+	b := signer(t, "bob").AsReader()
+	b.Sign = a.Sign // a second identity made from the same ssh key
+	file := line + "\n" + b.String() + "\n"
+	_, _, err := ParseReadersPin(strings.NewReader(file))
+	if err == nil || !strings.Contains(err.Error(), "signing key") || !strings.Contains(err.Error(), "line 1") {
+		t.Fatalf("a repeated signing key was accepted or badly named: %v", err)
+	}
+}
+
+func TestAReplacedLongNameKeepsAValidFormerName(t *testing.T) {
+	for _, n := range []int{62, 63, 64} {
+		name := strings.Repeat("n", n)
+		old, _ := roleLine(t, name, "")
+		cur := Reader{Name: name, Sign: signer(t, "new").AsReader().Sign, Role: RoleReader}
+		active, former := NextRoles([]Reader{cur}, []Reader{old}, nil, nil)
+		if _, _, _, err := ParseRolesSet(FormatRolesSet(active, former, nil)); err != nil {
+			t.Errorf("a name of %d characters: %v", n, err)
+		}
+	}
+}
