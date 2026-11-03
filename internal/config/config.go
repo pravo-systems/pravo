@@ -736,6 +736,18 @@ func readSettingsSource(dir string, opts LoadOptions) (*settingsSource, error) {
 					c.val, c.env = plain, true
 				}
 				c.imports = mentionsAny(c.val, aliases)
+				// A definition of your own, such as #Row: pravo.#Environment & {...}, and a
+				// typed $environment: #Row are read without the schema, as $settings is, so
+				// that the rows can be typed by it.
+				if c.imports && (strings.HasPrefix(name, "#") || name == "$environment") {
+					if v := dropImportRefs(c.val, aliases); v != nil && !mentionsAny(v, aliases) {
+						// What the schema allowed, such as $after, stays allowed.
+						v = &ast.StructLit{Elts: []ast.Decl{&ast.EmbedDecl{Expr: v}, &ast.Ellipsis{}}}
+						cp := *fld
+						cp.Value = v
+						c.decl, c.val, c.imports = &cp, v, false
+					}
+				}
 				src.others = append(src.others, c)
 			}
 		}
@@ -747,8 +759,11 @@ func readSettingsSource(dir string, opts LoadOptions) (*settingsSource, error) {
 	otherDecls, _ := readableDecls(src.ctx, src.others, opts.Env)
 	ev, err := compileDecls(src.ctx, append(append([]ast.Decl{}, otherDecls...), envDecls...))
 	if err != nil {
+		first := err
 		if ev, err = compileDecls(src.ctx, envDecls); err != nil {
-			return nil, fmt.Errorf("evaluating $environments:\n%s", cueerrors.Details(err, nil))
+			// The rows need the fields beside them, such as a #Row that types them: the first
+			// error says what is wrong with the rows.
+			return nil, fmt.Errorf("evaluating $environments:\n%s", cueerrors.Details(first, nil))
 		}
 	}
 	if src.envs, err = parseEnvironments(ev.LookupPath(cue.MakePath(cue.Str("$environments")))); err != nil {

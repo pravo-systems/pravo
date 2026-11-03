@@ -12,7 +12,7 @@ $environments and $environment: the environments one specification is applied to
 | a field of a row | Your own. | What differs between the environments: a size, a region, a domain. |
 | `$after` | A row. | The environment whose release this one takes, or a list of them. Without it, the environment takes any release. |
 | `$default` | A row. | `true` on the environment that a command without `--env` uses. At most one row has it. |
-| `$environment` | Filled in by pravo. | The row of the selected environment, with `$name`, its name. |
+| `$environment` | Filled in by pravo; declare it for your editor ([Typing the rows](#typing-the-rows)). | The row of the selected environment, with `$name`, its name. |
 | `--env NAME` | Every command that evaluates the specification. | Selects the environment. It is the tag `env`: `-t env=NAME` does the same. |
 
 ```cue
@@ -28,6 +28,27 @@ server: workers: $environment.workers
 ```
 
 `pravo.#Environments` checks the shape of the struct: a row is a struct, `$after` is a name or a list of names, `$default` is a boolean. Your fields are open. To give every row a field with a default, write a pattern: `$environments: [_]: {replicas: *1 | int}`.
+
+## Typing the rows
+
+pravo fills `$environment` while it loads, in a file that is not on disk, so an editor sees no declaration of it. Declare it yourself, with a definition of the row that `$environments` uses too. The editor then knows `$environment` and its fields, and a row that misses a field or gives it a value of the wrong type is refused:
+
+```cue
+#Row: pravo.#Environment & {
+	workers: int & >=1
+	region:  string
+}
+
+$environments: [string]: #Row
+$environments: pravo.#Environments & {
+	dev: {workers: 1, region: "eu-north-1", $default: true}
+	prod: {workers: 3, region: "eu-north-1", $after: "dev"}
+}
+
+$environment: #Row
+```
+
+`pravo.#Environment` brings `$after`, `$default` and `$name`. pravo reads `#Row` and `$environment` with the rows, before the imports resolve, as it reads `$settings`, so they may use `pravo.` definitions and your own, and nothing else that comes from an import.
 
 ## Selecting an environment
 

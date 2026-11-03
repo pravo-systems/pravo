@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue"
+
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 const ladderSpec = `package app
@@ -224,5 +226,51 @@ func TestTokenEnv(t *testing.T) {
 	}
 	if _, err := loadSpec(t, `$settings: state: {path: "s", token_env: "X"}`); err == nil || !strings.Contains(err.Error(), "belongs to the http backend") {
 		t.Errorf("local: %v", err)
+	}
+}
+
+// A row typed by a definition of your own, and $environment declared with it, so that an
+// editor knows it: the rows are read with the definition, and a row of the wrong type is
+// refused with the reason.
+func TestEnvironmentRowsTypedByADefinition(t *testing.T) {
+	spec := func(prodWorkers string) string {
+		return `package app
+
+import "pravo.dev/pravo"
+
+#Row: pravo.#Environment & {
+	workers: int & >=1
+}
+
+$environments: [string]: #Row
+$environments: pravo.#Environments & {
+	dev:  {workers: 1, $default: true}
+	prod: {workers: ` + prodWorkers + `, $after: "dev"}
+}
+
+$environment: #Row
+
+$settings: pravo.#Settings & {state: path: "state/\($environment.$name)"}
+
+out: "\($environment.$name)-\($environment.workers)"
+`
+	}
+	files := func(prodWorkers string) map[string]string {
+		return map[string]string{"main.cue": spec(prodWorkers), "cue.mod/module.cue": "module: \"example.com/app@v0\"\nlanguage: version: \"v0.14.0\"\n",
+			"cue.mod/gen/pravo.dev/pravo/settings_gen.cue": schema.SettingsPackage}
+	}
+	r, err := Load(writeFiles(t, files("3")), LoadOptions{Tags: []string{"env=prod"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := outOf(t, r); got != "prod-3" {
+		t.Errorf("out = %q", got)
+	}
+	if strings.Join(r.EnvironmentNames(), ",") != "dev,prod" {
+		t.Errorf("environments %v", r.EnvironmentNames())
+	}
+	_, err = Load(writeFiles(t, files(`"x"`)), LoadOptions{Tags: []string{"env=prod"}})
+	if err == nil || !strings.Contains(err.Error(), "$environments.prod.workers: conflicting values") {
+		t.Fatalf("a row of the wrong type: %v", err)
 	}
 }
