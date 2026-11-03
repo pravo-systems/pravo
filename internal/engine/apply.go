@@ -478,6 +478,9 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			return fail(err)
 		}
 	}
+	// A provider that the plan configured before what its configuration refers to existed is
+	// started again, and configured with the values the apply fills in.
+	e.Providers.DropPartial()
 	if !e.Opts.Destroy {
 		defer e.approve(plan)()
 		e.scope = sc

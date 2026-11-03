@@ -113,6 +113,9 @@ type instance struct {
 	key        string
 	mu         sync.Mutex
 	cfg        bool
+	// partial is set when the configuration had a value that was not known yet: one
+	// that refers to a resource the plan has still to create.
+	partial bool
 }
 
 // recording is how the providers are recorded or replayed, from the environment.
@@ -523,6 +526,7 @@ func (m *Providers) configure(ctx context.Context, inst *instance, local string)
 	if err := diags.Err(); err != nil {
 		return fmt.Errorf("provider %s configuration is invalid: %w", inst.key, err)
 	}
+	inst.partial = !cfg.IsFullyKnown()
 	diags, err = inst.p.Configure(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("configuring provider %s: %w", inst.key, err)
@@ -559,6 +563,36 @@ func (m *Providers) StopAll(ctx context.Context) {
 }
 
 // Close stops all provider processes.
+// DropPartial stops each provider that was configured with a value that was not known
+// yet, so that the next use starts it again and configures it with what is known by
+// then. A provider that pravo reattached to is not its to stop: it is configured again
+// in place.
+func (m *Providers) DropPartial() {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for key, inst := range m.instances {
+		inst.mu.Lock()
+		partial := inst.partial
+		if partial && inst.reattached {
+			inst.cfg, inst.partial = false, false
+		}
+		inst.mu.Unlock()
+		if !partial {
+			continue
+		}
+		delete(m.configured, key)
+		if inst.reattached {
+			continue
+		}
+		_ = inst.p.Stop(context.Background())
+		inst.p.Close()
+		delete(m.instances, key)
+	}
+}
+
 func (m *Providers) Close() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
