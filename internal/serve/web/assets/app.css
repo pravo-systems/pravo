@@ -186,6 +186,8 @@ i.sq.a-create, span.sq.a-create { background: var(--accent); border-color: var(-
 i.sq.a-update, span.sq.a-update, i.sq.a-replace, span.sq.a-replace { background: var(--change); border-color: var(--change); }
 i.sq.a-delete, span.sq.a-delete { background: var(--conflict); border-color: var(--conflict); }
 i.sq.a-read, span.sq.a-read, i.sq.a-move, span.sq.a-move, i.sq.a-import, span.sq.a-import { background: var(--key); border-color: var(--key); }
+/* a change deferred to the next plan: an outline, nothing is done to it yet */
+i.sq.a-defer, span.sq.a-defer { background: transparent; border: 1px dashed var(--change); }
 i.sq.a-replace, span.sq.a-replace { background: repeating-linear-gradient(135deg, var(--change) 0 2px, transparent 2px 4px); }
 
 /* ---- toolbar ---- */

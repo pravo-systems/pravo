@@ -55,7 +55,7 @@ pravo promote prod -t image=1.4
 
 ## When it already runs the release
 
-When the newest note of ENVIRONMENT names the release of this directory, and a promotion of that release still counts there, `promote` says so, signs nothing, applies nothing and exits 0. To bring ENVIRONMENT back in line with the release, apply it again with `pravo apply --env ENVIRONMENT`. A promotion withdrawn by `--revoke` does not count, so after it `promote` signs a new one.
+When the newest note of ENVIRONMENT names the release of this directory, its apply deferred nothing, and a promotion of that release still counts there, `promote` says so, signs nothing, applies nothing and exits 0. To bring ENVIRONMENT back in line with the release, apply it again with `pravo apply --env ENVIRONMENT`. A promotion withdrawn by `--revoke` does not count, so after it `promote` signs a new one.
 
 ## What is checked
 
@@ -66,7 +66,7 @@ Before it signs, `promote` checks:
 | The environment | ENVIRONMENT is not declared, has no `$after`, has no state yet or a state that is not sealed, or `--env` names another one. |
 | The record | The record in the state of ENVIRONMENT says that it serves another environment, or follows others ([Environments](spec-environments.md#the-record-of-an-environment)). |
 | The role | The identity is not a writer of the state of ENVIRONMENT, or not an admin for `--waive` and `--revoke`. |
-| Each environment before | Its state cannot be read, is not sealed, has no note, or its newest note is for another release, is signed by a key that its readers file does not make a writer, or is dated more than five minutes ahead. |
+| Each environment before | Its state cannot be read, is not sealed, has no note, or its newest note is for another release, says that its apply [deferred changes to the next plan](../concepts/plans.md#changes-deferred-to-the-next-plan), is signed by a key that its readers file does not make a writer, or is dated more than five minutes ahead. |
 
 An apply of ENVIRONMENT, by `promote` or by `pravo apply`, checks again, under the lock of the state: the promotion against the readers file of ENVIRONMENT, and each note it carries against the readers file of the environment it comes from, with the lineage of that state that the record holds. A promotion signed before the newest withdrawal of the release does not count. A refusal lists the commands that move the release along:
 

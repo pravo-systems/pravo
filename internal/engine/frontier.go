@@ -126,7 +126,7 @@ func (c *Change) writes() bool {
 		return false
 	}
 	switch c.Action {
-	case "", ActionMove, ActionOpen, ActionCall:
+	case "", ActionMove, ActionOpen, ActionCall, ActionDefer:
 		return false
 	}
 	return c.Mode == "managed" || c.Mode == "data"
@@ -213,8 +213,22 @@ func (e *Engine) scopeFor(plan *Plan) (*applyScope, error) {
 func (e *Engine) outputsToEval(plan *Plan) []string {
 	write := stringSet(plan.writeAddrs())
 	recorded := e.State.Outputs()
+	deferred := map[string]bool{}
+	for _, c := range plan.Changes {
+		if c.Action == ActionDefer {
+			deferred[c.Addr] = true
+		}
+	}
 	var out []string
+outputs:
 	for _, o := range e.Root.Outputs {
+		for _, d := range e.outputDeps[o.Name] {
+			if deferred[d] {
+				// An output that reads a deferred change keeps what is recorded until the
+				// plan that makes the change.
+				continue outputs
+			}
+		}
 		eval := false
 		for _, d := range e.outputDeps[o.Name] {
 			if write[d] {

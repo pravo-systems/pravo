@@ -93,8 +93,9 @@ type environmentJSON struct {
 	Sealed  bool     `json:"sealed"`
 	// Runs is the newest note of what the state runs.
 	Runs *runJSON `json:"runs,omitempty"`
-	// Release says how the release of this directory stands here: runs, promoted, waived,
-	// ready (every environment before runs it) or empty.
+	// Release says how the release of this directory stands here: runs, partial (its apply
+	// deferred changes to the next plan), promoted, waived, ready (every environment before
+	// runs it) or empty.
 	Release  string     `json:"release,omitempty"`
 	Promoted *admitJSON `json:"promoted,omitempty"`
 	Problem  string     `json:"problem,omitempty"`
@@ -107,6 +108,8 @@ type runJSON struct {
 	At          time.Time `json:"at"`
 	By          string    `json:"by,omitempty"`
 	Verified    bool      `json:"verified"`
+	// Deferred is the number of changes the apply deferred to the next plan.
+	Deferred int `json:"deferred,omitempty"`
 }
 
 type admitJSON struct {
@@ -197,6 +200,8 @@ func status(r envRow) string {
 	switch r.j.Release {
 	case "runs":
 		parts = append(parts, "runs this directory")
+	case "partial":
+		parts = append(parts, fmt.Sprintf("runs this directory in part: %s deferred to the next plan, apply again", deferredChanges(r.j.Runs.Deferred)))
 	case "promoted":
 		parts = append(parts, fmt.Sprintf("promoted by %s %s ago", engine.PlainText(r.j.Promoted.By), engine.RoundAge(time.Since(r.j.Promoted.At))))
 	case "waived":
@@ -234,18 +239,24 @@ func readEnvironmentRows(ctx context.Context, root *config.Root, rel engine.Rele
 			r.j.Problem = p
 		}
 		if n := s.Note; n != nil && s.Err == nil {
-			r.j.Runs = &runJSON{Fingerprint: n.Fingerprint, GitRevision: n.GitRevision, Txn: n.Txn, At: n.At, By: s.NoteBy, Verified: s.Sealed && s.NoteProblem == ""}
+			r.j.Runs = &runJSON{Fingerprint: n.Fingerprint, GitRevision: n.GitRevision, Txn: n.Txn, At: n.At, By: s.NoteBy, Verified: s.Sealed && s.NoteProblem == "", Deferred: n.Deferred}
 			if s.Sealed && s.NoteProblem != "" && r.j.Problem == "" {
 				r.j.Problem = s.NoteProblem
 			}
-			if (!s.Sealed || s.NoteProblem == "") && rel.Same(n) {
+			switch {
+			case (s.Sealed && s.NoteProblem != "") || !rel.Same(n):
+			case n.Deferred > 0:
+				// The apply deferred changes to the next plan: the environment does not run all of
+				// the release, and the ones after it cannot take it yet.
+				r.j.Release = "partial"
+			default:
 				r.runs, r.j.Release = true, "runs"
 				runs[env.Name] = true
 			}
-			r.otherTags = !r.runs && n.Fingerprint == rel.Fingerprint
+			r.otherTags = !rel.Same(n) && n.Fingerprint == rel.Fingerprint
 		}
 		after := s.after()
-		if !r.runs && len(after) > 0 && s.Err == nil && !s.Missing && s.Sealed {
+		if !r.runs && r.j.Release == "" && len(after) > 0 && s.Err == nil && !s.Missing && s.Sealed {
 			g := engine.GateReader{State: s.st, Environment: env.Name, Readers: s.rf.Readers, Upstream: envs.readers, Now: time.Now()}
 			c := g.Check(ctx, after, s.Record, rel)
 			r.gate = &c
@@ -281,7 +292,7 @@ func nextStep(root *config.Root, rows []envRow) string {
 func stepCommand(root *config.Root, rows []envRow, i int) string {
 	r, env := rows[i], root.Environments[i]
 	switch {
-	case len(env.After) == 0, r.j.Release == "promoted", r.j.Release == "waived", !r.j.Sealed && r.j.State != "":
+	case len(env.After) == 0, r.j.Release == "promoted", r.j.Release == "waived", r.j.Release == "partial", !r.j.Sealed && r.j.State != "":
 		return engine.ApplyCommand(root, env.Name)
 	}
 	return engine.PromoteCommand(root, env.Name)
@@ -674,4 +685,12 @@ func shown(v any) string {
 		text = string(r[:77]) + "..."
 	}
 	return text
+}
+
+// deferredChanges is "1 change" or "N changes".
+func deferredChanges(n int) string {
+	if n == 1 {
+		return "1 change"
+	}
+	return fmt.Sprintf("%d changes", n)
 }

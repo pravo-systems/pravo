@@ -654,7 +654,7 @@ func viewerEnvironments(ctx context.Context, root *config.Root) (*serve.Environm
 		}
 		depth[e.Name] = e.Depth
 		if n := r.j.Runs; n != nil {
-			e.Runs = &serve.EnvironmentRun{Fingerprint: n.Fingerprint, GitRevision: n.GitRevision, At: n.At, By: n.By, Verified: n.Verified}
+			e.Runs = &serve.EnvironmentRun{Fingerprint: n.Fingerprint, GitRevision: n.GitRevision, At: n.At, By: n.By, Verified: n.Verified, Deferred: n.Deferred}
 		}
 		if p := r.j.Promoted; p != nil {
 			e.Promoted = &serve.EnvironmentPromotion{Kind: p.Kind, By: p.By, At: p.At, Note: p.Note}

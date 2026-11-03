@@ -157,6 +157,7 @@ export const ACTIONS = {
   read: { label: 'read', cls: 'a-read', glyph: 'M6 4.2a1.8 1.8 0 1 0 .01 0z' },
   move: { label: 'move', cls: 'a-move', glyph: 'M2.5 6h6.5M6.6 3.6L9 6 6.6 8.4' },
   import: { label: 'import', cls: 'a-import', glyph: 'M6 2.2v6M3.6 6.2L6 8.6l2.4-2.4M3 10.2h6' },
+  defer: { label: 'deferred', cls: 'a-defer', glyph: 'M6 3v3l2 1.4' },
   'no-op': { label: 'no change', cls: 'a-noop', glyph: '' },
 };
 export const actionOf = (a) => ACTIONS[a] || null;

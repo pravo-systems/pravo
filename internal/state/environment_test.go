@@ -225,3 +225,28 @@ func TestLatestRunWithinASecond(t *testing.T) {
 		}
 	}
 }
+
+// The number of deferred changes is signed with the note: a note that says the release runs in
+// part cannot be made to say it runs all of it.
+func TestRunNoteSignsItsDeferredChanges(t *testing.T) {
+	skipWhenSealed(t)
+	ctx := context.Background()
+	b := testBackends()[0].make(t)
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	readers := readersOf(ada)
+	if err := s.PutRunNote(ctx, &RunNote{Environment: "dev", Fingerprint: strings.Repeat("a", 32), Txn: "t1", Deferred: 2}); err != nil {
+		t.Fatal(err)
+	}
+	n, _, err := s.LatestRun(ctx, time.Now())
+	if err != nil || n == nil || n.Deferred != 2 {
+		t.Fatalf("latest: %+v %v", n, err)
+	}
+	if st, _ := n.Verify(s.Lineage(), readers); st != protect.SigVerified {
+		t.Fatalf("verify: %v", st)
+	}
+	n.Deferred = 0
+	if st, _ := n.Verify(s.Lineage(), readers); st != protect.SigInvalid {
+		t.Fatalf("a note whose deferred changes were taken out still verifies: %v", st)
+	}
+}

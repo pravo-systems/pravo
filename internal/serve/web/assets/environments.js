@@ -17,6 +17,10 @@ export function statusOf(e) {
   const from = (e.after || []).join(' and ');
   switch (e.release) {
     case 'runs': return ['ok', 'runs this directory'];
+    case 'partial': {
+      const n = (e.runs && e.runs.deferred) || 0;
+      return ['chg', `partly applied: ${n === 1 ? '1 change' : n + ' changes'} deferred to the next plan`];
+    }
     case 'ready': return ['chg', from ? `ready to promote from ${from}` : 'ready to apply'];
     case 'promoted': return ['chg', from ? `promoted from ${from}, waiting for an apply` : 'promoted, waiting for an apply'];
     case 'waived': return ['chg', 'let in by a waiver, waiting for an apply'];

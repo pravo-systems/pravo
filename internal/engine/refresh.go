@@ -91,6 +91,9 @@ func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state
 	if err != nil {
 		return tftypes.Value{}, nil, fmt.Errorf("%s: refreshing: %w", addr, err)
 	}
+	if err := deferredBy(diags); err != nil {
+		return tftypes.Value{}, nil, fmt.Errorf("%s: refreshing: %w", addr, err)
+	}
 	if err := diags.Err(); err != nil {
 		return tftypes.Value{}, nil, fmt.Errorf("%s: refreshing: %w", addr, err)
 	}

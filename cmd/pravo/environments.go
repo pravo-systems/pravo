@@ -451,7 +451,7 @@ func storePromotedPlan(cmd *cobra.Command, o promoteOpts) error {
 func alreadyRuns(ctx context.Context, st *state.Store, envs *environmentsOf, env string, gate []string, rec *state.EnvironmentRecord, rel engine.Release, readers []protect.Reader) string {
 	now := time.Now()
 	note, _, err := st.LatestRun(ctx, now)
-	if err != nil || note == nil || !rel.Same(note) || engine.NoteProblem(note, env, st.Lineage(), readers, now) != "" {
+	if err != nil || note == nil || !rel.Same(note) || note.Deferred > 0 || engine.NoteProblem(note, env, st.Lineage(), readers, now) != "" {
 		return ""
 	}
 	c := engine.GateReader{State: st, Environment: env, Readers: readers, Upstream: envs.readers, Now: now}.Check(ctx, gate, rec, rel)
@@ -496,6 +496,10 @@ func readUpstream(ctx context.Context, envs *environmentsOf, root *config.Root, 
 	}
 	if why := rel.Differs(s.Note); why != "" {
 		return nil, "", steps(why)
+	}
+	if n := s.Note.Deferred; n > 0 {
+		return nil, "", engine.WithCode(engine.ExitRefused, fmt.Errorf("%s runs this release only in part: its apply deferred %s to the next plan. Apply it there again, and promote once nothing is deferred:\n\n    %s",
+			up, deferredChanges(n), engine.ApplyCommand(root, up)))
 	}
 	return &state.PromotionSource{Environment: up, Lineage: s.st.Lineage(), Run: s.Note}, s.NoteBy, nil
 }

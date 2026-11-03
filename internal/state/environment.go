@@ -371,8 +371,11 @@ type RunNote struct {
 	// which writes no transaction.
 	Txn string `json:"txn,omitempty"`
 	// At is when the state came to run the release.
-	At        time.Time          `json:"at"`
-	Admitted  *Admission         `json:"admitted,omitempty"`
+	At       time.Time  `json:"at"`
+	Admitted *Admission `json:"admitted,omitempty"`
+	// Deferred is the number of changes that the apply deferred to the next plan: the state
+	// runs the release in part. A note of a state that runs all of it has none.
+	Deferred  int                `json:"deferred,omitempty"`
 	Signature *protect.Signature `json:"signature,omitempty"`
 }
 
@@ -381,10 +384,15 @@ func runParts(n *RunNote) [][]byte {
 	if a := n.Admitted; a != nil {
 		adm = a.Kind + "\x00" + a.By + "\x00" + a.Key + "\x00" + a.At.UTC().Format(time.RFC3339Nano) + "\x00" + a.Note
 	}
-	return [][]byte{
+	parts := [][]byte{
 		[]byte(strconv.Itoa(n.V)), []byte(n.ID), []byte(n.Environment), specPart(n.Fingerprint, n.Tags),
 		[]byte(n.GitRevision), []byte(n.Txn), []byte(n.At.UTC().Format(time.RFC3339Nano)), []byte(adm),
 	}
+	if n.Deferred > 0 {
+		// Signed only when set, so that the notes written before it verify as they did.
+		parts = append(parts, []byte("deferred="+strconv.Itoa(n.Deferred)))
+	}
+	return parts
 }
 
 // Verify checks the signature of the note against the lineage of the state it was written

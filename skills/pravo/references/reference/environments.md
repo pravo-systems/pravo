@@ -34,6 +34,7 @@ The last column says one or more of:
 | Text | Meaning |
 |---|---|
 | `runs this directory` | Its newest note is for the release of this directory, with the same tags. |
+| `runs this directory in part` | Its newest note is for the release, and its apply [deferred changes to the next plan](../concepts/plans.md#changes-deferred-to-the-next-plan). The next step is an apply there, and the environments after it are not ready. |
 | `promoted by NAME`, `waived by NAME` | The release was promoted into it, or waived, and is not applied yet. |
 | `ready to promote` | Every environment it follows runs the release. The next step is `pravo promote`. |
 | `nothing applied yet` | The state has no note. |

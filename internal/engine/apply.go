@@ -265,6 +265,9 @@ type ApplyResult struct {
 	// Policies lists the policy versions the apply wrote: the new policies, the
 	// new texts and the removals, with the sequence number of each version.
 	Policies []PolicyWritten
+	// Deferred is the number of changes that the plan deferred to the next plan: the apply
+	// left them alone.
+	Deferred int
 }
 
 // PolicyWritten is a version of a policy that an apply wrote.
@@ -393,11 +396,11 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			// Nothing to write and no output to record or remove: no lock, no record, no
 			// transaction. A state of an environment notes that it runs this release.
 			if !plan.Partial {
-				if err := e.noteRun(ctx, admitted, ""); err != nil {
+				if err := e.noteRun(ctx, admitted, "", plan.DeferredCount()); err != nil {
 					return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
 				}
 			}
-			return &ApplyResult{Outputs: map[string]json.RawMessage{}}, nil
+			return &ApplyResult{Outputs: map[string]json.RawMessage{}, Deferred: plan.DeferredCount()}, nil
 		}
 	}
 	e.txn = e.State.Begin(kind, e.Opts.Command)
@@ -405,7 +408,7 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	e.mu.Lock()
 	e.completed = nil
 	e.mu.Unlock()
-	result := &ApplyResult{Outputs: map[string]json.RawMessage{}, Txn: e.txn.ID()}
+	result := &ApplyResult{Outputs: map[string]json.RawMessage{}, Txn: e.txn.ID(), Deferred: plan.DeferredCount()}
 	// The outputs as they were when this apply began. Another apply that runs
 	// at the same time may record outputs of its own; only the outputs this
 	// apply changes are written over them.
@@ -540,7 +543,7 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	// The state of an environment notes what it runs now: what the environments after it
 	// are promoted from. A partial apply leaves part of the specification unapplied.
 	if !plan.Partial && !e.Opts.Destroy {
-		if err := e.noteRun(ctx, admitted, e.txn.ID()); err != nil {
+		if err := e.noteRun(ctx, admitted, e.txn.ID(), plan.DeferredCount()); err != nil {
 			return result, err
 		}
 	}

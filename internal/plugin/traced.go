@@ -113,7 +113,10 @@ func (t *Traced) begin(ctx context.Context, method, typ string) (context.Context
 		if t.capture != nil {
 			t.pop(ctx)
 		}
-		if err == nil {
+		if reason, ok := diags.Deferred(); ok {
+			// A deferred answer is not a failure of the call.
+			span.SetAttributes(attribute.String("pravo.deferred", reason))
+		} else if err == nil {
 			err = diags.Err()
 		}
 		if n := len(diags.Warnings()); n > 0 {

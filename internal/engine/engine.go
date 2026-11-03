@@ -748,7 +748,7 @@ func (e *Engine) planTask(ctx context.Context, r *config.Resource, v cue.Value) 
 	// record as it is.
 	ch.PriorRevision, ch.PriorGeneration = e.versionOf(ch.Addr)
 	e.record(ch)
-	if ch.Deferred {
+	if ch.Deferred || ch.Action == ActionDefer {
 		return tftypes.Value{}, nil
 	}
 	if ch.Action == ActionReplace {

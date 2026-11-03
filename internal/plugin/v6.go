@@ -28,6 +28,23 @@ func caps6() *pb.ClientCapabilities {
 	return &pb.ClientCapabilities{DeferralAllowed: deferralAllowed, WriteOnlyAttributesAllowed: writeOnlyAttributesAllowed}
 }
 
+// deferred6 appends the diagnostic that stands for a deferred response.
+func deferred6(diags Diagnostics, d *pb.Deferred) Diagnostics {
+	if d == nil {
+		return diags
+	}
+	reason := DeferredUnknownReason
+	switch d.Reason {
+	case pb.Deferred_PROVIDER_CONFIG_UNKNOWN:
+		reason = DeferredProviderConfigUnknown
+	case pb.Deferred_RESOURCE_CONFIG_UNKNOWN:
+		reason = DeferredResourceConfigUnknown
+	case pb.Deferred_ABSENT_PREREQ:
+		reason = DeferredAbsentPrereq
+	}
+	return append(diags, deferredDiag(reason))
+}
+
 func diags6(in []*pb.Diagnostic) Diagnostics {
 	var out Diagnostics
 	for _, d := range in {
@@ -245,7 +262,7 @@ func (p *v6) ReadResource(ctx context.Context, typ string, state tftypes.Value, 
 	if err != nil {
 		return tftypes.Value{}, nil, nil, err
 	}
-	diags := diags6(resp.Diagnostics)
+	diags := deferred6(diags6(resp.Diagnostics), resp.Deferred)
 	if diags.HasErrors() {
 		return tftypes.Value{}, nil, diags, nil
 	}
@@ -273,7 +290,7 @@ func (p *v6) PlanResourceChange(ctx context.Context, typ string, prior, proposed
 	if err != nil {
 		return nil, nil, err
 	}
-	diags := diags6(resp.Diagnostics)
+	diags := deferred6(diags6(resp.Diagnostics), resp.Deferred)
 	if diags.HasErrors() {
 		return nil, diags, nil
 	}
@@ -341,7 +358,10 @@ func (p *v6) ImportResourceState(ctx context.Context, typ string, target ImportT
 	if err != nil {
 		return nil, nil, err
 	}
-	diags := diags6(resp.Diagnostics)
+	diags := deferred6(diags6(resp.Diagnostics), resp.Deferred)
+	if _, ok := diags.Deferred(); ok {
+		return nil, diags, nil
+	}
 	var out []ImportedResource
 	for _, r := range resp.ImportedResources {
 		t, ok := types[r.TypeName]
@@ -397,7 +417,7 @@ func (p *v6) ReadDataSource(ctx context.Context, typ string, cfg tftypes.Value) 
 	if err != nil {
 		return tftypes.Value{}, nil, err
 	}
-	diags := diags6(resp.Diagnostics)
+	diags := deferred6(diags6(resp.Diagnostics), resp.Deferred)
 	if diags.HasErrors() {
 		return tftypes.Value{}, diags, nil
 	}

@@ -128,6 +128,12 @@ func (e *Engine) planResource(ctx context.Context, r *config.Resource, v cue.Val
 		return nil, err
 	}
 	e.explainChange(p)
+	if !strict {
+		// What reads a deferred change waits for it.
+		if dep := e.deferredDep(p.ch.Addr); dep != "" {
+			return e.deferChange(p, "it reads "+dep+", which is deferred"), nil
+		}
+	}
 	if r.Mode == "data" {
 		return e.planData(ctx, p)
 	}
@@ -247,6 +253,9 @@ func (e *Engine) planData(ctx context.Context, p *resourcePlan) (*Change, error)
 	if err != nil {
 		return nil, fmt.Errorf("%s: reading: %w", addr, err)
 	}
+	if err := deferredBy(diags); err != nil {
+		return e.deferIfAsked(p, err)
+	}
 	if err := diags.Err(); err != nil {
 		return nil, fmt.Errorf("%s: %w", addr, err)
 	}
@@ -309,7 +318,7 @@ func (e *Engine) planManaged(ctx context.Context, p *resourcePlan) (*Change, err
 	}
 	prior, private, err := e.priorObject(ctx, prov, p)
 	if err != nil {
-		return nil, err
+		return e.deferIfAsked(p, err)
 	}
 	ch.Prior, ch.PriorPrivate = prior, private
 	e.explainRefresh(p)
@@ -337,6 +346,9 @@ func (e *Engine) planManaged(ctx context.Context, p *resourcePlan) (*Change, err
 	res, diags, err := prov.PlanResourceChange(ctx, r.Type, prior, ProposedNew(s.Block, prior, cfg), cfg, private)
 	if err != nil {
 		return nil, fmt.Errorf("%s: planning: %w", addr, err)
+	}
+	if err := deferredBy(diags); err != nil {
+		return e.deferIfAsked(p, err)
 	}
 	if err := diags.Err(); err != nil {
 		return nil, fmt.Errorf("%s: %w", addr, err)
@@ -492,6 +504,8 @@ func (e *Engine) dependsOnPendingChange(addr string) bool {
 			if ch.Deferred {
 				return true
 			}
+		case ActionDefer:
+			return true
 		}
 	}
 	return false

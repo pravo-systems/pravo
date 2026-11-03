@@ -133,6 +133,7 @@ pravo plan --json 2>/dev/null | jq 'del(.changes)'
 | `change` | Updates. |
 | `destroy` | Deletes and replacements. |
 | `read` | Data source reads. |
+| `deferred` | Changes [deferred to the next plan](../concepts/plans.md#changes-deferred-to-the-next-plan). Absent when there are none. |
 | `blast_radius` | The distinct nodes that have a pending change (a create, update, replacement, delete or deferred read), together with every node that depends on one of them, transitively, as the state records the dependencies at that moment. |
 
 `stats` says how much of the graph the plan walked.
@@ -170,6 +171,7 @@ Every entry has `addr`, `mode`, `type`, `name` and `action`.
 | `before` | by action | The recorded state of the object. |
 | `after` | by action | The planned state of the object. |
 | `deferred` | when true | A data source whose read waits for the apply. |
+| `defer_reason` | for a `defer` | Why the change waits for the next plan: what the provider answered, or the deferred change that it reads. |
 | `skipped` | when true | Unchanged, and not planned with the provider. |
 | `refreshed` | when true | The record was read from the provider during this plan. |
 | `drifted` | when true | The refresh found the object changed. |
@@ -247,6 +249,7 @@ pravo plan --json 2>/dev/null | jq -c '.changes[] | select(.mode != "managed") |
 | `open` | absent | absent | An ephemeral resource is opened for the run. |
 | `call` | absent | absent | A provider function is called. |
 | `move` | absent | absent | A record is renamed by `$from`. `addr` is the new address, and the ordinary entry for that address follows. |
+| `defer` | absent | absent | The provider cannot plan the node yet, or the node reads a change that is deferred. The apply leaves it alone, and the next plan plans it. See [Changes deferred to the next plan](../concepts/plans.md#changes-deferred-to-the-next-plan). |
 
 A `replace` is its own action: it is not a `delete` followed by a `create`.
 
