@@ -217,7 +217,7 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 	}
 	p.Printf("%s %s to add, %s to change, %s to destroy%s.\n", p.C(Bold, "Plan:"), p.C(Green, strconv.Itoa(add)), p.C(Yellow, strconv.Itoa(change)), p.C(Red, strconv.Itoa(destroy)), declared)
 	if plan.DeferredCount() > 0 {
-		p.Println(p.C(Dim, "A deferred change waits for a value that this apply makes known. Plan again once it is done."))
+		p.Println(p.C(Dim, "A deferred change waits for a value that the apply makes known. The apply plans it again when it is done."))
 	}
 	p.renderPolicies(plan)
 	for _, h := range plan.Hints {
@@ -270,7 +270,7 @@ func deferWhy(c *engine.Change) string {
 	if why == "" {
 		why = "the provider cannot plan it yet"
 	}
-	return "Why: " + why + ". The apply leaves it alone, and the next plan plans it."
+	return "Why: " + why + ". The apply leaves it alone, then plans it again."
 }
 
 // addrWithType is the address with the provider type beside it, so a reader

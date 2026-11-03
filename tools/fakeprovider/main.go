@@ -14,6 +14,10 @@
 // an identity of several attributes and no id: an account_id, a bucket and a region,
 // and can only be imported by that identity, as a bucket of a cloud is.
 //
+// A provider whose token is not known when it is configured, such as one that reads the id
+// of a resource the plan creates, answers every plan and read that it cannot answer yet, as
+// a provider that allows deferral does for a cluster that does not exist yet.
+//
 // demo_account is not a list type. It has a write-only password and an ordinary
 // password_version, as a provider with a password_wo and a password_wo_version has: the
 // provider reads the password from the configuration and keeps none. It is for trying
@@ -77,6 +81,19 @@ type provider struct {
 	dir string
 	mu  sync.Mutex
 	mem []object
+	// deferring is set when the provider was configured with a token that is not known,
+	// by a client that allows deferral.
+	deferring bool
+}
+
+// deferred is the answer of a provider that cannot plan or read yet.
+func (p *provider) deferred() *tfprotov6.Deferred {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !p.deferring {
+		return nil
+	}
+	return &tfprotov6.Deferred{Reason: tfprotov6.DeferredReasonProviderConfigUnknown}
 }
 
 var (
@@ -175,6 +192,15 @@ func (p *provider) ConfigureProvider(_ context.Context, req *tfprotov6.Configure
 	if cfg, err := req.Config.Unmarshal(tftypes.Object{AttributeTypes: map[string]tftypes.Type{"token": tftypes.String}}); err == nil {
 		var m map[string]tftypes.Value
 		var token string
+		if cfg.As(&m) == nil && !m["token"].IsKnown() {
+			if req.ClientCapabilities == nil || !req.ClientCapabilities.DeferralAllowed {
+				return &tfprotov6.ConfigureProviderResponse{Diagnostics: []*tfprotov6.Diagnostic{{Severity: tfprotov6.DiagnosticSeverityError, Summary: "the token is not known yet"}}}, nil
+			}
+			p.mu.Lock()
+			p.deferring = true
+			p.mu.Unlock()
+			return &tfprotov6.ConfigureProviderResponse{}, nil
+		}
 		if cfg.As(&m) == nil && m["token"].As(&token) == nil && token != "" {
 			p.received("token=%s", token)
 		}
@@ -215,6 +241,9 @@ func (p *provider) UpgradeResourceState(_ context.Context, req *tfprotov6.Upgrad
 // ReadResource reports an object that is no longer in the catalog as gone, which is
 // how a test makes a resource drift: it removes the object from catalog.json.
 func (p *provider) ReadResource(_ context.Context, req *tfprotov6.ReadResourceRequest) (*tfprotov6.ReadResourceResponse, error) {
+	if d := p.deferred(); d != nil {
+		return &tfprotov6.ReadResourceResponse{Deferred: d}, nil
+	}
 	serverType := typeOf(req.TypeName)
 	if cur, err := req.CurrentState.Unmarshal(serverType); err == nil && !cur.IsNull() {
 		var m map[string]tftypes.Value
@@ -233,6 +262,9 @@ func (p *provider) ReadResource(_ context.Context, req *tfprotov6.ReadResourceRe
 }
 
 func (p *provider) PlanResourceChange(_ context.Context, req *tfprotov6.PlanResourceChangeRequest) (*tfprotov6.PlanResourceChangeResponse, error) {
+	if d := p.deferred(); d != nil {
+		return &tfprotov6.PlanResourceChangeResponse{Deferred: d}, nil
+	}
 	serverType := typeOf(req.TypeName)
 	proposed, err := req.ProposedNewState.Unmarshal(serverType)
 	if err != nil {

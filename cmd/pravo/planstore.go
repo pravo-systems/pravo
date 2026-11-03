@@ -784,6 +784,9 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 				out.Println(out.C(ui.Bold+ui.Green, "No changes.") + " The saved plan has nothing left to apply.")
 			default:
 				reportApply(res.Result, res.Destroy, "plan", res.ID, res.Again, res.Left)
+				if res.Result != nil && res.Result.Deferred > 0 && !res.Destroy {
+					return storeFollowUp(ctx, s, res.ID, res.Result.Deferred)
+				}
 			}
 		}
 	}

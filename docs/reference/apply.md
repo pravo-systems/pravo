@@ -47,7 +47,7 @@ normalize:
 
 ### Deferred changes
 
-A change that the plan [deferred to the next plan](../concepts/plans.md#changes-deferred-to-the-next-plan) is left alone, and so is everything that reads it. The apply makes the rest, and a line after `Apply complete!` counts what it left: plan again, since what those changes wait for is known now. With `--json`, the last event has `deferred`, the count.
+A change that the plan [deferred to the next plan](../concepts/plans.md#changes-deferred-to-the-next-plan) is left alone, and so is everything that reads it. The apply makes the rest, and a line after `Apply complete!` counts what it left. It then plans those changes again, with what it made known. A plain apply asks before it applies that plan, and with `--auto-approve` it goes on until nothing is deferred. The apply of a stored plan stores the new plan and prints its id, and the apply of a plan file saves it as `NAME.next.plan`. With `--json`, the last event of each apply has `deferred`, the count, the new plan is an event of kind `plan` with `follow_up`, and a new stored plan or file is an event of kind `follow_up`.
 
 ### Reads after the apply
 

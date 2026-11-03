@@ -583,7 +583,11 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 		}
 		return nil
 	}
-	return applyPlanFile(cmd, eng, pf, path, "planfile", "pravo apply "+path, nil, only, mark)
+	res, err := applyPlanFile(cmd, eng, pf, path, "planfile", "pravo apply "+path, nil, only, mark)
+	if err != nil || res == nil || res.Deferred == 0 {
+		return err
+	}
+	return saveFollowUp(ctx, s, path, res.Deferred)
 }
 
 // applyPlanFile applies what is left of a plan that was saved, in a file or in
@@ -593,20 +597,20 @@ func applySaved(cmd *cobra.Command, path, refresh string, full bool, only []stri
 // when this apply began; finished says whether the apply ran to its end. An apply
 // that failed or was interrupted records the changes it did finish, and the error
 // it returns is the error of the apply.
-func applyPlanFile(cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, name, kind, again string, next func() string, only []string, mark func(applied []string, txn string, pending []string, finished bool) error) error {
+func applyPlanFile(cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, name, kind, again string, next func() string, only []string, mark func(applied []string, txn string, pending []string, finished bool) error) (*engine.ApplyResult, error) {
 	ctx := cmd.Context()
 	plan, err := eng.LoadPlanFor(pf, only)
 	if err != nil {
-		return engine.WithCode(engine.ExitStale, err)
+		return nil, engine.WithCode(engine.ExitStale, err)
 	}
 	remaining := plan.Remaining()
 	if !pf.LeftToApply(remaining) {
 		if flags.JSON {
 			emitLine(map[string]any{"kind": "apply", "phase": "done", "message": "nothing left to apply", kind: name})
-			return nil
+			return nil, nil
 		}
 		out.Println(out.C(ui.Bold+ui.Green, "No changes.") + " The saved plan has nothing left to apply.")
-		return nil
+		return nil, nil
 	}
 	// The saved plan is judged whole, whatever -only selects, so that a limit
 	// on the size of a plan cannot be passed by applying it in stages.
@@ -615,7 +619,7 @@ func applyPlanFile(cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, 
 	if len(only) > 0 {
 		selected, err = plan.Subset(only)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		out.Printf("Applying %d of %d remaining changes from %s.\n", selected.PendingCount(), remaining.PendingCount(), name)
 	}
@@ -627,7 +631,7 @@ func applyPlanFile(cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, 
 			}
 			recordPartial(res, name, again, next, remaining.PendingAddrs(), mark)
 		}
-		return err
+		return nil, err
 	}
 	var applied []string
 	for _, ch := range selected.Changes {
@@ -635,10 +639,10 @@ func applyPlanFile(cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, 
 	}
 	left := remaining.PendingCount() - selected.PendingCount()
 	if err := mark(applied, res.Txn, remaining.PendingAddrs(), true); err != nil {
-		return err
+		return nil, err
 	}
 	reportApply(res, plan.Destroy, kind, name, again, left)
-	return nil
+	return res, nil
 }
 
 // recordPartial records in the saved plan the changes that an apply finished
@@ -741,26 +745,52 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 		return errors.New("apply with --json needs -auto-approve, or apply a reviewed plan file")
 	}
 	if !autoApprove {
-		out.Println()
+		question := "Do you want to perform these actions?"
 		if destroy {
-			out.Println(out.C(ui.Bold, "Do you really want to destroy all resources?"))
-		} else {
-			out.Println(out.C(ui.Bold, "Do you want to perform these actions?"))
+			question = "Do you really want to destroy all resources?"
 		}
-		out.Println("  Only 'yes' will be accepted to approve.")
-		out.Printf("\n  %s ", out.C(ui.Bold, "Enter a value:"))
-		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-		out.Println()
-		if strings.TrimSpace(line) != "yes" {
+		if !confirmApply(question) {
 			return errors.New("apply cancelled")
 		}
 	}
-	res, err := eng.Apply(ctx, plan)
-	if err != nil {
-		return err
+	opts := engine.Options{Refresh: mode, Destroy: destroy, Full: full, Replace: replace}
+	for round := 1; ; round++ {
+		res, err := eng.Apply(ctx, plan)
+		if err != nil {
+			return err
+		}
+		reportApply(res, destroy, "", "", "", 0)
+		if res.Deferred == 0 || destroy {
+			return nil
+		}
+		if round > maxFollowUps {
+			if !flags.JSON {
+				out.Printf("Stopped after %d plans that each deferred changes: run \"pravo plan\" to see what they wait for.\n", round)
+			}
+			return nil
+		}
+		// What the deferred changes waited for is known now: plan them, and ask again.
+		if eng, plan, err = followUp(ctx, s, opts, res.Deferred); err != nil || plan == nil {
+			return err
+		}
+		if !plan.HasWrites() {
+			return nil
+		}
+		if !autoApprove && !confirmApply("Do you want to perform these actions too?") {
+			return errors.New("apply cancelled: the deferred changes are left to the next plan")
+		}
 	}
-	reportApply(res, destroy, "", "", "", 0)
-	return nil
+}
+
+// confirmApply asks the question and reports whether it was answered "yes".
+func confirmApply(question string) bool {
+	out.Println()
+	out.Println(out.C(ui.Bold, question))
+	out.Println("  Only 'yes' will be accepted to approve.")
+	out.Printf("\n  %s ", out.C(ui.Bold, "Enter a value:"))
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	out.Println()
+	return strings.TrimSpace(line) == "yes"
 }
 
 // reportApply prints the outcome of an apply, as text or as a final JSON line.
@@ -802,7 +832,7 @@ func reportApply(res *engine.ApplyResult, destroy bool, kind, planfile, again st
 		if res.Deferred == 1 {
 			noun = "change was"
 		}
-		out.Printf("%d %s deferred to the next plan. Plan again: what they wait for is known now.\n", res.Deferred, noun)
+		out.Printf("%d %s deferred to the next plan.\n", res.Deferred, noun)
 	}
 	if remaining > 0 {
 		noun := "changes remain"

@@ -275,26 +275,46 @@ A data source whose read returned what its record holds is not a change. The app
 
 ### Changes deferred to the next plan
 
-Some providers cannot plan a resource until a value they need is known. The Kubernetes provider needs the address of the cluster to reach it, and a `kubernetes_manifest` of a kind that a Helm chart installs cannot be planned before the chart is there. pravo tells each provider that it may answer "not yet", and a provider that supports it does so instead of failing the plan. pravo then defers the change to the next plan:
+Some providers cannot plan a resource until a value they need is known. The Kubernetes provider needs the address of the cluster to reach it, and a `kubernetes_manifest` of a kind that a Helm chart installs cannot be planned before the chart is there. pravo tells each provider that it may answer "not yet", and a provider that supports it does so instead of failing the plan. pravo then defers the change to the next plan. Here a provider is configured with the id of a cluster that the plan creates:
 
 ```text
-  # cert_manager (helm_release) is deferred to the next plan
-    Why: the provider cannot plan it yet: provider configuration unknown. The apply leaves it alone, and the next plan plans it.
-  # issuer (kubernetes_manifest) is deferred to the next plan
-    Why: it reads cert_manager, which is deferred. The apply leaves it alone, and the next plan plans it.
-Plan: 1 to add, 0 to change, 0 to destroy, 2 deferred to the next plan.
+  # cluster (demo_server) will be created
+  + cluster: {
+  +     id:   (known after apply)
+  +     name: "cluster"
+    }
+
+  # app (demo_server) is deferred to the next plan
+    Why: the provider cannot plan it yet: provider configuration unknown. The apply leaves it alone, then plans it again.
+
+Plan: 1 to add, 0 to change, 0 to destroy, 1 deferred to the next plan.
 ```
 
-A deferred change has no planned value, and nothing that reads it can be planned either: a resource or data source that reads it is deferred too, and an output that reads it keeps the value it has. The apply makes the other changes and leaves these alone. Its last line counts them:
+A deferred change has no planned value, and nothing that reads it can be planned either: a resource or data source that reads it is deferred too, and an output that reads it keeps the value it has. The apply makes the other changes and leaves these alone. Then, since what they waited for is known, it plans again and shows the plan of the deferred changes:
 
 ```text
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
-2 changes were deferred to the next plan. Plan again: what they wait for is known now.
+1 change was deferred to the next plan.
+
+Planned again for the 1 change that the apply deferred:
+
+  # app (demo_server) will be created
+  ...
+Plan: 1 to add, 0 to change, 0 to destroy.
 ```
 
-The next plan has the values that the apply made known, and plans the deferred changes as any other. A plan file and a stored plan keep their deferred changes, and their apply leaves them alone in the same way. A plan defers; an apply does not. A provider that answers "not yet" during an apply for a change the plan did not defer stops it with exit code 3, and the error says to plan again.
+Nobody has seen that plan yet, so what happens next depends on how the apply was started:
 
-In a state that serves an [environment](../reference/spec-environments.md), the note of the apply says how many changes it deferred. The environment runs the release in part: [`pravo environments`](../reference/environments.md) shows it, and [`pravo promote`](../reference/promote.md) does not take the release from it until an apply there defers nothing.
+| The apply | What it does with the plan of the deferred changes |
+|---|---|
+| `pravo apply` | Asks again, and applies it on `yes`. |
+| `pravo apply --auto-approve` | Applies it, and goes on while each plan defers changes, up to six applies. It stops when a plan defers as many changes as the apply before it and has nothing else to apply. |
+| `pravo apply plan-ID` | Stores it as a plan of its own, judged by the policies in force as `pravo plan --store` is, and prints its id. Its reason names the plan it follows. |
+| `pravo apply NAME.plan` | Saves it next to the file, as `NAME.next.plan`. |
+
+A plan defers; an apply does not. A provider that answers "not yet" during an apply for a change the plan did not defer stops it with exit code 3, and the error says to plan again.
+
+In a state that serves an [environment](../reference/spec-environments.md), the note of each apply says how many changes it deferred. While some are, the environment runs the release in part: [`pravo environments`](../reference/environments.md) shows it, and [`pravo promote`](../reference/promote.md) does not take the release from it until an apply there defers nothing.
 
 A provider that does not support deferral answers as it always has: with an error, or with a plan that holds unknown values.
 
