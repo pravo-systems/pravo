@@ -94,7 +94,7 @@ type environmentJSON struct {
 	// Runs is the newest note of what the state runs.
 	Runs *runJSON `json:"runs,omitempty"`
 	// Release says how the release of this directory stands here: runs, partial (its apply
-	// deferred changes to the next plan), promoted, waived, ready (every environment before
+	// deferred changes to the next plan), destroyed, promoted, waived, ready (every environment before
 	// runs it) or empty.
 	Release  string     `json:"release,omitempty"`
 	Promoted *admitJSON `json:"promoted,omitempty"`
@@ -208,6 +208,8 @@ func status(r envRow) string {
 		parts = append(parts, fmt.Sprintf("waived by %s %s ago", engine.PlainText(r.j.Promoted.By), engine.RoundAge(time.Since(r.j.Promoted.At))))
 	case "ready":
 		parts = append(parts, "ready to promote")
+	case "destroyed":
+		parts = append(parts, "destroyed after it ran this release")
 	}
 	if r.j.Runs != nil && r.j.Release != "runs" && r.otherTags {
 		parts = append(parts, "runs this specification with other tags")
@@ -244,6 +246,8 @@ func readEnvironmentRows(ctx context.Context, root *config.Root, rel engine.Rele
 				r.j.Problem = s.NoteProblem
 			}
 			switch {
+			case s.Destroyed:
+				r.j.Release = "destroyed"
 			case (s.Sealed && s.NoteProblem != "") || !rel.Same(n):
 			case n.Deferred > 0:
 				// The apply deferred changes to the next plan: the environment does not run all of
@@ -292,7 +296,7 @@ func nextStep(root *config.Root, rows []envRow) string {
 func stepCommand(root *config.Root, rows []envRow, i int) string {
 	r, env := rows[i], root.Environments[i]
 	switch {
-	case len(env.After) == 0, r.j.Release == "promoted", r.j.Release == "waived", r.j.Release == "partial", !r.j.Sealed && r.j.State != "":
+	case len(env.After) == 0, r.j.Release == "destroyed", r.j.Release == "promoted", r.j.Release == "waived", r.j.Release == "partial", !r.j.Sealed && r.j.State != "":
 		return engine.ApplyCommand(root, env.Name)
 	}
 	return engine.PromoteCommand(root, env.Name)

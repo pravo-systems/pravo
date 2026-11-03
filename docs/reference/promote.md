@@ -55,7 +55,7 @@ pravo promote prod -t image=1.4
 
 ## When it already runs the release
 
-When the newest note of ENVIRONMENT names the release of this directory, its apply deferred nothing, and a promotion of that release still counts there, `promote` says so, signs nothing, applies nothing and exits 0. To bring ENVIRONMENT back in line with the release, apply it again with `pravo apply --env ENVIRONMENT`. A promotion withdrawn by `--revoke` does not count, so after it `promote` signs a new one.
+When the newest note of ENVIRONMENT names the release of this directory, its apply deferred nothing, and a promotion of that release still counts there, `promote` says so, signs nothing, applies nothing and exits 0. To bring ENVIRONMENT back in line with the release, apply it again with `pravo apply --env ENVIRONMENT`. A promotion withdrawn by `--revoke` does not count, so after it `promote` signs a new one, which any writer may do, and prints who withdrew the release and why. If the note of an environment before it was signed by a key that has left the readers file, `promote` names that key and lists the commands that apply the release there again with a current writer. `--refresh` has no effect when `promote` finds nothing to promote, and says so.
 
 ## What is checked
 

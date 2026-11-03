@@ -231,7 +231,7 @@ exit=5
 Error: prod only takes what was promoted from dev, and its promotion was withdrawn by ada less than a minute ago: 1.1 fails its smoke test.
 ```
 
-A new promotion of the same release lifts it.
+A new promotion of the same release lifts it, and any writer of prod may sign one. The promotion says who withdrew the release and why (`Note: ada withdrew this release from prod ...`), so that the writer sees it. Only an admin's `--revoke` holds the release again.
 
 ## 8. Waive the check when dev cannot be read
 

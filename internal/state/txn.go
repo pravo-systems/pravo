@@ -316,6 +316,49 @@ func (s *Store) Transactions() ([]Transaction, error) {
 	return out, nil
 }
 
+// LatestTransaction reads the newest recorded transaction, nil when there is none. Ids begin
+// with the time to the second and end in random hex, so only the objects of the last second
+// are read, and the newest of them by its start.
+func (s *Store) LatestTransaction() (*Transaction, error) {
+	keys, err := s.b.List(s.cx(), "txn")
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, k := range keys {
+		if strings.HasSuffix(k, ".json") {
+			ids = append(ids, k)
+		}
+	}
+	sort.Strings(ids)
+	var newest *Transaction
+	for i := len(ids) - 1; i >= 0; i-- {
+		at, _, _ := strings.Cut(strings.TrimPrefix(ids[i], "txn/"), "-")
+		if i+1 < len(ids) {
+			// A different second than the one after ends the search.
+			if next, _, _ := strings.Cut(strings.TrimPrefix(ids[i+1], "txn/"), "-"); next != at && newest != nil {
+				break
+			}
+		}
+		data, err := s.b.Get(s.cx(), ids[i])
+		if err != nil {
+			return nil, err
+		}
+		var t Transaction
+		if json.Unmarshal(data, &t) != nil || ids[i] != "txn/"+t.ID+".json" {
+			continue
+		}
+		if t.Changes == nil {
+			t.Changes = []Change{}
+		}
+		if newest == nil || t.Started.After(newest.Started) {
+			c := t
+			newest = &c
+		}
+	}
+	return newest, nil
+}
+
 // Len returns the number of recorded changes.
 func (t *Txn) Len() int {
 	t.mu.Lock()

@@ -270,6 +270,31 @@ func (g GateReader) now() time.Time {
 	return g.Now
 }
 
+// Withdrawal reads the newest withdrawal of the release by an admin of the state, and says
+// who made it, how long ago and why. ok is false where there is none.
+func (g GateReader) Withdrawal(ctx context.Context, rel Release) (by string, ago time.Duration, why string, ok bool) {
+	all, err := g.State.Promotions(ctx, rel.Fingerprint)
+	if err != nil {
+		return "", 0, "", false
+	}
+	var at time.Time
+	for _, o := range all {
+		p := o.Promotion
+		if p == nil || p.Kind != state.PromotionRevoked || p.Fingerprint != rel.Fingerprint || !maps.Equal(p.Tags, rel.Tags) || p.Environment != g.Environment {
+			continue
+		}
+		if st, who := p.Verify(g.State.Lineage(), g.Readers); st == protect.SigVerified {
+			if role, _ := protect.RoleOf(g.Readers, p.Signature.Key); role.Allows(protect.RoleAdmin) && p.At.After(at) {
+				at, by, why = p.At, who, p.Note
+			}
+		}
+	}
+	if at.IsZero() {
+		return "", 0, "", false
+	}
+	return PlainText(by), g.now().Sub(at), PlainText(why), true
+}
+
 // Check reads the promotions of the release and says whether one counts. after lists the
 // environments this one follows. A state that cannot be read is a reason, not an error: the
 // apply is refused and says why.
@@ -394,7 +419,10 @@ func NoteProblem(n *state.RunNote, env, lineage string, readers []protect.Reader
 	switch nst {
 	case protect.SigVerified:
 	case protect.SigUnknownKey:
-		return fmt.Sprintf("the note of %s was signed by a key that is not in the readers file of %s", env, env)
+		if nwho == "" && n.Signature != nil {
+			nwho = n.Signature.Signer
+		}
+		return fmt.Sprintf("the note of %s was signed by %s, whose key is not in the readers file of %s", env, PlainText(nwho), env)
 	case protect.SigUnsigned:
 		return fmt.Sprintf("the note of %s is not signed", env)
 	default:
@@ -461,6 +489,29 @@ func (e *Engine) admit(ctx context.Context, plan *Plan) (*state.Admission, bool,
 			e.Root.Environment, joinAnd(gate), c.Reason, Steps(e.Root, e.Root.Environment))
 	}
 	return c.Admission, true, nil
+}
+
+// preflightRecord runs before an apply that changes something, in an environment whose state
+// has no record yet or a record from before the pin of the roles: the apply writes the record
+// at its end, and that raises the format of the state, which only an admin may do in a bucket
+// with a policy by role. Raising it first means a writer is refused before anything is created,
+// with the command an admin runs, and not after.
+func (e *Engine) preflightRecord(ctx context.Context) error {
+	if e.State == nil || e.Root.Environment == "" || e.Opts.Destroy || e.State.Sealer() == nil {
+		return nil
+	}
+	rec, err := e.environmentRecord(ctx)
+	if err != nil {
+		return err
+	}
+	pin := e.Opts.RolesPin
+	if !(rec == nil || (rec.Name != "" && rec.RolesPin == "" && pin != "")) {
+		return nil
+	}
+	if err := e.State.EnsureEnvironmentFormat(pin != ""); err != nil {
+		return refused("this state does not yet record that it serves %s, and your key cannot write that (%v).\n\nNothing was changed. An admin records it once:\n\n    %s", e.Root.Environment, err, RecordCommand(e.Root))
+	}
+	return nil
 }
 
 func unsealedLine(env string, gate []string) string {

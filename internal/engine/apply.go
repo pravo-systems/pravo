@@ -392,6 +392,11 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		if e.adjustScope != nil {
 			e.adjustScope(sc)
 		}
+		if plan.NeedsApply() {
+			if err := e.preflightRecord(ctx); err != nil {
+				return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
+			}
+		}
 		if !plan.NeedsApply() {
 			// Nothing to write and no output to record or remove: no lock, no record, no
 			// transaction. A state of an environment notes that it runs this release, unless
