@@ -39,6 +39,10 @@ The commands run without the variables that would change what they print, record
 
 A long `$TMPDIR` makes every provider fail to start with "Failed to read any lines from plugin's stdout": the providers listen on a unix socket below it, and a socket path is limited to about 100 bytes. Leave `$TMPDIR` alone, and use `-work` for the workspaces.
 
+## Keeping the pictures current
+
+A full run (no `-only`) records a digest of the files that the viewer embeds (`internal/serve/web/index.html` and `assets/`) in `viewer.stamp`. `sh site/demos/views/build.sh` makes the pictures of the landing page from the shots (the tour, `environments` and `self-service`) and copies the stamp to `site/demos/views/viewer.stamp`. The tests `TestDocumentationPicturesAgreeWithTheViewer` and `TestLandingPicturesAgreeWithTheViewer` fail, in the `tools` job of CI, when the viewer's files differ from the stamps, so a change to the interface cannot merge while the pictures show the old one. When one fails, make the shots and run the script (the message lists the commands), then move the numbered callouts of `site/landing/12-views.html` if the places they point at moved. A change that does not alter what the viewer shows still needs the run: the stamp cannot tell.
+
 ## Scenarios
 
 A scenario is a CUE root in `scenarios/NAME`, embedded in the program, or files laid over the root of another scenario. The documentation shows its files.

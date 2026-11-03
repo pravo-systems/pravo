@@ -206,6 +206,17 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprintln(stdout)
+	if *only == "" {
+		// Every shot is made again, so the pictures agree with the interface.
+		// Written beside the tool, from the module root.
+		if d, err := viewerDigest("."); err == nil {
+			if err := os.WriteFile(stampFile, []byte(d+"\n"), 0o644); err != nil {
+				fmt.Fprintf(stderr, "serveshots: not recorded in %s: %v\n", stampFile, err)
+			} else {
+				fmt.Fprintf(stdout, "recorded the viewer in %s\n", stampFile)
+			}
+		}
+	}
 	return 0
 }
 
