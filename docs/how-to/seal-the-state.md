@@ -428,7 +428,7 @@ New data keys for 1 reader group. Records are sealed again as they are next writ
 The recovery key was rebuilt on this machine. Replace it: pravo protect rewrap --recovery K/N
 ```
 
-Fay is the reader now, and the old readers are not. The key was rebuilt on one machine, so it has been seen in one place: replace it, which makes a new key and three new shares, and the old shares open nothing that is written afterwards.
+Fay is the reader now, and the old readers are not. If the state holds roles, recovery also stores them again with Fay's key as an admin and replaces the `roles-genesis` line of the readers file: give Fay's line `role:admin` before you run it, and commit the file afterwards. [Roles](../reference/roles.md) says what it stores. The key was rebuilt on one machine, so it has been seen in one place: replace it, which makes a new key and three new shares, and the old shares open nothing that is written afterwards.
 
 `rewrap` asks before it replaces or removes a recovery, because the shares that were given out stop working for new records. `--yes` answers the question, as it does for `init`.
 

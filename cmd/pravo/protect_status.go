@@ -301,7 +301,14 @@ func rolesText(rf readersFile, rs state.RolesStatus, st *state.Store) string {
 	default:
 		line += " · from the readers file, not pinned (pravo protect roles)"
 	}
-	if role, ok := protect.RoleOf(rf.Readers, st.SigningKey()); ok {
+	if rs.Unpinned {
+		// The roles in the state decide who may change it, as the commands that change it judge.
+		role := protect.RoleReader
+		if r, ok := protect.RoleOf(rs.Stored, st.SigningKey()); ok {
+			role = r
+		}
+		line += " · you are " + article(role) + " in the roles in the state"
+	} else if role, ok := protect.RoleOf(rf.Readers, st.SigningKey()); ok {
 		line += " · you are " + article(role)
 	}
 	return line
@@ -319,6 +326,13 @@ func rolesDoc(rf readersFile, rs state.RolesStatus, st *state.Store) map[string]
 			doc["file_differs"] = true
 		}
 		if role, ok := protect.RoleOf(rf.Readers, st.SigningKey()); ok {
+			doc["you"] = role.String()
+		}
+		if rs.Unpinned {
+			role := protect.RoleReader
+			if r, ok := protect.RoleOf(rs.Stored, st.SigningKey()); ok {
+				role = r
+			}
 			doc["you"] = role.String()
 		}
 	}

@@ -167,7 +167,7 @@ PRAVO_CONFIG_DIR=people/eve pravo -C team apply --auto-approve; echo "exit=$?"
 ```
 
 ```text out
-Error: your identity is a reader in .pravo/access/readers.txt, and a writer is needed to change the state.
+Error: your identity is a reader in the roles in the state, and a writer is needed to change the state.
 exit=5
 ```
 
@@ -205,7 +205,7 @@ PRAVO_CONFIG_DIR=people/dan pravo -C team protect roles --yes; echo "exit=$?"
 ```
 
 ```text out
-Error: your identity is a writer in .pravo/access/readers.txt, and an admin is needed to change who reads the state.
+Error: your identity is a writer in the roles in the state, and an admin is needed to change who reads the state.
 exit=5
 
 Error: your identity is a writer in the roles in the state, and an admin is needed to store the roles.
@@ -265,6 +265,8 @@ Error: you are not a reader of this state (identity dan is not a reader).
   Readers are listed in .pravo/access/readers.txt. Ask one of them to add yours.
 exit=5
 ```
+
+`protect rewrap` and `protect roles` refuse a change that leaves no admin, so the last admin cannot take herself off by mistake (`--allow-no-admin` overrides it). They also refuse to add dan back from a readers file that is out of date and still lists him; `--readd dan` says that you mean it.
 
 A copy of the bucket made before this step still opens with dan's key, and the records that were sealed in the old group do until they are written again. `pravo protect rewrap --all` seals them again now, `pravo protect gc` drops the old group afterwards, and the credentials of the bucket are taken from dan where they are kept: [Remove a reader](seal-the-state.md#10-remove-a-reader) has the three.
 

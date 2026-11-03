@@ -164,7 +164,7 @@ PRAVO_CONFIG_DIR=people/eve pravo -C eve-team protect status | grep '^Roles'
 ```
 
 ```text out
-Error: your identity is a reader in .pravo/access/readers.txt, and a writer is needed to change the state.
+Error: your identity is a reader in the roles in the state, and a writer is needed to change the state.
 exit=5
 Roles        on · 1 admin · 1 writer · 1 reader · pinned, version 1 in the state (the readers file asks for other roles: pravo protect roles) · you are a reader
 ```
@@ -190,8 +190,7 @@ PRAVO_CONFIG_DIR=people/eve pravo -C team apply --auto-approve; echo "exit=$?"
 ```
 
 ```text out
-
-Error: your identity is a reader in .pravo/access/readers.txt, and a writer is needed to change the state.
+Error: your identity is a reader in the roles in the state, and a writer is needed to change the state.
 exit=5
 ```
 
@@ -223,8 +222,7 @@ PRAVO_CONFIG_DIR=people/dan pravo -C team protect roles --yes; echo "exit=$?"
 ```
 
 ```text out
-
-Error: your identity is a writer in .pravo/access/readers.txt, and an admin is needed to change who reads the state.
+Error: your identity is a writer in the roles in the state, and an admin is needed to change who reads the state.
 exit=5
 
 Error: your identity is a writer in the roles in the state, and an admin is needed to store the roles.

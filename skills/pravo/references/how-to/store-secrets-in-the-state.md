@@ -104,7 +104,7 @@ printf %s 'x' | PRAVO_CONFIG_DIR=people/eve pravo secret set prod/db_password
 Output:
 
 ```text
-Error: your identity is a reader in .pravo/access/readers.txt, and a writer is needed to change the state.
+Error: your identity is a reader in the roles in the state, and a writer is needed to change the state.
 ```
 
 ## 3. Read a secret
@@ -351,7 +351,7 @@ PRAVO_CONFIG_DIR=people/dan pravo secret rm prod/db_password --yes
 Output:
 
 ```text
-Error: your identity is a writer in .pravo/access/readers.txt, and an admin is needed to remove a secret.
+Error: your identity is a writer in the roles in the state, and an admin is needed to remove a secret.
 ```
 
 ```sh

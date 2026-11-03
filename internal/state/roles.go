@@ -183,6 +183,11 @@ type RolesStatus struct {
 	// Unpinned is set when the state holds a chain that the readers file does not pin: the
 	// file decides until its pin is committed.
 	Unpinned bool
+	// Stored is the active roles of the head of the chain, set when the chain decides or is
+	// unpinned. An unpinned chain does not decide who is read as what, but a command that
+	// changes the state asks it who may change it: deleting the pin line of a local readers
+	// file must not make a reader an admin.
+	Stored []protect.Reader
 	// Differs is set when the roles of the readers file are not the head of the chain.
 	Differs bool
 	// Former are the former keys of the head of the chain. Set with a chain.
@@ -222,6 +227,7 @@ func (s *Store) RolesFor(ctx context.Context, file []protect.Reader, pin string)
 		return file, st, nil
 	case pin == "":
 		st.Unpinned = true
+		st.Stored = head.Set
 		return file, st, nil
 	case head == nil:
 		return nil, st, fmt.Errorf("%w: the readers file pins the roles of the state, and the state has none", ErrUntrusted)
@@ -229,6 +235,7 @@ func (s *Store) RolesFor(ctx context.Context, file []protect.Reader, pin string)
 		return nil, st, fmt.Errorf("%w: the first roles in the state are not the ones the readers file pins", ErrUntrusted)
 	}
 	st.Source = "state"
+	st.Stored = head.Set
 	st.Former = head.Former
 	st.Vouched = map[string]protect.Vouch{}
 	for _, v := range chain.Versions {
@@ -304,6 +311,26 @@ func (s *Store) PutRolesVersion(ctx context.Context, seq int, text string, at ti
 		return nil
 	}
 	return fmt.Errorf("%w: %s exists", ErrRolesChanged, rolesKey(seq))
+}
+
+// ReplaceRoles throws the chain of roles away and stores text as version 1, signed by this
+// store's key, which text must make an admin. It is for recovery only: the repository's pin
+// has to be changed to the digest of text, or every command refuses the state. A run that is
+// cut short leaves no chain, and runs again.
+func (s *Store) ReplaceRoles(ctx context.Context, text string, at time.Time) error {
+	keys, err := s.b.List(ctx, rolesDir)
+	if err != nil {
+		return err
+	}
+	for _, k := range keys {
+		if err := s.b.Delete(ctx, k); err != nil && !errors.Is(err, ErrNotFound) {
+			return Advise(err)
+		}
+	}
+	s.rolesMu.Lock()
+	s.roles = nil
+	s.rolesMu.Unlock()
+	return s.PutRolesVersion(ctx, 1, text, at)
 }
 
 // VouchDigest is what an admin vouches for when the transaction t stays valid: the SHA-256 of

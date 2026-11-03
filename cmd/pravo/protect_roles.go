@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -18,7 +19,8 @@ import (
 // ---------- protect roles ----------
 
 func protectRolesCmd() *cobra.Command {
-	var yes, adoptUnsigned bool
+	var yes, adoptUnsigned, allowNoAdmin bool
+	var readd []string
 	cmd := &cobra.Command{
 		Use:   "roles",
 		Short: "Store the roles of the readers file in the state and pin them",
@@ -44,15 +46,17 @@ count, and a transaction written after the roles began is not adopted by acciden
 			if err != nil {
 				return err
 			}
-			return p.roles(yes, adoptUnsigned)
+			return p.roles(yes, adoptUnsigned, allowNoAdmin, readd)
 		},
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask before the roles are stored")
 	cmd.Flags().BoolVar(&adoptUnsigned, "adopt-unsigned", false, "also vouch for the unsigned transactions that wrote records now in the state (the first version always does)")
+	cmd.Flags().StringArrayVar(&readd, "readd", nil, "NAME of a former key that the readers file lists again, and that you mean to add back")
+	cmd.Flags().BoolVar(&allowNoAdmin, "allow-no-admin", false, "store roles that leave no admin")
 	return cmd
 }
 
-func (p *protectRun) roles(yes, adoptUnsigned bool) error {
+func (p *protectRun) roles(yes, adoptUnsigned, allowNoAdmin bool, readd []string) error {
 	if err := p.rf.require(); err != nil {
 		return err
 	}
@@ -110,7 +114,22 @@ func (p *protectRun) roles(yes, adoptUnsigned bool) error {
 	if err != nil {
 		return err
 	}
+	if err := formerListed(beforeFormer, p.rf.Readers, nil, readd); err != nil {
+		return err
+	}
 	next, nextFormer := protect.NextRoles(p.rf.Readers, before, beforeFormer, seen)
+	if !allowNoAdmin && !hasAdmin(next, p.rf.Readers) {
+		var demoted []string
+		for _, r := range before {
+			if r.Role == protect.RoleAdmin {
+				demoted = append(demoted, r.Name)
+			}
+		}
+		if len(demoted) == 0 {
+			demoted = []string{"the admins"}
+		}
+		return engine.WithCode(engine.ExitRefused, noAdminError(demoted, "demotes or removes"))
+	}
 	vouches, err := newVouches(p.ctx, st, chain, before, next, seen, adoptUnsigned)
 	if err != nil {
 		return err
@@ -337,4 +356,22 @@ func newVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, b
 		return nil, fmt.Errorf("%d transactions would be vouched for, and one version of the roles holds %d. Remove the records of the keys that leave with pravo state rm, or have a writer apply them again, and run this again.", len(found), maxVouches)
 	}
 	return found, nil
+}
+
+// setPin makes the roles-genesis line of the readers file hold digest: it replaces the line
+// that is there, or adds one.
+func setPin(path, digest string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var kept []string
+	for _, l := range strings.Split(strings.TrimRight(string(data), "\n"), "\n") {
+		if f := strings.Fields(strings.SplitN(l, "#", 2)[0]); len(f) == 2 && f[0] == protect.RolesGenesisKey {
+			continue
+		}
+		kept = append(kept, l)
+	}
+	kept = append(kept, protect.RolesGenesisKey+" "+digest)
+	return os.WriteFile(path, []byte(strings.Join(kept, "\n")+"\n"), 0o644)
 }
