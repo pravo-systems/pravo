@@ -99,3 +99,33 @@ func TestNextRolesKeepsAKeyThatLeftAsFormer(t *testing.T) {
 		t.Error("a short fingerprint was accepted")
 	}
 }
+
+func TestNextRolesNamesOfUnlistedSignersAreValid(t *testing.T) {
+	ada, _ := roleLine(t, "ada", " role:admin")
+	seen := []string{
+		"SHA256:+abcdefghijklmnopqrstuvwxyz0123456789ABCDEF",
+		"SHA256:/bcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
+		"SHA256:a+/cdefghijklmnopqrstuvwxyz0123456789ABCDEF",
+	}
+	active, former := NextRoles([]Reader{ada}, nil, nil, seen)
+	if len(former) != 3 {
+		t.Fatalf("former = %+v", former)
+	}
+	text := FormatRolesSet(active, former, nil)
+	rs, fs, vs, err := ParseRolesSet(text)
+	if err != nil {
+		t.Fatalf("the stored roles do not parse: %v\n%s", err, text)
+	}
+	if FormatRolesSet(rs, fs, vs) != text {
+		t.Errorf("round trip differs:\n%s", text)
+	}
+}
+
+func TestParseRolesSetReadsOldFormerNamesWithSlash(t *testing.T) {
+	ada, _ := roleLine(t, "ada", " role:admin")
+	fp := "SHA256:/bcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKL"[:50]
+	text := FormatRolesSet([]Reader{ada}, []FormerKey{{Name: "former-/bcdefgh", Key: fp}}, nil)
+	if _, fs, _, err := ParseRolesSet(text); err != nil || len(fs) != 1 {
+		t.Fatalf("roles stored by v0.1.4 do not parse: %v", err)
+	}
+}
