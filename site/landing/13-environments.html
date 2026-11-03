@@ -1,0 +1,103 @@
+<section class="band env-band" id="environments" data-band="environments"><div class="wrap">
+<div class="band-head">
+<p class="kicker">Environments</p>
+<h2 class="band-title">One specification. <em>Every environment.</em></h2>
+<p class="band-lede">dev, staging and prod are declared in the specification, and a row for each holds what differs. The resources are written once and never name an environment. A release runs in dev first, and prod takes only what dev has run. Each environment keeps a state of its own and its own list of who may change it.</p>
+</div>
+<div class="split env-split">
+<div class="stage-wrap env-stage">
+<div class="hero-stack env-stack" role="group" aria-label="The specification with its environments, the refusal of a release that was not promoted, and the table of environments" data-htabs>
+<div class="hs-tabs" role="tablist" aria-label="Specification, refusal and table"><button role="tab" id="et-code" aria-controls="ep-code" aria-selected="true"><b>01</b>main.cue</button><button role="tab" id="et-term" aria-controls="ep-term" aria-selected="false" tabindex="-1"><b>02</b>pravo promote</button><button role="tab" id="et-table" aria-controls="ep-table" aria-selected="false" tabindex="-1"><b>03</b>pravo environments</button></div>
+<div class="hs-body">
+<div class="hs-p on" id="ep-code" role="tabpanel" aria-labelledby="et-code">
+<figure class="code" data-lang="cue" data-status="valid" data-ln>
+<figcaption class="code-title"><span class="code-file">main.cue</span><span class="code-badge" title="Accepted">valid</span></figcaption>
+<div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> estate
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-kw">import</span> (
+</span><span class="line"><span class="ln"></span>	<span class="tok-str">&#34;pravo.dev/pravo&#34;</span>
+</span><span class="line"><span class="ln"></span>	loc <span class="tok-str">&#34;pravo.dev/providers/hashicorp/local&#34;</span>
+</span><span class="line"><span class="ln"></span>)
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-com">// The environments, and what differs between them.</span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">$environments</span>: pravo.<span class="tok-def">#Environments</span> <span class="tok-op">&amp;</span> {
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">dev</span>: {<span class="tok-id">workers</span>: <span class="tok-num">1</span>, <span class="tok-id">$default</span>: <span class="tok-num">true</span>}
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">staging</span>: {<span class="tok-id">workers</span>: <span class="tok-num">2</span>, <span class="tok-id">$after</span>: <span class="tok-str">&#34;dev&#34;</span>}
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">prod</span>: {<span class="tok-id">workers</span>: <span class="tok-num">3</span>, <span class="tok-id">$after</span>: <span class="tok-str">&#34;staging&#34;</span>}
+</span><span class="line"><span class="ln"></span>}
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-com">// Each environment has its own state and its own readers.</span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">$settings</span>: pravo.<span class="tok-def">#Settings</span> <span class="tok-op">&amp;</span> {
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">state</span>: <span class="tok-id">path</span>: <span class="tok-str">&#34;state/</span><span class="tok-op">\(</span>$environment.$name<span class="tok-op">)</span><span class="tok-str">&#34;</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">access</span>: <span class="tok-id">dir</span>: <span class="tok-str">&#34;.pravo/access/</span><span class="tok-op">\(</span>$environment.$name<span class="tok-op">)</span><span class="tok-str">&#34;</span>
+</span><span class="line"><span class="ln"></span>}
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">$local</span>: loc.<span class="tok-def">#Provider</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-com">// Written once. It never names an environment.</span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">conf</span>: $local.<span class="tok-def">#Resource</span>.local_file <span class="tok-op">&amp;</span> {
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">filename</span>: <span class="tok-str">&#34;</span><span class="tok-op">\(</span>$environment.$name<span class="tok-op">)</span><span class="tok-str">.conf&#34;</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">content</span>:  <span class="tok-str">&#34;workers </span><span class="tok-op">\(</span>$environment.workers<span class="tok-op">)</span><span class="tok-str">\n&#34;</span>
+</span><span class="line"><span class="ln"></span>}
+</span></code></pre></div>
+<button class="copy" type="button" aria-label="Copy main.cue"></button>
+</figure>
+</div>
+<div class="hs-p" id="ep-term" role="tabpanel" aria-labelledby="et-term">
+<figure class="term" data-exit="5" data-ran="0.1">
+<figcaption class="code-title"><span class="code-file">terminal</span><span class="code-badge" data-exit="5" title="Exit code">exit 5</span></figcaption>
+<div class="term-body">
+<div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">pravo promote prod</span></div>
+<pre class="term-out"><code><span class="out-err">Error: staging does not run this release: nothing has been applied there yet.</span>
+
+Run these, skipping a step that is already done:
+
+    pravo apply --env dev
+    pravo promote staging
+    pravo apply --env staging
+    pravo promote prod</code></pre>
+</div>
+<button class="copy" type="button" data-copy="pravo promote prod" aria-label="Copy command">Copy</button>
+</figure>
+</div>
+<div class="hs-p" id="ep-table" role="tabpanel" aria-labelledby="et-table">
+<figure class="term" data-exit="0" data-ran="0.1">
+<figcaption class="code-title"><span class="code-file">terminal</span></figcaption>
+<div class="term-body">
+<div class="term-line cmd"><span class="prompt">$</span><span class="cmd-text">pravo environments</span></div>
+<pre class="term-out"><code>dev → staging → prod
+
+ENV      FOLLOWS  RUNS          GIT  SINCE   BY
+dev      -        &lt;release-id&gt;       0s ago  dan  runs this directory
+staging  dev      -                               nothing applied yet; ready to promote
+prod     staging  -                               nothing applied yet
+
+This directory: &lt;release-id&gt;
+Next: pravo promote staging</code></pre>
+</div>
+<button class="copy" type="button" data-copy="pravo environments" aria-label="Copy command">Copy</button>
+</figure>
+</div>
+</div>
+</div>
+<p class="stage-caption">The specification, the refusal of prod and the table of environments. Dan has applied dev. Recorded from {{data environments.version.0}} with {{data environments.version.1}}.</p>
+</div>
+<div class="cards env-cards">
+<a class="card spot" href="how-to/environments.html">
+<span class="card-kicker">01 · The rows</span>
+<h3 class="card-title">Declared once, checked for all</h3>
+<p class="card-text">The rows of <code>$environments</code> hold what differs. <code>pravo validate</code> checks the specification in every environment before a merge, so a row that misses a field is caught there and not in a plan.</p>
+</a>
+<a class="card spot" href="how-to/promote-a-release.html">
+<span class="card-kicker">02 · The promotion flow</span>
+<h3 class="card-title">Prod takes what dev ran</h3>
+<p class="card-text"><code>$after</code> says which environment an environment follows. Every apply leaves a signed note of the release it ran, and <code>pravo promote</code> checks it before the next environment takes the release. An admin of prod is refused too: the role decides who may promote, and the promotion decides what prod takes.</p>
+</a>
+<a class="card spot" href="reference/spec-environments.html">
+<span class="card-kicker">03 · The states</span>
+<h3 class="card-title">Separate states, separate people</h3>
+<p class="card-text">Each environment has a state of its own and its own list of readers, so a writer of dev can be a reader of prod. <code>--env prod</code> selects both.</p>
+</a>
+</div>
+</div>
+</div></section>

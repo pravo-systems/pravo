@@ -4,7 +4,7 @@
 // capture page. Run it from the module root, after tools/capture has recorded
 // the page (site/demos/idea/build.sh does both):
 //
-//	go run site/demos/idea/mk.go hero|idea|self-service
+//	go run site/demos/idea/mk.go hero|idea|self-service|environments
 //
 // It reads site/demos/NAME/page.md, site/data/NAME.json (written by
 // `capture -json`) and site/demos/NAME/partial.html, adds the derived keys to
@@ -335,7 +335,7 @@ func plainFig(ids map[string]*fence, args []string) string {
 
 func main() {
 	if len(os.Args) != 2 {
-		die("usage: go run site/demos/idea/mk.go hero|idea|self-service")
+		die("usage: go run site/demos/idea/mk.go hero|idea|self-service|environments")
 	}
 	if _, err := os.Stat("go.mod"); err != nil {
 		die("run from the module root")
@@ -351,6 +351,8 @@ func main() {
 		mkIdea(fs, d)
 	case "self-service":
 		mkSelfService(fs)
+	case "environments":
+		mkEnvironments(fs)
 	default:
 		die("unknown demo %q", demo)
 	}
@@ -375,9 +377,22 @@ func mkHero(fs []*fence) {
 
 func mkSelfService(fs []*fence) {
 	ids := byID(fs)
-	writePartial("self-service", "site/landing/13-self-service.html", func(kind string, args []string) string {
+	writePartial("self-service", "site/landing/14-self-service.html", func(kind string, args []string) string {
 		if kind != "fig" {
 			die("self-service: the token {{%s}} is not used by the band", kind)
+		}
+		return plainFig(ids, args)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// environments: the specification, the refusal and the table of the band
+
+func mkEnvironments(fs []*fence) {
+	ids := byID(fs)
+	writePartial("environments", "site/landing/13-environments.html", func(kind string, args []string) string {
+		if kind != "fig" {
+			die("environments: the token {{%s}} is not used by the band", kind)
 		}
 		return plainFig(ids, args)
 	})

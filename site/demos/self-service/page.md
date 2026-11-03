@@ -10,7 +10,7 @@ normalize:
     replace: ""
 ---
 
-This page is not published. `tools/capture` runs it, and `site/demos/idea/mk.go self-service` renders the blocks into `site/landing/13-self-service.html`. The root is the one of [Make a new instance from a template](../../../docs/how-to/add-an-instance-from-a-template.md), and the picture of the form between the two tabs is its shot `templates-form`, from `tools/serveshots`.
+This page is not published. `tools/capture` runs it, and `site/demos/idea/mk.go self-service` renders the blocks into `site/landing/14-self-service.html`. The root is the one of [Make a new instance from a template](../../../docs/how-to/add-an-instance-from-a-template.md), and the picture of the form between the two tabs is its shot `templates-form`, from `tools/serveshots`.
 
 ```cue file=service.cue title="service.cue" id=template status=valid
 package estate

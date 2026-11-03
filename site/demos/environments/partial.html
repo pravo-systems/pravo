@@ -1,0 +1,43 @@
+<section class="band env-band" id="environments" data-band="environments"><div class="wrap">
+<div class="band-head">
+<p class="kicker">Environments</p>
+<h2 class="band-title">One specification. <em>Every environment.</em></h2>
+<p class="band-lede">dev, staging and prod are declared in the specification, and a row for each holds what differs. The resources are written once and never name an environment. A release runs in dev first, and prod takes only what dev has run. Each environment keeps a state of its own and its own list of who may change it.</p>
+</div>
+<div class="split env-split">
+<div class="stage-wrap env-stage">
+<div class="hero-stack env-stack" role="group" aria-label="The specification with its environments, the refusal of a release that was not promoted, and the table of environments" data-htabs>
+<div class="hs-tabs" role="tablist" aria-label="Specification, refusal and table"><button role="tab" id="et-code" aria-controls="ep-code" aria-selected="true"><b>01</b>main.cue</button><button role="tab" id="et-term" aria-controls="ep-term" aria-selected="false" tabindex="-1"><b>02</b>pravo promote</button><button role="tab" id="et-table" aria-controls="ep-table" aria-selected="false" tabindex="-1"><b>03</b>pravo environments</button></div>
+<div class="hs-body">
+<div class="hs-p on" id="ep-code" role="tabpanel" aria-labelledby="et-code">
+{{fig spec ln}}
+</div>
+<div class="hs-p" id="ep-term" role="tabpanel" aria-labelledby="et-term">
+{{fig refuse}}
+</div>
+<div class="hs-p" id="ep-table" role="tabpanel" aria-labelledby="et-table">
+{{fig table}}
+</div>
+</div>
+</div>
+<p class="stage-caption">The specification, the refusal of prod and the table of environments. Dan has applied dev. Recorded from {{data environments.version.0}} with {{data environments.version.1}}.</p>
+</div>
+<div class="cards env-cards">
+<a class="card spot" href="how-to/environments.html">
+<span class="card-kicker">01 · The rows</span>
+<h3 class="card-title">Declared once, checked for all</h3>
+<p class="card-text">The rows of <code>$environments</code> hold what differs. <code>pravo validate</code> checks the specification in every environment before a merge, so a row that misses a field is caught there and not in a plan.</p>
+</a>
+<a class="card spot" href="how-to/promote-a-release.html">
+<span class="card-kicker">02 · The promotion flow</span>
+<h3 class="card-title">Prod takes what dev ran</h3>
+<p class="card-text"><code>$after</code> says which environment an environment follows. Every apply leaves a signed note of the release it ran, and <code>pravo promote</code> checks it before the next environment takes the release. An admin of prod is refused too: the role decides who may promote, and the promotion decides what prod takes.</p>
+</a>
+<a class="card spot" href="reference/spec-environments.html">
+<span class="card-kicker">03 · The states</span>
+<h3 class="card-title">Separate states, separate people</h3>
+<p class="card-text">Each environment has a state of its own and its own list of readers, so a writer of dev can be a reader of prod. <code>--env prod</code> selects both.</p>
+</a>
+</div>
+</div>
+</div></section>
