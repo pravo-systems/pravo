@@ -24,3 +24,7 @@
 @media (max-width: 30rem) {
   .env-stack .hs-tabs button { padding: .65rem .6rem; gap: .35rem; letter-spacing: .04em; }
 }
+.env-full { margin: .6rem 0 0; }
+.env-full summary { cursor: pointer; width: fit-content; padding: .3rem 0; font: 500 var(--fs-2)/1.2 var(--font-mono); letter-spacing: .04em; color: var(--accent); }
+.env-full[open] summary { margin-bottom: .6rem; }
+.env-full .code-body { max-height: 25rem; }

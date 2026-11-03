@@ -16,8 +16,7 @@ normalize:
 
 This page is not published. `tools/capture` runs it, and `site/demos/idea/mk.go environments` renders the blocks into `site/landing/13-environments.html`. The root is the one of [Promote a release from one environment to the next](../../../docs/how-to/promote-a-release.md), with a staging environment in between. The picture of the viewer in the last tab is the shot `environments-flow` of `tools/serveshots`.
 
-```sh hidden
-cat > main.cue <<'CUE'
+```cue file=main.cue title="main.cue" id=full status=valid
 package estate
 
 import (
@@ -45,10 +44,9 @@ conf: $local.#Resource.local_file & {
 	filename: "\($environment.$name).conf"
 	content:  "workers \($environment.workers)\n"
 }
-CUE
 ```
 
-The file, cut to what carries the idea. `...` stands for the provider and the settings that give each environment its own state.
+The whole file is the block above, which the page writes and runs. The landing page shows it behind a toggle, and this cut of it first. `...` stands for the provider and the settings that give each environment its own state.
 
 ```cue title="main.cue" id=spec status=valid
 $environments: pravo.#Environments & {

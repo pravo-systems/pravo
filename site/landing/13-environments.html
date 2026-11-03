@@ -24,6 +24,40 @@
 </span></code></pre></div>
 <button class="copy" type="button" aria-label="Copy main.cue"></button>
 </figure>
+<details class="env-full"><summary>Show the whole file</summary>
+<figure class="code" data-lang="cue" data-status="valid" data-ln>
+<figcaption class="code-title"><span class="code-file">main.cue</span><span class="code-badge" title="Accepted">valid</span></figcaption>
+<div class="code-body"><pre><code><span class="line"><span class="ln"></span><span class="tok-kw">package</span> estate
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-kw">import</span> (
+</span><span class="line"><span class="ln"></span>	<span class="tok-str">&#34;pravo.dev/pravo&#34;</span>
+</span><span class="line"><span class="ln"></span>	loc <span class="tok-str">&#34;pravo.dev/providers/hashicorp/local&#34;</span>
+</span><span class="line"><span class="ln"></span>)
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-com">// The environments, and what differs between them.</span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">$environments</span>: pravo.<span class="tok-def">#Environments</span> <span class="tok-op">&amp;</span> {
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">dev</span>: {<span class="tok-id">workers</span>: <span class="tok-num">1</span>, <span class="tok-id">$default</span>: <span class="tok-num">true</span>}
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">staging</span>: {<span class="tok-id">workers</span>: <span class="tok-num">2</span>, <span class="tok-id">$after</span>: <span class="tok-str">&#34;dev&#34;</span>}
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">prod</span>: {<span class="tok-id">workers</span>: <span class="tok-num">3</span>, <span class="tok-id">$after</span>: <span class="tok-str">&#34;staging&#34;</span>}
+</span><span class="line"><span class="ln"></span>}
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-com">// Each environment has its own state and its own readers.</span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">$settings</span>: pravo.<span class="tok-def">#Settings</span> <span class="tok-op">&amp;</span> {
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">state</span>: <span class="tok-id">path</span>: <span class="tok-str">&#34;state/</span><span class="tok-op">\(</span>$environment.$name<span class="tok-op">)</span><span class="tok-str">&#34;</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">access</span>: <span class="tok-id">dir</span>: <span class="tok-str">&#34;.pravo/access/</span><span class="tok-op">\(</span>$environment.$name<span class="tok-op">)</span><span class="tok-str">&#34;</span>
+</span><span class="line"><span class="ln"></span>}
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">$local</span>: loc.<span class="tok-def">#Provider</span>
+</span><span class="line"><span class="ln"></span>
+</span><span class="line"><span class="ln"></span><span class="tok-com">// Written once. It never names an environment.</span>
+</span><span class="line"><span class="ln"></span><span class="tok-id">conf</span>: $local.<span class="tok-def">#Resource</span>.local_file <span class="tok-op">&amp;</span> {
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">filename</span>: <span class="tok-str">&#34;</span><span class="tok-op">\(</span>$environment.$name<span class="tok-op">)</span><span class="tok-str">.conf&#34;</span>
+</span><span class="line"><span class="ln"></span>	<span class="tok-id">content</span>:  <span class="tok-str">&#34;workers </span><span class="tok-op">\(</span>$environment.workers<span class="tok-op">)</span><span class="tok-str">\n&#34;</span>
+</span><span class="line"><span class="ln"></span>}
+</span></code></pre></div>
+<button class="copy" type="button" aria-label="Copy main.cue"></button>
+</figure>
+</details>
 </div>
 <div class="hs-p" id="ep-term" role="tabpanel" aria-labelledby="et-term">
 <figure class="term" data-exit="5" data-ran="0.1">
