@@ -200,7 +200,7 @@ port: Refreshing state... [id=20093]
 Error: port: replacement requires destroying the resource, but $lifecycle.prevent_destroy is set
 ```
 
-A resource that the specification does not declare has no `$lifecycle` to read. Remove `port` from the specification and `pravo destroy` deletes it with `base`:
+A resource that the specification does not declare has no `$lifecycle` to read, but its record kept the setting. Remove `port` from the specification. `pravo destroy` warns that the guard went with the block, and with `--auto-approve` it refuses to delete `port` until the command names it:
 
 ```cue file=main.cue
 package demo
@@ -212,8 +212,17 @@ $random: rnd.#Provider
 base: $random.#Resource.random_integer & {min: 1, max: 9, seed: "base"}
 ```
 
+```sh run exit=1
+pravo destroy -auto-approve 2>&1 | grep -E '^(Warning|Error)'; test "$(pravo state list | wc -l)" -eq 2 && exit 1
+```
+
+```text out
+Warning: port: $lifecycle.prevent_destroy guarded this resource, and its block is gone from the specification, so the guard is gone with it; the plan destroys it
+Error: --auto-approve will not destroy port: it carried $lifecycle.prevent_destroy, and its block is gone from the specification. Declare the block again, or name the resource with --allow-destroy port
+```
+
 ```sh run
-pravo destroy -auto-approve | grep '^Destroy complete'
+pravo destroy -auto-approve --allow-destroy port | grep '^Destroy complete'
 ```
 
 ```text out
