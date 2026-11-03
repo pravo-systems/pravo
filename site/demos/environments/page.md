@@ -14,7 +14,7 @@ normalize:
     replace: '0s ago'
 ---
 
-This page is not published. `tools/capture` runs it, and `site/demos/idea/mk.go environments` renders the blocks into `site/landing/13-environments.html`. The root is the one of [Promote a release from one environment to the next](../../../docs/how-to/promote-a-release.md), with a staging environment in between. The picture of the viewer between the tabs is the shot `environments-flow` of `tools/serveshots`.
+This page is not published. `tools/capture` runs it, and `site/demos/idea/mk.go environments` renders the blocks into `site/landing/13-environments.html`. The root is the one of [Promote a release from one environment to the next](../../../docs/how-to/promote-a-release.md), with a staging environment in between. The picture of the viewer in the last tab is the shot `environments-flow` of `tools/serveshots`.
 
 ```cue file=main.cue title="main.cue" id=spec status=valid
 package estate

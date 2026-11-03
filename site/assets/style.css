@@ -4138,7 +4138,7 @@ html.js [data-band]:not(.in) .vw-win { clip-path: inset(0 100% 0 0); }
   .env-cards .card { padding: .85rem 1.1rem .9rem; }
   .env-cards .card-text { font-size: var(--fs-3); }
 }
-.env-stack .vw-shot { aspect-ratio: 2160 / 1072; }
+.env-stack .vw-shot { aspect-ratio: 2160 / 1031; }
 @media (max-width: 30rem) {
   .env-stack .hs-tabs button { padding: .65rem .6rem; gap: .35rem; letter-spacing: .04em; }
 }

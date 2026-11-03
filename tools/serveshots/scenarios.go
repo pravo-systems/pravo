@@ -48,6 +48,16 @@ type scenario struct {
 	// situation runs its discoveries after the apply; the team situation runs
 	// them as a step.
 	Catalog []catalogObject
+	// Environments are the environments, besides the default one, that the
+	// first apply is repeated in, in order, for a specification that declares
+	// $environments; Ahead are edits after which the default environment is
+	// applied again, so that it runs a release that the others do not.
+	Environments []string
+	Ahead        []edit
+	// SealedEnvironments seals the state of every environment to one admin,
+	// with a readers file for each in .pravo/access/ENV, and the other
+	// environments then take the release by pravo promote.
+	SealedEnvironments bool
 }
 
 // A storedPlan is a plan that pravo plan --store puts in the state.
@@ -239,6 +249,17 @@ edge: waf: rules: $local.#Resource.local_file & {
 		Name:      "b02",
 		Resources: 2,
 		Edits:     []edit{{File: "port.cue", Old: "max:  29999", New: "max:  20999"}},
+	},
+	{
+		// Environments: dev, staging and prod in a promotion flow. All three run
+		// the first release, and dev then takes a second one that the other two
+		// do not run.
+		Name:         "environments",
+		Resources:    2,
+		Environments: []string{"staging", "prod"},
+		Ahead:        []edit{{File: "main.cue", Old: "image 1.0", New: "image 1.1"}},
+
+		SealedEnvironments: true,
 	},
 	{
 		// B3, Apply, outputs, state: the same root with two outputs, applied.

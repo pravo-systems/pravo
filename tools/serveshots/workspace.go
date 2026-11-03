@@ -160,6 +160,11 @@ func prepareClean(ctx context.Context, r *pravoRunner, sc scenario, dir, provide
 	if _, err := r.mustRunEnv(ctx, dir, w.Env, []int{0}, "init"); err != nil {
 		return nil, err
 	}
+	if sc.SealedEnvironments {
+		if err := sealEnvironments(ctx, r, dir, w, append([]string{"dev"}, sc.Environments...)); err != nil {
+			return nil, err
+		}
+	}
 	if sc.Resources == 0 {
 		return w, nil
 	}
@@ -172,6 +177,27 @@ func prepareClean(ctx context.Context, r *pravoRunner, sc scenario, dir, provide
 	}
 	if sc.hasCatalog() {
 		if _, err := r.mustRunEnv(ctx, dir, w.Env, []int{0}, "discover"); err != nil {
+			return nil, err
+		}
+	}
+	for _, env := range sc.Environments {
+		cmd := []string{"apply", "-auto-approve", "--env", env}
+		if sc.SealedEnvironments {
+			cmd = []string{"promote", env, "--auto-approve"}
+		}
+		res, err := r.mustRunEnv(ctx, dir, w.Env, []int{0}, cmd...)
+		if err != nil {
+			return nil, err
+		}
+		if err := checkAdded(sc, res.Out); err != nil {
+			return nil, err
+		}
+	}
+	if len(sc.Ahead) > 0 {
+		if err := applyEdits(dir, sc.Ahead); err != nil {
+			return nil, err
+		}
+		if _, err := r.mustRunEnv(ctx, dir, w.Env, []int{0}, "apply", "-auto-approve"); err != nil {
 			return nil, err
 		}
 	}
@@ -673,4 +699,32 @@ func lastLines(s string, n int) string {
 		lines = lines[len(lines)-n:]
 	}
 	return strings.Join(lines, "\n")
+}
+
+// sealEnvironments makes an admin, ada, writes a readers file for each
+// environment and seals its state, so that an environment that follows another
+// takes only a release that was promoted into it. The viewer reads as ada.
+func sealEnvironments(ctx context.Context, r *pravoRunner, dir string, w *workspace, envs []string) error {
+	w.Env = append(w.Env, "PRAVO_PASSPHRASE="+passphrase, "PRAVO_CONFIG_DIR="+filepath.Join(dir, "people", "ada"))
+	res, err := r.mustRunEnv(ctx, dir, w.Env, []int{0}, "id", "new", "--name", "ada")
+	if err != nil {
+		return err
+	}
+	line := readerLine(res.Out, "ada")
+	if line == "" {
+		return fmt.Errorf("pravo id new printed no line for the readers file:\n%s", indent(strings.TrimSpace(res.Out)))
+	}
+	for _, env := range envs {
+		access := filepath.Join(dir, ".pravo", "access", env)
+		if err := os.MkdirAll(access, 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(access, "readers.txt"), []byte(line+" role:admin\n"), 0o644); err != nil {
+			return err
+		}
+		if _, err := r.mustRunEnv(ctx, dir, w.Env, []int{0}, "protect", "init", "--encrypt", "--allow-local", "--yes", "--env", env); err != nil {
+			return err
+		}
+	}
+	return nil
 }
