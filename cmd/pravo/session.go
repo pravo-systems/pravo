@@ -94,7 +94,13 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 	case opts.loadState:
 		mode = pravo.StateWrite
 	}
+	var s *session
 	ws, err := pravo.Open(ctx, pravo.Config{
+		EngineDefaults: func(o *engine.Options) {
+			if s != nil {
+				s.readersInto(o)
+			}
+		},
 		Tags: flags.Tags, SysTags: flags.SysTags, Env: environment(), Root: opts.root,
 		Install: opts.install, Upgrade: opts.upgrade, Schemas: opts.schemas, State: mode, RelockModules: opts.relockModules,
 		Actor: flags.Actor, Reason: flags.Reason, Args: os.Args[1:],
@@ -136,7 +142,7 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &session{ws: ws, root: ws.Root(), reg: ws.Registry(), providers: ws.Providers(), lock: ws.Lock(), schemas: ws.Schemas(), state: ws.State()}
+	s = &session{ws: ws, root: ws.Root(), reg: ws.Registry(), providers: ws.Providers(), lock: ws.Lock(), schemas: ws.Schemas(), state: ws.State()}
 	if opts.schemas {
 		s.value = s.root.Value
 	}
