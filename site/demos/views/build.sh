@@ -24,9 +24,10 @@ im.resize((int(a[7]), int(a[8])), Image.LANCZOS).save(a[2], "WEBP", quality=82, 
 		"docs/img/serve/$1-$2.png" "site/assets/shots/$9-$2.webp" "$3" "$4" "$5" "$6" "$7" "$8"
 }
 for theme in dark light; do
-	# The five pages of the tour: the whole shot, smaller.
-	shot overview "$theme" - - - - 2160 1350 graph
-	shot plan "$theme" - - - - 2160 1350 plan
+	# The five pages of the tour: the whole shot, smaller. All five are of the
+	# team estate, as one session (a test checks it).
+	shot landing-graph "$theme" - - - - 2160 1350 graph
+	shot landing-plan "$theme" - - - - 2160 1350 plan
 	shot policies "$theme" - - - - 2160 1350 policies
 	shot members "$theme" - - - - 2160 1350 access
 	shot traces "$theme" - - - - 2160 1350 traces

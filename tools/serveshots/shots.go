@@ -442,6 +442,12 @@ func allShots() []Shot {
 	// plan, so its configuration has two transactions; the plan of cy waits,
 	// approved; the plan of ben waits for an admin.
 	s = append(s, both("history", "team", situationTeam, Fragment{Sel: searchConfig, Tab: "history", Collapse: []string{"network", "edge"}})...)
+	// The landing page tour shows one session, the team's: the same identity,
+	// the same badges and the same estate on every page. Its other pages are
+	// the shots policies, members and traces. No page of the documentation
+	// links these two (their names start with landing-).
+	s = append(s, both("landing-graph", "team", situationTeam, Fragment{})...)
+	s = append(s, both("landing-plan", "team", situationTeam, Fragment{Sel: ordersConfig, Tab: "change", Plan: "@orders", Collapse: []string{"network", "edge"}})...)
 	s = append(s, both("plans-team", "team", situationTeam, Fragment{View: "plans", Plan: "@orders"})...)
 	s = append(s, both("policies", "team", situationTeam, Fragment{View: "policies", Pol: "files_under_out"})...)
 	s = append(s, both("policy-pending", "team", situationTeam, Fragment{View: "policies", Pol: "approve_deletes"})...)
