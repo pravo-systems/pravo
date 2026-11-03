@@ -646,9 +646,9 @@ export class TracesView {
     if (!sp) return h('aside', { class: 'tr-detail empty', 'aria-label': 'Span inspector' },
       h('p', { class: 'tr-note' }, 'Click a span to inspect it here. The arrow keys step from span to span, and the inspector follows.'));
     const total = this.doc.duration_us || 1;
-    const chain = pathOf(sp);
+    const chain = pathOf(sp).slice(0, -1); // the span itself is the title above
     const crumbs = h('ol', { class: 'tr-crumbs', 'aria-label': 'Where the span is' });
-    chain.forEach((c, i) => crumbs.append(h('li', null, i === chain.length - 1 ? h('span', { 'aria-current': 'true' }, labelOf(c)) : h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.select(c.id) } }, labelOf(c)))));
+    chain.forEach((c) => crumbs.append(h('li', null, h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.select(c.id) } }, labelOf(c)))));
     const attrs = Object.entries(sp.attrs || {}).sort(([a], [b]) => a.localeCompare(b));
     const events = sp.events || [];
     const kids = sp.kids.slice().sort((a, b) => b.dur_us - a.dur_us);
@@ -680,7 +680,7 @@ export class TracesView {
       h('div', { class: 'tr-dsub' },
         h('span', { class: 'b' }, KIND[sp.kind] || 'span'),
         sp.status === 'error' ? h('span', { class: 'b bad' }, icon('bang'), 'failed') : null,
-        crumbs),
+        chain.length ? crumbs : null),
       sp.kind === 'provider' && forAddr ? h('div', { class: 'tr-metas' }, meta('For resource', forAddr, sp.attrs['pravo.resource.type'])) : null,
       h('div', { class: 'tr-metas' },
         meta('Took', fmtDur(sp.dur_us), `${pct.toFixed(sp.dur_us / total < 0.1 ? 1 : 0)}% of the run`),

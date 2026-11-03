@@ -182,9 +182,14 @@ body:has(.app[data-view="traces"]) .planstrip, body:has(.app[data-view="traces"]
 .tr-detail.empty p { margin: 0; }
 .tr-detail.bad { background: linear-gradient(var(--conflict-wash), var(--conflict-wash)), var(--surface); }
 .tr-detail > * { flex: none; }
-.tr-dhead { display: flex; align-items: center; gap: .4rem; padding: .55rem .6rem .4rem .8rem; min-width: 0; }
+.tr-dhead { display: flex; align-items: center; gap: .4rem; padding: .6rem .8rem .45rem; min-width: 0; }
+/* The buttons of the head share one height and never shrink, so Close is never cut. */
+.tr-dhead > button { flex: none; box-sizing: border-box; height: 2rem; }
+.tr-dhead .iconbtn, .tr-dhead .cpbtn { width: 2rem; padding: 0; }
+.tr-dhead .cpbtn { border-color: var(--line-strong); background: var(--surface); }
 .tr-dhead .tr-sw { width: .9rem; height: .9rem; }
-.tr-dname { margin: 0; min-width: 0; font: 500 var(--fs-4)/1.25 var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A long name takes a second line before it is cut. */
+.tr-dname { flex: 1 1 auto; margin: 0; min-width: 0; font: 500 var(--fs-4)/1.25 var(--font-mono); overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .tr-dhead .grow { flex: 1 0 0; }
 .tr-tool { flex: none; height: 1.75rem; padding: 0 .65rem; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
 .tr-tool:hover { background: var(--text); color: var(--bg); }
