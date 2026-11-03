@@ -61,13 +61,13 @@ With `--json` it prints `{"a", "b", "resources", "same"}`, where each resource i
 
 ## pravo environments record
 
-The first apply in the state of an environment records which environment the state serves and which ones it follows, with the lineage of their states ([The record of an environment](spec-environments.md#the-record-of-an-environment)). An apply for another environment, or one whose row in `$environments` follows other environments, is refused with exit code 5, so that a state that a setting points at by mistake is not written over and a gate is not dropped by an edit of the specification. When the change is meant, `record` makes the record say what the specification says:
+The first apply in the state of an environment records which environment the state serves and which ones it follows, with the lineage of their states ([The record of an environment](spec-environments.md#the-record-of-an-environment)). An apply for another environment, or one whose row in `$environments` follows other environments, is refused with exit code 5, so that a state that a setting points at by mistake is not written over and a gate is not dropped by an edit of the specification. So is an apply whose readers file does not pin the roles that the record pins, so that an edit of `access.dir` does not change who is an admin. When the change is meant, `record` makes the record say what the specification and the readers file say:
 
 ```sh
 pravo environments record --env prod
 ```
 
-It prints `Recorded: this state serves prod, which follows staging.` When the state has a record, an admin of the state runs it. For a specification that declares no environments, it records that the state serves none. A state that does not exist yet is refused: its first apply records what it serves.
+It prints `Recorded: this state serves prod, which follows staging.` When the state has a record, an admin of the state runs it: an admin of the roles the record pins, once it pins them. For a specification that declares no environments, it records that the state serves none. A state that does not exist yet is refused: its first apply records what it serves.
 
 ## Example
 

@@ -17,7 +17,7 @@ pravo records what it manages in a state graph, not a state file. Every resource
 | `txn/<id>.json` | One recorded transaction. |
 | `policy/<name>@<seq>.json` | In format 4, one version of a policy: its text, the time and the signature of whoever applied it. Written once and never changed. See [Format 4](#format-4-policies). |
 | `secret/<name>@<seq>.json` | In format 5, one version of a secret: a value sealed to the readers, a removal or a purged value. Written once; a purge replaces it by a stub in place. See [Format 5](#format-5-secrets). |
-| `environment/<seq>.json` | In a state of an environment, one version of its record: the environment it serves and the ones it follows. Signed in format 6. See [Format 6](#format-6-environments). |
+| `environment/<seq>.json` | In a state of an environment, one version of its record: the environment it serves, the ones it follows, and the pin of its roles. Signed in format 6. See [Format 6](#format-6-environments). |
 | `runs/<id>.json` | In a state of an environment, a note that a complete apply left it running a release. Signed in format 6. |
 | `promotions/<fp>.<tags>.<key>.<kind>.json` | In format 6, a promotion of a release into the environment, a waiver or a withdrawal. Written once. |
 | `locks/<addr>.lock` | A lock or a reservation, present while a command or a reservation holds the node. |

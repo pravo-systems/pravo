@@ -72,8 +72,19 @@ func (e *environmentsOf) readersFile(name string) (readersFile, error) {
 	return rf, nil
 }
 
-// readers are the readers that the notes of the environment name are checked against.
+// readers are the readers that the notes of the environment name are checked against: those of
+// its readers file, with the roles that its state holds when the file pins them. A sealed state
+// whose record pins its roles is refused when the file does not pin those roles, so that an
+// edit of its access directory does not make anyone a writer there.
 func (e *environmentsOf) readers(name string) ([]protect.Reader, error) {
+	s := e.open(context.Background(), name)
+	defer s.close()
+	switch {
+	case s.Err != nil:
+		return nil, fmt.Errorf("%s: %w", name, s.Err)
+	case s.Sealed:
+		return s.rf.Readers, nil
+	}
 	rf, err := e.readersFile(name)
 	if err != nil {
 		return nil, err
@@ -136,10 +147,15 @@ func (e *environmentsOf) open(ctx context.Context, name string) *envState {
 	}
 	s.st = st
 	s.Sealed = st.Sealer() != nil
+	pin := ""
 	if s.Sealed {
 		rf, err := e.readersFile(name)
+		var rs state.RolesStatus
 		if err == nil {
-			rf, _, err = rf.withRoles(st)
+			rf, rs, err = rf.withRoles(st)
+		}
+		if rs.Source == "state" {
+			pin = rf.Pin
 		}
 		if err != nil {
 			s.Err = err
@@ -150,6 +166,12 @@ func (e *environmentsOf) open(ctx context.Context, name string) *envState {
 	if s.Record, err = st.EnvironmentRecord(ctx, s.rf.Readers); err != nil {
 		s.Err = err
 		return s
+	}
+	if s.Sealed {
+		if p := engine.PinProblem(s.Record, pin, s.rf.shown(), true); p != "" {
+			s.Err = fmt.Errorf("%w: %s", state.ErrUntrusted, p)
+			return s
+		}
 	}
 	note, _, err := st.LatestRun(ctx, time.Now())
 	if err != nil {
@@ -346,6 +368,9 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 		default:
 			var ran []string
 			next := state.EnvironmentRecord{Name: env}
+			if rec != nil {
+				next.RolesPin = rec.RolesPin
+			}
 			fills := false
 			for _, up := range gate {
 				src, by, err := readUpstream(ctx, envs, root, up, env, rel, rec)

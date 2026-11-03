@@ -162,15 +162,18 @@ A state that is not sealed takes any release: it has no signatures to check. The
 
 ## The record of an environment
 
-Each state of an environment keeps a record of its place in the promotion flow, as a chain of signed versions below `environment/`: the environment it serves, the environments it follows, and the lineage of each of their states. The first apply writes it.
+Each state of an environment keeps a record of its place in the promotion flow, as a chain of signed versions below `environment/`: the environment it serves, the environments it follows, the lineage of each of their states, and, in a sealed state whose roles are stored, the pin of those roles (the `roles-genesis` line of its readers file, [Roles](roles.md)). The first apply writes it, and an apply fills in the pin of a record written before there was one.
 
 An apply is refused with exit code 5 when:
 
 - the record names another environment: the settings point the run at a state of another environment;
-- the record says that the environment follows others than the specification says: an edit of `$after`, which would add or drop a gate.
+- the record says that the environment follows others than the specification says: an edit of `$after`, which would add or drop a gate;
+- the record pins the roles of the state, and the readers file of the run pins other roles or none: an edit of `access.dir` that points the environment at a readers file whose roles are not the signed ones, which could make a writer an admin.
 
 A plan is refused for the same reasons, and so is every other command that writes the records or the state: `import`, `state rm`, `state mv`, `state import-tfstate`, `discover`, and `secret set`, `rm` and `purge`.
 
-The refusal names the command that makes the record agree, `pravo environments record --env NAME`, which an admin of the state runs ([pravo environments](environments.md#pravo-environments-record)). A writer adds the lineage of an environment before when the first promotion reads it, and nothing else.
+The refusal names the command that makes the record agree, `pravo environments record --env NAME`, which an admin of the state runs ([pravo environments](environments.md#pravo-environments-record)). Once the record pins the roles, the admins who may change it are those of the roles it pins, whatever the readers file of the run says. A writer adds the lineage of an environment before when the first promotion reads it, and the pin of the roles when an apply finds none, and nothing else.
+
+A promotion checks the notes of an environment before against that environment's readers file, with the roles its state holds when the file pins them. When the record of that state pins its roles and the file does not pin those roles, the promotion is refused, so pointing the environment before at another readers file does not make anyone a writer there.
 
 Each apply also writes a note, below `runs/`, that says which release the state runs, the git revision it was applied from, and who applied it. `pravo environments` reads the newest note of each state, and `pravo promote` carries the notes of the environments before into a promotion. In a sealed state the record, the notes and the promotions are signed and checked against the readers file. [State format](state-format.md) lists the objects.

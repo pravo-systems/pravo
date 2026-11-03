@@ -88,7 +88,12 @@ type EnvironmentRecord struct {
 	// Name is empty in a version that says the state serves no environment any more.
 	Name string `json:"name"`
 	// After lists the environments it follows, by name.
-	After     []Upstream         `json:"after,omitempty"`
+	After []Upstream `json:"after,omitempty"`
+	// RolesPin is the digest of the first version of the roles of the state, as the readers
+	// file pins it (roles-genesis). Once it is recorded, a readers file that pins other roles,
+	// or none, is refused until an admin records the change, and the roles that decide who is
+	// an admin are those of the chain it pins, whatever the readers file says.
+	RolesPin  string             `json:"roles_pin,omitempty"`
 	At        time.Time          `json:"at"`
 	Signature *protect.Signature `json:"signature,omitempty"`
 	// Status and Signer say what the readers make of the signature.
@@ -122,11 +127,13 @@ func (r *EnvironmentRecord) Lineage(name string) string {
 	return ""
 }
 
-// fills reports whether next only fills in lineages that r left empty: the same name and
-// the same environments followed. A writer may sign such a version, since a promotion reads
-// the lineage the first time it opens the state before.
+// fills reports whether next only fills in what r left empty: the lineages of the states
+// before, and the pin of the roles, with the same name and the same environments followed. A
+// writer may sign such a version, since a promotion reads the lineage the first time it opens
+// the state before, and a pin that the roles of the state do not match is refused before it
+// is written.
 func (r *EnvironmentRecord) fills(next *EnvironmentRecord) bool {
-	if r.Name != next.Name || len(r.After) != len(next.After) {
+	if r.Name != next.Name || len(r.After) != len(next.After) || (r.RolesPin != "" && r.RolesPin != next.RolesPin) {
 		return false
 	}
 	for i := range r.After {
@@ -145,7 +152,11 @@ func environmentParts(seq int, r *EnvironmentRecord) [][]byte {
 	for _, u := range r.After {
 		after.WriteString(u.Name + "\x00" + u.Lineage + "\n")
 	}
-	return [][]byte{[]byte(strconv.Itoa(seq)), []byte(r.Name), []byte(after.String()), []byte(r.At.UTC().Format(time.RFC3339Nano))}
+	parts := [][]byte{[]byte(strconv.Itoa(seq)), []byte(r.Name), []byte(after.String()), []byte(r.At.UTC().Format(time.RFC3339Nano))}
+	if r.RolesPin != "" {
+		parts = append(parts, []byte("roles-genesis "+r.RolesPin))
+	}
+	return parts
 }
 
 // EnvironmentRecord reads the newest version of the record of the environment the state
@@ -180,13 +191,21 @@ func (s *Store) EnvironmentRecord(ctx context.Context, readers []protect.Reader)
 	if err != nil {
 		return nil, err
 	}
-	if head.Seq > 1 && s.sealedState() && protect.RolesOn(readers) {
+	if head.Seq > 1 && s.sealedState() {
 		prev, err := s.environmentVersion(ctx, readers, head.Seq-1)
 		if err != nil {
 			return nil, err
 		}
-		if !prev.fills(head) {
-			if role, _ := protect.RoleOf(readers, head.Signature.Key); head.Status == protect.SigVerified && !role.Allows(protect.RoleAdmin) {
+		if !prev.fills(head) && (protect.RolesOn(readers) || prev.RolesPin != "") {
+			// Once the record pins the roles, the admins are those of the chain it pins: a
+			// readers file that pins other roles, or none, makes nobody an admin.
+			judges := readers
+			if prev.RolesPin != "" {
+				if judges, _, err = s.RolesFor(ctx, readers, prev.RolesPin); err != nil {
+					return nil, err
+				}
+			}
+			if role, _ := protect.RoleOf(judges, head.Signature.Key); (head.Status == protect.SigVerified || prev.RolesPin != "") && !role.Allows(protect.RoleAdmin) {
 				return nil, fmt.Errorf("%w: version %d of the record of the environment changes it, and %s, who signed it, is not an admin", ErrUntrusted, head.Seq, head.Signer)
 			}
 		}
@@ -261,7 +280,7 @@ func (s *Store) PutEnvironmentRecord(ctx context.Context, seq int, rec Environme
 		return err
 	}
 	var old EnvironmentRecord
-	if bytes.Equal(cur, data) || (json.Unmarshal(cur, &old) == nil && old.Name == rec.Name && sameUpstreams(old.After, rec.After)) {
+	if bytes.Equal(cur, data) || (json.Unmarshal(cur, &old) == nil && old.Name == rec.Name && old.RolesPin == rec.RolesPin && sameUpstreams(old.After, rec.After)) {
 		return nil
 	}
 	return fmt.Errorf("%w: %s exists", ErrEnvironmentChanged, key)
