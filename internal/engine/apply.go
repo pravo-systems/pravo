@@ -379,7 +379,7 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	}
 	// The state must serve the environment of the run, and an environment that follows
 	// another takes only a release that was promoted into it.
-	admitted, err := e.admit(ctx)
+	admitted, note, err := e.admit(ctx, plan)
 	if err != nil {
 		return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
 	}
@@ -394,8 +394,9 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		}
 		if !plan.NeedsApply() {
 			// Nothing to write and no output to record or remove: no lock, no record, no
-			// transaction. A state of an environment notes that it runs this release.
-			if !plan.Partial {
+			// transaction. A state of an environment notes that it runs this release, unless
+			// the release was not promoted into it.
+			if !plan.Partial && note {
 				if err := e.noteRun(ctx, admitted, "", plan.DeferredCount()); err != nil {
 					return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
 				}

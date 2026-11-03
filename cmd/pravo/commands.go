@@ -271,7 +271,7 @@ func planCmd() *cobra.Command {
 				if env := s.root.Environment; env != "" {
 					opts.Title = "pravo plan for " + env
 					if !destroy {
-						if line, err := eng.EnvironmentLine(cmd.Context()); err == nil && line != "" {
+						if line, err := eng.EnvironmentLine(cmd.Context(), plan); err == nil && line != "" {
 							opts.Notes = append(opts.Notes, engine.MarkdownNote(line))
 						}
 					}
@@ -720,14 +720,14 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 	} else {
 		out.RenderPlan(plan)
 		if !destroy {
-			if line, err := eng.EnvironmentLine(ctx); err == nil && line != "" {
+			if line, err := eng.EnvironmentLine(ctx, plan); err == nil && line != "" {
 				out.Println(line)
 			}
 		}
 	}
 	// An environment that follows another is refused here, before the question, when the
 	// release was not promoted into it.
-	if err := eng.CheckAdmission(ctx); err != nil {
+	if err := eng.CheckAdmission(ctx, plan); err != nil {
 		return err
 	}
 	if !plan.HasWrites() {

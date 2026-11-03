@@ -195,9 +195,25 @@ func TestALadderTakesOnlyWhatWasPromoted(t *testing.T) {
 		t.Fatalf("the note of the waived apply: %v\n%s", err, last)
 	}
 
-	// A withdrawal ends the promotions signed before it.
+	// A withdrawal ends the promotions signed before it. prod runs 1.1 already, so its apply
+	// changes nothing and goes through, but it does not note that prod runs the release.
 	l.must(t, "ada", "promote", "prod", "-t", "image=1.1", "--revoke", "1.1 corrupts uploads")
-	text, code = l.as(t, "ada", "apply", "-t", "env=prod", "-t", "image=1.1", "--auto-approve")
+	text, code = l.as(t, "ada", "promote", "prod", "-t", "image=1.1", "--sign-only")
+	if code != 5 || !strings.Contains(text, "staging does not run this release") {
+		t.Fatalf("promote after the withdrawal: exit %d\n%s", code, text)
+	}
+	text = l.must(t, "ada", "apply", "-t", "env=prod", "-t", "image=1.1", "--auto-approve")
+	if !strings.Contains(text, "No changes") || strings.Contains(text, "Noted") {
+		t.Fatalf("apply after the withdrawal:\n%s", text)
+	}
+	if again, _ := os.ReadDir(filepath.Join(l.dir, "state", "prod", "runs")); len(again) != len(notes) {
+		t.Fatalf("the apply after the withdrawal noted a run: %d notes, was %d", len(again), len(notes))
+	}
+	// Once prod has something to change, the withdrawal holds it.
+	if err := os.Remove(filepath.Join(l.dir, "out", "app-prod.txt")); err != nil {
+		t.Fatal(err)
+	}
+	text, code = l.as(t, "ada", "apply", "-t", "env=prod", "-t", "image=1.1", "--refresh=all", "--auto-approve")
 	if code != 5 || !strings.Contains(text, "its promotion was withdrawn by ada") || !strings.Contains(text, "1.1 corrupts uploads") {
 		t.Fatalf("apply after the withdrawal: exit %d\n%s", code, text)
 	}
@@ -236,7 +252,8 @@ func TestTheRecordOfAnEnvironmentHoldsItsLadder(t *testing.T) {
 	if text = l.must(t, "ada", "environments", "record", "-t", "env=prod"); !strings.Contains(text, "Recorded: this state serves prod, which follows dev") {
 		t.Fatalf("record:\n%s", text)
 	}
-	if text = l.must(t, "ada", "plan", "-t", "env=prod"); !strings.Contains(text, "prod only takes what was promoted from dev") {
+	// A plan that changes nothing needs no promotion, so the gate shows on a plan of a new image.
+	if text = l.must(t, "ada", "plan", "-t", "env=prod", "-t", "image=1.2"); !strings.Contains(text, "prod only takes what was promoted from dev") {
 		t.Fatalf("plan after the record:\n%s", text)
 	}
 	if text = l.must(t, "ada", "environments", "record", "-t", "env=prod"); !strings.Contains(text, "The record already says") {
@@ -457,5 +474,51 @@ func TestPromoteStoresThePlanOfTheApply(t *testing.T) {
 	}
 	if text, code := l.as(t, "ada", "promote", "prod", "--store", "--sign-only"); code != 6 || !strings.Contains(text, "--store goes with neither") {
 		t.Fatalf("--store with --sign-only: exit %d\n%s", code, text)
+	}
+}
+
+// A release that changes nothing in prod needs no promotion there: its plan does not ask for
+// one, and its apply goes through without noting that prod runs the release.
+func TestAReleaseThatChangesNothingNeedsNoPromotion(t *testing.T) {
+	l := newLadder(t, "ada")
+	l.must(t, "ada", "apply", "-t", "env=dev", "--auto-approve")
+	l.must(t, "ada", "promote", "staging", "--auto-approve")
+	l.must(t, "ada", "promote", "prod", "--auto-approve")
+
+	// A comment makes another release, and changes nothing that prod runs.
+	main := filepath.Join(l.dir, "main.cue")
+	src, err := os.ReadFile(main)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(main, append(src, "\n// The image is the release.\n"...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	text := l.must(t, "ada", "plan", "-t", "env=prod")
+	if !strings.Contains(text, "No changes") || strings.Contains(text, "Promotion") {
+		t.Fatalf("plan of prod:\n%s", text)
+	}
+	if text = l.must(t, "ada", "plan", "-t", "env=prod", "--markdown"); strings.Contains(text, "Promotion") {
+		t.Fatalf("plan --markdown of prod:\n%s", text)
+	}
+	runs := func() int {
+		es, _ := os.ReadDir(filepath.Join(l.dir, "state", "prod", "runs"))
+		return len(es)
+	}
+	before := runs()
+	if text = l.must(t, "ada", "apply", "-t", "env=prod", "--auto-approve"); strings.Contains(text, "Noted") {
+		t.Fatalf("apply of prod:\n%s", text)
+	}
+	if n := runs(); n != before {
+		t.Fatalf("the apply noted that prod runs a release nobody promoted: %d notes, was %d", n, before)
+	}
+	if text = l.must(t, "ada", "environments"); !strings.Contains(text, "Next: pravo apply --env dev") {
+		t.Fatalf("environments:\n%s", text)
+	}
+
+	// A release that changes prod still needs its promotion.
+	text, code := l.as(t, "ada", "apply", "-t", "env=prod", "-t", "image=1.2", "--auto-approve")
+	if code != 5 || !strings.Contains(text, "nobody has promoted this release yet") {
+		t.Fatalf("prod apply of 1.2: exit %d\n%s", code, text)
 	}
 }
