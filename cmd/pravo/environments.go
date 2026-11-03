@@ -184,8 +184,8 @@ func firstLine(err error) string {
 // ---------- promote ----------
 
 type promoteOpts struct {
-	note, waive, revoke, refresh string
-	signOnly, autoApprove, full  bool
+	note, waive, revoke, refresh, ttl  string
+	signOnly, autoApprove, full, store bool
 }
 
 func promoteCmd() *cobra.Command {
@@ -205,7 +205,8 @@ promotion that carries those notes into the state of the environment, and then a
 
 The apply checks the promotion against the readers of the state it applies, and each note against
 the readers file of the environment it comes from. Whoever promotes needs to be a writer of the
-state they promote into. --sign-only stops after signing; so does a promotion into an environment
+state they promote into. --sign-only stops after signing, and --store stores the plan of the
+apply in the state instead, for anyone who may write it to apply by its id; so does a promotion into an environment
 whose policies ask for approvals of a stored plan.
 
 An admin who must release while an environment before cannot be read gives --waive "reason": the
@@ -214,6 +215,7 @@ reason in its note. --revoke "reason" withdraws the promotions of the release si
 "pravo environments" shows what each environment runs and the next command to type.`,
 		Example: `  pravo promote prod -t image=1.4
   pravo promote prod -t image=1.4 --sign-only --note "smoke tests passed"
+  pravo promote prod -t image=1.4 --store
   pravo promote prod -t image=1.4 --waive "staging bucket is down, hotfix for the outage"
   pravo promote prod -t image=1.4 --revoke "1.4 corrupts uploads"`,
 		Args: cobra.ExactArgs(1),
@@ -228,6 +230,8 @@ reason in its note. --revoke "reason" withdraws the promotions of the release si
 	f.StringVar(&o.waive, "waive", "", "promote without the notes of the environments before; an admin gives the reason")
 	f.StringVar(&o.revoke, "revoke", "", "withdraw the promotions of this release; an admin gives the reason")
 	f.BoolVar(&o.signOnly, "sign-only", false, "sign the promotion and stop; apply it with pravo apply")
+	f.BoolVar(&o.store, "store", false, "sign the promotion and store the plan of the apply in the state instead of applying, to be applied later with \"pravo apply <plan-id>\"")
+	f.StringVar(&o.ttl, "ttl", "", "with --store: keep the plan this long if it is not applied (90m, 36h, 7d; the default is 7d)")
 	f.BoolVar(&o.autoApprove, "auto-approve", false, "apply without asking")
 	addRunFlags(cmd, &o.refresh, &o.full)
 	return cmd
@@ -259,6 +263,12 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 	ctx := cmd.Context()
 	if o.waive != "" && o.revoke != "" {
 		return engine.WithCode(engine.ExitInvalid, errors.New("--waive and --revoke do not go together"))
+	}
+	if o.store && (o.signOnly || o.revoke != "") {
+		return engine.WithCode(engine.ExitInvalid, errors.New("--store goes with neither --sign-only nor --revoke"))
+	}
+	if o.ttl != "" && !o.store {
+		return engine.WithCode(engine.ExitInvalid, errors.New("--ttl goes with --store"))
 	}
 	if given, ok := config.EnvironmentOf(flags.Tags); ok && given != env {
 		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the environment is the argument of promote: pravo promote %s, without --env %s", env, given))
@@ -404,9 +414,35 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 		out.Println(line)
 		out.Println()
 	}
+	if o.store {
+		return storePromotedPlan(cmd, o)
+	}
 	// The apply is the one "pravo apply" makes. Where the policies of the environment ask for
 	// approvals it is refused, and says how to store the plan.
 	return runApply(cmd, o.refresh, o.full, o.autoApprove, false, nil)
+}
+
+// storePromotedPlan stores the plan of the apply in the state, as "pravo plan --store" does.
+// Its apply by id checks the promotion again.
+func storePromotedPlan(cmd *cobra.Command, o promoteOpts) error {
+	// Defining the flags of plan resets the globals they write, so they are put back.
+	tags, env, sys := flags.Tags, flags.Env, flags.SysTags
+	pc := planCmd()
+	flags.Tags, flags.Env, flags.SysTags = tags, env, sys
+	pc.SetContext(cmd.Context())
+	set := map[string]string{"store": "true", "refresh": o.refresh}
+	if o.ttl != "" {
+		set["ttl"] = o.ttl
+	}
+	if o.full {
+		set["full"] = "true"
+	}
+	for k, v := range set {
+		if err := pc.Flags().Set(k, v); err != nil {
+			return err
+		}
+	}
+	return pc.RunE(pc, nil)
 }
 
 // alreadyRuns says that env already runs the release, or "" when it does not: its newest

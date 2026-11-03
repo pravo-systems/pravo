@@ -18,8 +18,8 @@ keywords: "promotion release gate pipeline staging prod waive revoke sign-only l
 
 | | |
 |---|---|
-| Synopsis | `pravo promote ENVIRONMENT [-t key=value]... [--note TEXT] [--sign-only] [--auto-approve]`, `--waive REASON`, `--revoke REASON` |
-| Changes infrastructure | Yes, unless `--sign-only` or `--revoke`: it applies the release as `pravo apply --env ENVIRONMENT` does. |
+| Synopsis | `pravo promote ENVIRONMENT [-t key=value]... [--note TEXT] [--sign-only \| --store [--ttl D]] [--auto-approve]`, `--waive REASON`, `--revoke REASON` |
+| Changes infrastructure | Yes, unless `--sign-only`, `--store` or `--revoke`: it applies the release as `pravo apply --env ENVIRONMENT` does. |
 | Starts providers | For the apply only. Reading the environments before needs none. |
 | Writes | A promotion below `promotions/` of the state of ENVIRONMENT, then what the apply writes. |
 | Requires | A row of `$environments` with `$after`, and a sealed state for ENVIRONMENT. A writer of that state; an admin for `--waive` and `--revoke`. |
@@ -40,6 +40,8 @@ pravo promote prod -t image=1.4
 |---|---|---|
 | `--note TEXT` | none | A line of text, kept with the promotion. |
 | `--sign-only` | off | Sign the promotion and stop. `pravo apply --env ENVIRONMENT` applies it later, by anyone who may write the state. |
+| `--store` | off | Sign the promotion, then store the plan of the apply in the state instead of applying it, as [`pravo plan --store`](plan.md) does. Anyone who may write the state applies it by its id; that apply checks the promotion again. |
+| `--ttl D` | 7d | With `--store`: keep the plan this long if it is not applied. |
 | `--auto-approve` | off | Apply without asking. |
 | `--waive REASON` | none | Promote without the notes of the environments before. An admin gives the reason. |
 | `--revoke REASON` | none | Withdraw the promotions of this release that were signed before. An admin gives the reason. Nothing is applied. |
@@ -49,7 +51,7 @@ pravo promote prod -t image=1.4
 | `--access-dir DIR` | see below | The directory of the readers file of ENVIRONMENT. |
 | `--refresh`, `--full` | as for `plan` | How the apply reads the resources, as in [pravo plan](plan.md). |
 
-`--waive` and `--revoke` exclude each other. The readers file of ENVIRONMENT is the one that `--access-dir`, `PRAVO_ACCESS_DIR`, `$settings.access.dir` of that environment or `.pravo/access` names, in this order. The readers file of each environment before it is the one that its own `$settings.access.dir` names, else `.pravo/access`.
+`--waive` and `--revoke` exclude each other, and `--store` goes with neither `--sign-only` nor `--revoke`. The readers file of ENVIRONMENT is the one that `--access-dir`, `PRAVO_ACCESS_DIR`, `$settings.access.dir` of that environment or `.pravo/access` names, in this order. The readers file of each environment before it is the one that its own `$settings.access.dir` names, else `.pravo/access`.
 
 ## When it already runs the release
 

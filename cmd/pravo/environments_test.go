@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -438,5 +439,23 @@ func TestEachEnvironmentReadsItsOwnReadersFile(t *testing.T) {
 	text, code := l.as(t, "ada", "apply", "-t", "env=prod", "--auto-approve")
 	if code != 5 || !strings.Contains(text, "the note of staging was signed by bob, who is a reader there, and a writer is needed") {
 		t.Fatalf("apply with the note of a reader: exit %d\n%s", code, text)
+	}
+}
+
+func TestPromoteStoresThePlanOfTheApply(t *testing.T) {
+	l := newLadder(t, "ada")
+	l.must(t, "ada", "apply", "-t", "env=dev", "--auto-approve")
+	l.must(t, "ada", "promote", "staging", "--auto-approve")
+	text := l.must(t, "ada", "promote", "prod", "--store", "--ttl", "36h")
+	m := regexp.MustCompile(`run:\n  (pravo apply .*plan-[0-9a-f]+.*)\n`).FindStringSubmatch(text)
+	if !strings.Contains(text, "Promoted to prod: staging runs this release") || m == nil || strings.Contains(text, "Apply complete!") {
+		t.Fatalf("promote --store:\n%s", text)
+	}
+	args := strings.Fields(m[1])[1:]
+	if text = l.must(t, "ada", append(args, "--auto-approve")...); !strings.Contains(text, "Apply complete!") {
+		t.Fatalf("apply the stored plan (%v):\n%s", args, text)
+	}
+	if text, code := l.as(t, "ada", "promote", "prod", "--store", "--sign-only"); code != 6 || !strings.Contains(text, "--store goes with neither") {
+		t.Fatalf("--store with --sign-only: exit %d\n%s", code, text)
 	}
 }
