@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/pravo-systems/pravo/internal/state"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // A state whose roles are pinned, with every admin's key lost: recovery is break-glass. It stores
