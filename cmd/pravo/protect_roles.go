@@ -430,7 +430,7 @@ func environmentVouches(ctx context.Context, st *state.Store, chain *state.Roles
 	var found []protect.Vouch
 	left := 0
 	for _, v := range all {
-		if done[v.Txn] || isWriter[v.Key] || !(chain.Head() == nil || wasWriter[v.Key] || unlisted[v.Key]) {
+		if done[v.Txn] || isWriter[v.Key] || (chain.Head() != nil && !wasWriter[v.Key] && !unlisted[v.Key]) {
 			continue
 		}
 		if vouch {

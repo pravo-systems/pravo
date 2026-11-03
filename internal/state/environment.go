@@ -799,7 +799,7 @@ func (s *Store) EnvironmentVouches(ctx context.Context) ([]protect.Vouch, error)
 		if o.Promotion == nil {
 			continue
 		}
-		if v, ok := o.Promotion.Vouch(s.Lineage()); ok {
+		if v, ok := o.Vouch(s.Lineage()); ok {
 			out = append(out, v)
 		}
 	}
