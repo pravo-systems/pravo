@@ -180,6 +180,9 @@ type Root struct {
 // Move is one $from declaration.
 type Move struct {
 	From string
+	// Also lists the other addresses the record may have, after From: the first address
+	// (From, then these) that exists in the state is the one that moves.
+	Also []string
 	To   string
 	// Prefix means From and To are paths with resources below them rather
 	// than the address of one resource.

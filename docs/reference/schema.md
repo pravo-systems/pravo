@@ -73,7 +73,7 @@ random_integer: {
 	$source: "registry.opentofu.org/hashicorp/random"
 	// The address the record had before this resource was written here. Moves
 	// the record to this address at the next plan.
-	$from?: __string
+	$from?: __string | [...__string]
 	// The existing object to bring under management: its id as the provider
 	// documents it for importing, or its identity, the attributes of the identity of
 	// the resource type (what a discovery lists it by). Read at the next plan; leave
@@ -117,7 +117,7 @@ random_pet: {
 	$source: "registry.opentofu.org/hashicorp/random"
 	// The address the record had before this resource was written here. Moves
 	// the record to this address at the next plan.
-	$from?: __string
+	$from?: __string | [...__string]
 	// The existing object to bring under management: its id as the provider
 	// documents it for importing, or its identity, the attributes of the identity of
 	// the resource type (what a discovery lists it by). Read at the next plan; leave

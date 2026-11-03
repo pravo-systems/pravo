@@ -83,8 +83,11 @@ func (r *Root) checkCaseCollisions() error {
 }
 
 type pendingMove struct {
-	to, from string
-	group    bool // a struct of resources: every record under from moves under to
+	to string
+	// from lists the addresses the record may have; the first that exists in the state wins.
+	from []string
+	// group means a struct of resources: every record under from moves under to.
+	group bool
 }
 
 // resolveMoves turns the $from declarations into moves. A resource's $from is
@@ -92,10 +95,12 @@ type pendingMove struct {
 // had, and every record below it moves to the same place below the group.
 func (r *Root) resolveMoves() error {
 	for _, m := range r.moves {
-		if m.from == m.to {
-			return fmt.Errorf("%s: $from is the address of the resource itself", m.to)
+		for _, f := range m.from {
+			if f == m.to {
+				return fmt.Errorf("%s: $from is the address of the resource itself", m.to)
+			}
 		}
-		mv := Move{From: m.from, To: m.to}
+		mv := Move{From: m.from[0], Also: m.from[1:], To: m.to}
 		if m.group {
 			if !r.hasResourcesUnder(m.to) {
 				return fmt.Errorf("%s: $from on a struct that holds no resources", m.to)
@@ -125,7 +130,7 @@ func (r *Root) walk(v cue.Value, path []cue.Selector, depth int) error {
 		}
 		// A struct that groups resources, such as an instance of a module, may
 		// say where its resources used to be.
-		if from, ok := stringField(v, "$from"); ok {
+		if from := fromField(v); len(from) > 0 {
 			r.moves = append(r.moves, pendingMove{to: cue.MakePath(path...).String(), from: from, group: true})
 		}
 		fields, err := v.Fields(cue.Optional(true))
@@ -233,6 +238,35 @@ func stringField(v cue.Value, name string) (string, bool) {
 		return "", false
 	}
 	return s, true
+}
+
+// fromField reads $from of a resource or a group: an address, or a list of the addresses that
+// the record may have, since the environments of one specification do not all carry the same
+// rename yet. A value that is neither, an empty one, and a list with an empty entry give nothing.
+func fromField(v cue.Value) []string {
+	f := v.LookupPath(cue.MakePath(cue.Str("$from")))
+	if !f.Exists() {
+		return nil
+	}
+	if s, err := f.String(); err == nil {
+		if s == "" {
+			return nil
+		}
+		return []string{s}
+	}
+	it, err := f.List()
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for it.Next() {
+		s, err := it.Value().String()
+		if err != nil || s == "" {
+			return nil
+		}
+		out = append(out, s)
+	}
+	return out
 }
 
 // importField reads $import: an id as a string, or an identity as a struct. A
@@ -386,7 +420,7 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		r.pending = append(r.pending, pendingResource{res: res, src: src, val: v, disc: d})
 		return nil
 	}
-	if from, ok := stringField(v, "$from"); ok {
+	if from := fromField(v); len(from) > 0 {
 		r.moves = append(r.moves, pendingMove{to: p.String(), from: from})
 	}
 	imp, err := importField(v, p.String())

@@ -19,7 +19,7 @@ package pravo
 #Movable: {
 	// The path the resources of this struct had before. Every record below it
 	// moves to the same place below this struct at the next plan.
-	$from?: string
+	$from?: string | [...string]
 }
 
 // A value the root publishes. It is recorded in state when the plan is
