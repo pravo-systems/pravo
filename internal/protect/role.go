@@ -166,7 +166,9 @@ func NextRoles(file []Reader, prev []Reader, prevFormer []FormerKey, seen []stri
 		add(f.Name, f.Key)
 	}
 	for _, fp := range seen {
-		add("former-"+strings.TrimPrefix(fp, "SHA256:")[:8], fp)
+		// The fingerprint is base64, whose "+" and "/" are not valid in a name.
+		short := strings.NewReplacer("+", "-", "/", "_").Replace(strings.TrimPrefix(fp, "SHA256:")[:8])
+		add("former-"+short, fp)
 	}
 	return active, former
 }
@@ -207,6 +209,8 @@ func FormatRolesSet(rs []Reader, former []FormerKey, vouches []Vouch) string {
 	return b.String()
 }
 
+var formerNameRE = regexp.MustCompile(`^former-[A-Za-z0-9+/]{8}$`)
+
 // ParseRolesSet is the reverse of FormatRolesSet. The readers it returns have a name, a
 // signing key and a role, and no reader key.
 func ParseRolesSet(text string) ([]Reader, []FormerKey, []Vouch, error) {
@@ -226,7 +230,10 @@ func ParseRolesSet(text string) ([]Reader, []FormerKey, []Vouch, error) {
 			vouches = append(vouches, Vouch{Key: f[1], Txn: f[2], Digest: f[3]})
 			continue
 		}
-		if len(f) < 3 || !nameRE.MatchString(f[0]) || seen[strings.ToLower(f[0])] {
+		// A former key's name may hold "+" and "/": pravo up to v0.1.4 named an unlisted signer
+		// after its base64 fingerprint, and those roles are stored. The name is only a label.
+		validName := len(f) >= 3 && (nameRE.MatchString(f[0]) || (len(f) == 3 && formerNameRE.MatchString(f[0])))
+		if !validName || seen[strings.ToLower(f[0])] {
 			return nil, nil, nil, fmt.Errorf("roles line %d: the name is not valid or is used twice", n+1)
 		}
 		seen[strings.ToLower(f[0])] = true
