@@ -294,7 +294,19 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 			fmt.Fprintln(stderr(), "Warning: "+idErr.Error())
 		}
 	}
+	if write && !st.Locked() {
+		bindRecordsOf(root, st)
+	}
 	return st, why, checkReadersFile(root, st, write && !st.Locked() && !overlay)
+}
+
+// bindRecordsOf makes a command that writes without an engine (state mv, import) sign the
+// records it writes into a state with roles, as the engine does: otherwise protect status
+// takes them for records from before the roles.
+func bindRecordsOf(root *config.Root, st *state.Store) {
+	if eff, _, err := readersOf(root).withRoles(st); err == nil {
+		st.BindRecords(protect.RolesOn(eff.Readers))
+	}
 }
 
 // stateMissing reports whether the state of the root does not exist yet: its
