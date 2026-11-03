@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
 )
@@ -28,6 +29,13 @@ func (e *Engine) planOrphans(ctx context.Context, present map[string]bool) ([]*C
 	for _, sr := range e.State.List() {
 		if !present[sr.Address()] {
 			records = append(records, sr)
+		}
+	}
+	if present == nil && len(records) > 0 {
+		// Nothing has run, so the values that the providers of the records are set
+		// up from are not known yet: read them from the state.
+		if err := e.fillProviderInputs(ctx, records); err != nil {
+			return nil, err
 		}
 	}
 	warm := newWarmth()
@@ -66,6 +74,9 @@ func (e *Engine) planOrphans(ctx context.Context, present map[string]bool) ([]*C
 			}
 			mu.Unlock()
 			return
+		}
+		if ch.PreventDestroy && e.Root.Resource(ch.Addr) == nil {
+			ch.Warnings = append(ch.Warnings, plugin.Diagnostic{Severity: "warning", Summary: "$lifecycle.prevent_destroy guarded this resource, and its block is gone from the specification, so the guard is gone with it; the plan destroys it"})
 		}
 		out[i] = ch
 	})
@@ -193,6 +204,23 @@ func (e *Engine) destroyOrphans(ctx context.Context, plan *Plan) (int, error) {
 			}
 			e.txn.Record(ch.Addr, "forget", 0, 0)
 			e.complete(ch.Addr)
+			return nil
+		}
+		if ch.Prior.IsNull() {
+			// The object is gone; the record is all that is left.
+			before := 0
+			if prev := e.State.Get(ch.Addr); prev != nil {
+				before = prev.Revision
+			}
+			if _, err := e.State.Remove(ch.Addr); err != nil {
+				return fmt.Errorf("%s: the record could not be removed: %w", ch.Addr, err)
+			}
+			e.txn.Record(ch.Addr, "forget", before, 0)
+			e.complete(ch.Addr)
+			e.Opts.Progress("%s: Record removed (the object no longer exists)", ch.Addr)
+			mu.Lock()
+			destroyed++
+			mu.Unlock()
 			return nil
 		}
 		prov, err := e.Providers.Provider(ctx, ch.ProviderKey)

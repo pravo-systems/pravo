@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"os"
@@ -82,7 +83,8 @@ type fakeProvider struct {
 	deaf  bool
 	stop  chan struct{}
 	// configured holds the configuration of each call to Configure.
-	configured []tftypes.Value
+	configured   []tftypes.Value
+	strictConfig bool
 	// listed is what ListResource answers for a list type, in order; listFails
 	// makes the call fail with this text. lists holds the scope of each call.
 	listed    map[string][]plugin.ListedResource
@@ -419,8 +421,26 @@ func (f *fakeProvider) UpgradeResourceState(_ context.Context, _ string, _ int64
 	v, err := tftypes.ValueFromJSON(js, want)
 	return v, nil, err
 }
+
+// answersOnlyWhenConfigured makes the provider refuse to read or plan while its
+// configuration holds an unknown value, as a real provider does.
+func (f *fakeProvider) answersOnlyWhenConfigured() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.strictConfig = true
+}
+
+func (f *fakeProvider) configUnknown() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.strictConfig && len(f.configured) > 0 && !f.configured[len(f.configured)-1].IsFullyKnown()
+}
+
 func (f *fakeProvider) ReadResource(_ context.Context, _ string, st tftypes.Value, private []byte) (tftypes.Value, []byte, plugin.Diagnostics, error) {
 	f.count("ReadResource")
+	if f.configUnknown() {
+		return st, private, nil, errors.New("the provider cannot answer yet (provider configuration unknown)")
+	}
 	if d := f.delay(); d > 0 {
 		time.Sleep(d)
 	}
@@ -445,6 +465,9 @@ func (f *fakeProvider) ReadResource(_ context.Context, _ string, st tftypes.Valu
 	return st, private, nil, nil
 }
 func (f *fakeProvider) PlanResourceChange(_ context.Context, _ string, prior, proposed, _ tftypes.Value, _ []byte) (*plugin.PlanResult, plugin.Diagnostics, error) {
+	if f.configUnknown() {
+		return nil, nil, errors.New("the provider cannot answer yet (provider configuration unknown)")
+	}
 	f.count("PlanResourceChange")
 	if proposed.IsNull() {
 		return &plugin.PlanResult{PlannedState: proposed}, nil, nil

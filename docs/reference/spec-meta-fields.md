@@ -194,7 +194,7 @@ Error: destroy refused: $lifecycle.prevent_destroy is set on pet; remove the set
 Error: destroy refused: $lifecycle.prevent_destroy is set on pet; remove the setting from the specification to destroy the resource
 ```
 
-`prevent_destroy` is read from the specification. A plan that deletes a resource because it left the specification is not stopped by it: the specification does not hold the field. To refuse deletions of any kind, declare a plan policy. See [Writing policies](policies-writing.md#prohibit-with-a-guard).
+`prevent_destroy` is read from the specification, so it guards a resource only while its block is there. Each record keeps the setting it had when it was last written. A plan that deletes a resource because its block was removed, or because the block was renamed without `$from`, prints a warning that names the guard, and `pravo apply --auto-approve` and `pravo destroy --auto-approve` refuse it unless the command names the resource with `--allow-destroy ADDR`. A record written before pravo kept the setting has none until it is written again. To refuse deletions of any kind, declare a plan policy. See [Writing policies](policies-writing.md#prohibit-with-a-guard).
 
 ### ignore_changes
 

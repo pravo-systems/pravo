@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -165,7 +166,14 @@ func (e *Engine) checkOutputs() error {
 // references, so that resources using the provider run after them.
 func (e *Engine) providerDepsOf() map[string][]string {
 	out := map[string][]string{}
-	for _, key := range e.Root.ProviderKeys {
+	// A provider the specification declares but no resource uses is in the list
+	// too: the record of a removed resource may still be read through it.
+	keys := slices.Clone(e.Root.ProviderKeys)
+	for _, d := range e.Root.ProviderDecls {
+		keys = append(keys, d.Key)
+	}
+	slices.Sort(keys)
+	for _, key := range slices.Compact(keys) {
 		p, ok := e.Root.ProviderPath(key)
 		if !ok {
 			continue

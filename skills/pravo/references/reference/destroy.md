@@ -12,6 +12,8 @@ Destroy every resource recorded in the state, dependents first, after a plan and
 | Changes infrastructure | Yes. It deletes every object in the state. |
 | Scope | Every node in the state, whether or not the specification still declares it. |
 | Refused when | A resource that the specification still declares has `$lifecycle: prevent_destroy: true`. Nothing is changed. |
+| Guards that went with their block | A record that carried `$lifecycle: prevent_destroy: true` whose block is gone from the specification is destroyed, with a warning in the plan. With `--auto-approve` the resource must be named with `--allow-destroy ADDR`. |
+| Objects that are gone | A record whose object a read does not find is removed without a call to the provider. |
 | Order | Dependents first. A resource is deleted once every resource that depends on it is gone, and independent resources are deleted at the same time. The plan reads the records at the same time as well. |
 | Confirmation | `Do you really want to destroy all resources?` Only `yes` is accepted. |
 | Preview | `pravo plan --destroy` prints the same plan and changes nothing. |
@@ -22,6 +24,7 @@ Destroy every resource recorded in the state, dependents first, after a plan and
 | Flag | Default | Meaning |
 |---|---|---|
 | `--auto-approve` | off | Destroy without asking. |
+| `--allow-destroy ADDR` | none | With `--auto-approve`: a resource that carried `$lifecycle.prevent_destroy` whose block is gone, which may be destroyed. Repeatable, or comma-separated. |
 | `--refresh=age\|expired\|false\|all` | `age` | When to read real state before the plan. See [`pravo plan`](plan.md#refresh). |
 | `-t`, `--tag key=value`, `-T` | none | Tags, as for [`pravo plan`](plan.md). |
 
