@@ -477,7 +477,7 @@ func addRunFlags(cmd *cobra.Command, refresh *string, full *bool) {
 func applyCmd() *cobra.Command {
 	var refresh string
 	var autoApprove, full bool
-	var only, replace []string
+	var only, replace, allowDestroy []string
 	var webhook string
 	cmd := &cobra.Command{
 		Use:   "apply [planfile|plan-id]",
@@ -507,10 +507,11 @@ func applyCmd() *cobra.Command {
 			if len(only) > 0 {
 				return errors.New("-only applies to a saved plan: run \"pravo plan -out <file>\" first, then \"pravo apply <file> -only ...\"")
 			}
-			return runApply(cmd, refresh, full, autoApprove, false, replace)
+			return runApply(cmd, refresh, full, autoApprove, false, replace, allowDestroy)
 		},
 	}
 	cmd.Flags().StringSliceVar(&replace, "replace", nil, "destroy and create this resource again even though the specification did not change (repeatable)")
+	cmd.Flags().StringSliceVar(&allowDestroy, "allow-destroy", nil, "with --auto-approve: a resource whose $lifecycle.prevent_destroy went with its block that the plan may destroy (repeatable)")
 	cmd.Flags().StringSliceVar(&only, "only", nil, "with a saved plan: apply only these resources (and nothing they depend on is left out); the rest of the plan stays in the file")
 	cmd.Flags().StringVar(&webhook, "webhook", "", "with a stored plan: POST a plan.applied event, or a plan.refused one when the apply fails, as JSON to this URL")
 	addRunFlags(cmd, &refresh, &full)
@@ -522,17 +523,19 @@ func applyCmd() *cobra.Command {
 func destroyCmd() *cobra.Command {
 	var refresh string
 	var autoApprove bool
+	var allowDestroy []string
 	cmd := &cobra.Command{
 		Use:   "destroy",
 		Short: "Destroy every resource recorded in state",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runApply(cmd, refresh, true, autoApprove, true, nil)
+			return runApply(cmd, refresh, true, autoApprove, true, nil, allowDestroy)
 		},
 	}
 	cmd.Flags().StringVar(&refresh, "refresh", "age", "when to read real state from providers: age, expired, false or all")
 	cmd.Flags().Lookup("refresh").NoOptDefVal = "all"
 	cmd.Flags().BoolVar(&autoApprove, "auto-approve", false, "skip the interactive approval")
+	cmd.Flags().StringSliceVar(&allowDestroy, "allow-destroy", nil, "with --auto-approve: a resource whose $lifecycle.prevent_destroy went with its block that may be destroyed (repeatable)")
 	addTagFlags(cmd)
 	return cmd
 }
@@ -697,7 +700,7 @@ func reportPartial(p *pravo.PartialApply, name string) {
 	out.Printf("%d %s applied before the error and %s recorded in %s; %s.\n", p.Count, noun, are, name, p.Next)
 }
 
-func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy bool, replace []string) error {
+func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy bool, replace, allowDestroy []string) error {
 	ctx := cmd.Context()
 	streamEvents = true
 	mode, err := parseRefresh(refresh)
@@ -743,6 +746,19 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 	}
 	if !autoApprove && flags.JSON {
 		return errors.New("apply with --json needs -auto-approve, or apply a reviewed plan file")
+	}
+	if autoApprove {
+		// A guard that went with its block is the one a person did not choose to drop
+		// in this plan, so an unattended run names each resource it may destroy.
+		var refused []string
+		for _, addr := range plan.GuardedDestroys() {
+			if !slices.Contains(allowDestroy, addr) {
+				refused = append(refused, addr)
+			}
+		}
+		if len(refused) > 0 {
+			return fmt.Errorf("--auto-approve will not destroy %s: it carried $lifecycle.prevent_destroy, and its block is gone from the specification. Declare the block again, or name the resource with --allow-destroy %s", strings.Join(refused, ", "), refused[0])
+		}
 	}
 	if !autoApprove {
 		question := "Do you want to perform these actions?"

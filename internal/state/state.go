@@ -110,6 +110,10 @@ type Resource struct {
 	// Gone marks a node whose object a read did not find. The record keeps the
 	// attributes of the last state that was read.
 	Gone bool `json:"gone,omitempty"`
+	// PreventDestroy records that the specification carried
+	// $lifecycle.prevent_destroy on the node when it was last written, so that a
+	// plan that destroys the record after its block is gone can say so.
+	PreventDestroy bool `json:"prevent_destroy,omitempty"`
 	// Revision increases on every write of the node.
 	Revision int `json:"revision"`
 	// Generation is the transaction that created the record. A record that is
@@ -733,7 +737,7 @@ func (s *Store) Refresh(r *Resource, txn string) error {
 	same := ok && prev != r && jsonSame(prev.Attributes, r.Attributes) && bytes.Equal(prev.Private, r.Private) &&
 		slices.Equal(prev.Dependencies, r.Dependencies) && prev.ConfigHash == r.ConfigHash &&
 		prev.ProviderVersion == r.ProviderVersion && prev.SchemaVersion == r.SchemaVersion &&
-		prev.Gone == r.Gone && sameTime(prev.DriftedAt, r.DriftedAt)
+		prev.Gone == r.Gone && prev.PreventDestroy == r.PreventDestroy && sameTime(prev.DriftedAt, r.DriftedAt)
 	var held Version
 	if ok {
 		held = Version{Revision: prev.Revision, Generation: prev.Generation}

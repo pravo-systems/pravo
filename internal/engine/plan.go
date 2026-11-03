@@ -120,6 +120,10 @@ type Change struct {
 	removedRevision int
 	// age is the refresh age the node set for itself, "" for the default.
 	age string
+	// removal marks the plan of a record the specification no longer declares,
+	// or that a destroy deletes: a read that finds the object gone says its record
+	// is removed, not that the object is created again.
+	removal bool
 	// forced is why the plan read the node whatever its refresh age: an apply
 	// stopped while it held the node, or its provider points elsewhere now.
 	forced string
@@ -285,4 +289,17 @@ func (p *Plan) hasProviderChanges() bool {
 		}
 	}
 	return false
+}
+
+// GuardedDestroys lists the resources the plan destroys that carried
+// $lifecycle.prevent_destroy when they were last written and whose blocks are
+// gone from the specification, so that nothing in the specification guards them.
+func (p *Plan) GuardedDestroys() []string {
+	var out []string
+	for _, c := range p.Changes {
+		if c.Action == ActionDelete && c.PreventDestroy && !c.Applied {
+			out = append(out, c.Addr)
+		}
+	}
+	return out
 }

@@ -37,7 +37,7 @@ func (e *Engine) planDelete(ctx context.Context, sr *state.Resource, reason stri
 	if err != nil {
 		return nil, err
 	}
-	ch := &Change{Addr: sr.Address(), Mode: sr.Mode, Type: sr.Type, Name: sr.Name, ProviderKey: sr.ProviderKey, Schema: s, Deps: sr.Dependencies, Reasons: []string{reason}}
+	ch := &Change{Addr: sr.Address(), Mode: sr.Mode, Type: sr.Type, Name: sr.Name, ProviderKey: sr.ProviderKey, Schema: s, Deps: sr.Dependencies, Reasons: []string{reason}, removal: true, PreventDestroy: sr.PreventDestroy}
 	prior, private, err := e.priorState(ctx, prov, sr, s, ch, "")
 	if err != nil {
 		return nil, err
@@ -47,7 +47,11 @@ func (e *Engine) planDelete(ctx context.Context, sr *state.Resource, reason stri
 	objT := s.Block.Type()
 	ch.Config = tftypes.NewValue(objT, nil)
 	if prior.IsNull() {
-		ch.Action = ActionNoop
+		// The object is gone, so there is nothing to ask the provider to delete; the
+		// record is removed, which an apply does without the provider.
+		ch.Action = ActionDelete
+		ch.Planned = tftypes.NewValue(objT, nil)
+		ch.Reasons = append(ch.Reasons, "the object no longer exists: only its record is removed")
 		return ch, nil
 	}
 	res, diags, err := prov.PlanResourceChange(ctx, sr.Type, prior, tftypes.NewValue(objT, nil), ch.Config, private)
@@ -171,7 +175,7 @@ func (e *Engine) startPlan(r *config.Resource, v cue.Value, strict bool) (*resou
 		r: r, s: s, conv: conv, ch: ch, sr: sr, cfg: cfg, age: age, ignore: ignore, strict: strict, forced: forced,
 		// A node that a read left a mark on is planned until an apply writes it.
 		unchanged: sr != nil && !forced && !sr.Marked() && !e.Opts.Full && ch.ConfigHash != "" && ch.ConfigHash == sr.ConfigHash &&
-			sr.SchemaVersion == s.Version && sr.ProviderVersion == e.providerVersion(r.ProviderKey) && sr.ProviderKey == r.ProviderKey,
+			sr.SchemaVersion == s.Version && sr.ProviderVersion == e.providerVersion(r.ProviderKey) && sr.ProviderKey == r.ProviderKey && sr.PreventDestroy == ch.PreventDestroy,
 	}, nil
 }
 

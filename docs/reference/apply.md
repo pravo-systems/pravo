@@ -39,6 +39,7 @@ normalize:
 | Flag | Default | Meaning |
 |---|---|---|
 | `--auto-approve` | off | Apply without asking. |
+| `--allow-destroy ADDR` | none | With `--auto-approve`: a resource that carried `$lifecycle.prevent_destroy` and whose block is gone, which the plan may destroy. Without it, `--auto-approve` refuses such a plan. Repeatable, or comma-separated. |
 | `--refresh=age\|expired\|false\|all` | `age` | As for [`pravo plan`](plan.md#refresh). Refused with a plan file or a plan id. |
 | `--full` | off | As for `pravo plan`. Refused with a plan file or a plan id. |
 | `--replace ADDR` | none | As for `pravo plan`. Refused with a plan file or a plan id: the replacement is decided when the plan is made. |
