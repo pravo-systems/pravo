@@ -586,6 +586,15 @@ func TestTheRecordPinsTheRolesOfItsEnvironment(t *testing.T) {
 		t.Fatalf("the record of prod pins no roles: %v\n%s", err, last)
 	}
 
+	// The queries judge the state by the same readers and roles pin as plan does: an admin's
+	// drift and why are not refused because they build their engine another way.
+	for _, args := range [][]string{{"drift"}, {"drift", "--plan", "--store"}, {"why", "app"}} {
+		args = append(args, "-t", "env=prod")
+		if text, code := l.as(t, "ada", args...); code != 0 {
+			t.Fatalf("pravo %s with pinned roles: exit %d\n%s", strings.Join(args, " "), code, text)
+		}
+	}
+
 	// bob points prod at a readers file of his own, which says he is an admin and pins nothing.
 	writeReaders(t, filepath.Join(l.dir, "evil"), ada+" role:writer", bob+" role:admin")
 	write("evil")

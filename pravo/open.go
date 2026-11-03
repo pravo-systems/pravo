@@ -87,6 +87,11 @@ type Config struct {
 	// Progress receives the progress of a plan or an apply, as a printf format. Nil
 	// drops it.
 	Progress func(format string, args ...any)
+	// EngineDefaults, if set, fills in the options of every engine the workspace builds,
+	// the queries (Drift, Why, ...) included. A caller that judges signatures with the
+	// readers of its own access directory sets Readers and RolesPin here, so that no
+	// path to an engine leaves them out.
+	EngineDefaults func(*EngineOptions)
 	// Warn receives the warnings of the state. Nil drops them.
 	Warn func(msg string)
 }
@@ -274,6 +279,9 @@ func (w *Workspace) Env() Env { return w.cfg.Env }
 // command line the state records, the environment, the actor, the reason, the git
 // revision of the specification and the identity of Config.
 func (w *Workspace) Engine(opts EngineOptions) *Engine {
+	if w.cfg.EngineDefaults != nil {
+		w.cfg.EngineDefaults(&opts)
+	}
 	if opts.Progress == nil {
 		opts.Progress = w.cfg.Progress
 		if opts.Progress == nil {
