@@ -110,6 +110,11 @@ type Resource struct {
 	// Gone marks a node whose object a read did not find. The record keeps the
 	// attributes of the last state that was read.
 	Gone bool `json:"gone,omitempty"`
+	// Tainted marks a node whose create stopped after the provider returned an
+	// id: the object may lack what the rest of the create would have made. The
+	// next plan replaces it, as -replace does, and the apply that does so writes
+	// a record without the mark.
+	Tainted bool `json:"tainted,omitempty"`
 	// PreventDestroy records that the specification carried
 	// $lifecycle.prevent_destroy on the node when it was last written, so that a
 	// plan that destroys the record after its block is gone can say so.
@@ -760,7 +765,7 @@ func (s *Store) Refresh(r *Resource, txn string) error {
 	same := ok && prev != r && jsonSame(prev.Attributes, r.Attributes) && bytes.Equal(prev.Private, r.Private) &&
 		slices.Equal(prev.Dependencies, r.Dependencies) && prev.ConfigHash == r.ConfigHash &&
 		prev.ProviderVersion == r.ProviderVersion && prev.SchemaVersion == r.SchemaVersion &&
-		prev.Gone == r.Gone && prev.PreventDestroy == r.PreventDestroy && sameTime(prev.DriftedAt, r.DriftedAt)
+		prev.Gone == r.Gone && prev.Tainted == r.Tainted && prev.PreventDestroy == r.PreventDestroy && sameTime(prev.DriftedAt, r.DriftedAt)
 	var held Version
 	if ok {
 		held = Version{Revision: prev.Revision, Generation: prev.Generation}

@@ -152,6 +152,7 @@ jq 'del(.attributes)' pravo.state/resources/web.json
 | `config_hash` | A digest of the configuration that the provider last saw. A plan compares it to skip a resource. An apply that stopped halfway leaves it empty, so the next plan changes the resource again. |
 | `provider_config` | A digest of the configuration of the provider instance that last wrote the node, where the instance has an attribute that says where it points. A plan reads a node whose digest differs from the one of its provider now. |
 | `drifted_at`, `gone` | A mark. A read found that the object differs from the record, or that it is gone. A node with a mark is planned until an apply writes it. Both are absent from a record without a mark. |
+| `tainted` | Set when a create failed after the provider returned an id. The object may lack what the rest of the create would have made, and an update sends only the difference. The next plan replaces the node, as `--replace` does, and the apply that does so writes a record without the mark. Absent from a record without it. |
 | `revision` | The count of writes of the node. |
 | `generation` | The transaction that created the record. A node that is removed and created again has another generation. |
 | `refreshed_at` | When the provider last reported the real state, by a read or an apply. A plan compares it with the refresh age of the node, for the nodes it looks at. |
