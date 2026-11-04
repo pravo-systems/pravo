@@ -345,7 +345,7 @@ func whyCmd() *cobra.Command {
 
 func driftCmd() *cobra.Command {
 	var webhook, ttlText string
-	var due, makePlan, store bool
+	var due, makePlan, store, noWrite bool
 	var limit int
 	cmd := &cobra.Command{
 		Use:   "drift",
@@ -357,7 +357,8 @@ resources that no longer exist. Refreshed state is written back to the
 state, with a mark on every record that differs or is gone, so the next
 plan, saved plan and apply act on it. A reader of a sealed state can run it
 too: what it reads stays in memory, no mark is written, and only a plan stored
-with --plan --store reaches the bucket. With -webhook the report is also
+with --plan --store reaches the bucket. With --no-write anyone gets the same: the
+report is made and the state is left as it was, with no mark written. With -webhook the report is also
 POSTed as JSON, which lets a scheduler hand drift to whoever triages it.
 Exit code 2 means drift was found.
 
@@ -402,6 +403,7 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 			if limit < 0 {
 				return fmt.Errorf("--limit %d: want a number above zero", limit)
 			}
+			stateInMemory = noWrite
 			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: true})
 			if err != nil {
 				return err
@@ -465,6 +467,7 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 	cmd.Flags().BoolVar(&store, "store", false, "with --plan: store the plan in the state, where it shows in the viewer and can be approved and applied by its id")
 	cmd.Flags().StringVar(&ttlText, "ttl", "", "with --store: keep the plan this long if it is not applied (90m, 36h, 7d; the default is 7d)")
 	cmd.Flags().BoolVar(&due, "due", false, "read only the records that are older than their refresh age, oldest first, and plan nothing")
+	cmd.Flags().BoolVar(&noWrite, "no-write", false, "report drift and leave the state as it is: nothing refreshed is written and no mark is set")
 	cmd.Flags().IntVar(&limit, "limit", 0, "with --due: read at most this many records")
 	cmd.Flags().BoolVar(&flags.Markdown, "markdown", false, "print the report as Markdown for an issue or a comment: names and actions, never values")
 	addTagFlags(cmd)

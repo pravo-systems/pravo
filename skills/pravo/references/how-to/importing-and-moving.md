@@ -138,7 +138,7 @@ note
 primary
 ```
 
-Leave `$from` in the file or remove it in a later change. Once the old address is gone it does nothing.
+A move is applied like any other change: with `pravo apply`, or from a saved plan (`pravo_plan` with `out` set, then `pravo_apply_plan`, in the MCP server). It touches no real object. Leave `$from` in the file or remove it in a later change. Once the old address is gone it does nothing.
 
 ## 2. Move a group
 

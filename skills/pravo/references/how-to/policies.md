@@ -565,7 +565,7 @@ guard: pravo.#Policy & {
 }
 ```
 
-The approvals belong to a stored plan, so a plan that such a rule matches is made with `pravo plan --store` and applied by its id, and an admin needs none. [Approve a plan](approve-a-plan.md) sets it up with three people, and [Operating policies](../reference/policies-operations.md#ask-for-approvals) lists the fields.
+The plan-time line `Policies: 1 satisfied` does not count approvals: they are counted when the plan is applied, and an apply with too few is refused with the number it needs. The approvals belong to a stored plan, so a plan that such a rule matches is made with `pravo plan --store` and applied by its id, and an admin needs none. [Approve a plan](approve-a-plan.md) sets it up with three people, and [Operating policies](../reference/policies-operations.md#ask-for-approvals) lists the fields.
 
 ## What a policy does not bind
 

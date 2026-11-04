@@ -41,7 +41,8 @@ func secretCmd() *cobra.Command {
 		Long: `A secret is a named value that the sealed state keeps for its readers, as a
 series of versions: every set is a new one. A run reads a secret as pravo.#Secret, which
 feeds the configuration of a provider and write-only attributes, and is never written to the
-state, to a plan or to a log. pravo.#SecretVersion is the number of the version, which is not
+state, to a plan or to a log. A secret cannot feed a file resource: to put a
+value that sits in a file elsewhere into another file, use local_sensitive_file with source. pravo.#SecretVersion is the number of the version, which is not
 secret: wire it to the version of a write-only attribute and a new version rotates the value.
 
 Everyone who can read the state can read every secret in it; a secret for other readers

@@ -8,6 +8,8 @@ One specification serves every environment. `$environments` names them and holds
 
 Work in an empty directory. The commands are for a POSIX shell.
 
+This page declares environments and gives each a state of its own. Making them follow an order, so that prod takes only what staging runs, needs each state sealed with a readers file, which [Promote a release](promote-a-release.md) sets up; without it the order is a convention that nothing enforces.
+
 ## 1. Declare the environments
 
 `env.cue` declares the three environments and the state path.
