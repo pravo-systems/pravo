@@ -147,9 +147,20 @@ func (s *Store) updateMeta(fn func(m *meta) error) error {
 	return fmt.Errorf("meta.json of the state at %s changed again and again while it was written; run the command again", s.b.Name())
 }
 
-// EnsureFormat raises the state to format now, where a command would raise it later: a key that
-// may not put meta.json is refused before anything is changed. A state already at it is left alone.
-func (s *Store) EnsureFormat(format int) error { return s.setFormat(format) }
+// CanRaiseFormat asks whether this key may put meta.json, which raising the state to format
+// needs, without changing anything: it replaces meta.json with its own bytes. A command that
+// may still be refused for another reason asks first, so that a refusal leaves the format as
+// it was. A state already at the format needs no put.
+func (s *Store) CanRaiseFormat(format int) error {
+	if s.Format() >= format {
+		return nil
+	}
+	_, err := s.b.ReplaceIf(s.cx(), "meta.json", func(cur []byte) ([]byte, bool) { return cur, true })
+	if errors.Is(err, ErrNotFound) {
+		return nil // no meta.json to raise: the raise itself will say so
+	}
+	return err
+}
 
 // setFormat raises the format in meta.json.
 func (s *Store) setFormat(format int) error {

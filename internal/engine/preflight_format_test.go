@@ -50,19 +50,21 @@ func TestFirstPolicyOfAKeyThatCannotPutMetaIsRefusedBeforeAnyChange(t *testing.T
 		t.Errorf("a plan with no policy is refused: %v", err)
 	}
 
-	// The key that may put meta.json raises the format, and the next writer finds it done.
+	// The key that may put meta.json passes, and the check changes nothing: a command that is
+	// refused later leaves the format as it was (F59).
+	before := b.state.Format()
 	e = &Engine{State: b.state}
 	if err := e.preflightPolicies(plan); err != nil {
 		t.Fatalf("admin: %v", err)
 	}
-	if b.state.Format() < state.FormatPolicy {
-		t.Errorf("the format is %d after the admin's check", b.state.Format())
+	if got := b.state.Format(); got != before {
+		t.Errorf("the format is %d after the admin's check, want %d", got, before)
 	}
-	writer2, err := state.OpenBackendWith(context.Background(), metaDenied{b.backend}, state.Options{Identity: b.id})
+	fresh, err := state.OpenBackendWith(context.Background(), b.backend, state.Options{Identity: b.id})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := (&Engine{State: writer2}).preflightPolicies(plan); err != nil {
-		t.Errorf("writer after the admin: %v", err)
+	if fresh.Format() != before {
+		t.Errorf("meta.json is at format %d after the check, want %d", fresh.Format(), before)
 	}
 }

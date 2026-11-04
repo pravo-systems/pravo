@@ -580,7 +580,7 @@ func (e *Engine) preflightPolicies(plan *Plan) error {
 	if e.State == nil || len(plan.Policies) == 0 || plan.Partial || e.State.Sealer() == nil {
 		return nil
 	}
-	if err := e.State.EnsureFormat(state.FormatPolicy); err != nil {
+	if err := e.State.CanRaiseFormat(state.FormatPolicy); err != nil {
 		return refused("this state does not yet hold policies, and your key cannot write that (%v).\n\nNothing was changed. An admin applies this change once (pravo apply), or the policy is left out of the writer's change until then.", err)
 	}
 	return nil
