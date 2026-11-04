@@ -206,12 +206,14 @@ func Setup(ctx context.Context, version string, e env.Env) (shutdown func(contex
 	}
 	if watch != nil {
 		tpOpts = append(tpOpts, sdktrace.WithSpanProcessor(*watch))
-		if !Enabled() && !record {
-			// Nothing exports the spans, so a caller that did not sample its trace (a
-			// TRACEPARENT ending in -00) is not a reason to hide them from the watcher.
-			tpOpts = append(tpOpts, sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.AlwaysSample(),
-				sdktrace.WithRemoteParentNotSampled(recordOnly{}), sdktrace.WithLocalParentNotSampled(recordOnly{}))))
-		}
+	}
+	if watch != nil || record {
+		// A caller that did not sample its trace (a TRACEPARENT ending in -00) is not a
+		// reason to hide the spans from the watcher or from the recorded run. A record-only
+		// span is seen by the processors above and never reaches an exporter, which honours
+		// the caller's decision.
+		tpOpts = append(tpOpts, sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.AlwaysSample(),
+			sdktrace.WithRemoteParentNotSampled(recordOnly{}), sdktrace.WithLocalParentNotSampled(recordOnly{}))))
 	}
 	if len(tpOpts) > 1 {
 		tp := sdktrace.NewTracerProvider(tpOpts...)
