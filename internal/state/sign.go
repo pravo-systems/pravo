@@ -137,7 +137,7 @@ func (t *Txn) signFinish() error {
 	}
 	sig, err := id.SignMessage(protect.DomainTxnFinish, lineage, txnFinishParts(&t.t)...)
 	if err != nil {
-		return fmt.Errorf("the transaction %s was recorded without the signature of its end: %w", t.t.ID, err)
+		return fmt.Errorf("the transaction %s was recorded without the signature of its end: %w. Its records stay accepted on the strength of its signed start, and pravo protect status counts them as written by a run whose end is not signed; pravo apply --refresh=all writes them again under a signed transaction", t.t.ID, err)
 	}
 	t.t.FinishSig = &sig
 	return nil

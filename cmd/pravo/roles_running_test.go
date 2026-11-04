@@ -229,3 +229,51 @@ func TestAVouchedRunThatEndsWithoutAnEndSignatureDoesNotPanic(t *testing.T) {
 		t.Fatalf("plan panicked: exit %d\n%s", code, text)
 	}
 }
+
+// A run that finished but could not sign its end is accepted on its signed start (F64).
+func TestARunWhoseEndCouldNotBeSignedLocksNobodyOut(t *testing.T) {
+	s := plannableBucket(t)
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer")
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+		t.Fatalf("protect roles: exit %d\n%s", code, text)
+	}
+	b := s.backend(t)
+	st, err := state.OpenBackendWith(context.Background(), b, state.Options{Identity: s.dan})
+	if err != nil {
+		t.Fatal(err)
+	}
+	txn := st.Begin("apply", "pravo apply")
+	if err := txn.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Set(&state.Resource{Addr: "n1", Mode: "data", Type: "t_data", Name: "n1", Attributes: []byte(`{"id":"n1"}`)}, txn.ID()); err != nil {
+		t.Fatal(err)
+	}
+	txn.Record("n1", "create", 0, 1)
+	if err := txn.Finish("applied", "", true); err != nil {
+		t.Fatal(err)
+	}
+	key := "txn/" + txn.ID() + ".json"
+	data, err := b.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	delete(doc, "finish_sig")
+	data, _ = json.Marshal(doc)
+	if err := b.Put(context.Background(), key, data); err != nil {
+		t.Fatal(err)
+	}
+	for _, who := range []string{"ada", "dan"} {
+		if text, code := runPravo(t, s.dir, "--identity", who, "plan"); code == 7 || code == 2 {
+			t.Fatalf("%s: plan exit %d after a run whose end is not signed\n%s", who, code, text)
+		}
+	}
+	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status")
+	if code == 7 || !strings.Contains(text, "1 written by a run whose end is not signed") {
+		t.Fatalf("protect status: exit %d\n%s", code, text)
+	}
+}
