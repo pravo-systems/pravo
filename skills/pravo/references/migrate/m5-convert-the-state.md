@@ -470,7 +470,7 @@ pravo -C t4 plan 2>&1 | grep -E '(no longer exists|will be created)'
 Output:
 
 ```text
-hello: no longer exists; it will be created again
+hello: the provider no longer finds it (deleted, or changed into another object); it will be created again
   # hello (local_file) will be created
 ```
 

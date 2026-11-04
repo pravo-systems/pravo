@@ -16,6 +16,9 @@ type rootFlags struct {
 	JSON bool
 	// Markdown is the --markdown flag of plan and show: the plan as a comment.
 	Markdown bool
+	// Withhold is --withhold-sensitive: the JSON plan document carries {"$sensitive": true} in place of
+	// the sensitive and write-only attributes and the sensitive outputs.
+	Withhold bool
 	Actor    string
 	Reason   string
 	// Identity is the --identity flag: the name of a file in the identity

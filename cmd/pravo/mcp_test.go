@@ -237,3 +237,22 @@ func TestPravoParallelismComesFromTheEnvironment(t *testing.T) {
 		t.Errorf("32: %v, %d", err, engine.Parallelism)
 	}
 }
+
+// The tools that print a plan document run with --withhold-sensitive, so that an agent
+// does not read the values of sensitive attributes.
+func TestPlanDocumentToolsWithholdSensitiveValues(t *testing.T) {
+	for _, name := range []string{"pravo_plan", "pravo_show_plan", "pravo_apply_plan"} {
+		if !withholdsSensitive[name] {
+			t.Errorf("%s runs without --withhold-sensitive", name)
+		}
+	}
+	for _, name := range []string{"pravo_plan", "pravo_show_plan", "pravo_apply_plan"} {
+		found := false
+		for _, tool := range mcpTools() {
+			found = found || tool.Name == name
+		}
+		if !found {
+			t.Errorf("no tool %s", name)
+		}
+	}
+}

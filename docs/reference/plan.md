@@ -48,6 +48,7 @@ keywords: "-target scoped plan saved plan -out stored plan plan id plan list pla
 | `--replace ADDR` | none | Destroy and create `ADDR` again though the specification did not change. Repeatable, or comma-separated. Refused with `--destroy`. |
 | `--detailed-exitcode` | off | Exit with code 2 when the plan has changes. A new, changed or removed policy counts as a change. |
 | `--markdown` | off | Print the plan as Markdown for a comment on a pull request: the resources, the actions, the names of the attributes that change, the policy that refuses the plan and, with `--store`, the id and the command that applies it. No value is printed. Not with `--json`. See [Markdown](#markdown). |
+| `--withhold-sensitive` | off | With `--json`, put `{"$sensitive": true}` in place of every sensitive or write-only attribute and every sensitive output. The plan file and the policies still see the values. `pravo mcp` passes it for `pravo_plan`, `pravo_show_plan` and `pravo_apply_plan`. See [The plan document](plan-document.md). |
 | `--include-skipped` | off | With `--json`, list the nodes the plan left alone too, as entries with their address, mode, type and name, the action `no-op` and `skipped`. See [The plan document](plan-document.md). |
 | `--reserve DURATION` | none | Reserve the nodes that have pending changes for `DURATION`, for example `15m`. |
 | `-t`, `--tag key=value` | none | Inject a value for an `@tag()` field. Repeatable. The subcommands take it too: the tags select the state. |

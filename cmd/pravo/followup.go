@@ -33,7 +33,7 @@ func followUp(ctx context.Context, s *session, opts engine.Options, deferred int
 		return eng, nil, nil
 	}
 	if flags.JSON {
-		emitLine(map[string]any{"kind": "plan", "phase": "done", "follow_up": true, "plan": eng.NewView(plan, engine.ViewOptions{})})
+		emitLine(map[string]any{"kind": "plan", "phase": "done", "follow_up": true, "plan": eng.NewView(plan, engine.ViewOptions{Redact: flags.Withhold})})
 	} else {
 		out.Println()
 		out.Println(out.C(ui.Bold, fmt.Sprintf("Planned again for the %s that the apply deferred:", plural(deferred, "change", "changes"))))

@@ -27,6 +27,7 @@ Plan, ask for confirmation and apply, or apply a saved plan or a plan stored in 
 | `--full` | off | As for `pravo plan`. Refused with a plan file or a plan id. |
 | `--replace ADDR` | none | As for `pravo plan`. Refused with a plan file or a plan id: the replacement is decided when the plan is made. |
 | `--only ADDR,...` | none | With a plan file or a plan id: apply these changes now and leave the rest in the file or in the state. Each name must be a change in the plan: a node that the plan left alone has none. The selection must be closed under dependencies. Repeatable, or comma-separated. For a stored plan that is [partly stale](#a-partly-stale-plan), the set that `pravo plan list` and `pravo plan show` print. |
+| `--withhold-sensitive` | off | As for [`pravo plan`](plan.md): with `--json`, the plan document in the output carries `{"$sensitive": true}` in place of sensitive attributes and outputs. |
 | `-t`, `--tag key=value`, `-T` | none | Tags, as for `pravo plan`. Refused with a plan file: the plan carries its own tags. With a plan id they must be the ones the plan was made with: see [The tags of a stored plan](#the-tags-of-a-stored-plan). |
 
 ### Deferred changes

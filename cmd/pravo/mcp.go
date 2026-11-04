@@ -379,6 +379,10 @@ func serveMCP(ctx context.Context, in io.Reader, outW io.Writer) error {
 				reply(req.ID, map[string]any{"isError": true, "content": []map[string]any{{"type": "text", "text": err.Error()}}}, nil)
 				continue
 			}
+			// The plan document that an agent reads does not carry sensitive values.
+			if withholdsSensitive[p.Name] && len(cliArgs) > 1 {
+				cliArgs = append([]string{cliArgs[0], "--withhold-sensitive"}, cliArgs[1:]...)
+			}
 			callCtx, span := telemetry.Tracer().Start(ctx, "mcp tools/call "+p.Name, trace.WithSpanKind(trace.SpanKindServer),
 				trace.WithAttributes(attribute.String("mcp.tool", p.Name), attribute.String("pravo.actor", flags.Actor)))
 			var text string
@@ -482,3 +486,7 @@ func positional(name string, values ...string) error {
 	}
 	return nil
 }
+
+// withholdsSensitive names the tools whose command prints a plan document: the server runs
+// them with --withhold-sensitive.
+var withholdsSensitive = map[string]bool{"pravo_plan": true, "pravo_show_plan": true, "pravo_apply_plan": true}

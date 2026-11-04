@@ -105,9 +105,9 @@ func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state
 		rd.drifted, ch.Drifted = true, true
 		e.count(func(st *Stats) { st.Drifted++ })
 		if ch.removal {
-			e.Opts.Progress("%s: no longer exists; its record will be removed", addr)
+			e.Opts.Progress("%s: the provider no longer finds it; its record will be removed", addr)
 		} else {
-			e.Opts.Progress("%s: no longer exists; it will be created again", addr)
+			e.Opts.Progress("%s: the provider no longer finds it (deleted, or changed into another object); it will be created again", addr)
 		}
 		e.persistGone(addr, sr)
 		return newState, newPrivate, nil

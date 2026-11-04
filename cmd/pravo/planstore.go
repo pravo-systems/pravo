@@ -300,7 +300,7 @@ func pad(coloured, plain string, width int) string {
 }
 
 func planShowCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "show <plan-id>",
 		Short: "Print a plan stored in the state",
 		Args:  cobra.ExactArgs(1),
@@ -309,6 +309,8 @@ func planShowCmd() *cobra.Command {
 			return showStored(cmd, args[0])
 		},
 	}
+	addWithholdFlag(cmd)
+	return cmd
 }
 
 func planPullCmd() *cobra.Command {
@@ -648,7 +650,7 @@ func showStored(cmd *cobra.Command, ref string) error {
 	}
 	sigs, sigNote := storedPlanSignatures(ctx, s, entry.Meta.ID)
 	if flags.Markdown {
-		v := eng.NewView(plan, engine.ViewOptions{})
+		v := eng.NewView(plan, engine.ViewOptions{Redact: flags.Withhold})
 		v.Actor, v.Reason, v.GitRevision = pf.Actor, pf.Reason, pf.GitRevision
 		m := entry.Meta
 		opts := engine.MarkdownOptions{Title: "Stored plan " + m.ID, Refused: ""}
@@ -673,7 +675,7 @@ func showStored(cmd *cobra.Command, ref string) error {
 		return emitMarkdown(v.Markdown(opts))
 	}
 	if flags.JSON {
-		v := eng.NewView(plan, engine.ViewOptions{})
+		v := eng.NewView(plan, engine.ViewOptions{Redact: flags.Withhold})
 		v.Created, v.Actor, v.Reason, v.GitRevision = pf.Created, pf.Actor, pf.Reason, pf.GitRevision
 		v.Reservation = pf.Reservation
 		doc := map[string]any{"plan_id": entry.Meta.ID, "stored": storedPlanView(entry), "stale": stale, "plan": v}
