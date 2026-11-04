@@ -589,10 +589,7 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			return fail(err)
 		}
 		e.tally(result)
-		dd, ddDone := e.phase(ctx, "destroy previous instances")
-		err = e.runDeferredDestroys(dd)
-		ddDone(err)
-		if err != nil {
+		if err := e.runDeferredDestroys(ctx); err != nil {
 			return fail(err)
 		}
 		if err := e.evalOutputs(final, plan, result); err != nil {
