@@ -281,3 +281,33 @@ func TestAPinnedRecordRaisesTheFormat(t *testing.T) {
 		t.Fatalf("after the raise: %v", err)
 	}
 }
+
+// A note written under version 2 of the record means that deleting version 2 rolls the
+// record back, which is found; a note under version 1 does not make version 1 required more.
+func TestADeletedNewestEnvironmentRecordIsFound(t *testing.T) {
+	skipWhenSealed(t)
+	ctx := context.Background()
+	b := testBackends()[0].make(t)
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	readers := readersOf(ada)
+	readers[0].Role = protect.RoleAdmin
+	if err := s.PutEnvironmentRecord(ctx, 1, EnvironmentRecord{Name: "prod", After: []Upstream{{Name: "staging"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutEnvironmentRecord(ctx, 2, EnvironmentRecord{Name: "prod", After: []Upstream{{Name: "staging"}}, RolesPin: "pin"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutRunNote(ctx, &RunNote{Environment: "prod", Fingerprint: strings.Repeat("a", 32), Txn: "t1", EnvRecord: 2}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.EnvironmentRecord(ctx, readers); err != nil {
+		t.Fatalf("untouched: %v", err)
+	}
+	if err := b.Delete(ctx, environmentKey(2)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.EnvironmentRecord(ctx, readers); !errors.Is(err, ErrUntrusted) {
+		t.Fatalf("version 2 deleted: %v", err)
+	}
+}

@@ -192,6 +192,15 @@ func (s *Store) EnvironmentRecord(ctx context.Context, readers []protect.Reader)
 	if err != nil {
 		return nil, err
 	}
+	// The newest note of what the state runs names the version of the record it was written
+	// under: a record older than that had its newest versions deleted.
+	if s.sealedState() && len(readers) > 0 {
+		if n, _, err := s.LatestRun(ctx, time.Now()); err == nil && n != nil && n.EnvRecord > head.Seq {
+			if st, _ := n.Verify(s.Lineage(), readers); st == protect.SigVerified {
+				return nil, fmt.Errorf("%w: the note %s was written under version %d of the record of the environment, and the bucket holds %d: newer versions were deleted", ErrUntrusted, n.ID, n.EnvRecord, head.Seq)
+			}
+		}
+	}
 	if head.Seq > 1 && s.sealedState() {
 		prev, err := s.environmentVersion(ctx, readers, head.Seq-1)
 		if err != nil {
@@ -415,7 +424,11 @@ type RunNote struct {
 	Admitted *Admission `json:"admitted,omitempty"`
 	// Deferred is the number of changes that the apply deferred to the next plan: the state
 	// runs the release in part. A note of a state that runs all of it has none.
-	Deferred  int                `json:"deferred,omitempty"`
+	Deferred int `json:"deferred,omitempty"`
+	// EnvRecord is the number of the version of the record of the environment the note was
+	// written under. The note is signed with it, so that deleting the newest versions of the
+	// record, which would roll it back to an older one, is found.
+	EnvRecord int                `json:"env_record,omitempty"`
 	Signature *protect.Signature `json:"signature,omitempty"`
 }
 
@@ -431,6 +444,9 @@ func runParts(n *RunNote) [][]byte {
 	if n.Deferred > 0 {
 		// Signed only when set, so that the notes written before it verify as they did.
 		parts = append(parts, []byte("deferred="+strconv.Itoa(n.Deferred)))
+	}
+	if n.EnvRecord > 0 {
+		parts = append(parts, []byte("env_record="+strconv.Itoa(n.EnvRecord)))
 	}
 	return parts
 }
