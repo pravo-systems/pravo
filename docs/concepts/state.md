@@ -11,6 +11,8 @@ normalize:
     replace: '[txn <id>]'
   - pattern: 'txn/[0-9]{8}T[0-9]{6}Z-[0-9a-f]+\.json'
     replace: 'txn/<id>.json'
+  - pattern: 'kinds/[0-9]{8}T[0-9]{6}Z-[0-9a-f]+\.'
+    replace: 'kinds/<id>.'
   - pattern: '"(txn|generation)": "[0-9]{8}T[0-9]{6}Z-[0-9a-f]+"'
     replace: '"$1": "<id>"'
   - pattern: '"(refreshed_at|applied_at|updated_at)": "[^"]+"'
@@ -87,6 +89,7 @@ find pravo.state -type f | sort
 ```
 
 ```text out
+pravo.state/kinds/<id>.apply
 pravo.state/meta.json
 pravo.state/outputs.json
 pravo.state/resources/port.json

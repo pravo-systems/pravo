@@ -15,6 +15,7 @@ pravo records what it manages in a state graph, not a state file. Every resource
 | `snapshot.json` | A copy of every resource's pointer and record, kept when the store lists versions of its objects (S3). A command that can write makes it when there is none, and makes it again when it ends, if what it wrote and what its open had to read afresh are more than one resource in twenty. A command that opens the state takes a resource from it when the listing gives the tag the snapshot recorded for the pointer, and verifies it as if it had read it. Nothing in it is trusted: a stale, damaged or missing snapshot costs reads and nothing else. Turn it off with `snapshot: false` in the S3 settings. |
 | `gc/marks.json` | In formats 2 and 3, written by `pravo protect gc`: the records that no pointer names and that a collection has seen, with the time. Never sealed. A copy of the state does not carry it. See [Format 2](#format-2-immutable-records). |
 | `txn/<id>.json` | One recorded transaction. |
+| `kinds/<id>.<kind>` | A hint of the kind of the transaction `<id>`, so that a command that looks for the newest apply or destroy (`pravo environments`, `pravo promote`) does not read every plan, edit and secret set after it. It is not signed and is never the answer: a transaction without a hint, as one of an earlier pravo is, is read. Pruning `txn/` can leave hints behind; they are harmless. |
 | `policy/<name>@<seq>.json` | In format 4, one version of a policy: its text, the time and the signature of whoever applied it. Written once and never changed. See [Format 4](#format-4-policies). |
 | `secret/<name>@<seq>.json` | In format 5, one version of a secret: a value sealed to the readers, a removal or a purged value. Written once; a purge replaces it by a stub in place. See [Format 5](#format-5-secrets). |
 | `environment/<seq>.json` | In a state of an environment, one version of its record: the environment it serves, the ones it follows, and the pin of its roles. Signed in format 6. See [Format 6](#format-6-environments). |
@@ -68,6 +69,7 @@ Output:
 
 ```text
 Apply complete! Resources: 3 added, 0 changed, 0 destroyed. [txn <id>]
+pravo.state/kinds/<txn>.apply
 pravo.state/meta.json
 pravo.state/outputs.json
 pravo.state/resources/hello.json

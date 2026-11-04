@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -344,9 +345,23 @@ type nodeChange struct {
 // readers, per transaction id. A finished transaction is immutable, so the ones read
 // before are kept.
 func (s *Store) signedFacts(ctx context.Context, readers []protect.Reader) (map[string]txnFacts, error) {
+	return s.signedFactsOf(ctx, readers)
+}
+
+// signedFactsOf is signedFacts for the transactions of the given kinds only, all of them when
+// none is given. A transaction whose hint (see KindDir) names another kind is not read and is
+// not in the result, so a caller that needs the facts of one kind does not pay for the plans,
+// edits and secret sets of the state. A transaction without a hint is read.
+func (s *Store) signedFactsOf(ctx context.Context, readers []protect.Reader, kinds ...string) (map[string]txnFacts, error) {
 	keys, err := s.b.List(ctx, "txn")
 	if err != nil {
 		return nil, err
+	}
+	var hints map[string]string
+	if len(kinds) > 0 {
+		if hints, err = s.kindHints(); err != nil {
+			return nil, err
+		}
 	}
 	s.listedMu.Lock()
 	defer s.listedMu.Unlock()
@@ -360,6 +375,9 @@ func (s *Store) signedFacts(ctx context.Context, readers []protect.Reader) (map[
 			continue
 		}
 		if id, ok = strings.CutSuffix(id, ".json"); !ok {
+			continue
+		}
+		if k, ok := hints[id]; ok && !slices.Contains(kinds, k) {
 			continue
 		}
 		if f, ok := s.listed[id]; ok {

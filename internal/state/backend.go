@@ -308,7 +308,7 @@ func Copy(ctx context.Context, src, dst Backend) (int, error) {
 			return n, err
 		}
 	}
-	for _, prefix := range []string{"rec", "resources", "txn", "plans", DiscoveryRunDir, RunDir, PromotionDir} {
+	for _, prefix := range []string{"rec", "resources", "txn", KindDir, "plans", DiscoveryRunDir, RunDir, PromotionDir} {
 		keys, err := src.List(ctx, prefix)
 		if err != nil {
 			return n, err
@@ -318,7 +318,7 @@ func Copy(ctx context.Context, src, dst Backend) (int, error) {
 			// that went since the listing is not part of the copy. The same goes for
 			// a record that was superseded, and for a discovery object that someone
 			// withdrew.
-			if err := copyKey(k, prefix != "resources" && prefix != "txn"); err != nil {
+			if err := copyKey(k, prefix != "resources" && prefix != "txn" && prefix != KindDir); err != nil {
 				return n, err
 			}
 		}

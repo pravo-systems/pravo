@@ -119,14 +119,15 @@ find ada/copy -type f | sort
 ```
 
 ```text out
-Copied 4 objects from s3://northwind-state/prod to copy
+Copied 5 objects from s3://northwind-state/prod to copy
+ada/copy/kinds/<txn>.apply
 ada/copy/meta.json
 ada/copy/outputs.json
 ada/copy/resources/port.json
 ada/copy/txn/<txn>.json
 ```
 
-One object for the record of `port`, one for the transaction that wrote it, one for the outputs, which are empty so far, and `meta.json` for the state as a whole. A second resource would be a second object. That is the whole difference from one state file, and everything in this track follows from it.
+One object for the record of `port`, one for the transaction that wrote it, one for its kind (a hint that lets a command skip the transaction when it looks for something else), one for the outputs, which are empty so far, and `meta.json` for the state as a whole. A second resource would be a second object. That is the whole difference from one state file, and everything in this track follows from it.
 
 ## A second checkout
 

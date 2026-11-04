@@ -301,7 +301,8 @@ ls backup
 Output:
 
 ```text
-Copied 7 objects from ./pravo.state to backup
+Copied 11 objects from ./pravo.state to backup
+kinds
 locks
 meta.json
 outputs.json

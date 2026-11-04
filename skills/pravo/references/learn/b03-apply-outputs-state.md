@@ -253,6 +253,7 @@ find pravo.state -type f | sort
 Output:
 
 ```text
+pravo.state/kinds/<id>.apply
 pravo.state/meta.json
 pravo.state/outputs.json
 pravo.state/resources/port.json
