@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -19,7 +20,11 @@ func providerZip(t *testing.T, body string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	w, err := zw.Create("terraform-provider-ramdom_v1.0.0")
+	name := "terraform-provider-ramdom_v1.0.0"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	w, err := zw.Create(name)
 	if err != nil {
 		t.Fatal(err)
 	}
