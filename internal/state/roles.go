@@ -375,6 +375,16 @@ func StartVouchDigest(lineage string, t *Transaction) string {
 	if t.StartSig == nil || t.FinishSig != nil || t.Finished != nil || len(t.Changes) > 0 {
 		return ""
 	}
+	return startDigest(lineage, t)
+}
+
+// startDigest is the digest of the start of t, whether or not t has finished since. An admin's
+// vouch for the start of a run that was thought dead stays good when the run wakes up and
+// finishes: the finish signature then names each record, so the records are pinned as well.
+func startDigest(lineage string, t *Transaction) string {
+	if t.StartSig == nil {
+		return ""
+	}
 	h := sha256.New()
 	put := func(b []byte) {
 		var n [8]byte
