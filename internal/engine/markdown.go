@@ -219,8 +219,11 @@ func MarkdownNote(line string) string {
 	return b.String()
 }
 
+// mdLine is text from outside as one line of Markdown for a pull request comment. It cannot
+// open an HTML tag, a link or an image, and it cannot mention anybody: the author of the
+// words (a reason that holds the title of a pull request) is not the author of the comment.
 func mdLine(s string) string {
-	return strings.NewReplacer("|", "\\|", "\n", " ", "\r", "").Replace(strings.TrimSpace(s))
+	return strings.NewReplacer("|", "\\|", "\n", " ", "\r", "", "<", "&lt;", ">", "&gt;", "[", "\\[", "]", "\\]", "@", "&#64;").Replace(strings.TrimSpace(s))
 }
 
 func count(n int, noun string) string {

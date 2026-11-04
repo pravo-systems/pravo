@@ -89,3 +89,12 @@ func TestMarkdownNote(t *testing.T) {
 		t.Errorf("plain: %q", got)
 	}
 }
+
+func TestMDLineCannotMentionLinkOrOpenATag(t *testing.T) {
+	got := mdLine("@everyone <img src=x onerror=1> [x](javascript:alert(1)) a|b")
+	for _, bad := range []string{"@everyone", "<img", "[x]("} {
+		if strings.Contains(got, bad) {
+			t.Errorf("%q survives in %q", bad, got)
+		}
+	}
+}

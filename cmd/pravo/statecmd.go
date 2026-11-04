@@ -384,7 +384,7 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 					dur = " " + t.Finished.Sub(t.Started).Round(time.Millisecond).String()
 				}
 				out.Printf("%s  %-8s %-9s %s%s\n", t.ID, t.Kind, t.Status, t.Started.Local().Format("2006-01-02 15:04:05"), dur)
-				out.Printf("    %s\n", out.C(ui.Dim, t.Command))
+				out.Printf("    %s\n", out.C(ui.Dim, ui.Safe(t.Command)))
 				// The signature line names a signer that the readers file vouches for, so an actor
 				// that is only that name is not said twice.
 				actor := t.Actor
@@ -394,9 +394,9 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 				if actor != "" || t.Reason != "" || t.GitRevision != "" {
 					label := ""
 					if actor != "" || t.Reason == "" && t.GitRevision == "" {
-						label = "actor " + orNone(actor) + "  "
+						label = "actor " + orNone(ui.Safe(actor)) + "  "
 					}
-					out.Printf("    %s\n", out.C(ui.Dim, strings.TrimSpace(fmt.Sprintf("%s%s  %s", label, t.Reason, t.GitRevision))))
+					out.Printf("    %s\n", out.C(ui.Dim, strings.TrimSpace(fmt.Sprintf("%s%s  %s", label, ui.Safe(t.Reason), ui.Safe(t.GitRevision)))))
 				}
 				if checked {
 					line := txnSigText(verdicts[i])

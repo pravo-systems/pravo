@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/format"
@@ -716,4 +717,33 @@ func FormatCUE(v cue.Value, indent string) string {
 	}
 	s := strings.TrimSpace(string(b))
 	return strings.ReplaceAll(s, "\n", "\n"+indent)
+}
+
+// Safe is text that came from outside pravo (a label, a reason, a command line kept in a state) as
+// a terminal may show it: control characters, the ones that start an escape sequence among them,
+// and invisible formatting characters are replaced by "?". A newline and a tab stay.
+func Safe(s string) string {
+	clean := true
+	for _, r := range s {
+		if unsafeRune(r) {
+			clean = false
+			break
+		}
+	}
+	if clean {
+		return s
+	}
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\n' || r == '\r' || r == '\t':
+			return ' '
+		case unsafeRune(r):
+			return '?'
+		}
+		return r
+	}, s)
+}
+
+func unsafeRune(r rune) bool {
+	return r == '\n' || r == '\t' || r == '\r' || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r)
 }
