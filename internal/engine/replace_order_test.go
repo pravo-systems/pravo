@@ -26,6 +26,9 @@ func TestReplaceDestroysDependentsFirst(t *testing.T) {
 	h.fake.order = nil
 	res := h.apply(replChain("2", nil))
 	got := orderOf(h)
+	if n := strings.Count(got, "destroy"); n != 3 {
+		t.Errorf("%d destroys, want 3: %s", n, got)
+	}
 	inOrder(t, got, "destroy c-b-a-1", "destroy b-a-1", "destroy a-1", "create a-2", "create b-a-2", "create c-b-a-2")
 	if res.Destroyed != 3 || res.Added != 3 {
 		t.Errorf("destroyed %d, added %d", res.Destroyed, res.Added)
@@ -101,6 +104,9 @@ func TestReplaceOrderFromASavedPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := orderOf(h)
+	if n := strings.Count(got, "destroy"); n != 4 {
+		t.Errorf("%d destroys, want 4: %s", n, got)
+	}
 	inOrder(t, got, "destroy d-", "destroy b-a-1", "destroy a-1", "create a-2", "create b-a-2", "create d-")
 	inOrder(t, got, "destroy d-", "destroy c-a-1", "destroy a-1", "create a-2", "create c-a-2", "create d-")
 }

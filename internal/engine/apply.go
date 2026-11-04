@@ -233,18 +233,10 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 				return nil
 			})
 		} else {
-			e.Opts.Progress("%s: Destroying... %s", ch.Addr, idSuffix(ch.Prior))
-			if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
-				return tftypes.Value{}, err
-			}
-			// The record goes and comes back: its revision continues, so a plan
-			// made against the old record is stale.
-			if prev := e.State.Get(ch.Addr); prev != nil {
-				ch.removedRevision = prev.Revision
-			}
-			if _, err := e.State.Remove(ch.Addr); err != nil {
-				e.unrecorded(ch.Addr, "destruction", "")
-				return tftypes.Value{}, fmt.Errorf("%s: the record could not be removed: %w", ch.Addr, err)
+			if !ch.predestroyed {
+				if err := e.destroyOld(ctx, prov, ch); err != nil {
+					return tftypes.Value{}, err
+				}
 			}
 			e.Opts.Progress("%s: Creating replacement...", ch.Addr)
 			res, err := e.applyChange(ctx, prov, ch, nullV, ch.PlannedCreate, ch.Config, ch.CreatePrivate)

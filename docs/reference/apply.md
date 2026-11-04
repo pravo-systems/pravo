@@ -339,10 +339,10 @@ pravo apply change.plan
 ```
 
 ```text out
+port: Destroying... [id=20093]
 base: Destroying... [id=9]
 base: Creating replacement...
 base: Replacement complete after 0s [id=3]
-port: Destroying... [id=20093]
 port: Creating replacement...
 port: Replacement complete after 0s [id=20061]
 
