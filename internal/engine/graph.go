@@ -132,7 +132,7 @@ func (r taskResolver) Value(p cue.Path) cue.Value { return r.e.at(p) }
 
 // InertFields is the memo of the analysis while the graph is built, when the
 // values it reads do not change; nil otherwise.
-func (r taskResolver) InertFields() map[string]bool { return r.e.inert }
+func (r taskResolver) InertFields() map[string]convert.InertField { return r.e.inert }
 
 // at is current.LookupPath(p). While current is still the specification as
 // loaded, a declaration comes from the root's own record of them, since a
@@ -190,7 +190,7 @@ func (e *Engine) buildGraph() (map[string]*node, error) {
 	}
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
-	e.inert = map[string]bool{}
+	e.inert = map[string]convert.InertField{}
 	defer func() { e.inert = nil }()
 	for _, r := range e.Root.Resources {
 		v := e.at(r.Path)

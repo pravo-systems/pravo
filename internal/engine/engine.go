@@ -167,7 +167,7 @@ type cueState struct {
 	// specification as the root loaded it.
 	filled bool
 	// inert is the memo of the reference analysis during buildGraph.
-	inert        map[string]bool
+	inert        map[string]convert.InertField
 	pending      map[string]*pendingFill
 	pendingOrder []string
 	// seeded reports that the first batch of fills of the run carried the seed

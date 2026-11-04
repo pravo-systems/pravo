@@ -224,12 +224,12 @@ type specResolver struct {
 	byPath  map[string]*config.Resource
 	outputs map[string]*config.Output
 	below   map[string][]cue.Path
-	inert   map[string]bool
+	inert   map[string]convert.InertField
 }
 
 // InertFields is the memo of the reference analysis: the resolver reads one
 // unchanging value.
-func (r *specResolver) InertFields() map[string]bool { return r.inert }
+func (r *specResolver) InertFields() map[string]convert.InertField { return r.inert }
 
 // addrOf names the node at the path of a task, or "" when it is none.
 func (r *specResolver) addrOf(task cue.Path) string {
@@ -243,7 +243,7 @@ func (r *specResolver) addrOf(task cue.Path) string {
 }
 
 func newSpecResolver(root *config.Root) *specResolver {
-	r := &specResolver{root: root, byPath: map[string]*config.Resource{}, outputs: map[string]*config.Output{}, below: map[string][]cue.Path{}, inert: map[string]bool{}}
+	r := &specResolver{root: root, byPath: map[string]*config.Resource{}, outputs: map[string]*config.Output{}, below: map[string][]cue.Path{}, inert: map[string]convert.InertField{}}
 	for _, res := range root.Resources {
 		r.byPath[res.Path.String()] = res
 		r.addBelow(res.Path)

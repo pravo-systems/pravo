@@ -35,7 +35,14 @@ type Resolver interface {
 // were followed and reached nothing. A resolver offers one only while the values
 // it reads do not change.
 type Memo interface {
-	InertFields() map[string]bool
+	InertFields() map[string]InertField
+}
+
+// InertField is what following a field gave: whether it was followed, and the
+// non-concrete field it first met.
+type InertField struct {
+	Followed   bool
+	Incomplete *cue.Path
 }
 
 // ResolverFunc is a Resolver whose tasks all sit at the paths the function
@@ -102,7 +109,7 @@ func analyse(v cue.Value, resolve Resolver, self *cue.Path, deep bool) RefInfo {
 	seen := map[string]bool{}
 	tasks := map[string]bool{}
 	aliasSeen := map[string]bool{}
-	var inert map[string]bool
+	var inert map[string]InertField
 	if m, ok := resolve.(Memo); ok {
 		inert = m.InertFields()
 	}
@@ -215,29 +222,43 @@ func analyse(v cue.Value, resolve Resolver, self *cue.Path, deep bool) RefInfo {
 					for _, t := range below {
 						addTask(t, t)
 					}
-					// An operand of a reference is not followed: the reference
+					// An operand of a reference is not Followed: the reference
 					// it belongs to names the path that is read, and that path is
 					// followed. Following the container would take every task
 					// below it as a source and validate everything it holds.
-					memoKey := ""
-					if inert != nil {
-						memoKey = fmt.Sprintf("%v %s", deep, p)
-					}
 					target := root.LookupPath(p)
 					if !nav && target.Exists() {
-						if d, _ := target.Default(); deep || d.Validate(cue.Concrete(true)) != nil {
-							before := len(info.TaskRefs)
-							if memoKey == "" || !inert[memoKey] {
+						// What following a field reaches is the same for every
+						// task that reads it, when it reaches no task. The key
+						// holds where the field is declared, since the same path
+						// in two packages is two fields.
+						memoKey := ""
+						if inert != nil {
+							memoKey = fmt.Sprintf("%v %s %s", deep, p, target.Pos())
+						}
+						before := len(info.TaskRefs)
+						followed := false
+						if m, ok := inert[memoKey]; ok && memoKey != "" {
+							followed = m.Followed
+							if followed && info.Incomplete == nil {
+								info.Incomplete = m.Incomplete
+							}
+						} else {
+							d, _ := target.Default()
+							if deep || d.Validate(cue.Concrete(true)) != nil {
+								followed = true
 								touchedBefore, incBefore := touched, info.Incomplete
 								walk(target, depth+1, false)
-								if memoKey != "" && touched == touchedBefore && info.Incomplete == incBefore && len(info.TaskRefs) == before {
-									inert[memoKey] = true
+								if memoKey != "" && touched == touchedBefore && incBefore == nil && len(info.TaskRefs) == before {
+									inert[memoKey] = InertField{Followed: true, Incomplete: info.Incomplete}
 								}
+							} else if memoKey != "" {
+								inert[memoKey] = InertField{}
 							}
-							if !deep && len(below) == 0 && len(info.TaskRefs) == before && info.Incomplete == nil {
-								pp := p
-								info.Incomplete = &pp
-							}
+						}
+						if followed && !deep && len(below) == 0 && len(info.TaskRefs) == before && info.Incomplete == nil {
+							pp := p
+							info.Incomplete = &pp
 						}
 					}
 				}
