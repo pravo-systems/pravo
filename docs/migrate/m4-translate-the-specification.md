@@ -40,6 +40,8 @@ The example is a small estate of `random` and `local` resources, so every comman
 | 8 | `provider`, `depends_on`, `lifecycle` | provider structs and `$` fields | [B6](../learn/b06-reuse-providers-credentials.md) |
 | 9 | `output` | `pravo.#Output` | [B3](../learn/b03-apply-outputs-state.md) |
 
+In HCL a resource and an output may share a name (`random_integer.port` and `output "port"`). In Pravo they are both names in one package, so they may not: rename the resource, and give its old address as `$from` when you import the state ([M5](m5-convert-the-state.md)), or give the output another name.
+
 Do the steps in this order. Each one ends with `pravo validate`, and the counts it prints grow with the specification. Fix a step before you start the next.
 
 ## Step 1. Providers

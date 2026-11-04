@@ -287,7 +287,7 @@ cat banner.txt
 
 ```text out
 ...
-banner: the provider no longer finds it (deleted, or changed into another object): banner.txt exists, so it was changed, not deleted; it will be created again
+banner: the provider no longer finds it (deleted, or changed into another object): banner.txt exists, so it was changed, not deleted; it will be written again from the specification
 ...
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 release 2

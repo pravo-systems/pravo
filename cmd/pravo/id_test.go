@@ -54,7 +54,8 @@ func TestIDNewWritesASealedIdentityAndPrintsItsLine(t *testing.T) {
 		"Identity ada created\n",
 		"  signing  ssh-ed25519 " + protect.SSHFingerprint(reader.Sign) + "  new key, kept in the identity file\n",
 		"  reader   " + reader.Key.String() + "  sealed with a passphrase in ",
-		"Give whoever keeps .pravo/access/readers.txt this line, and nothing else:\n",
+		"Give whoever keeps .pravo/access/readers.txt this line, and nothing else.\n",
+		"They add the role as its last word: role:reader (the default), role:writer or role:admin.\n",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the output lacks %q:\n%s", want, text)
