@@ -460,6 +460,13 @@ func (m *Providers) instance(ctx context.Context, key string) (*instance, error)
 		return nil, err
 	}
 	plugin.SetInstance(p, m.instanceName(key))
+	if m.launch == nil && !rp.Reattached() && !m.recording().Replaying() {
+		// The schema comes from the pack cache, but a provider built on the
+		// older plugin framework only learns its resource types from a
+		// GetProviderSchema call on its own process, as OpenTofu always makes.
+		// Without it "Resource Type Not Found" follows. The reply is not used.
+		_, _, _ = p.GetSchema(ctx)
+	}
 	plog.Debug(ctx, "provider started", "provider", key, "version", rp.Version, "path", rp.Path)
 	inst = &instance{p: p, key: key, reattached: rp.Reattached()}
 	m.instances[key] = inst
