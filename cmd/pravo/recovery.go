@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -545,6 +546,12 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 		if rolesInfo.Record {
 			out.Println("The record of the environment pinned the old roles; it pins the new ones now.")
 		}
+		if rolesInfo.Withdrawals > 0 {
+			out.Printf("%s withdrawn by admins of the old roles stay in force; an admin promotes them again to lift them.\n", plural(rolesInfo.Withdrawals, "release", "releases"))
+		}
+		if rolesInfo.WithdrawalsLost != "" {
+			out.Println(out.C(ui.Yellow, "Withdrawals could not be carried over: "+rolesInfo.WithdrawalsLost+". A release that an admin withdrew is open to a writer again; withdraw it again with pravo promote ENV --revoke."))
+		}
 		if len(rolesInfo.Others) > 0 {
 			out.Printf("The readers file also gives admin to %s.\n", nameList(rolesInfo.Others))
 		}
@@ -564,6 +571,10 @@ type recoveredRoles struct {
 	Others []string
 	// Record is set when the record of the environment was stored again with the new pin.
 	Record bool
+	// Withdrawals is how many withdrawals of the replaced roles were carried over, and
+	// WithdrawalsLost says why they could not be when the old roles could not be read.
+	Withdrawals     int
+	WithdrawalsLost string
 }
 
 // recoverRoles replaces the roles chain of the state, whose admins may all be gone, by a new
@@ -605,6 +616,18 @@ func (p *protectRun) recoverRoles(b state.Backend) (*recoveredRoles, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A withdrawal only restricts: the ones that an admin of the roles being replaced signed
+	// are carried over, with no flag, so that a recovery does not lift them.
+	carried, lost := recoveredWithdrawals(p.ctx, st, next)
+	have := map[string]bool{}
+	for _, v := range vouches {
+		have[v.Txn] = true
+	}
+	for _, v := range carried {
+		if !have[v.Txn] {
+			vouches = append(vouches, v)
+		}
+	}
 	text := protect.FormatRolesSet(next, nextFormer, vouches)
 	if err := checkRolesText(text); err != nil {
 		return nil, err
@@ -624,5 +647,50 @@ func (p *protectRun) recoverRoles(b state.Backend) (*recoveredRoles, error) {
 	if err != nil {
 		return nil, fmt.Errorf("the roles are stored, and the record of the environment could not be: %w. Run the recovery again", err)
 	}
-	return &recoveredRoles{Pin: digest, Admin: admin, Others: others, Record: recorded}, nil
+	return &recoveredRoles{Pin: digest, Admin: admin, Others: others, Record: recorded, Withdrawals: len(carried), WithdrawalsLost: lost}, nil
+}
+
+// recoveredWithdrawals are the vouches that keep the withdrawals of the roles being replaced:
+// those signed by a key that was an admin in the head of the old chain, and those that an
+// earlier version of it vouched for after their admin had left. lost says why none could be
+// carried when the old roles cannot be read.
+func recoveredWithdrawals(ctx context.Context, st *state.Store, next []protect.Reader) (carried []protect.Vouch, lost string) {
+	chain, err := st.RolesChain(ctx)
+	if err != nil {
+		return nil, "the old roles cannot be read (" + printable(err.Error()) + ")"
+	}
+	head := chain.Head()
+	if head == nil {
+		return nil, ""
+	}
+	carried, err = withdrawalVouches(ctx, st, &state.RolesChain{}, head.Set, next)
+	if err != nil {
+		return nil, "the promotions of the state cannot be read (" + printable(err.Error()) + ")"
+	}
+	vouchedBefore := map[string]protect.Vouch{}
+	for _, v := range chain.Versions {
+		for _, vo := range v.Vouched {
+			vouchedBefore[vo.Txn] = vo
+		}
+	}
+	have := map[string]bool{}
+	for _, v := range carried {
+		have[v.Txn] = true
+	}
+	all, err := st.Promotions(ctx, "")
+	if err != nil {
+		return carried, ""
+	}
+	for _, o := range all {
+		p := o.Promotion
+		if p == nil || p.Kind != state.PromotionRevoked || have[p.VouchID()] {
+			continue
+		}
+		if v, ok := p.Vouch(st.Lineage()); ok {
+			if vo, ok := vouchedBefore[v.Txn]; ok && vo.Key == v.Key && vo.Digest == v.Digest {
+				carried = append(carried, v)
+			}
+		}
+	}
+	return carried, ""
 }

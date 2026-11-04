@@ -940,3 +940,56 @@ func TestAWriterPromotesAfterAnAdminLiftedTheWithdrawal(t *testing.T) {
 	}
 	l.must(t, "cia", "apply", "-t", "env=prod", "--auto-approve")
 }
+
+// A recovery stores the roles again from version 1, and the withdrawals of the roles it replaces
+// stay in force: a writer is still refused, and the recovering admin's promotion lifts it.
+func TestAWithdrawalSurvivesARecovery(t *testing.T) {
+	l := newLadderPerEnv(t, "ada:admin", "zoe:admin", "cia:writer", "zed:reader")
+	l.must(t, "ada", "protect", "rewrap", "--yes", "--recovery", "2/3", "-t", "env=prod")
+	l.must(t, "ada", "apply", "-t", "env=dev", "--auto-approve")
+	l.must(t, "ada", "promote", "staging", "--auto-approve")
+	l.must(t, "ada", "promote", "prod", "--revoke", "corrupts uploads")
+
+	// Every admin of prod is lost: zed recovers with two shares, with a readers file of zed alone.
+	path := filepath.Join(l.dir, ".pravo", "access", "prod", "readers.txt")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var zed, pin, cia string
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		switch {
+		case strings.HasPrefix(line, "zed "):
+			zed = strings.Replace(line, "role:reader", "role:admin", 1)
+		case strings.HasPrefix(line, "cia "):
+			cia = line
+		case strings.HasPrefix(line, "roles-genesis"):
+			pin = line
+		}
+	}
+	if zed == "" || pin == "" || cia == "" {
+		t.Fatalf("readers file:\n%s", data)
+	}
+	write := func(lines ...string) {
+		if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(zed, pin)
+	shares := filepath.Join(l.dir, "recovery-shares")
+	text := l.must(t, "zed", "protect", "recover", "--yes", "--env", "prod",
+		"--share", filepath.Join(shares, "share-1-of-3.txt"), "--share", filepath.Join(shares, "share-3-of-3.txt"))
+	if !strings.Contains(text, "withdrawn by admins of the old roles stay in force") {
+		t.Fatalf("protect recover:\n%s", text)
+	}
+	write(zed, cia)
+	l.must(t, "zed", "protect", "rewrap", "--yes", "-t", "env=prod")
+	l.must(t, "zed", "protect", "roles", "--yes", "-t", "env=prod")
+	l.stillWithdrawn(t, "after the recovery")
+
+	// The recovering admin's promotion lifts it.
+	l.must(t, "zed", "promote", "prod", "--auto-approve")
+	if text, code := l.as(t, "cia", "promote", "prod", "--sign-only"); code != 0 {
+		t.Fatalf("writer's promote after the lift: exit %d\n%s", code, text)
+	}
+}
