@@ -230,6 +230,7 @@ func planCmd() *cobra.Command {
 			}
 			defer s.close()
 			eng := s.engine(engine.Options{Refresh: mode, Destroy: destroy, Full: full, Reserve: reserve, Replace: replace})
+			noteUnnamed(cmd.Context(), s.root, s.state)
 			plan, err := eng.Plan(cmd.Context())
 			if err != nil {
 				return err
