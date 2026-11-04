@@ -366,6 +366,7 @@ Output:
 engine plan
 pravo plan
 provider ConfigureProvider
+provider GetSchema
 provider PlanResourceChange
 provider UpgradeResourceState
 provider ValidateProviderConfig
