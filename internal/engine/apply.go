@@ -346,6 +346,16 @@ func (e *Engine) deferDestroy(f func(context.Context) error) {
 	e.destroyLater = append(e.destroyLater, f)
 }
 
+// holdDeferredDestroys drops the destroys that wait for the end of the walk, and returns how many
+// there were: the old instances stay as deposed records.
+func (e *Engine) holdDeferredDestroys() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	n := len(e.destroyLater)
+	e.destroyLater = nil
+	return n
+}
+
 // runDeferredDestroys destroys the old instances that replacements left, the last
 // replaced node first. It stops at the first failure: the instances not yet destroyed stay as
 // deposed records for the next apply.
@@ -589,7 +599,12 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			return fail(err)
 		}
 		e.tally(result)
-		if err := e.runDeferredDestroys(ctx); err != nil {
+		if plan.DeferredCount() > 0 {
+			// A change that waits for a value of this apply still points at the old
+			// instances: they stay as deposed records, and the plan that follows destroys them
+			// after the deferred changes were applied.
+			result.Destroyed -= e.holdDeferredDestroys()
+		} else if err := e.runDeferredDestroys(ctx); err != nil {
 			return fail(err)
 		}
 		if err := e.evalOutputs(final, plan, result); err != nil {
