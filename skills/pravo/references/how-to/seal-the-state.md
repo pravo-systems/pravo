@@ -272,7 +272,7 @@ You          deploy-bot · reader key x25519:<key>
 
 ## 10. Remove a reader
 
-Say Eve leaves. Delete her line from the file, commit it and run `rewrap`.
+Say Eve leaves. Delete her line from the file, commit it and run `rewrap`. If it is an admin whose key is gone, see [Replace an admin whose key is lost](give-people-roles.md#replace-an-admin-whose-key-is-lost).
 
 ```sh
 grep -v '^eve ' .pravo/access/readers.txt > readers.new && mv readers.new .pravo/access/readers.txt
