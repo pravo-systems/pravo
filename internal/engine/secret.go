@@ -11,6 +11,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -95,6 +96,7 @@ func (e *Engine) secretTask(ctx context.Context, r *config.Resource, v cue.Value
 		return e.secretError(r, name, err)
 	}
 	defer clear(sv.Value)
+	plugin.MaskSecret(string(sv.Value)) // a provider's log (-vv) shows (secret) for it
 	return e.fill(r, map[string]any{"value": string(sv.Value)})
 }
 
