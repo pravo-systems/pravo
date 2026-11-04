@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pravo-systems/pravo/internal/env"
 )
 
 func zipOf(t *testing.T, entries map[string]os.FileMode, order []string) string {
@@ -254,5 +257,38 @@ func TestArchiveGivesUpOnATrickle(t *testing.T) {
 	_, _, err := c.Archive(context.Background(), src, "1.0.0", CurrentPlatform(), t.TempDir(), nil)
 	if err == nil || !strings.Contains(err.Error(), "bytes a second") || time.Since(start) > 5*time.Second {
 		t.Errorf("err = %v after %s", err, time.Since(start))
+	}
+}
+
+func TestTokenGoesToItsHostOnly(t *testing.T) {
+	var got []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.Header.Get("Authorization"))
+		fmt.Fprint(w, `{"providers.v1": "/v1/providers/"}`)
+	})
+	mux.HandleFunc("/v1/providers/", func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.Header.Get("Authorization"))
+		fmt.Fprint(w, `{"versions":[]}`)
+	})
+	srv := httptest.NewTLSServer(mux)
+	defer srv.Close()
+	host := strings.TrimPrefix(srv.URL, "https://")
+	name := "TF_TOKEN_" + strings.NewReplacer(".", "_", ":", "_").Replace(host)
+	c := &Client{HTTP: srv.Client(), Home: t.TempDir(), Env: env.Map(map[string]string{name: "CANARY-TOKEN-A", "TF_TOKEN_other_example": "CANARY-TOKEN-B"})}
+	c.Versions(context.Background(), Source{Host: host, Namespace: "a", Type: "b"})
+	for _, g := range got {
+		if g != "Bearer CANARY-TOKEN-A" {
+			t.Errorf("Authorization = %q", g)
+		}
+	}
+	if len(got) == 0 {
+		t.Error("no request")
+	}
+	// plain http to a name that is not the local machine gets none
+	u, _ := url.Parse("http://registry.example/x")
+	c.Env = env.Map(map[string]string{"TF_TOKEN_registry_example": "CANARY-TOKEN-C"})
+	if tok := c.token(u); tok != "" {
+		t.Errorf("token sent over plain http: %q", tok)
 	}
 }
