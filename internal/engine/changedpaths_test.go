@@ -14,10 +14,8 @@ func TestChangedPaths(t *testing.T) {
 		"net":  tftypes.List{ElementType: inner},
 		"tags": tftypes.Set{ElementType: tftypes.String},
 	}}
-	str := tftypes.NewValue(tftypes.String, nil)
-	_ = str
 	mk := func(name, opt, zone string, tags []string, optUnknown bool) tftypes.Value {
-		var ov tftypes.Value = tftypes.NewValue(tftypes.String, opt)
+		ov := tftypes.NewValue(tftypes.String, opt)
 		if optUnknown {
 			ov = tftypes.NewValue(tftypes.String, tftypes.UnknownValue)
 		}
