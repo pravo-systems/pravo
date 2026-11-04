@@ -26,11 +26,7 @@ func TestReplaceDestroysDependentsFirst(t *testing.T) {
 	h.fake.order = nil
 	res := h.apply(replChain("2", nil))
 	got := orderOf(h)
-	d := func(n string) int { return strings.Index(got, "destroy "+n) }
-	c := func(n string) int { return strings.Index(got, "create "+n) }
-	if !(d("c-b-a-1") >= 0 && d("c-b-a-1") < d("b-a-1") && d("b-a-1") < d("a-1") && d("a-1") < c("a-2") && c("a-2") < c("b-a-2") && c("b-a-2") < c("c-b-a-2")) {
-		t.Fatalf("order = %s", got)
-	}
+	inOrder(t, got, "destroy c-b-a-1", "destroy b-a-1", "destroy a-1", "create a-2", "create b-a-2", "create c-b-a-2")
 	if res.Destroyed != 3 || res.Added != 3 {
 		t.Errorf("destroyed %d, added %d", res.Destroyed, res.Added)
 	}
@@ -105,10 +101,19 @@ func TestReplaceOrderFromASavedPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := orderOf(h)
-	idx := func(w string) int { return strings.Index(got, w) }
-	if !(idx("destroy d-") >= 0 && idx("destroy d-") < idx("destroy b-a-1") && idx("destroy d-") < idx("destroy c-a-1") &&
-		idx("destroy b-a-1") < idx("destroy a-1") && idx("destroy c-a-1") < idx("destroy a-1") && idx("destroy a-1") < idx("create a-2") &&
-		idx("create a-2") < idx("create b-a-2") && idx("create a-2") < idx("create c-a-2") && idx("create b-a-2") < idx("create d-")) {
-		t.Fatalf("order = %s", got)
+	inOrder(t, got, "destroy d-", "destroy b-a-1", "destroy a-1", "create a-2", "create b-a-2", "create d-")
+	inOrder(t, got, "destroy d-", "destroy c-a-1", "destroy a-1", "create a-2", "create c-a-2", "create d-")
+}
+
+// inOrder fails unless each step occurs in got after the one before it.
+func inOrder(t *testing.T, got string, steps ...string) {
+	t.Helper()
+	at := 0
+	for _, w := range steps {
+		i := strings.Index(got[at:], w)
+		if i < 0 {
+			t.Fatalf("%q does not follow the steps before it in %s", w, got)
+		}
+		at += i + len(w)
 	}
 }
