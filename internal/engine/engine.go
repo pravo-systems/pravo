@@ -247,7 +247,7 @@ type applyState struct {
 	completed map[string]bool
 	// destroyLater holds the destroys of the old instances of create_before_destroy
 	// replacements, run at the end of the walk.
-	destroyLater []func(context.Context) error
+	destroyLater []deferredDestroy
 }
 
 // testHooks are set by tests only.
@@ -810,4 +810,11 @@ func (e *Engine) checkBound(addrs []string) error {
 		lines = append(lines, fmt.Sprintf("%s: %s", p.Addr, p.Why))
 	}
 	return WithCode(ExitUntrusted, fmt.Errorf("%w: a record that no transaction of a writer accounts for (a reader may have sealed it):\n%s", state.ErrUntrusted, strings.Join(lines, "\n")))
+}
+
+// deferredDestroy is the destroy of the old instance of a create_before_destroy replacement,
+// kept for the end of the apply.
+type deferredDestroy struct {
+	ch  *Change
+	run func(context.Context) error
 }

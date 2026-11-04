@@ -817,3 +817,68 @@ func TestCreateBeforeDestroyCreateFailsWithState(t *testing.T) {
 		t.Errorf("%d records after the retry, want 1", n)
 	}
 }
+
+// A dependent that the specification no longer declares is destroyed before the old instance.
+func TestCreateBeforeDestroyDestroysTheOldInstanceAfterRemovedDependents(t *testing.T) {
+	ctx := context.Background()
+	cbd := "$lifecycle: create_before_destroy: true"
+	full := func(name string) spec {
+		return spec{cue: "a: " + thing(name, cbd) + "\nb: " + thing("b", `content: "\(a.id)"`) + "\nc: " + thing("c", `content: "\(b.id)"`) + "\n", resources: []string{"a", "b", "c"}}
+	}
+	h := newHarness(t)
+	h.apply(full("one"))
+	h.fake.mu.Lock()
+	h.fake.order = nil
+	h.fake.mu.Unlock()
+	e := h.engine(spec{cue: "a: " + thing("two", cbd) + "\n", resources: []string{"a"}}, Options{})
+	res, err := e.Apply(ctx, mustPlan(t, e))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.fake.mu.Lock()
+	got := strings.Join(h.fake.order, "; ")
+	h.fake.mu.Unlock()
+	if want := "create two; destroy c; destroy b; destroy one"; got != want {
+		t.Errorf("calls = %q, want %q", got, want)
+	}
+	if res.Added != 1 || res.Destroyed != 3 {
+		t.Errorf("apply counts = %d added, %d destroyed, want 1 and 3", res.Added, res.Destroyed)
+	}
+}
+
+// The old instances of create_before_destroy replacements are destroyed with the parallelism of
+// the apply, and one after another only where one depends on the other.
+func TestCreateBeforeDestroyDestroysTheOldInstancesInParallel(t *testing.T) {
+	ctx := context.Background()
+	cbd := "$lifecycle: create_before_destroy: true"
+	many := func(suffix string) spec {
+		var b strings.Builder
+		var addrs []string
+		for i := 0; i < 12; i++ {
+			fmt.Fprintf(&b, "n%d: %s\n", i, thing(fmt.Sprintf("n%d%s", i, suffix), cbd))
+			addrs = append(addrs, fmt.Sprintf("n%d", i))
+		}
+		return spec{cue: b.String(), resources: addrs}
+	}
+	chain := func(suffix string) spec {
+		return spec{cue: "a: " + thing("a"+suffix, cbd) + "\nb: " + thing("b"+suffix, cbd+"\ncontent: \"\\(a.id)\"") + "\nc: " + thing("c"+suffix, cbd+"\ncontent: \"\\(b.id)\"") + "\n", resources: []string{"a", "b", "c"}}
+	}
+	for _, tc := range []struct {
+		name string
+		mk   func(string) spec
+		peak int
+	}{{"independent", many, Parallelism}, {"a chain", chain, 1}} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.apply(tc.mk("-1"))
+			h.fake.setLatency(20 * time.Millisecond)
+			e := h.engine(tc.mk("-2"), Options{})
+			if _, err := e.Apply(ctx, mustPlan(t, e)); err != nil {
+				t.Fatal(err)
+			}
+			if _, peak := h.fake.destroyed(); peak != tc.peak {
+				t.Errorf("most destroys at once = %d, want %d", peak, tc.peak)
+			}
+		})
+	}
+}
