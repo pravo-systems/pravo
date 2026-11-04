@@ -320,7 +320,7 @@ echo "exit status $?"
 ```
 
 ```text out
-No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 2 · not read 2
 exit status 0
 ```
@@ -371,7 +371,7 @@ pravo plan | grep -E '^(No changes|Plan|Graph)'
 ```
 
 ```text out
-No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 2 · not read 2
 ```
 

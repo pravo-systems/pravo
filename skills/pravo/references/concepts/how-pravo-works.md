@@ -163,7 +163,7 @@ plan refresh=age full=false destroy=false tasks=2
 graph built tasks=2
 task addr=port phase=plan outcome=ok action=no-op skipped=true unread=true
 task addr=web phase=plan outcome=ok action=no-op skipped=true unread=true
-No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 2 · not read 2
 ```
 

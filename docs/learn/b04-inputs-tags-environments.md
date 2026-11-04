@@ -205,9 +205,9 @@ pravo plan --env prod | grep -E '^(No changes|Graph)'
 ```
 
 ```text out
-No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 2 · not read 2
-No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 2 · not read 2
 ```
 
@@ -279,7 +279,7 @@ pravo plan --env prod --out prod.plan | grep -E '^(  #|Plan|Graph|Saved|  pravo)
 ```
 
 ```text out
-No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 2 · not read 2
   # web (local_file) must be replaced
 Plan: 1 to add, 0 to change, 1 to destroy.

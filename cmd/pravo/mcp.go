@@ -245,11 +245,15 @@ func mcpTools() []mcpTool {
 			args: func(in map[string]any) ([]string, error) {
 				return append(append([]string{"state"}, tagArgs(in)...), "locks"), nil
 			}},
-		{Name: "pravo_drift", Description: "Refresh every resource and report drift: resources changed or removed outside pravo. It is not read-only: it records what it finds as marks in the state, so that the next plan acts on it, and an error result only means that drift was found. With due, read only the records that are older than their refresh age, the oldest first, at most limit of them; nothing is planned.",
+		{Name: "pravo_drift", Description: "Refresh every resource and report drift: resources changed or removed outside pravo. It records what it finds as marks in the state, so that the next plan acts on it, unless no_write is set: then the report is made and the state is left as it was. An error result only means that drift was found. With due, read only the records that are older than their refresh age, the oldest first, at most limit of them; nothing is planned.",
 			InputSchema: obj(map[string]any{"tags": tagsProp, "due": map[string]any{"type": "boolean", "description": "read only the records past their refresh age"},
-				"limit": map[string]any{"type": "integer", "minimum": 1, "description": "with due: read at most this many records"}}),
+				"no_write": map[string]any{"type": "boolean", "description": "report drift and leave the state as it is: no refreshed value is written and no mark is set"},
+				"limit":    map[string]any{"type": "integer", "minimum": 1, "description": "with due: read at most this many records"}}),
 			args: func(in map[string]any) ([]string, error) {
 				a := append([]string{"drift"}, tagArgs(in)...)
+				if boolArg(in, "no_write") {
+					a = append(a, "-no-write")
+				}
 				if boolArg(in, "due") {
 					a = append(a, "-due")
 				}

@@ -229,7 +229,7 @@ Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
 note
 primary
 ...
-No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 2 · not read 2
 ```
 

@@ -105,7 +105,7 @@ How pravo behaves: evaluation, plans, state, providers, policies.
 | [concepts/how-pravo-works.md](concepts/how-pravo-works.md) | One run of pravo in seven stages, from the CUE files of a directory to the providers, the state and the output. | 13 KB |
 | [concepts/evaluation.md](concepts/evaluation.md) | How pravo turns the CUE files of a directory into one value, finds resources by identity and builds the dependency graph before any provider is asked anything. | 13 KB |
 | [concepts/resources-and-addresses.md](concepts/resources-and-addresses.md) | What makes a struct a resource, how its address is its path, and what renaming, moving or reordering does to the record of an object. | 11 KB |
-| [concepts/plans.md](concepts/plans.md) | What a plan contains, how pravo decides which resources a plan reaches, what an unknown value is, how refresh age works, and how a saved plan is checked when it is applied. | 54 KB |
+| [concepts/plans.md](concepts/plans.md) | What a plan contains, how pravo decides which resources a plan reaches, what an unknown value is, how refresh age works, and how a saved plan is checked when it is applied. | 55 KB |
 | [concepts/state.md](concepts/state.md) | What pravo records for each resource, how revisions, locks and transactions work, why the cost of a run follows the change, and where the state lives. | 28 KB |
 | [concepts/what-a-plan-reaches.md](concepts/what-a-plan-reaches.md) | Change one setting, replace a root key, add a zone or run two applies on one estate, and see which resources each plan reaches and which locks each apply holds. | 2 KB |
 | [concepts/providers.md](concepts/providers.md) | How pravo finds, installs, locks, starts and talks to a provider, how a provider becomes a CUE struct, and how an instance is named. | 25 KB |
@@ -170,7 +170,7 @@ One task each, for a reader who knows the basics.
 
 | File | Covers | Size |
 |---|---|---|
-| [how-to/keep-the-state-in-a-shared-store.md](how-to/keep-the-state-in-a-shared-store.md) | Keep the state in an S3 bucket, or on an HTTP server of your own, so that a team shares it. Move an existing local state into it, read another root's outputs and decide who may write it. | 14 KB |
+| [how-to/keep-the-state-in-a-shared-store.md](how-to/keep-the-state-in-a-shared-store.md) | Keep the state in an S3 bucket, or on an HTTP server of your own, so that a team shares it. Move an existing local state into it, read another root's outputs and decide who may write it. | 15 KB |
 | [how-to/seal-the-state.md](how-to/seal-the-state.md) | Encrypt the attributes, outputs and stored plans of a state in a bucket to a list of readers that the repository keeps, add and remove a reader, and let a CI job read. | 26 KB |
 | [how-to/give-people-roles.md](how-to/give-people-roles.md) | Say which readers of a sealed state may change it and which may only read and plan, pin the roles in the state so that nobody promotes themselves by editing a copy of the readers file, promote a member, take a member off, and give a CI job the role its work needs. | 16 KB |
 | [how-to/store-a-plan-and-apply-it-later.md](how-to/store-a-plan-and-apply-it-later.md) | Store a plan in the state so that a team can list it, read it, see who else plans the same resources, approve it where a policy asks for that, and apply it by its id. | 15 KB |

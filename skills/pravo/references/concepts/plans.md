@@ -742,7 +742,7 @@ pravo -C reads plan | tail -2
 Output:
 
 ```text
-No changes. The specification matches the state. 21 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 21 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 21 · not read 21
 ```
 

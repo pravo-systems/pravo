@@ -151,7 +151,7 @@ pravo -C dan state list
 ```
 
 ```text out
-No changes. The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure.
+No changes. The specification matches the state. 1 record was not read, so a change made outside pravo would not show here; run pravo drift to compare it with the infrastructure.
 Graph: planned 0 · skipped 1 · not read 1
 port
 ```
@@ -233,7 +233,7 @@ pravo -C ada plan | tail -n 2
 ```
 
 ```text out
-No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 2 · not read 2
 ```
 

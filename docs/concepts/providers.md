@@ -348,7 +348,7 @@ pravo state show port | head -1
 ```
 
 ```text out
-No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 // port (provider registry.opentofu.org/hashicorp/random v<v> as random.$random, schema version 0, revision 2)
 ```
 
