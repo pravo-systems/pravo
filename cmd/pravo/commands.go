@@ -1023,6 +1023,9 @@ func importCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if holder := engine.HeldBy(s.state, &state.Resource{Addr: res.Address(), Mode: "managed", Type: res.Type, ProviderKey: res.ProviderKey, Attributes: attrs}); holder != "" {
+				return engine.ErrHeld(args[0], args[1], holder)
+			}
 			rp := s.providers.Resolved[res.LocalProvider()]
 			txn := s.state.Begin("import", "pravo import "+args[0]+" "+args[1])
 			if err := txn.Start(); err != nil {

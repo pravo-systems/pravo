@@ -37,7 +37,7 @@ The [global flags](global-flags.md) apply.
 | Code | Meaning |
 |---|---|
 | 0 | The object was recorded. |
-| 1 | The resource is not declared, is not a managed resource, or is already in the state. The provider returned nothing or reports that the object does not exist. The number of arguments is not two. |
+| 1 | The resource is not declared, is not a managed resource, or is already in the state, or the object is already held by another record. The provider returned nothing or reports that the object does not exist. The number of arguments is not two. |
 | 6 | The specification does not load or evaluate. |
 
 ## Examples
@@ -127,6 +127,8 @@ pravo import dice 4,1,6
 ```text out
 Error: dice is already in state
 ```
+
+An object that another record already holds is refused too, for the command and for `$import`, and the error names the holder (`"4" is already managed as dice`). A record holds an object when its provider, type and id are the same and every attribute the provider returns for the object (a value that is not null or empty) is the same in the record; arguments the record has and the read lacks are ignored. An object that was changed in the cloud after the record was written is not recognised. Two objects that share an id but differ in their attributes, such as two files of one content, are two objects.
 
 ### The declarative form
 
