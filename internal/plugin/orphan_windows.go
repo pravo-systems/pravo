@@ -28,7 +28,7 @@ func providerJob() windows.Handle {
 		info.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
 		if _, err := windows.SetInformationJobObject(h, windows.JobObjectExtendedLimitInformation,
 			uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info))); err != nil {
-			windows.CloseHandle(h)
+			_ = windows.CloseHandle(h)
 			return
 		}
 		job = h
@@ -48,7 +48,7 @@ func watchChildOS(cmd *exec.Cmd) func() {
 	if err != nil {
 		return func() {}
 	}
-	defer windows.CloseHandle(ph)
+	defer func() { _ = windows.CloseHandle(ph) }()
 	_ = windows.AssignProcessToJobObject(j, ph)
 	return func() {}
 }
