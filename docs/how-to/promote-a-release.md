@@ -269,7 +269,7 @@ The Environments section of `pravo serve`, or `v` in the viewer, draws the promo
 <a class="shot shot-light" href="../img/serve/environments-flow-light.png"><img src="../img/serve/environments-flow-light.png" width="1440" height="900" alt="The Environments section of the viewer. Three cards joined by arrows from left to right: dev, staging and prod. Dev runs the newest release and is the one that was read. Staging and prod run the release before it, and staging is marked ready to promote from dev, with the command pravo promote staging under it." loading="lazy"></a>
 :::
 
-With more than two environments the flow is a chain: `staging` has `$after: "dev"` and `prod` has `$after: "staging"`. Promote in the order of the chain, `pravo promote staging` and then `pravo promote prod`. A `pravo promote prod` before staging runs the release is refused with exit code 5 and lists the commands in order.
+With more than two environments the flow is a chain: `staging` has `$after: "dev"` and `prod` has `$after: "staging"`. Promote in the order of the chain, `pravo promote staging` and then `pravo promote prod`. A `pravo promote prod` before staging runs the release is refused with exit code 5 and lists the commands in order. One person can hold every environment: make one identity with `pravo id new`, put its readers line with `role:admin` in the readers file of each environment, and seal each state with `pravo protect init --encrypt --allow-local --yes --env NAME`. Without a sealed state the order is only a convention.
 
 ## What next
 
