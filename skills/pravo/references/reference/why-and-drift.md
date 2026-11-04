@@ -303,7 +303,7 @@ Drift. 1 of 2 resources changed outside pravo:
     - refresh found the real state differs from the state (drift)
 ```
 
-The action is the one a plan reports. A resource that vanished shows `create`, and so does one that the provider no longer recognises as the same object: the `local_file` provider identifies a file by the hash of its content, so a file that exists with other content is reported as gone and the plan writes it again. `drift` is not read-only: it writes the mark and a log entry. `drift` writes what it found as a mark on the record, so `pravo plan` shows the same change without reading the object again, a saved plan and `pravo apply` act on it too, and `pravo apply` restores the file. The mark stays until an apply writes the resource.
+The action is the one a plan reports. A resource that vanished shows `create`, and so does one whose object the provider does not recognise as the same: the `local_file` provider identifies a file by the hash of its content, so a file that exists with other content is reported as gone and the plan writes it again. `drift` is not read-only: it writes the mark and a log entry. `drift` writes what it found as a mark on the record, so `pravo plan` shows the same change without reading the object again, a saved plan and `pravo apply` act on it too, and `pravo apply` restores the file. The mark stays until an apply writes the resource.
 
 ```sh
 pravo drift --json | grep -E '"(addr|action|gone|pending_changes)"'
