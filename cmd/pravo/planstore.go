@@ -238,7 +238,7 @@ plan is applied.`,
 				if r := m.Reservation; r != nil && r.Until.After(time.Now()) && e.Status.Open() {
 					note += "; reserved until " + r.Until.Local().Format("15:04")
 				}
-				out.Printf("%s  %s  %-*s  %-*s  %-*s  %s\n", m.ID, pad(statusText(e.Status), string(e.Status), statusWidth), width, m.Author, ageWidth, since(m.Created), countWidth, counts(m), out.C(ui.Dim, note))
+				out.Printf("%s  %s  %-*s  %-*s  %-*s  %s\n", m.ID, pad(statusText(e.Status), string(e.Status), statusWidth), width, ui.Safe(m.Author), ageWidth, since(m.Created), countWidth, counts(m), out.C(ui.Dim, note))
 			}
 			return nil
 		},
@@ -503,7 +503,7 @@ func printGC(res *engine.GCResult) {
 			if who == "" {
 				who = "-"
 			}
-			out.Printf("  %s  %-10s %s\n", it.ID, who, it.Reason)
+			out.Printf("  %s  %-10s %s\n", it.ID, ui.Safe(who), ui.Safe(it.Reason))
 		}
 	}
 	if len(res.Removed) > 0 {
@@ -599,7 +599,7 @@ func warnOverlaps(overlaps []engine.Overlap) {
 		if len(o.ReadBy) > 0 {
 			parts = append(parts, fmt.Sprintf("reads %s, which this plan changes", names(o.ReadBy)))
 		}
-		out.Warning(fmt.Sprintf("%s by %s (%s) %s", m.ID, m.Author, since(m.Created), strings.Join(parts, "; ")))
+		out.Warning(fmt.Sprintf("%s by %s (%s) %s", m.ID, ui.Safe(m.Author), since(m.Created), strings.Join(parts, "; ")))
 	}
 }
 
@@ -683,14 +683,14 @@ func showStored(cmd *cobra.Command, ref string) error {
 		return emitJSON(doc)
 	}
 	m := entry.Meta
-	out.Printf("%s %s by %s, %s (%s)", out.C(ui.Bold, "Stored plan"), m.ID, m.Author, since(m.Created), statusText(entry.Status))
+	out.Printf("%s %s by %s, %s (%s)", out.C(ui.Bold, "Stored plan"), m.ID, ui.Safe(m.Author), since(m.Created), statusText(entry.Status))
 	out.Println()
 	if m.Reason != "" {
-		out.Printf("  reason:  %s\n", m.Reason)
+		out.Printf("  reason:  %s\n", ui.Safe(m.Reason))
 	}
-	out.Printf("  command: %s\n", m.CommandText())
+	out.Printf("  command: %s\n", ui.Safe(m.CommandText()))
 	if m.GitRevision != "" {
-		out.Printf("  git:     %s\n", m.GitRevision)
+		out.Printf("  git:     %s\n", ui.Safe(m.GitRevision))
 	}
 	if sigNote != "" {
 		out.Printf("  signed:  %s\n", out.C(ui.Dim, sigNote))

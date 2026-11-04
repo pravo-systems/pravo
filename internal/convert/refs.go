@@ -341,7 +341,7 @@ func Default(v cue.Value) cue.Value {
 // does not depend on any task.
 func IncompleteError(path string, v cue.Value, info RefInfo) error {
 	if info.Incomplete != nil {
-		return fmt.Errorf("%s: value depends on %s, which is not concrete (is a -t tag missing?)", path, info.Incomplete)
+		return fmt.Errorf("%s: value depends on %s, which is not concrete (give it a value, or pass -t if it is a tag)", path, info.Incomplete)
 	}
 	if err := v.Err(); err != nil {
 		return fmt.Errorf("%s: %w", path, err)

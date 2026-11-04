@@ -707,3 +707,17 @@ func TestReadersFileLimit(t *testing.T) {
 		t.Errorf("the error repeats the line: %v", err)
 	}
 }
+
+// Variables of pravo and of its operator that no provider needs are withheld too, and
+// PRAVO_PROVIDER_ENV lets one through for the provider that does.
+func TestScrubEnvPrivate(t *testing.T) {
+	in := []string{"PATH=/bin", "SSH_AUTH_SOCK=/tmp/agent", "PRAVO_SSH_AUTH_SOCK=/tmp/a2", "PRAVO_CHAT_API_KEY=k", "pravo_config_dir=/c", "OTEL_EXPORTER_OTLP_HEADERS=a=b", "AWS_SECRET_ACCESS_KEY=x", "GITHUB_TOKEN=t"}
+	got := strings.Join(ScrubEnv(in), " ")
+	if got != "PATH=/bin AWS_SECRET_ACCESS_KEY=x GITHUB_TOKEN=t" {
+		t.Errorf("got %q", got)
+	}
+	got = strings.Join(ScrubEnv(append(in, "PRAVO_PROVIDER_ENV=ssh_auth_sock, x")), " ")
+	if !strings.Contains(got, "SSH_AUTH_SOCK=/tmp/agent") || strings.Contains(got, "PRAVO_CHAT_API_KEY") {
+		t.Errorf("pass-through: %q", got)
+	}
+}

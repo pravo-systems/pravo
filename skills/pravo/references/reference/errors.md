@@ -407,7 +407,7 @@ pravo plan; echo "exit=$?"
 Output:
 
 ```text
-Error: svc.pet.prefix: value depends on svc.port, which is not concrete (is a -t tag missing?)
+Error: svc.pet.prefix: value depends on svc.port, which is not concrete (give it a value, or pass -t if it is a tag)
 exit=1
 ```
 
@@ -417,7 +417,7 @@ exit=1
 | `no tag for "nope"` | `-t nope=...` names a tag that no field declares. | Fix the name, or add `@tag(nope)` to a field. |
 | `invalid number for injection tag "count": illegal number start "x"` | The value does not parse as the type declared by `type=`. | Pass a value of that type. |
 | `the value is not concrete:` followed by `name: incomplete value string:` | `eval -c` found a field that has a type and no value. | Give the field a value, or a tag that fills it. |
-| `svc.pet.prefix: value depends on svc.port, which is not concrete (is a -t tag missing?)` | A resource reads a field that never gets a value. A tag is missing, or a field repeats its own name. | Pass the tag. Rename a loop variable that shadows the field it fills. See [References](spec-resources.md#references). |
+| `svc.pet.prefix: value depends on svc.port, which is not concrete (give it a value, or pass -t if it is a tag)` | A resource reads a field that never gets a value. A tag is missing, or a field repeats its own name. | Pass the tag. Rename a loop variable that shadows the field it fills. See [References](spec-resources.md#references). |
 
 ## Settings and providers
 

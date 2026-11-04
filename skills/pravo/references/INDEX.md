@@ -18,7 +18,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/destroy.md](reference/destroy.md) | Destroy every resource recorded in the state, dependents first, after a plan and a confirmation. | 8 KB |
 | [reference/show.md](reference/show.md) | Print a saved plan or a plan stored in the state, with the time, the command and the actor that made it, and a warning when it cannot be applied. | 10 KB |
 | [reference/output.md](reference/output.md) | Print the output values that the last apply recorded in the state, as CUE or as JSON. | 4 KB |
-| [reference/state.md](reference/state.md) | Inspect and edit the state graph: list, show, move or forget a node, read the log and the locks, copy the state, query it, convert an OpenTofu state file. | 17 KB |
+| [reference/state.md](reference/state.md) | Inspect and edit the state graph: list, show, move or forget a node, read the log and the locks, copy the state, query it, convert an OpenTofu state file. | 18 KB |
 | [reference/import.md](reference/import.md) | Bring an existing object under management from the command line, by the address of a declared resource and the provider's import id. | 5 KB |
 | [reference/discover.md](reference/discover.md) | Run the discoveries of the specification, show what they found against the state, show the objects that are meant to stay unmanaged apart and write the resource that adopts one. | 7 KB |
 | [reference/why-and-drift.md](reference/why-and-drift.md) | Explain why a plan creates, changes, replaces or skips a resource, and read the records that a plan does not read to report what changed outside pravo. | 19 KB |
@@ -26,17 +26,17 @@ One page for each command and each part of the specification, tables first.
 | [reference/validate-eval-fmt-gen.md](reference/validate-eval-fmt-gen.md) | Check a specification without planning it, print its evaluated value, format the CUE files and regenerate the provider packages. | 9 KB |
 | [reference/schema.md](reference/schema.md) | Print the CUE definition of a resource, data source, ephemeral resource or function type, with the provider's documentation. | 9 KB |
 | [reference/serve.md](reference/serve.md) | Start the viewer: a read-only page on the loopback interface that shows the specification, the state, the plans stored in it, the policies, the discoveries and the recorded runs. | 25 KB |
-| [reference/mcp.md](reference/mcp.md) | Serve pravo to an agent over the Model Context Protocol on stdio. Fourteen tools, applies only from saved plans, and plan policies the agent cannot remove. | 11 KB |
+| [reference/mcp.md](reference/mcp.md) | Serve pravo to an agent over the Model Context Protocol on stdio. Fourteen tools, applies only from saved plans, and plan policies the agent cannot remove. | 12 KB |
 | [reference/skill.md](reference/skill.md) | Install or print the skill that teaches an AI agent to use pravo. It is built from this documentation and is part of the binary, so it matches the version that installed it. | 6 KB |
 | [reference/mod.md](reference/mod.md) | Create, fetch and publish CUE modules for sharing, list the modules a root loads and verify them against the lock file. | 6 KB |
 | [reference/id.md](reference/id.md) | Make the identity that opens a sealed state and signs what you write, or show one. A name, a signing key and a reader key, under a passphrase, the ssh-agent or a file for a job. | 13 KB |
-| [reference/protect.md](reference/protect.md) | Seal the state to a list of readers, check that the seal holds, change the readers, set a recovery, take the seal off and collect old records. Commands, flags and exit codes. | 54 KB |
+| [reference/protect.md](reference/protect.md) | Seal the state to a list of readers, check that the seal holds, change the readers, set a recovery, take the seal off and collect old records. Commands, flags and exit codes. | 56 KB |
 | [reference/roles.md](reference/roles.md) | Give each identity in the readers file a role, reader, writer or admin, and pin the roles in the state, so that nobody promotes themselves by editing a copy of the file. What each role may do, and what the bucket has to enforce. | 25 KB |
 | [reference/secret.md](reference/secret.md) | Set, read, list, remove and forget the secrets of a sealed state, and run a command with them in its environment. Subcommands, flags, roles and exit codes. | 17 KB |
 | [reference/environments.md](reference/environments.md) | Show what the state of each environment runs and how the release of this directory stands there, compare two environments, and record the place of a state in the promotion flow. | 9 KB |
 | [reference/promote.md](reference/promote.md) | Bring the release that the environments before one run into it, apply it there, withdraw a promotion or waive the check. Flags, checks, roles and exit codes. | 11 KB |
 | [reference/version.md](reference/version.md) | Print the version of pravo and the version of CUE that is built into it. | 2 KB |
-| [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 16 KB |
+| [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 17 KB |
 
 ### Language
 
@@ -151,9 +151,9 @@ One task each, for a reader who knows the basics.
 |---|---|---|
 | [how-to/ci.md](how-to/ci.md) | Validate without credentials, plan under a policy, apply a saved or a stored plan, wait for an approval, find drift, test offline and keep a trace of each job, with the exit code of every step. | 22 KB |
 | [how-to/policies.md](how-to/policies.md) | Write a policy rule, test it on fixtures with the matching cue version, try it on the plans you have, roll a new rule out as advice, exempt by type, apply under the policies of the state, ask for approvals and retire a policy. | 19 KB |
-| [how-to/agents-and-mcp.md](how-to/agents-and-mcp.md) | Give a program or an AI agent the schema, a plan file, a reservation, a tool server that the policies of the state bind, and an identity with the role of a reader, so that it plans and stores and a person applies, and see what that does and does not protect. | 18 KB |
+| [how-to/agents-and-mcp.md](how-to/agents-and-mcp.md) | Give a program or an AI agent the schema, a plan file, a reservation, a tool server that the policies of the state bind, and an identity with the role of a reader, so that it plans and stores and a person applies, and see what that does and does not protect. | 19 KB |
 | [how-to/embed-pravo-in-your-program.md](how-to/embed-pravo-in-your-program.md) | Build a small runner on the Go library. Open a workspace, plan, judge the plan with the policies of the specification, apply it or store it for later, read the result as data, map an error to an exit code, and open a sealed state with a key the program holds. | 15 KB |
-| [how-to/secrets.md](how-to/secrets.md) | Read a secret from the environment with pravo.#SecretEnv, hand it to a provider and see where pravo allows the value and where it refuses. | 9 KB |
+| [how-to/secrets.md](how-to/secrets.md) | Read a secret from the environment with pravo.#SecretEnv, hand it to a provider and see where pravo allows the value and where it refuses. | 10 KB |
 | [how-to/importing-and-moving.md](how-to/importing-and-moving.md) | Rename a resource without recreating it, move a group of resources, adopt an object that already exists and forget one without destroying it. | 9 KB |
 | [how-to/find-what-nothing-manages.md](how-to/find-what-nothing-manages.md) | Declare a discovery, run it, read the objects that no record accounts for, acknowledge the ones that are meant to stay, adopt the rest and run it again when the scope changes. | 9 KB |
 | [how-to/let-drift-propose-the-fix.md](how-to/let-drift-propose-the-fix.md) | Run drift on a schedule so that it stores the plan that puts the drift right, tells a webhook, and leaves the approval and the apply to people. | 7 KB |

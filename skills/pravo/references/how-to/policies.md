@@ -546,6 +546,16 @@ careful_destroys: pravo.#Policy & {
 }
 ```
 
+A rule can combine a guard on each change with an approvals rule on the summary. This one refuses a destroy of a resource tagged `keep` and asks for two approvals, one of them from an admin, for any other destroy:
+
+```cue
+guarded_destroys: pravo.#Policy & {
+	rule: {
+		{summary: destroy: 0} | {summary: destroy: >0, approvals: {min: 2, role: "admin"}}
+	}
+}
+```
+
 The approvals belong to a stored plan, so a plan that such a rule matches is made with `pravo plan --store` and applied by its id, and an admin needs none. [Approve a plan](approve-a-plan.md) sets it up with three people, and [Operating policies](../reference/policies-operations.md#ask-for-approvals) lists the fields.
 
 ## What a policy does not bind

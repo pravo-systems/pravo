@@ -199,3 +199,26 @@ func TestWaitedRecordsALongWaitAsASpan(t *testing.T) {
 		t.Errorf("%d spans for the long wait, want 1", found)
 	}
 }
+
+// A caller that did not sample its trace (TRACEPARENT ending in -00, as some CI systems
+// set it) does not stop the record: traces.md says the run still writes a file of its own.
+func TestRecorderWritesARunUnderAnUnsampledParent(t *testing.T) {
+	for _, flag := range []string{"01", "00"} {
+		clearEnv(t)
+		dir := filepath.Join(t.TempDir(), "traces")
+		t.Setenv("PRAVO_TRACE_DIR", dir)
+		t.Setenv("TRACEPARENT", "00-d249a7bc012b0fcefb00ee29273af012-b6dacb58f45e1111-"+flag)
+		shutdown := Setup(context.Background(), "test", env.OS())
+		ctx := ParentFromEnv(context.Background(), env.OS())
+		ctx, cmd := Tracer().Start(ctx, "pravo apply")
+		_, eng := Tracer().Start(ctx, "engine apply")
+		End(eng, nil)
+		End(cmd, nil)
+		shutdown(context.Background())
+		localOnly = false
+		files, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+		if len(files) != 1 {
+			t.Errorf("TRACEPARENT flags %s: %d files, want 1", flag, len(files))
+		}
+	}
+}
