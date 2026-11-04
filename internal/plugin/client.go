@@ -77,6 +77,7 @@ func StartWith(path string, logger hclog.Logger, e env.Env, extraEnv []string) (
 		logger = Logger(e.Get("PRAVO_LOG"))
 	}
 	cmd := exec.Command(path)
+	guardChild(cmd)
 	cmd.Env = append(providerEnv(e.Environ()), extraEnv...)
 	client := goplugin.NewClient(&goplugin.ClientConfig{
 		HandshakeConfig: Handshake,
@@ -98,24 +99,29 @@ func StartWith(path string, logger hclog.Logger, e env.Env, extraEnv []string) (
 		},
 	})
 	rpc, err := client.Client()
+	unwatch := func() {}
+	if cmd.Process != nil {
+		unwatch = watchChild(cmd)
+	}
+	kill := func() { unwatch(); client.Kill() }
 	if err != nil {
-		client.Kill()
+		kill()
 		return nil, fmt.Errorf("starting provider %s: %w (if the file is damaged, for instance by an interrupted install, delete it and run \"pravo init\")", path, err)
 	}
 	raw, err := rpc.Dispense("provider")
 	if err != nil {
-		client.Kill()
+		kill()
 		return nil, fmt.Errorf("dispensing provider %s: %w", path, err)
 	}
 	switch p := raw.(type) {
 	case *v5:
-		p.close = client.Kill
+		p.close = kill
 		return p, nil
 	case *v6:
-		p.close = client.Kill
+		p.close = kill
 		return p, nil
 	}
-	client.Kill()
+	kill()
 	return nil, fmt.Errorf("unexpected plugin type %T", raw)
 }
 

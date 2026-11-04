@@ -153,7 +153,7 @@ func (p *protectRun) status() error {
 		if err != nil {
 			return err
 		}
-		if v.Secrets > 0 {
+		if v.Secrets > 0 || len(v.Problems) > 0 {
 			secs = &v
 			add("Secrets", secretsText(v))
 		}
@@ -166,6 +166,13 @@ func (p *protectRun) status() error {
 		}
 		if len(lostPolicies) > 0 {
 			add("Policies", plural(len(lostPolicies), "version that signed transactions list is gone", "versions that signed transactions list are gone")+" (pravo protect policies)")
+		}
+	}
+	var envProblem error
+	if prot.Sealed != nil && !st.Locked() {
+		if _, err := st.EnvironmentRecord(p.ctx, erf.Readers); errors.Is(err, state.ErrUntrusted) {
+			envProblem = err
+			add("Environment", "the record does not verify")
 		}
 	}
 	var sigs *sigCounts
@@ -245,6 +252,9 @@ func (p *protectRun) status() error {
 		for _, m := range lostPolicies {
 			out.Println(out.C(ui.Red, "Untrusted: "+printable(m.Error())))
 		}
+		if envProblem != nil {
+			out.Println(out.C(ui.Red, "Untrusted: "+printable(envProblem.Error())))
+		}
 		if recs != nil {
 			for _, pr := range recs.Problems {
 				out.Println(out.C(ui.Red, "Untrusted: "+printable(pr.Addr)+": "+printable(pr.Why)))
@@ -261,6 +271,9 @@ func (p *protectRun) status() error {
 	}
 	if sigs != nil && sigs.Invalid > 0 {
 		return invalidTxns(sigs.Invalid)
+	}
+	if envProblem != nil {
+		return envProblem
 	}
 	if len(lostPolicies) > 0 {
 		return fmt.Errorf("%w: %s", state.ErrUntrusted, plural(len(lostPolicies), "policy version is", "policy versions are")+" gone")

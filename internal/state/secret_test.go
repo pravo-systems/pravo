@@ -545,9 +545,16 @@ func TestANewestVersionThatWasDeletedIsFound(t *testing.T) {
 	if err := b.Delete(ctx, secretKey(encodeAddr("db"), 2)); err != nil {
 		t.Fatal(err)
 	}
-	// The old value is what a run reads, and the check says it should not be.
-	if v := mustReadSecret(t, s, "db", 0, rules); string(v.Value) != pw1 {
-		t.Fatalf("the bucket now holds version 1 only: %q", v.Value)
+	// A read of the latest refuses: it would hand out the old value. A named version is
+	// still readable, and so is the list refused.
+	if _, err := s.ReadSecret(ctx, "db", 0, rules); !errors.Is(err, ErrUntrusted) {
+		t.Fatalf("reading the latest after the newest was deleted: %v", err)
+	}
+	if _, err := s.Secrets(ctx, rules); !errors.Is(err, ErrUntrusted) {
+		t.Fatalf("listing after the newest was deleted: %v", err)
+	}
+	if v := mustReadSecret(t, s, "db", 1, rules); string(v.Value) != pw1 {
+		t.Fatalf("version 1 by number: %q", v.Value)
 	}
 	verdict, err := s.VerifySecrets(ctx, mustTxns(t, s), rules)
 	if err != nil || len(verdict.Problems) != 1 || verdict.Problems[0].Version != 2 {

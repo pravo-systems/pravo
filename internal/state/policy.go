@@ -321,10 +321,18 @@ func (m MissingPolicy) Error() string {
 // Unwrap makes a MissingPolicy an ErrUntrusted.
 func (m MissingPolicy) Unwrap() error { return ErrUntrusted }
 
-// policyListings returns the policy versions that the transactions with a verified
-// signature list, per transaction id. A transaction is immutable once its start is
-// signed, so the ones read before are kept.
-func (s *Store) policyListings(ctx context.Context, readers []protect.Reader) (map[string][]string, error) {
+// txnFacts is what a transaction with a verified signature says about the objects of the
+// state: the policy versions it judged by or wrote, and the newest version of each secret
+// it set or removed.
+type txnFacts struct {
+	policies []string
+	secrets  map[string]int
+}
+
+// signedFacts returns the facts of the transactions whose signatures verify against the
+// readers, per transaction id. A finished transaction is immutable, so the ones read
+// before are kept.
+func (s *Store) signedFacts(ctx context.Context, readers []protect.Reader) (map[string]txnFacts, error) {
 	keys, err := s.b.List(ctx, "txn")
 	if err != nil {
 		return nil, err
@@ -332,9 +340,9 @@ func (s *Store) policyListings(ctx context.Context, readers []protect.Reader) (m
 	s.listedMu.Lock()
 	defer s.listedMu.Unlock()
 	if s.listed == nil {
-		s.listed = map[string][]string{}
+		s.listed = map[string]txnFacts{}
 	}
-	out := map[string][]string{}
+	out := map[string]txnFacts{}
 	for _, k := range keys {
 		id, ok := strings.CutPrefix(k, "txn/")
 		if !ok {
@@ -343,8 +351,8 @@ func (s *Store) policyListings(ctx context.Context, readers []protect.Reader) (m
 		if id, ok = strings.CutSuffix(id, ".json"); !ok {
 			continue
 		}
-		if refs, ok := s.listed[id]; ok {
-			out[id] = refs
+		if f, ok := s.listed[id]; ok {
+			out[id] = f
 			continue
 		}
 		data, err := s.b.Get(ctx, k)
@@ -355,24 +363,75 @@ func (s *Store) policyListings(ctx context.Context, readers []protect.Reader) (m
 		if json.Unmarshal(data, &t) != nil || t.ID != id {
 			continue
 		}
-		var refs []string
+		var f txnFacts
 		if len(t.Policies) > 0 && t.StartSig != nil {
 			if st, _ := protect.VerifySignature(t.StartSig, readers, protect.DomainTxnStart, s.Lineage(), txnStartParts(&t)...); st == protect.SigVerified {
-				refs = append(refs, t.Policies...)
+				f.policies = append(f.policies, t.Policies...)
 			}
 		}
-		if len(t.PolicyWrites) > 0 && t.FinishSig != nil {
+		if t.FinishSig != nil && t.Finished != nil {
 			if st, _ := protect.VerifySignature(t.FinishSig, readers, protect.DomainTxnFinish, s.Lineage(), txnFinishParts(&t)...); st == protect.SigVerified {
-				refs = append(refs, t.PolicyWrites...)
+				f.policies = append(f.policies, t.PolicyWrites...)
+				if t.Kind == "secret" {
+					for _, c := range t.Changes {
+						name, ok := strings.CutPrefix(c.Addr, secretAddrPrefix)
+						if !ok || (c.Action != "set" && c.Action != "remove") {
+							continue
+						}
+						if f.secrets == nil {
+							f.secrets = map[string]int{}
+						}
+						f.secrets[name] = max(f.secrets[name], c.After)
+					}
+				}
 			}
 		}
-		if len(refs) == 0 {
-			continue
+		if t.Finished != nil && t.FinishSig != nil {
+			s.listed[id] = f
 		}
-		s.listed[id] = refs
-		out[id] = refs
+		out[id] = f
 	}
 	return out, nil
+}
+
+// policyListings returns the policy versions that verified transactions list, per transaction id.
+func (s *Store) policyListings(ctx context.Context, readers []protect.Reader) (map[string][]string, error) {
+	facts, err := s.signedFacts(ctx, readers)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string][]string{}
+	for id, f := range facts {
+		if len(f.policies) > 0 {
+			out[id] = f.policies
+		}
+	}
+	return out, nil
+}
+
+// checkSecretsHeld refuses a state that lacks a version of a secret that a verified
+// transaction set or removed: the newest versions were deleted from the bucket, and a read
+// would hand out an older value. name limits the check to one secret, empty for all.
+func (s *Store) checkSecretsHeld(ctx context.Context, readers []protect.Reader, name string, names map[string]int) error {
+	if len(readers) == 0 {
+		return nil
+	}
+	facts, err := s.signedFacts(ctx, readers)
+	if err != nil {
+		return err
+	}
+	newest := map[string]int{}
+	for _, f := range facts {
+		for n, seq := range f.secrets {
+			newest[n] = max(newest[n], seq)
+		}
+	}
+	for n, seq := range newest {
+		if (name == "" || name == n) && seq > names[encodeAddr(n)] {
+			return fmt.Errorf("%w: the transaction that wrote version %d of the secret %s is signed, and the bucket holds %d version(s): newer versions were deleted (pravo protect status)", ErrUntrusted, seq, n, names[encodeAddr(n)])
+		}
+	}
+	return nil
 }
 
 // MissingPolicies lists the policy versions that a signed transaction lists and that
