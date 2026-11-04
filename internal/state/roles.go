@@ -468,6 +468,10 @@ func (s *Store) LiveSigners(ctx context.Context) ([]protect.Vouch, error) {
 			}
 			return
 		}
+		if t.FinishSig == nil && t.StartSig != nil {
+			out[i] = protect.Vouch{Key: t.StartSig.Key, Txn: t.ID, Digest: startDigest(s.Lineage(), &t), EndUnsigned: true}
+			return
+		}
 		if t.FinishSig == nil {
 			if d := VouchDigest(s.Lineage(), &t); d != "" {
 				out[i] = protect.Vouch{Key: protect.UnsignedKey, Txn: t.ID, Digest: d}

@@ -267,13 +267,114 @@ func TestARunWhoseEndCouldNotBeSignedLocksNobodyOut(t *testing.T) {
 	if err := b.Put(context.Background(), key, data); err != nil {
 		t.Fatal(err)
 	}
+	// Nothing binds the record to the run any more: it is refused until an admin vouches.
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "plan"); code != 7 {
+		t.Fatalf("plan exit %d before the admin vouched, want 7\n%s", code, text)
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--adopt-unsigned", "--yes"); code != 0 || !strings.Contains(text, "end was not signed") && !strings.Contains(text, "vouched") {
+		t.Fatalf("adopt: exit %d\n%s", code, text)
+	}
 	for _, who := range []string{"ada", "dan"} {
 		if text, code := runPravo(t, s.dir, "--identity", who, "plan"); code == 7 || code == 2 {
-			t.Fatalf("%s: plan exit %d after a run whose end is not signed\n%s", who, code, text)
+			t.Fatalf("%s: plan exit %d after the admin vouched\n%s", who, code, text)
 		}
 	}
 	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status")
-	if code == 7 || !strings.Contains(text, "1 written by a run whose end is not signed") {
+	if code == 7 || !strings.Contains(text, "1 vouched for by an admin") {
 		t.Fatalf("protect status: exit %d\n%s", code, text)
+	}
+}
+
+// One edit by someone who may write the bucket (deleting finish_sig of a finished transaction)
+// and a record planted under it must be refused, not accepted.
+func TestStrippedEndSignatureDoesNotAcceptAPlantedRecord(t *testing.T) {
+	s := plannableBucket(t)
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader")
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+		t.Fatalf("roles: %d\n%s", code, text)
+	}
+	b := s.backend(t)
+	keys, err := b.List(context.Background(), "txn")
+	if err != nil || len(keys) == 0 {
+		t.Fatalf("no transactions: %v %v", keys, err)
+	}
+	id := strings.TrimSuffix(strings.TrimPrefix(keys[0], "txn/"), ".json")
+	key := "txn/" + id + ".json"
+	data, err := b.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	delete(doc, "finish_sig")
+	data, _ = json.Marshal(doc)
+	if err := b.Put(context.Background(), key, data); err != nil {
+		t.Fatal(err)
+	}
+	st, err := state.OpenBackendWith(context.Background(), b, state.Options{Identity: s.dan})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Set(&state.Resource{Addr: "planted", Mode: "data", Type: "t_data", Name: "planted", Attributes: []byte(`{"id":"planted"}`)}, id); err != nil {
+		t.Fatal(err)
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "plan"); code != 7 {
+		t.Fatalf("plan exit %d, want 7\n%s", code, text)
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status"); code != 7 {
+		t.Fatalf("protect status exit %d, want 7\n%s", code, text)
+	}
+}
+
+// A secret version whose transaction lost its end signature is refused until an admin vouches
+// for the transaction, like the records of such a run (F67).
+func TestSecretOfARunWithoutAnEndSignatureNeedsTheVouch(t *testing.T) {
+	s := plannableBucket(t)
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer")
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+		t.Fatalf("roles: %d\n%s", code, text)
+	}
+	t.Setenv("S_FOR_THE_TEST", "hunter2")
+	if text, code := runPravo(t, s.dir, "--identity", "dan", "secret", "set", "s2", "--from-env", "S_FOR_THE_TEST"); code != 0 {
+		t.Fatalf("secret set: %d\n%s", code, text)
+	}
+	b := s.backend(t)
+	keys, err := b.List(context.Background(), "txn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stripped := 0
+	for _, key := range keys {
+		data, err := b.Get(context.Background(), key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc map[string]any
+		if err := json.Unmarshal(data, &doc); err != nil {
+			t.Fatal(err)
+		}
+		if doc["kind"] != "secret" {
+			continue
+		}
+		delete(doc, "finish_sig")
+		data, _ = json.Marshal(doc)
+		if err := b.Put(context.Background(), key, data); err != nil {
+			t.Fatal(err)
+		}
+		stripped++
+	}
+	if stripped == 0 {
+		t.Fatal("no secret transaction found")
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "secret", "get", "s2"); code != 7 {
+		t.Fatalf("secret get exit %d before the vouch, want 7\n%s", code, text)
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--adopt-unsigned", "--yes"); code != 0 {
+		t.Fatalf("adopt: %d\n%s", code, text)
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "secret", "get", "s2"); code != 0 || !strings.Contains(text, "hunter2") {
+		t.Fatalf("secret get exit %d after the vouch\n%s", code, text)
 	}
 }

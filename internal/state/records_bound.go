@@ -60,10 +60,6 @@ type RecordVerdict struct {
 	// strict rules it also counts those signed by a key that is not in the readers file,
 	// which could be a member who left or a key that someone made.
 	Unchecked int `json:"unchecked"`
-	// EndUnsigned counts the records of a run that finished but could not sign its end (the
-	// ssh-agent refused): its start, signed by a writer, names the key. What the signature of
-	// the end would show, the outcome and each record, cannot be checked.
-	EndUnsigned int `json:"end_unsigned,omitempty"`
 	// Problems lists the records that are not a writer's work, sorted by address.
 	Problems []RecordProblem `json:"problems,omitempty"`
 }
@@ -190,9 +186,8 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 			problem(n.addr, "the transaction "+n.txn+" that wrote it is not in the state")
 			continue
 		}
-		endUnsigned := t.Finished != nil && t.FinishSig == nil && t.StartSig != nil
-		if t.Finished == nil || t.FinishSig == nil && (t.Status == "running" || t.StartSig != nil) {
-			// A run that is still going, was killed, or finished and could not sign its end.
+		if t.Finished == nil || t.FinishSig == nil && t.Status == "running" {
+			// A run that is still going or was killed.
 			// Its start is signed by a writer, or it is not a run of a writer.
 			sv := VerifyTransaction(lineage, t, readers)
 			role, _ := protect.RoleOf(readers, startKey(t))
@@ -207,10 +202,20 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 				unknown(n.addr, t.ID)
 			case sv.Start != protect.SigVerified || !role.Allows(protect.RoleWriter):
 				problem(n.addr, "the transaction "+t.ID+" that wrote it was not started by a writer")
-			case endUnsigned:
-				v.EndUnsigned++
 			default:
 				v.Unchecked++
+			}
+			continue
+		}
+		if t.FinishSig == nil && t.StartSig != nil {
+			// Finished, and the end is not signed: the ssh-agent refused, or someone removed the
+			// signature. Nothing but the start is signed, so no record of it is bound; an admin
+			// who has looked at it vouches for it (pravo protect roles --adopt-unsigned).
+			sv := VerifyTransaction(lineage, t, readers)
+			if vo, ok := rules.Vouched[t.ID]; ok && sv.Start == protect.SigVerified && vo.Key == t.StartSig.Key && vo.Digest == startDigest(lineage, t) {
+				v.Vouched++
+			} else {
+				problem(n.addr, "the transaction "+t.ID+" that wrote it finished with its end not signed, and no admin vouched for it (pravo protect roles --adopt-unsigned)")
 			}
 			continue
 		}

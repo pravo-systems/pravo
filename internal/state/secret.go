@@ -371,9 +371,18 @@ func (s *Store) secretTxn(t *Transaction, need protect.Role, claim secretClaim, 
 		}
 		return TrustUnchecked, "", v
 	}
-	if t.Finished == nil || t.FinishSig == nil && (t.Status == "running" || t.StartSig != nil) {
-		// A run that is going, was killed, or finished and could not sign its end: only its
-		// start is signed.
+	if t.FinishSig == nil && t.StartSig != nil && t.Finished != nil {
+		// Finished, and the end is not signed. Only an admin's vouch for the start accepts it.
+		if vo, ok := rules.Vouched[t.ID]; ok && v.Start == protect.SigVerified && vo.Key == t.StartSig.Key && vo.Digest == startDigest(lineage, t) {
+			if why := claim.find(t); why != "" {
+				return TrustProblem, why, v
+			}
+			return TrustVouched, "", v
+		}
+		return TrustProblem, "the transaction " + t.ID + " finished with its end not signed, and no admin vouched for it (pravo protect roles --adopt-unsigned)", v
+	}
+	if t.Finished == nil || t.FinishSig == nil && t.Status == "running" {
+		// A run that is going or was killed: only its start is signed.
 		role, _ := protect.RoleOf(readers, startKey(t))
 		switch {
 		case v.Start == protect.SigUnknownKey:
@@ -382,9 +391,6 @@ func (s *Store) secretTxn(t *Transaction, need protect.Role, claim secretClaim, 
 			return TrustProblem, "the transaction " + t.ID + " was not started with a signature that verifies", v
 		case !role.Allows(need):
 			return TrustProblem, "the transaction " + t.ID + " was not started by " + article(need), v
-		}
-		if t.Finished != nil {
-			return TrustUnconfirmed, "the transaction " + t.ID + " finished with its end not signed", v
 		}
 		return TrustUnconfirmed, "the transaction " + t.ID + " did not finish", v
 	}
