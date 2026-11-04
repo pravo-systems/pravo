@@ -45,9 +45,6 @@ func (e *Engine) derivedFields() sensitivity.Derived {
 	for _, r := range e.Root.Resources {
 		a := r.Address()
 		order = append(order, a)
-		if rs := sensitivity.Record(e.current.LookupPath(r.Path), r.Path, e.resolver(), addr, ""); len(rs) > 0 {
-			refs[a] = rs
-		}
 		if r.Builtin && (r.Type == "secret" || r.Type == "secret_env") {
 			secret[a] = true
 			continue
@@ -56,6 +53,17 @@ func (e *Engine) derivedFields() sensitivity.Derived {
 			if t := sensitivity.TopSensitive(s.Block); len(t) > 0 {
 				base[a] = t
 			}
+		}
+	}
+	// Nothing is derived unless a secret or a sensitive attribute exists to
+	// derive it from, so reading how every resource's values are built is
+	// skipped for a specification that has none.
+	if len(secret) == 0 && len(base) == 0 {
+		return sensitivity.NewDerived()
+	}
+	for _, r := range e.Root.Resources {
+		if rs := sensitivity.Record(e.at(r.Path), r.Path, e.resolver(), addr, ""); len(rs) > 0 {
+			refs[r.Address()] = rs
 		}
 	}
 	return sensitivity.Derive(order, refs, sensitivity.NewDerived(), func(task, attr string, so sensitivity.Derived) bool {

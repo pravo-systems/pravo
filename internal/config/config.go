@@ -127,11 +127,13 @@ type Root struct {
 	Modules []ModuleUse
 	// Pruned says that the generated provider packages were loaded without the
 	// types that the specification does not use; see prune.go.
-	Pruned    bool
-	Dir       string
-	PkgName   string
-	Ctx       *cue.Context
-	Value     cue.Value
+	Pruned  bool
+	Dir     string
+	PkgName string
+	Ctx     *cue.Context
+	Value   cue.Value
+	// found holds the value of every declaration that discovery registered, by path.
+	found     map[string]cue.Value
 	Providers map[string]*ProviderReq
 	StatePath string
 	// State holds the remote state settings when $settings.state.backend is set.

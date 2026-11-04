@@ -54,7 +54,7 @@ func (e *Engine) fromPending(r *config.Resource, deps []string) (cue.Value, bool
 		}
 	}
 	if !waiting {
-		return e.current.LookupPath(r.Path), true
+		return e.at(r.Path), true
 	}
 	v, ok := e.bodyWith(r)
 	if !ok {
@@ -166,7 +166,7 @@ func (e *Engine) readersOf(addr string) []string {
 // references (subnet_id: net.id) gets the values leaf by leaf; any other body is
 // evaluated on its own, in a scope that holds only what it names (scopeEval).
 func (e *Engine) bodyWith(r *config.Resource) (cue.Value, bool) {
-	body := e.current.LookupPath(r.Path)
+	body := e.at(r.Path)
 	if !body.Exists() {
 		return cue.Value{}, false
 	}
