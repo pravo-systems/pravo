@@ -36,10 +36,16 @@ func (e *Engine) writeState(ch *Change, v tftypes.Value, private []byte, action 
 		ProviderConfig: e.stamp(ch.ProviderKey, ""), RefreshedAt: now, AppliedAt: now,
 		PreventDestroy: ch.PreventDestroy,
 	}
-	if action == "partial" {
+	if action == "partial" || action == "partial-create" {
 		// The provider returned the state it had reached before it failed. Without
 		// a hash, the next plan reaches the node.
 		n.ConfigHash = ""
+	}
+	if action == "partial-create" {
+		// A create that stopped after the provider returned an id may not have made
+		// everything the create makes, and an update sends only the difference. The
+		// next plan replaces the object, as -replace would.
+		n.Tainted = true
 	}
 	before := ch.removedRevision
 	n.Revision = ch.removedRevision
@@ -86,6 +92,14 @@ func (e *Engine) recordApplied(ch *Change, what string, v tftypes.Value, private
 		e.unrecorded(ch.Addr, what, idOf(ch, v))
 	}
 	return err
+}
+
+// partialAction names the write of the state a provider returned with an error.
+func partialAction(what string) string {
+	if what == "creation" {
+		return "partial-create"
+	}
+	return "partial"
 }
 
 func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value) (tftypes.Value, error) {
@@ -292,7 +306,7 @@ func (e *Engine) applyChange(ctx context.Context, prov plugin.Provider, ch *Chan
 		// Even on error, providers may return a partial new state that must
 		// be recorded so the resource is not leaked.
 		if diags.HasErrors() {
-			if unwritten = e.recordApplied(ch, what, res.NewState, res.Private, "partial"); unwritten == nil {
+			if unwritten = e.recordApplied(ch, what, res.NewState, res.Private, partialAction(what)); unwritten == nil {
 				recorded = true
 			}
 		}
@@ -319,7 +333,7 @@ func (e *Engine) applyChange(ctx context.Context, prov plugin.Provider, ch *Chan
 		// that the object is not forgotten.
 		if bad := inconsistencies(planned, res.NewState); len(bad) > 0 {
 			err := fmt.Errorf("%s: the provider produced an inconsistent result after apply (this is a bug in the provider, not in the specification):\n  %s", ch.Addr, strings.Join(bad, "\n  "))
-			if werr := e.recordApplied(ch, what, res.NewState, res.Private, "partial"); werr != nil {
+			if werr := e.recordApplied(ch, what, res.NewState, res.Private, partialAction(what)); werr != nil {
 				return nil, fmt.Errorf("%w; the state it returned: %w", err, werr)
 			}
 			return nil, err

@@ -128,7 +128,24 @@ func (r taskResolver) Task(p cue.Path) (cue.Path, cue.Path, bool) { return r.e.r
 func (r taskResolver) Below(p cue.Path) []cue.Path                { return r.e.below(p) }
 
 // Value reads the current value of the specification. The caller holds cueMu.
-func (r taskResolver) Value(p cue.Path) cue.Value { return r.e.current.LookupPath(p) }
+func (r taskResolver) Value(p cue.Path) cue.Value { return r.e.at(p) }
+
+// InertFields is the memo of the analysis while the graph is built, when the
+// values it reads do not change; nil otherwise.
+func (r taskResolver) InertFields() map[string]convert.InertField { return r.e.inert }
+
+// at is current.LookupPath(p). While current is still the specification as
+// loaded, a declaration comes from the root's own record of them, since a
+// lookup in CUE walks the fields of the parent and the passes over all
+// resources would be quadratic. The caller holds cueMu.
+func (e *Engine) at(p cue.Path) cue.Value {
+	if !e.filled {
+		if v, ok := e.Root.Found(p); ok {
+			return v
+		}
+	}
+	return e.current.LookupPath(p)
+}
 
 // resolver returns the engine's tasks as the analysis sees them.
 func (e *Engine) resolver() convert.Resolver { return taskResolver{e} }
@@ -149,6 +166,15 @@ func (e *Engine) ephemeralCheck() func(cue.Path) bool {
 	return nil
 }
 
+// atRoot is Value.LookupPath(p), from the root's record of its declarations
+// when it has one.
+func (e *Engine) atRoot(p cue.Path) cue.Value {
+	if v, ok := e.Root.Found(p); ok {
+		return v
+	}
+	return e.Value.LookupPath(p)
+}
+
 // buildGraph computes dependencies for every declared task from the
 // references in its body, independent of whether values are known yet. A
 // cycle among the tasks is an error: nothing could run first. The graph is
@@ -164,8 +190,10 @@ func (e *Engine) buildGraph() (map[string]*node, error) {
 	}
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
+	e.inert = map[string]convert.InertField{}
+	defer func() { e.inert = nil }()
 	for _, r := range e.Root.Resources {
-		v := e.current.LookupPath(r.Path)
+		v := e.at(r.Path)
 		if f, ok := v.Source().(*ast.Field); ok {
 			if e.fieldSrc == nil {
 				e.fieldSrc = map[string]*ast.Field{}
@@ -243,7 +271,7 @@ func (e *Engine) outputReadsLocked() map[string][]string {
 	reads := make(map[string][]string, len(e.Root.Outputs))
 	for _, o := range e.Root.Outputs {
 		p := o.ValuePath()
-		deps, _ := convert.Dependencies(e.Value.LookupPath(p), p, e.resolver())
+		deps, _ := convert.Dependencies(e.atRoot(p), p, e.resolver())
 		var addrs []string
 		for _, d := range deps {
 			if dr, ok := e.byPath[d.String()]; ok {
@@ -287,7 +315,7 @@ func CheckGraph(root *config.Root, value cue.Value, schemas map[string]*schema.P
 			continue
 		}
 		conv := &convert.Converter{Self: r.Path, Resolve: e.resolver(), IsEphemeral: e.ephemeralCheck(), AllowEphemeral: true}
-		conv.Block(r.Address(), s.Block, value.LookupPath(r.Path))
+		conv.Block(r.Address(), s.Block, e.at(r.Path))
 		if err := conv.Err(); err != nil {
 			errs = append(errs, err.Error())
 		}
@@ -555,7 +583,7 @@ func (e *Engine) snapshot(r *config.Resource) (cue.Value, error) {
 	if err := e.settleLocked(deps); err != nil {
 		return cue.Value{}, err
 	}
-	return e.current.LookupPath(r.Path), nil
+	return e.at(r.Path), nil
 }
 
 // fill records the values a task computed, to be unified into the
@@ -687,7 +715,7 @@ func (e *Engine) settleAllLocked() error {
 	}
 	v := convert.FillAll(e.current, fills)
 	if v.Validate() == nil {
-		e.current = v
+		e.current, e.filled = v, true
 		return nil
 	}
 	var first error
@@ -704,7 +732,7 @@ func (e *Engine) settleAllLocked() error {
 			}
 			continue
 		}
-		e.current = v
+		e.current, e.filled = v, true
 	}
 	if first == nil {
 		first = errors.New("filling values into the configuration: the configuration does not hold")

@@ -50,15 +50,15 @@ func TestTransactionsAreSignedAndShown(t *testing.T) {
 		t.Fatalf("log: exit %d\n%s", code, text)
 	}
 	text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "status")
-	if code != 0 || !strings.Contains(text, "Signatures   2 of 2 transactions verified\n") {
+	if code != 0 || !strings.Contains(text, "Signatures   3 of 3 transactions verified\n") {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}
 	text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "status", "--json")
-	if code != 0 || !strings.Contains(text, `"signatures": {`) || !strings.Contains(text, `"verified": 2`) {
+	if code != 0 || !strings.Contains(text, `"signatures": {`) || !strings.Contains(text, `"verified": 3`) {
 		t.Fatalf("status --json: exit %d\n%s", code, text)
 	}
 	text, code = runPravo(t, s.dir, "--identity", "ada", "state", "log", "--json")
-	if code != 0 || strings.Count(text, `"status": "verified"`) != 2 {
+	if code != 0 || strings.Count(text, `"status": "verified"`) != 3 {
 		t.Fatalf("log --json: exit %d\n%s", code, text)
 	}
 }
@@ -94,7 +94,7 @@ func TestASignatureOfALeaverIsNotAFailure(t *testing.T) {
 		t.Fatalf("log: exit %d\n%s", code, text)
 	}
 	text, code = runPravo(t, s.dir, "--identity", "dan", "protect", "status")
-	if code != 0 || !strings.Contains(text, "1 of 2 transactions verified · 1 signed with a key that is not in the file") {
+	if code != 0 || !strings.Contains(text, "1 of 3 transactions verified · 2 signed with a key that is not in the file") {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}
 	text, code = runPravo(t, s.dir, "--identity", "dan", "state", "log", "--json")
@@ -120,7 +120,9 @@ func TestWithoutAReadersFileNothingIsChecked(t *testing.T) {
 
 func TestATransactionBeforeSigningIsUnsignedAndNoFailure(t *testing.T) {
 	s := signedBucket(t)
-	id := txnIDs(t, s)[0]
+	// The oldest transaction is the one that named the pointers at the seal.
+	ids := txnIDs(t, s)
+	id := ids[len(ids)-1]
 	key := "prod/txn/" + id + ".json"
 	var m map[string]any
 	_ = json.Unmarshal(s.f.Objects[key], &m)
@@ -232,7 +234,57 @@ func TestAKilledRunStillShowsItsStartSignature(t *testing.T) {
 		t.Fatalf("log: exit %d\n%s", code, text)
 	}
 	text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "status")
-	if code != 0 || !strings.Contains(text, "1 of 1 transaction verified") {
+	if code != 0 || !strings.Contains(text, "2 of 2 transactions verified") {
 		t.Fatalf("status: exit %d\n%s", code, text)
+	}
+}
+
+// A listing or a view that lacks a resource whose pointer was deleted would read as the
+// truth: state list and state show refuse, as plan and drift do.
+func TestStateListAndShowRefuseWhenAPointerIsGone(t *testing.T) {
+	s := sealedBucket(t)
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "state", "list"); code != 0 || !strings.Contains(text, "net.db") {
+		t.Fatalf("list before: exit %d\n%s", code, text)
+	}
+	var key string
+	for k := range s.f.Objects {
+		if strings.HasPrefix(k, "prod/resources/") && strings.Contains(k, "net.db") {
+			key = k
+		}
+	}
+	if key == "" {
+		t.Fatal("no pointer for net.db in the bucket")
+	}
+	delete(s.f.Objects, key)
+	for _, args := range [][]string{{"state", "list"}, {"state", "show", "net.vpc"}, {"state", "dependents", "net.vpc"}} {
+		text, code := runPravo(t, s.dir, append([]string{"--identity", "ada"}, args...)...)
+		if code != 7 || !strings.Contains(text, "the pointer of net.db is gone") {
+			t.Errorf("%v: exit %d\n%s", args, code, text)
+		}
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "state", "log"); code != 0 {
+		t.Errorf("state log must still read: exit %d\n%s", code, text)
+	}
+}
+
+// A sealed state without a baseline transaction (sealed by an older version) says so in plan
+// and protect status, and rewrap --all records one.
+func TestAStateWithoutABaselineSaysSoUntilRewrap(t *testing.T) {
+	s := sealedBucket(t)
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status"); code != 0 || strings.Contains(text, "Baseline") {
+		t.Fatalf("status with baseline: exit %d\n%s", code, text)
+	}
+	for _, id := range txnIDs(t, s) {
+		delete(s.f.Objects, "prod/txn/"+id+".json")
+	}
+	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status")
+	if code != 0 || !strings.Contains(text, "Baseline     ") {
+		t.Fatalf("status: exit %d\n%s", code, text)
+	}
+	if text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "rewrap", "--all", "--yes"); code != 0 {
+		t.Fatalf("rewrap: exit %d\n%s", code, text)
+	}
+	if text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "status"); code != 0 || strings.Contains(text, "Baseline") {
+		t.Fatalf("status after rewrap: exit %d\n%s", code, text)
 	}
 }

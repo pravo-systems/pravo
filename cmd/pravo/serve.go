@@ -388,6 +388,11 @@ func (v *viewerState) protection(ctx context.Context, st *state.Store, readersFi
 	f := accessFacts(st.Protection(), st.Locked(), v.who(), rf)
 	if st.Protection().Sealed != nil && !st.Locked() {
 		f.Roles = rolesFacts(ctx, st, rf)
+		// The graph of the viewer is drawn from the pointers that are there: a pointer a
+		// signed transaction left and the bucket lacks is told on the page.
+		if err := st.CheckNodes(ctx, rf.Readers); errors.Is(err, state.ErrUntrusted) && f.Problem == "" {
+			f.Problem = err.Error()
+		}
 	}
 	return f
 }

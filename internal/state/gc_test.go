@@ -721,7 +721,7 @@ func TestGCKeepsTheGroupOfTheTextOfAnError(t *testing.T) {
 			if err := txn.FinishError("failed", SealedErrorText, "provider said: hunter2-in-an-error", true); err != nil {
 				t.Fatal(err)
 			}
-			txns, err := s.Transactions()
+			txns, err := workTxns(s)
 			if err != nil || len(txns) != 1 {
 				t.Fatalf("Transactions = %v, %v", txns, err)
 			}
@@ -748,7 +748,7 @@ func TestGCKeepsTheGroupOfTheTextOfAnError(t *testing.T) {
 				t.Fatalf("groups = %v, want g1 kept", groupsOf(t, b))
 			}
 			read := func() string {
-				txns, err := s.Transactions()
+				txns, err := workTxns(s)
 				if err != nil || len(txns) != 1 {
 					t.Fatalf("Transactions = %v, %v", txns, err)
 				}

@@ -310,8 +310,31 @@ func importField(v cue.Value, addr string) (*Import, error) {
 
 // register adds the struct at path as a resource, data source, ephemeral
 // resource, function call or provider.
+// Found is the value that discovery met at p, a declaration of a resource, a
+// provider, an output or a policy, as r.Value.LookupPath(p) gives it. Looking
+// a field up in CUE walks the fields of its parent, so a pass over every
+// resource of a large specification that looks each up pays for it n times
+// over; the value discovery already holds costs nothing.
+func (r *Root) Found(p cue.Path) (cue.Value, bool) {
+	v, ok := r.found[p.String()]
+	return v, ok
+}
+
+// At is r.Value.LookupPath(p), from the declarations that discovery already
+// holds when p is one of them.
+func (r *Root) At(p cue.Path) cue.Value {
+	if v, ok := r.Found(p); ok {
+		return v
+	}
+	return r.Value.LookupPath(p)
+}
+
 func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 	p := cue.MakePath(path...)
+	if r.found == nil {
+		r.found = map[string]cue.Value{}
+	}
+	r.found[p.String()] = v
 	var mode string
 	switch kind {
 	case "resource":

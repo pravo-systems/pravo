@@ -233,7 +233,7 @@ func TestUpgradeToSealed(t *testing.T) {
 					if out, _, err := r.LoadOutputs(); err != nil || outputsJSON(out) != outputsJSON(beforeOut) {
 						t.Errorf("%s: outputs %v, %v", id.Name, out, err)
 					}
-					if got, _ := r.Transactions(); len(got) != len(txns) {
+					if got, _ := workTxns(r); len(got) != len(txns) {
 						t.Errorf("%s: %d transactions", id.Name, len(got))
 					}
 					if v, err := r.VerifyAll(ctx); err != nil || len(v.Bad) != 0 || v.Checked != r.Len() {
@@ -744,6 +744,8 @@ func TestUpgradeToSealedRefusals(t *testing.T) {
 // format is 3, so that a pravo that does not know it refuses the store, and
 // writes are refused.
 func TestUpgradeToSealedSurvivesACrash(t *testing.T) {
+	nameBaseline = false
+	defer func() { nameBaseline = true }()
 	ctx := context.Background()
 	ada := testIdentity(t, "ada")
 	build := func(t *testing.T, from int) (*Store, *failAfter, Backend) {
@@ -1331,7 +1333,7 @@ func TestRewrapAllSealsTheTextOfAnErrorAgain(t *testing.T) {
 			}
 			summary := func(st *Store) string {
 				t.Helper()
-				txns, err := st.Transactions()
+				txns, err := workTxns(st)
 				if err != nil || len(txns) != 1 {
 					t.Fatalf("%v %v", txns, err)
 				}
@@ -1345,14 +1347,14 @@ func TestRewrapAllSealsTheTextOfAnErrorAgain(t *testing.T) {
 			if _, err := s.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada)}); err != nil {
 				t.Fatal(err)
 			}
-			txns, _ := s.Transactions()
+			txns, _ := workTxns(s)
 			if txns[0].SummarySealed.Group != "g1" {
 				t.Fatalf("a rewrap that removes a reader seals the text again: %s", txns[0].SummarySealed.Group)
 			}
 			if _, err := s.Rewrap(ctx, RewrapOptions{Readers: readersOf(ada), All: true}); err != nil {
 				t.Fatal(err)
 			}
-			txns, _ = s.Transactions()
+			txns, _ = workTxns(s)
 			if g := txns[0].SummarySealed.Group; g != "g2" {
 				t.Errorf("rewrap --all leaves the text in %s", g)
 			}
@@ -1401,7 +1403,7 @@ func TestUpgradeToSealedSealsTheTextOfEarlierErrors(t *testing.T) {
 			}
 			assertNoSecret(t, b, planted)
 			r := openIdentity(t, b, ada)
-			txns, err := r.Transactions()
+			txns, err := workTxns(r)
 			if err != nil || len(txns) != 4 {
 				t.Fatalf("%v %v", txns, err)
 			}

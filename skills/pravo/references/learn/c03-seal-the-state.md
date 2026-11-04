@@ -220,7 +220,7 @@ Store        s3://northwind-state/prod
 Readers      .pravo/access/readers.txt matches the store
 You          ada · reader key x25519:<key>
 Roles        off
-Signatures   1 of 2 transactions verified · 1 unsigned
+Signatures   2 of 3 transactions verified · 1 unsigned
 Unsettled    none
 ```
 

@@ -139,7 +139,53 @@ func (s *Store) upgradeSealed(ctx context.Context, o UpgradeOptions) (UpgradeRes
 		m.History = appendHistory(m.History, historyMeta{At: time.Now().UTC(), By: by, What: "sealed", Added: readerNames(m.Sealed)})
 		return nil
 	})
-	return res, err
+	if err != nil {
+		return res, err
+	}
+	if !nameBaseline {
+		return res, nil
+	}
+	return res, s.nameAllPointers(ctx, "baseline", "pravo protect init --encrypt")
+}
+
+// nameBaseline is false in the test that crashes a seal after each of its writes: the
+// baseline is a step after the seal, and a crash in it leaves a sealed state without one,
+// which pravo protect rewrap --all names later.
+var nameBaseline = true
+
+// nameAllPointers signs a transaction that names every pointer the state holds, so that
+// none is left that no signed transaction accounts for: a pointer that is deleted later is
+// then found (see MissingNodes). It runs while the state is at rest, where a seal and a
+// reseal run, since a transaction that named a pointer another command removes in between
+// would claim it still stood. A state with no pointers writes nothing.
+func (s *Store) nameAllPointers(ctx context.Context, kind, command string) error {
+	if !s.sealedState() || s.SigningKey() == "" {
+		return nil // an identity with no signing key (a recovery) signs nothing
+	}
+	if err := s.load(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	names := make([]string, 0, len(s.nodes))
+	revs := make(map[string]int, len(s.nodes))
+	for addr, r := range s.nodes {
+		names = append(names, addr)
+		revs[addr] = r.Revision
+	}
+	s.mu.Unlock()
+	if len(names) == 0 {
+		return nil
+	}
+	sort.Strings(names)
+	txn := s.Begin(kind, command)
+	if err := txn.Start(); err != nil {
+		return err
+	}
+	for _, addr := range names {
+		after := max(revs[addr], 1)
+		txn.RecordWith(addr, "name", after, after, "")
+	}
+	return txn.Finish("applied", fmt.Sprintf("named %d records", len(names)), true)
 }
 
 // refuseSealedRecords stops a seal of a state whose records are sealed already.
@@ -697,5 +743,8 @@ func (s *Store) reseal(ctx context.Context, o RewrapOptions, res *RewrapResult) 
 	if err := s.resealSecrets(ctx, current); err != nil {
 		return n, err
 	}
-	return n, s.sweepRecords(func(group string) bool { return group == current })
+	if err := s.sweepRecords(func(group string) bool { return group == current }); err != nil {
+		return n, err
+	}
+	return n, s.nameAllPointers(ctx, "baseline", "pravo protect rewrap --all")
 }

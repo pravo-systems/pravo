@@ -195,7 +195,16 @@ func TestConvert(t *testing.T) {
 		t.Error("plain output recorded as sensitive")
 	}
 
-	// The tainted instance is noted.
+	// The tainted instance is carried over as tainted, and noted; the others are not marked.
+	tainted := 0
+	for _, r := range res.Resources {
+		if r.Tainted {
+			tainted++
+		}
+	}
+	if tainted != 1 {
+		t.Errorf("%d resources are tainted, want 1", tainted)
+	}
 	if len(res.Notes) != 1 || !strings.Contains(res.Notes[0], "tainted") {
 		t.Errorf("notes = %v", res.Notes)
 	}
@@ -603,8 +612,8 @@ func TestConvertRealTaintedAndDeposed(t *testing.T) {
 	wantNotes := []string{
 		"local_file.web[0]: deposed object 2477c3ca skipped (pravo keeps one object per resource; destroy it with tofu first)",
 		"local_file.web[1]: deposed object f180dada skipped (pravo keeps one object per resource; destroy it with tofu first)",
-		"null_resource.check: tainted in the source state; pravo has no taint, the object is recorded as healthy",
-		"random_pet.server: tainted in the source state; pravo has no taint, the object is recorded as healthy",
+		"null_resource.check: tainted in the source state; recorded as tainted, the next plan replaces it",
+		"random_pet.server: tainted in the source state; recorded as tainted, the next plan replaces it",
 	}
 	if strings.Join(res.Notes, "\n") != strings.Join(wantNotes, "\n") {
 		t.Errorf("notes:\n%s\nwant:\n%s", strings.Join(res.Notes, "\n"), strings.Join(wantNotes, "\n"))

@@ -488,10 +488,17 @@ func TestDriftSurvivesUntilApplied(t *testing.T) {
 // An apply that stops halfway leaves the state the provider reached, and the
 // record does not say that the configuration was applied.
 func TestPartialApplyIsPlannedAgain(t *testing.T) {
+	// The apply that stops is an update: a create that stops is replaced, which
+	// TestCreateThatFailedPartwayIsReplaced covers.
 	s := spec{cue: "a: " + thing("a", `content: "x"`) + "\n", resources: []string{"a"}}
 	h := newHarness(t)
+	first := spec{cue: "a: " + thing("a", `content: "w"`) + "\n", resources: []string{"a"}}
+	e := h.engine(first, Options{})
+	if _, err := e.Apply(context.Background(), plan(t, e)); err != nil {
+		t.Fatal(err)
+	}
 	h.fake.partial = map[string]bool{"a": true}
-	e := h.engine(s, Options{})
+	e = h.engine(s, Options{})
 	p := plan(t, e)
 	if _, err := e.Apply(context.Background(), p); err == nil {
 		t.Fatal("the apply of a provider that fails succeeded")

@@ -28,6 +28,33 @@ func taintOf(v cue.Value, self cue.Path, res *specResolver, fixed string) map[st
 	return sensitivity.Record(v, self, res, res.addrOf, fixed)
 }
 
+// ensureTaint works out what the fields of every declared resource and output
+// read of the tasks, once. It is as much work as the analysis of the
+// dependencies, so it is left until something asks: a specification with
+// nothing withheld never does.
+func (ss *specState) ensureTaint() {
+	ss.taintOnce.Do(func() {
+		root := ss.root
+		if root == nil {
+			return
+		}
+		res := newSpecResolver(root)
+		declared := map[string]bool{}
+		for _, r := range root.Resources {
+			declared[r.Address()] = true
+			ss.recordTaint(r.Address(), taintOf(root.At(r.Path), r.Path, res, ""))
+		}
+		outRes := newSpecResolver(root).withOutputs()
+		for _, o := range root.Outputs {
+			if declared[o.Name] {
+				continue
+			}
+			p := o.ValuePath()
+			ss.recordTaint(o.Name, taintOf(root.At(p), p, outRes, "value"))
+		}
+	})
+}
+
 // recordTaint keeps what the fields of a declared resource, or the value of an
 // output (field "value"), read of the tasks (computeEdges).
 func (ss *specState) recordTaint(addr string, refs map[string][]taintRef) {
@@ -78,10 +105,9 @@ func (m *model) computeTaint() {
 	m.derived = map[string]map[string]bool{}
 	m.echoes = map[string]map[string]bool{}
 	m.because = map[string]map[string]string{}
-	if m.spec.root == nil || len(m.spec.taint) == 0 {
+	if m.spec.root == nil {
 		return
 	}
-	m.findEchoes()
 	type tops struct {
 		set map[string]bool
 		all bool
@@ -112,6 +138,25 @@ func (m *model) computeTaint() {
 			base[addr] = tops{all: true}
 		}
 	}
+	// Nothing is derived unless some node withholds something or a data source
+	// can echo it, so what the fields read need not be worked out otherwise.
+	if len(base) == 0 {
+		data := false
+		for _, addr := range m.order {
+			if m.nodes[addr].Mode == "data" {
+				data = true
+				break
+			}
+		}
+		if !data {
+			return
+		}
+	}
+	m.spec.ensureTaint()
+	if len(m.spec.taint) == 0 {
+		return
+	}
+	m.findEchoes()
 	m.echoTextless()
 	sensitive := func(task, attr string) bool {
 		if b, ok := base[task]; ok {

@@ -90,7 +90,7 @@ func TestImportTfstateWarnsAboutTaintAndDeposedObjects(t *testing.T) {
 		"Imported 4 resources and 0 outputs from terraform.tfstate into ",
 		"Warning: local_file.web[0]: deposed object 2477c3ca skipped",
 		"Warning: local_file.web[1]: deposed object f180dada skipped",
-		"Warning: null_resource.check: tainted in the source state; pravo has no taint, the object is recorded as healthy",
+		"Warning: null_resource.check: tainted in the source state; recorded as tainted, the next plan replaces it",
 		"Warning: random_pet.server: tainted in the source state",
 	} {
 		if !strings.Contains(out, want) {

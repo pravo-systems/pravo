@@ -134,6 +134,7 @@ Output:
 | `config_hash` | A digest of the configuration that the provider last saw. A plan compares it to skip a resource. An apply that stopped halfway leaves it empty, so the next plan changes the resource again. |
 | `provider_config` | A digest of the configuration of the provider instance that last wrote the node, where the instance has an attribute that says where it points. A plan reads a node whose digest differs from the one of its provider now. |
 | `drifted_at`, `gone` | A mark. A read found that the object differs from the record, or that it is gone. A node with a mark is planned until an apply writes it. Both are absent from a record without a mark. |
+| `tainted` | Set when a create failed after the provider returned an id. The object may lack what the rest of the create would have made, and an update sends only the difference. The next plan replaces the node, as `--replace` does, and the apply that does so writes a record without the mark. Absent from a record without it. |
 | `revision` | The count of writes of the node. |
 | `generation` | The transaction that created the record. A node that is removed and created again has another generation. |
 | `refreshed_at` | When the provider last reported the real state, by a read or an apply. A plan compares it with the refresh age of the node, for the nodes it looks at. |
@@ -459,6 +460,8 @@ People and jobs that change different parts of one state apply at the same time.
 An estate therefore does not need cutting into several states to keep the reads, the locks and the writes of a change small. A split also has a price: the edges stop at the boundary of a state. A change in one root does not reach a root that reads its outputs with `pravo.#RemoteOutputs`, so the roots are planned and applied one after the other, in an order that someone keeps.
 
 Two costs follow the size of the estate. pravo evaluates the whole specification on every run, and it opens every record of the state before it plans. A change that reaches every resource, such as a change to a resource that all the others read, costs what the estate costs, and so does creating the estate. `-v` prints the time of each phase: see [Debugging](../how-to/debugging.md#2-ask-what-pravo-decided). A split makes each of these smaller, because each state holds fewer resources.
+
+The evaluation grows a little faster than the estate. CUE finds a field of a struct by walking its fields, so a root with tens of thousands of resources in one struct pays for it: on four cores, `pravo validate` takes about 8 seconds for 20,000 resources and about 29 seconds for 50,000. Past 30,000 resources, several roots keep a run short.
 
 A few records are read whether or not the change reaches them. A data source is read once its record is older than its refresh age, so with the default age an estate with many data sources reads all of them on every plan, and a refresh age set with `$settings: refresh` keeps a plan from reading them again within that age. A resource that sets `$lifecycle: refresh` is read once its record is older than that age. [Refresh age](plans.md#refresh-age) lists every case.
 

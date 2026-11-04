@@ -253,6 +253,7 @@ A state in a local directory is refused: its compare-and-swap is a lock of one u
 It shows what it will do and asks `Proceed? [y/N]`. `--yes` answers it. Without a terminal and without `--yes` it refuses to ask. Nothing is written before the answer. The command does not run while a transaction is running or a lock is held. Run it while nobody plans or applies.
 
 1. Every record is written once as the object `rec/SHA256`, and `resources/ADDRESS.json` becomes a pointer to it. A record is never overwritten again.
+   A transaction of kind `baseline`, signed with your key, then names every pointer that exists. It is what lets a pointer that is deleted later be found. `pravo protect rewrap --all` records one again. An identity without a signing key records none. A sealed state that holds resources which no signed transaction names, as one sealed by an older version does, shows a `Baseline` row in `protect status` and a notice in `plan`; run `pravo protect rewrap --all` once while nobody applies to record it.
 2. The attributes and the private data of each record are encrypted with one data key, which is locked for each reader.
 3. `outputs.json`, the values of the stored plans, the values in the command lines of transactions the text of the errors of transactions that failed and what the changes of a transaction altered in the attributes of their records are sealed the same way. The words of a command and the names of its flags stay readable, and so does a positional argument. The value of a flag that takes one is sealed, written `--flag value` or `--flag=value`, unless it is a flag with a public value such as `--limit`, `--ttl`, `--only`, `--out` or `--chdir`. A word after a flag that takes no value is a positional argument. A secret belongs in `-t`.
 4. The state is set to format 3, and `meta.json` holds the locks.
@@ -336,7 +337,7 @@ Store        s3://northwind-state/prod
 Readers      .pravo/access/readers.txt matches the store
 You          ada · reader key x25519:<key>
 Roles        off
-Signatures   0 of 1 transaction verified · 1 unsigned
+Signatures   1 of 2 transactions verified · 1 unsigned
 Unsettled    none
 ```
 

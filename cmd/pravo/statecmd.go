@@ -76,6 +76,27 @@ func stateCmd() *cobra.Command {
 		}
 		return openStateValues(context.Background(), root)
 	}
+	// whole is a loader that also refuses a state with a pointer gone, as plan and drift do:
+	// a listing that lacks a resource would read as the truth.
+	whole := func(l func() (*state.Store, error)) func() (*state.Store, error) {
+		return func() (*state.Store, error) {
+			st, err := l()
+			if err != nil {
+				return nil, err
+			}
+			if prot := st.Protection(); prot.Sealed != nil && !st.Locked() {
+				var readers []protect.Reader
+				if root, err := loadRoot(); err == nil {
+					readers, _ = attributionReaders(readersOf(root))
+				}
+				if err := st.CheckLoadedNodes(context.Background(), readers); err != nil {
+					st.Close()
+					return nil, err
+				}
+			}
+			return st, nil
+		}
+	}
 	copyCmd := func(use, short string, toRemote bool) *cobra.Command {
 		return &cobra.Command{
 			Use: use, Short: short, Args: cobra.ExactArgs(1),
@@ -103,8 +124,8 @@ func stateCmd() *cobra.Command {
 	}
 	cmd.AddCommand(
 		verifyCmd(),
-		stateListCmd(loadRead),
-		stateShowCmd(loadValues),
+		stateListCmd(whole(loadRead)),
+		stateShowCmd(whole(loadValues)),
 		stateRmCmd(loadEdit),
 		stateMvCmd(loadEdit),
 		stateLogCmd(loadRead),
@@ -114,9 +135,9 @@ func stateCmd() *cobra.Command {
 		unlockCmd(load),
 		copyCmd("pull <dir>", "Copy the configured state graph into a local directory", false),
 		copyCmd("push <dir>", "Copy a local state directory into the configured backend", true),
-		stateEdgesCmd(loadRead),
-		stateDependentsCmd(loadRead),
-		stateQueryCmd(loadValues),
+		stateEdgesCmd(whole(loadRead)),
+		stateDependentsCmd(whole(loadRead)),
+		stateQueryCmd(whole(loadValues)),
 		stateImportTfstateCmd(loadEdit),
 	)
 	return cmd
@@ -177,6 +198,9 @@ func stateShowCmd(loadValues func() (*state.Store, error)) *cobra.Command {
 			}
 			if r.Gone {
 				fmt.Printf("// gone\n")
+			}
+			if r.Tainted {
+				fmt.Printf("// created halfway; the next plan replaces it\n")
 			}
 			if len(r.Dependencies) > 0 {
 				fmt.Printf("// depends on %s\n", strings.Join(r.Dependencies, ", "))

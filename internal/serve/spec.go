@@ -68,6 +68,8 @@ type specState struct {
 	typeDefs map[string]*Ref
 	// taint lists, by address and field, the attributes that the field reads: see taint.go.
 	taint map[string]map[string][]taintRef
+	// taintOnce guards the work of ensureTaint.
+	taintOnce sync.Once
 	// cueMu orders every use of the CUE values of root: the evaluation is not
 	// safe for concurrent use.
 	cueMu sync.Mutex
@@ -135,17 +137,17 @@ func loadSpec(opts Options, sig string) *specState {
 		if _, ok := ss.refs[r.Address()]; ok {
 			continue
 		}
-		if ref := ss.refOf(root.Value.LookupPath(r.Path)); ref != nil {
+		if ref := ss.refOf(root.At(r.Path)); ref != nil {
 			ss.refs[r.Address()] = ref
 		}
 	}
 	for _, d := range root.Discoveries {
-		if ref := ss.refOf(root.Value.LookupPath(d.Path)); ref != nil {
+		if ref := ss.refOf(root.At(d.Path)); ref != nil {
 			ss.discRefs[d.Name] = ref
 		}
 	}
 	for _, p := range root.Policies {
-		if ref := ss.refOf(root.Value.LookupPath(p.Path)); ref != nil {
+		if ref := ss.refOf(root.At(p.Path)); ref != nil {
 			ss.polRefs[state.PolicyName(p.Name)] = ref
 		}
 	}
@@ -153,7 +155,7 @@ func loadSpec(opts Options, sig string) *specState {
 		if _, ok := ss.refs[o.Name]; ok {
 			continue
 		}
-		if ref := ss.refOf(root.Value.LookupPath(o.Path)); ref != nil {
+		if ref := ss.refOf(root.At(o.Path)); ref != nil {
 			ss.refs[o.Name] = ref
 		}
 	}
@@ -222,7 +224,12 @@ type specResolver struct {
 	byPath  map[string]*config.Resource
 	outputs map[string]*config.Output
 	below   map[string][]cue.Path
+	inert   map[string]convert.InertField
 }
+
+// InertFields is the memo of the reference analysis: the resolver reads one
+// unchanging value.
+func (r *specResolver) InertFields() map[string]convert.InertField { return r.inert }
 
 // addrOf names the node at the path of a task, or "" when it is none.
 func (r *specResolver) addrOf(task cue.Path) string {
@@ -236,7 +243,7 @@ func (r *specResolver) addrOf(task cue.Path) string {
 }
 
 func newSpecResolver(root *config.Root) *specResolver {
-	r := &specResolver{root: root, byPath: map[string]*config.Resource{}, outputs: map[string]*config.Output{}, below: map[string][]cue.Path{}}
+	r := &specResolver{root: root, byPath: map[string]*config.Resource{}, outputs: map[string]*config.Output{}, below: map[string][]cue.Path{}, inert: map[string]convert.InertField{}}
 	for _, res := range root.Resources {
 		r.byPath[res.Path.String()] = res
 		r.addBelow(res.Path)
@@ -281,7 +288,7 @@ func (r *specResolver) Below(p cue.Path) []cue.Path {
 	return r.below[cue.MakePath(p.Selectors()...).String()]
 }
 
-func (r *specResolver) Value(p cue.Path) cue.Value { return r.root.Value.LookupPath(p) }
+func (r *specResolver) Value(p cue.Path) cue.Value { return r.root.At(p) }
 
 var _ convert.Resolver = (*specResolver)(nil)
 
@@ -293,9 +300,8 @@ func (ss *specState) computeEdges() {
 	res := newSpecResolver(root)
 	deps := map[string]map[string]bool{}
 	for _, r := range root.Resources {
-		v := root.Value.LookupPath(r.Path)
+		v := root.At(r.Path)
 		ds, _ := convert.Dependencies(v, r.Path, res)
-		ss.recordTaint(r.Address(), taintOf(v, r.Path, res, ""))
 		set := deps[r.Address()]
 		if set == nil {
 			set = map[string]bool{}
@@ -313,7 +319,7 @@ func (ss *specState) computeEdges() {
 		if !ok {
 			continue
 		}
-		v := root.Value.LookupPath(p)
+		v := root.At(p)
 		if !v.Exists() {
 			continue
 		}
@@ -343,9 +349,8 @@ func (ss *specState) computeEdges() {
 		set := map[string]bool{}
 		deps[o.Name] = set
 		p := o.ValuePath()
-		v := root.Value.LookupPath(p)
+		v := root.At(p)
 		ds, _ := convert.Dependencies(v, p, outRes)
-		ss.recordTaint(o.Name, taintOf(v, p, outRes, "value"))
 		for _, d := range ds {
 			if dr, ok := outRes.byPath[d.String()]; ok {
 				set[dr.Address()] = true
@@ -436,7 +441,7 @@ func (ss *specState) namespaceRefs(path string) (declared, definition *Ref) {
 	}
 	p := cue.ParsePath(path)
 	if p.Err() == nil {
-		v := ss.root.Value.LookupPath(p)
+		v := ss.root.At(p)
 		declared = ss.refOf(v)
 		if v.Exists() {
 			definition = ss.definitionOf(v, 0)

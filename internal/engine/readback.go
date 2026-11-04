@@ -36,6 +36,11 @@ func (e *Engine) readBack(ctx context.Context) {
 	}
 	var targets []*state.Resource
 	for _, addr := range e.completedAddrs() {
+		// What nothing depends on cannot have been changed by a node made after it in
+		// this run: the changes this read looks for come through a reference.
+		if len(e.readersOf(addr)) == 0 {
+			continue
+		}
 		if sr := e.State.Get(addr); sr != nil && sr.Mode == "managed" && !sr.Gone {
 			targets = append(targets, sr)
 		}

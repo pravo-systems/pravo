@@ -11,6 +11,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -36,7 +37,7 @@ func (e *Engine) checkSecrets(ctx context.Context, nodes map[string]*node) error
 	var asks []ask
 	for _, r := range asking {
 		e.cueMu.Lock()
-		name, pinned, known := secretAsked(r, e.current.LookupPath(r.Path))
+		name, pinned, known := secretAsked(r, e.at(r.Path))
 		e.cueMu.Unlock()
 		if known {
 			asks = append(asks, ask{r, name, pinned})
@@ -95,6 +96,7 @@ func (e *Engine) secretTask(ctx context.Context, r *config.Resource, v cue.Value
 		return e.secretError(r, name, err)
 	}
 	defer clear(sv.Value)
+	plugin.MaskSecret(string(sv.Value)) // a provider's log (-vv) shows (secret) for it
 	return e.fill(r, map[string]any{"value": string(sv.Value)})
 }
 
