@@ -523,12 +523,21 @@ careful_destroys: pravo.#Policy & {
 }
 ```
 
-A rule can combine a guard on each change with an approvals rule on the summary. This one refuses a destroy of a resource tagged `keep` and asks for two approvals, one of them from an admin, for any other destroy:
+A rule can combine a guard on each change with an approvals rule on the summary. This one refuses a delete or replace of any managed resource, and asks for one approval for a plan that adds more than three:
 
 ```cue
-guarded_destroys: pravo.#Policy & {
+guard: pravo.#Policy & {
+	description: "No destroy or replace; big additions need one approval."
 	rule: {
-		{summary: destroy: 0} | {summary: destroy: >0, approvals: {min: 2, role: "admin"}}
+		changes: [...{
+			addr:   string
+			mode:   string
+			action: string
+			if mode == "managed" && (action == "delete" || action == "replace") {
+				error("\(addr): \(action) is not allowed")
+			}
+		}]
+		{summary: add: <=3} | {summary: add: >3, approvals: {min: 1}}
 	}
 }
 ```

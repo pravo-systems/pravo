@@ -272,7 +272,7 @@ Destroy complete! Resources: 0 added, 0 changed, 2 destroyed. [txn <id>]
 
 ## What next
 
-- [Promote a release from one environment to the next](promote-a-release.md) holds prod to what staging runs.
+- [Promote a release from one environment to the next](promote-a-release.md) holds prod to what staging runs. It also shows the sealed state and the readers file (`pravo id show` prints the line to append; add `role:admin` for the people who may promote) that the promotion gate needs.
 - [B4, Inputs, tags, environments](../learn/b04-inputs-tags-environments.md) teaches each part of this recipe.
 - [Keep the state in a shared store](keep-the-state-in-a-shared-store.md) puts one prefix per environment in a shared bucket.
 - [CI](ci.md) runs one job per environment.
