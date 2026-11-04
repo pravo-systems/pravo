@@ -96,6 +96,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 	if err != nil {
 		return tftypes.Value{}, err
 	}
+	e.inheritCBD(ch)
 	e.adoptPredestroyed(ch)
 	if e.saved != nil {
 		if err := e.checkSaved(ch); err != nil {
@@ -650,6 +651,10 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		e.scope = sc
 		defer func() { e.scope = nil }()
 		e.resetRun(true)
+		e.mu.Lock()
+		e.applyPlan = plan
+		e.mu.Unlock()
+		defer func() { e.mu.Lock(); e.applyPlan = nil; e.mu.Unlock() }()
 		if err := e.destroyReplaced(ctx, plan); err != nil {
 			return fail(err)
 		}
@@ -1154,6 +1159,51 @@ func (e *Engine) destroyOld(ctx context.Context, prov plugin.Provider, ch *Chang
 	return nil
 }
 
+// replacedIn lists the replacements of a plan whose old object an apply may destroy ahead of
+// their own task: managed, not create_before_destroy, with an object to destroy.
+func replacedIn(plan *Plan) map[string]*Change {
+	replaced := map[string]*Change{}
+	for _, ch := range plan.Changes {
+		if ch.Action == ActionReplace && !ch.CreateBeforeDestroy && ch.Mode == "managed" && !ch.Applied && !ch.Prior.IsNull() {
+			replaced[ch.Addr] = ch
+		}
+	}
+	return replaced
+}
+
+// planDeps maps each node of a plan to the nodes it reads. The graph of the walk is not built when
+// the destroys are decided: the changes of the plan carry the edges, also for the nodes that do
+// not change.
+func planDeps(plan *Plan) map[string][]string {
+	deps := make(map[string][]string, len(plan.Changes))
+	for _, ch := range plan.Changes {
+		deps[ch.Addr] = ch.Deps
+	}
+	return deps
+}
+
+// reaches lists, in address order, the nodes of in that addr reads through any chain of nodes.
+func reaches(deps map[string][]string, addr string, in func(string) bool) []string {
+	var list []string
+	seen := map[string]bool{addr: true}
+	var walk func(a string)
+	walk = func(a string) {
+		for _, d := range deps[a] {
+			if seen[d] {
+				continue
+			}
+			seen[d] = true
+			if in(d) {
+				list = append(list, d)
+			}
+			walk(d)
+		}
+	}
+	walk(addr)
+	sort.Strings(list)
+	return list
+}
+
 // destroyReplaced destroys, before the walk, the old objects of the replacements the plan lists
 // that wait for each other: the old object of a node goes after the old objects of the replaced
 // nodes that depend on it, directly or through nodes that are not replaced, so a provider that
@@ -1163,43 +1213,18 @@ func (e *Engine) destroyOld(ctx context.Context, prov plugin.Provider, ch *Chang
 // further destroy starts and the ones that run finish; a node whose old object is destroyed has no
 // record, so the next apply plans it as a new one.
 func (e *Engine) destroyReplaced(ctx context.Context, plan *Plan) error {
-	replaced := map[string]*Change{}
-	for _, ch := range plan.Changes {
-		if ch.Action == ActionReplace && !ch.CreateBeforeDestroy && ch.Mode == "managed" && !ch.Applied && !ch.Prior.IsNull() {
-			replaced[ch.Addr] = ch
-		}
-	}
+	replaced := replacedIn(plan)
 	if len(replaced) < 2 {
 		return nil
 	}
-	// below lists, for each replaced node, the replaced nodes it reads through any chain of nodes.
+	deps := planDeps(plan)
 	pseudo := map[string]*Change{}
 	linked := map[string]bool{}
-	// The graph of the walk is not built yet: the plan's changes carry the edges, also for the
-	// nodes that do not change.
-	deps := map[string][]string{}
-	for _, ch := range plan.Changes {
-		deps[ch.Addr] = ch.Deps
-	}
 	for addr := range replaced {
-		var list []string
-		seen := map[string]bool{addr: true}
-		var walk func(a string)
-		walk = func(a string) {
-			for _, d := range deps[a] {
-				if seen[d] {
-					continue
-				}
-				seen[d] = true
-				if replaced[d] != nil {
-					list = append(list, d)
-					linked[d], linked[addr] = true, true
-				}
-				walk(d)
-			}
+		list := reaches(deps, addr, func(d string) bool { return replaced[d] != nil })
+		for _, d := range list {
+			linked[d], linked[addr] = true, true
 		}
-		walk(addr)
-		sort.Strings(list)
 		pseudo[addr] = &Change{Addr: addr, Deps: list}
 	}
 	var chain []*Change
@@ -1208,6 +1233,12 @@ func (e *Engine) destroyReplaced(ctx context.Context, plan *Plan) error {
 			chain = append(chain, pseudo[ch.Addr])
 		}
 	}
+	return e.destroyChain(ctx, replaced, chain)
+}
+
+// destroyChain destroys the old objects of the chain, each after the ones that depend on it, and
+// notes them for the walk.
+func (e *Engine) destroyChain(ctx context.Context, replaced map[string]*Change, chain []*Change) error {
 	if len(chain) == 0 {
 		return nil
 	}
@@ -1216,7 +1247,9 @@ func (e *Engine) destroyReplaced(ctx context.Context, plan *Plan) error {
 		warm.up(replaced[c.Addr].Schema)
 	}
 	e.mu.Lock()
-	e.predestroyed = map[string]*goneObject{}
+	if e.predestroyed == nil {
+		e.predestroyed = map[string]*goneObject{}
+	}
 	e.mu.Unlock()
 	return inReverse(chain, Parallelism, func(c *Change) error {
 		if ctx.Err() != nil {
@@ -1252,4 +1285,46 @@ func (e *Engine) adoptPredestroyed(ch *Change) {
 	ch.removedRevision = gone.revision
 	ch.predestroyed = true
 	ch.Reasons = append(ch.Reasons, "replacement: the old object was destroyed before the nodes it depends on")
+}
+
+// propagateCBD marks the replacements that a create_before_destroy replacement reads, directly or
+// through other nodes: the old object of a node cannot go while a dependent that is replaced the
+// same way still uses it, and that one is destroyed last, so the node is replaced the same way.
+func (e *Engine) propagateCBD(changes []*Change) {
+	byAddr := make(map[string]*Change, len(changes))
+	deps := make(map[string][]string, len(changes))
+	for _, ch := range changes {
+		byAddr[ch.Addr] = ch
+		deps[ch.Addr] = ch.Deps
+	}
+	for _, ch := range changes {
+		if ch.Action != ActionReplace || !ch.CreateBeforeDestroy {
+			continue
+		}
+		for _, d := range reaches(deps, ch.Addr, func(a string) bool { return byAddr[a] != nil }) {
+			if dc := byAddr[d]; dc.Action == ActionReplace && !dc.CreateBeforeDestroy && dc.Mode == "managed" {
+				dc.CreateBeforeDestroy = true
+				dc.Reasons = append(dc.Reasons, "create_before_destroy: "+ch.Addr+" depends on it and is replaced that way")
+			}
+		}
+	}
+}
+
+// inheritCBD gives a node the create_before_destroy that the plan gave it through a dependent.
+func (e *Engine) inheritCBD(ch *Change) {
+	if ch.CreateBeforeDestroy || ch.Action != ActionReplace {
+		return
+	}
+	e.mu.Lock()
+	plan := e.applyPlan
+	e.mu.Unlock()
+	if plan == nil {
+		return
+	}
+	for _, p := range plan.Changes {
+		if p.Addr == ch.Addr && p.Action == ActionReplace && p.CreateBeforeDestroy {
+			ch.CreateBeforeDestroy = true
+			return
+		}
+	}
 }
