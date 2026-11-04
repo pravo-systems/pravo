@@ -1026,8 +1026,9 @@ func TestApplyOverASlowBackend(t *testing.T) {
 			t.Errorf("%s on %s: %d calls, want %d", c.op, c.prefix, got, c.want)
 		}
 	}
-	// One call at a time, the calls above alone would take more than 20 s.
-	if took > 8*time.Second {
+	// One call at a time, the calls above alone would take more than 40 s. The note of a
+	// create on its lock (a read and a write) is part of them, and the budget with it.
+	if took > 12*time.Second {
 		t.Errorf("the apply took %s", took)
 	}
 }
