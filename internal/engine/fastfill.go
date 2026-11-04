@@ -208,6 +208,21 @@ func (e *Engine) bodyWith(r *config.Resource) (cue.Value, bool) {
 	return body, true
 }
 
+// hiddenPending reports whether one of deps, which has no fill of its own waiting,
+// is built from a task whose fill waits.
+func (e *Engine) hiddenPending(deps []string) bool {
+	if len(e.pending) == 0 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, d := range deps {
+		if _, waits := e.pending[d]; !waits && e.reachesPending(d, seen) {
+			return true
+		}
+	}
+	return false
+}
+
 // reachesPending reports whether the task at addr reads, directly or through other
 // tasks, one whose fill is pending.
 func (e *Engine) reachesPending(addr string, seen map[string]bool) bool {

@@ -509,6 +509,14 @@ func (e *Engine) snapshot(r *config.Resource) (cue.Value, error) {
 		// filled by the nodes of the scope that it waited for.
 		deps = e.scope.reads[r.Address()]
 	}
+	// A task that finished and left no fill (its values are unknown, or already in
+	// its configuration) is read from the configuration, where it is built from
+	// the tasks it read; if their fills wait, it is not yet what it will be.
+	if e.hiddenPending(deps) {
+		if err := e.settleAllLocked(); err != nil {
+			return cue.Value{}, err
+		}
+	}
 	if v, ok := e.fromPending(r, deps); ok {
 		return v, nil
 	}
@@ -550,7 +558,7 @@ func (e *Engine) fillFrom(r *config.Resource, fill map[string]any, v cue.Value) 
 	if old, ok := e.pending[addr]; ok {
 		// A task that fills again before its fill was unified: what it filled
 		// before is not lost, as it would not be had that been unified first.
-		next.older = append(old.older, old.fill)
+		next.older = append(append([]map[string]any(nil), old.older...), old.fill)
 	}
 	e.pending[addr] = next
 	return nil
