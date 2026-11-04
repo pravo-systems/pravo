@@ -59,10 +59,28 @@ func TestAPolicyAsksForApprovalsBeforeAPlanIsApplied(t *testing.T) {
 	if text, code := runPravo(t, r.dir, "--identity", "ada", "apply", id, "--auto-approve"); code != 0 {
 		t.Fatalf("an approved apply: exit %d\n%s", code, text)
 	}
+	// A plan that was applied takes no approval: it would only read as if it came before the apply.
+	text, code = runPravo(t, r.dir, "--identity", "dan", "plan", "approve", id)
+	if code != 3 || !strings.Contains(text, id+" was applied; approving it changes nothing") {
+		t.Fatalf("approving an applied plan: exit %d\n%s", code, text)
+	}
 	// An admin needs no approval for a plan that asks for one.
 	r.declare(t, map[string]string{"ok_first": rule}, "b")
+	text, code = runPravo(t, r.dir, "--identity", "ada", "plan", "--store")
+	stale := regexp.MustCompile(`plan-[0-9a-f]+`).FindString(text)
+	if code != 0 || stale == "" {
+		t.Fatalf("plan --store: exit %d\n%s", code, text)
+	}
 	if text, code := runPravo(t, r.dir, "--identity", "dan", "apply", "--auto-approve"); code != 0 {
 		t.Fatalf("an admin's plain apply: exit %d\n%s", code, text)
+	}
+	// The state moved on, so the stored plan is stale.
+	text, code = runPravo(t, r.dir, "--identity", "dan", "plan", "approve", stale)
+	if code != 3 || !strings.Contains(text, stale+" is stale; approving it changes nothing") {
+		t.Fatalf("approving a stale plan: exit %d\n%s", code, text)
+	}
+	if text, _ = runPravo(t, r.dir, "--identity", "dan", "plan", "show", stale); strings.Contains(text, "approved: dan") {
+		t.Errorf("the refused approval was written:\n%s", text)
 	}
 }
 
