@@ -131,6 +131,10 @@ type Resource struct {
 	UpdatedAt time.Time `json:"updated_at"`
 	// Txn is the id of the transaction that last wrote the node.
 	Txn string `json:"txn,omitempty"`
+	// Resealed is the id of the rewrap transaction that sealed this record again, empty for a
+	// record no rewrap touched since Txn wrote it. The record's key changes when it is sealed
+	// again, so Txn's signature no longer names it; the signature of the rewrap does.
+	Resealed string `json:"resealed,omitempty"`
 }
 
 // Marked reports whether a read left a mark on the node: it drifted or it is
@@ -855,7 +859,7 @@ func (s *Store) put(r *Resource, revision int, generation, txn string) error {
 	c.Revision, c.Generation = revision, generation
 	c.UpdatedAt = time.Now().UTC()
 	if txn != "" {
-		c.Txn = txn
+		c.Txn, c.Resealed = txn, ""
 	}
 	ref, err := s.putNode(&c)
 	if err != nil {
@@ -863,7 +867,7 @@ func (s *Store) put(r *Resource, revision int, generation, txn string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	r.Revision, r.Generation, r.UpdatedAt, r.Txn = c.Revision, c.Generation, c.UpdatedAt, c.Txn
+	r.Revision, r.Generation, r.UpdatedAt, r.Txn, r.Resealed = c.Revision, c.Generation, c.UpdatedAt, c.Txn, c.Resealed
 	s.nodes[r.Address()] = r
 	s.held[r.Address()] = ref
 	s.index = nil

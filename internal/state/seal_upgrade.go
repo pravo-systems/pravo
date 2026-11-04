@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -617,11 +618,57 @@ func (s *Store) reseal(ctx context.Context, o RewrapOptions, res *RewrapResult) 
 	s.mu.Lock()
 	current := s.ring.current()
 	s.mu.Unlock()
-	n, err := s.convertNodes(ctx, rewrite{
+	rw := rewrite{
 		needs:   func(group string, isPtr bool) bool { return !isPtr || group != current },
 		encode:  func(r *Resource, _ []byte) ([]byte, string, error) { return s.encodeRecord(r) },
 		dropOld: true,
-	}, o.Progress)
+	}
+	// A record that is sealed again has another key, and the transaction that wrote it signed
+	// the old one. When the records are bound, the rewrap is a transaction of its own that
+	// signs the new keys, and each record names it.
+	var (
+		txn     *Txn
+		mu      sync.Mutex
+		changes []Change
+	)
+	if s.bindsRecords() {
+		txn = s.Begin("rewrap", "pravo protect rewrap --all")
+		if err := txn.Start(); err != nil {
+			return 0, err
+		}
+		rw.encode = func(r *Resource, _ []byte) ([]byte, string, error) {
+			c := *r
+			c.Resealed = txn.ID()
+			return s.encodeRecord(&c)
+		}
+		rw.done = func(addr string, revision int, rkey string) {
+			mu.Lock()
+			changes = append(changes, Change{Addr: addr, Action: "reseal", Before: revision, After: revision, Record: rkey})
+			mu.Unlock()
+		}
+		if len(o.Rebind) > 0 {
+			force := map[string]bool{}
+			for _, a := range o.Rebind {
+				force[a] = true
+			}
+			rw.force = func(addr string) bool { return force[addr] }
+		}
+	}
+	n, err := s.convertNodes(ctx, rw, o.Progress)
+	if txn != nil {
+		// Written even when the conversion stopped half way: the records it sealed name it.
+		sort.Slice(changes, func(i, j int) bool { return changes[i].Addr < changes[j].Addr })
+		for _, c := range changes {
+			txn.RecordWith(c.Addr, c.Action, c.Before, c.After, c.Record)
+		}
+		status, summary := "applied", fmt.Sprintf("sealed %d records again", len(changes))
+		if err != nil {
+			status = "failed"
+		}
+		if ferr := txn.Finish(status, summary, true); ferr != nil && err == nil {
+			err = ferr
+		}
+	}
 	if err != nil {
 		return n, err
 	}

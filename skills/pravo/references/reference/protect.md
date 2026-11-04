@@ -432,6 +432,8 @@ No group needs to be dropped: the state has only its current group.
 
 With `--json`, `gc` prints one document: `format`, `dry_run`, `older_than_seconds`, `settle_seconds` (15 minutes, 900), `records` (`listed`, `named`, `unnamed`, `young`, `unknown_age`, `marked`, `settling`, `deleted`, `bytes` and `foreign`) and, for a sealed state, `groups` (`examined`, `dropped`, `kept` with `id`, `records`, `unnamed_records`, `outputs`, `plans` and `summaries`, and `skipped` with the reason when the groups were not looked at).
 
+In a state whose roles are pinned, a record that is sealed again has another key than the one the run that wrote it signed. `--all` is a run of its own then: it is recorded as a transaction of kind `rewrap`, signed by the key that runs it, which must be a writer or an admin. It lists the new key of each record it sealed, and each record names it in `resealed`. `pravo protect status` counts those records as bound. Records that an earlier pravo sealed again without that signature are refused with exit code 7 and "signed another record for revision N". An admin runs `pravo protect rewrap --all` again to repair them: it seals exactly those records once more and signs them, whoever the leaver was, and needs no key of the leaver.
+
 A stored plan that an apply holds a claim on is left as it is. `--all` counts these plans and prints `2 stored plans in use were not sealed again; run pravo protect rewrap --all when they are done.` With `--json` the count is `plans_skipped`.
 
 ## See also
