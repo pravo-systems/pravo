@@ -39,3 +39,12 @@ func watchWithShell(cmd *exec.Cmd) func() {
 		w.Close()
 	}
 }
+
+// killGroupOS signals the group of the provider, which guardChildOS made a group
+// of its own, so its pgid is the pid of the provider. The group outlives the
+// provider as long as one member runs; with none, the signal fails.
+func killGroupOS(cmd *exec.Cmd) {
+	if cmd.Process != nil {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
+}

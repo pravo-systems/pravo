@@ -21,3 +21,10 @@ func guardChild(cmd *exec.Cmd) { guardChildOS(cmd) }
 // watchChild is called once cmd has started. The returned func stops the
 // watching; it is safe to call more than once.
 func watchChild(cmd *exec.Cmd) func() { return watchChildOS(cmd) }
+
+// killGroup is called after a provider has been closed in the normal way. It
+// kills what the provider started and left running (plugin subprocesses,
+// helpers), which share its process group. Windows needs nothing here: the
+// job object kills the tree when pravo ends, and the provider's children are
+// not otherwise tracked.
+func killGroup(cmd *exec.Cmd) { killGroupOS(cmd) }

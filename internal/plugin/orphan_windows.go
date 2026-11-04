@@ -38,6 +38,8 @@ func providerJob() windows.Handle {
 
 func guardChildOS(*exec.Cmd) {}
 
+func killGroupOS(*exec.Cmd) {}
+
 func watchChildOS(cmd *exec.Cmd) func() {
 	j := providerJob()
 	if j == 0 || cmd.Process == nil {
