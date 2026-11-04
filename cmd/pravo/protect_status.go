@@ -349,10 +349,7 @@ func recordsText(v state.RecordVerdict) string {
 		line += fmt.Sprintf(" · %d from before roles", v.Earlier)
 	}
 	if v.Unchecked > 0 {
-		line += fmt.Sprintf(" · %d not checked (transaction running, or signed by a key not in the readers file)", v.Unchecked)
-	}
-	if v.EndUnsigned > 0 {
-		line += fmt.Sprintf(" · %d written by a run whose end is not signed (pravo apply --refresh=all writes them again under a signed transaction)", v.EndUnsigned)
+		line += fmt.Sprintf(" · %d not checked (transaction running or killed, or signed by a key not in the readers file; nothing binds these records to their run)", v.Unchecked)
 	}
 	if n := len(v.Problems); n > 0 {
 		line += fmt.Sprintf(" · %d that no transaction of a writer accounts for", n)

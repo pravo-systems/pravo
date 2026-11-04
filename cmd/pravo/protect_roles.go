@@ -417,7 +417,19 @@ func newVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, b
 	var found []protect.Vouch
 	skipped := 0
 	for _, v := range live {
-		if done[v.Txn] == v.Digest || isWriter[v.Key] {
+		if done[v.Txn] == v.Digest {
+			continue
+		}
+		if v.EndUnsigned {
+			// Whoever started it, a writer too: nothing but its start is signed.
+			if adoptUnsigned {
+				found = append(found, v)
+			} else {
+				skipped++
+			}
+			continue
+		}
+		if isWriter[v.Key] {
 			continue
 		}
 		if v.Key == protect.UnsignedKey {
@@ -434,7 +446,7 @@ func newVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, b
 	}
 	if skipped > 0 {
 		if !flags.JSON {
-			out.Printf("Warning: %s that no identity signed wrote records in the state, and those records stay refused. Run this with --adopt-unsigned to vouch for them.\n", plural(skipped, "transaction", "transactions"))
+			out.Printf("Warning: %s that no identity signed, or whose end is not signed, wrote records in the state, and those records stay refused. Run this with --adopt-unsigned to vouch for them.\n", plural(skipped, "transaction", "transactions"))
 		}
 	}
 	if len(found) > maxVouches {

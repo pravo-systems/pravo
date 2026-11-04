@@ -113,6 +113,9 @@ type Vouch struct {
 	Key    string
 	Txn    string
 	Digest string
+	// EndUnsigned marks a vouch for a transaction that finished and whose end is not signed.
+	// It is not stored; the roles file holds the line like any other vouch.
+	EndUnsigned bool `json:"-"`
 }
 
 // UnsignedKey stands in the Key of a Vouch for a transaction that has no finish signature:
