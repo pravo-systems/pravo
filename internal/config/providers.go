@@ -223,29 +223,33 @@ func (r *Root) instanceFor(pr pendingResource, byPath map[string]*ProviderDecl, 
 // refers to, so x: eu.#Resource.aws_s3_bucket and then b: x & {...} resolves
 // to eu.
 func (r *Root) providerOf(v cue.Value, byPath map[string]*ProviderDecl, canon func(*ProviderDecl) *ProviderDecl, depth int, seen map[string]bool) *ProviderDecl {
-	for _, p := range referencePaths(v) {
+	var found *ProviderDecl
+	eachReference(v, func(p cue.Path) bool {
 		sels := p.Selectors()
 		for i := 1; i < len(sels); i++ {
 			if !sels[i].IsDefinition() {
 				continue
 			}
 			if d, ok := byPath[cue.MakePath(sels[:i]...).String()]; ok {
-				return canon(d)
+				found = canon(d)
+				return false
 			}
 			break
 		}
 		key := p.String()
 		if depth >= 8 || seen[key] {
-			continue
+			return true
 		}
 		seen[key] = true
 		if t := r.Value.LookupPath(p); t.Exists() {
 			if d := r.providerOf(t, byPath, canon, depth+1, seen); d != nil {
-				return d
+				found = d
+				return false
 			}
 		}
-	}
-	return nil
+		return true
+	})
+	return found
 }
 
 // extraConfig finds, at any depth, a field that alias sets and canon leaves
@@ -327,15 +331,28 @@ func (r *Root) providerBelowInstance(v cue.Value, at cue.Path, byPath map[string
 // operands.
 func referencePaths(v cue.Value) []cue.Path {
 	var out []cue.Path
+	eachReference(v, func(p cue.Path) bool {
+		out = append(out, p)
+		return true
+	})
+	return out
+}
+
+// eachReference calls yield with the paths that referencePaths lists, in the same
+// order, until it returns false; the rest is not read.
+func eachReference(v cue.Value, yield func(cue.Path) bool) {
+	stop := false
 	var walk func(v cue.Value, depth int)
 	walk = func(v cue.Value, depth int) {
-		if depth > 8 {
+		if depth > 8 || stop {
 			return
 		}
 		if root, p := v.ReferencePath(); root.Exists() && len(p.Selectors()) > 0 {
 			// A reference is read as a whole: its operands are the parts of
 			// the path, and asking for them has CUE evaluate each one.
-			out = append(out, p)
+			if !yield(p) {
+				stop = true
+			}
 			return
 		}
 		_, args := v.Expr()
@@ -344,7 +361,6 @@ func referencePaths(v cue.Value) []cue.Path {
 		}
 	}
 	walk(v, 0)
-	return out
 }
 
 // localNames gives each source a short name: its type, made unique when two

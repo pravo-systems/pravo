@@ -68,6 +68,8 @@ type specState struct {
 	typeDefs map[string]*Ref
 	// taint lists, by address and field, the attributes that the field reads: see taint.go.
 	taint map[string]map[string][]taintRef
+	// taintOnce guards the work of ensureTaint.
+	taintOnce sync.Once
 	// cueMu orders every use of the CUE values of root: the evaluation is not
 	// safe for concurrent use.
 	cueMu sync.Mutex
@@ -222,7 +224,12 @@ type specResolver struct {
 	byPath  map[string]*config.Resource
 	outputs map[string]*config.Output
 	below   map[string][]cue.Path
+	inert   map[string]convert.InertField
 }
+
+// InertFields is the memo of the reference analysis: the resolver reads one
+// unchanging value.
+func (r *specResolver) InertFields() map[string]convert.InertField { return r.inert }
 
 // addrOf names the node at the path of a task, or "" when it is none.
 func (r *specResolver) addrOf(task cue.Path) string {
@@ -236,7 +243,7 @@ func (r *specResolver) addrOf(task cue.Path) string {
 }
 
 func newSpecResolver(root *config.Root) *specResolver {
-	r := &specResolver{root: root, byPath: map[string]*config.Resource{}, outputs: map[string]*config.Output{}, below: map[string][]cue.Path{}}
+	r := &specResolver{root: root, byPath: map[string]*config.Resource{}, outputs: map[string]*config.Output{}, below: map[string][]cue.Path{}, inert: map[string]convert.InertField{}}
 	for _, res := range root.Resources {
 		r.byPath[res.Path.String()] = res
 		r.addBelow(res.Path)
@@ -295,7 +302,6 @@ func (ss *specState) computeEdges() {
 	for _, r := range root.Resources {
 		v := root.At(r.Path)
 		ds, _ := convert.Dependencies(v, r.Path, res)
-		ss.recordTaint(r.Address(), taintOf(v, r.Path, res, ""))
 		set := deps[r.Address()]
 		if set == nil {
 			set = map[string]bool{}
@@ -345,7 +351,6 @@ func (ss *specState) computeEdges() {
 		p := o.ValuePath()
 		v := root.At(p)
 		ds, _ := convert.Dependencies(v, p, outRes)
-		ss.recordTaint(o.Name, taintOf(v, p, outRes, "value"))
 		for _, d := range ds {
 			if dr, ok := outRes.byPath[d.String()]; ok {
 				set[dr.Address()] = true
