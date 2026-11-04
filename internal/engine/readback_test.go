@@ -38,8 +38,9 @@ func TestApplyReadsBackWhatItWrote(t *testing.T) {
 	if got := readBackContent(t, b.Attributes); got == "" || got == "changed by b" {
 		t.Errorf("b is recorded with content %q, want the one that it was given", got)
 	}
-	if n := h.fake.called("ReadResource"); n != 2 {
-		t.Errorf("the apply read %d records, want one for each node that it wrote", n)
+	// Only a is read: nothing depends on b, so no node made after it can change it.
+	if n := h.fake.called("ReadResource"); n != 1 {
+		t.Errorf("the apply read %d records, want one for each node that it wrote and that another reads", n)
 	}
 }
 
