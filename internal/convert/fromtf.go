@@ -240,6 +240,12 @@ func fillValue(cfg cue.Value, sv tftypes.Value) (any, bool) {
 		// expressed; fill the whole list with configuration values merged in.
 		out := make([]any, len(elems))
 		filled := false
+		if t.Is(tftypes.Set{}) {
+			// A set has no order: the provider may return the elements in another one than
+			// the configuration lists them. Pair each configured element with the stored
+			// element that has the same configured values.
+			elems = alignSet(cfgElems, elems)
+		}
 		for i, e := range elems {
 			x, ok := fillValue(cfgElems[i], e)
 			if ok {
@@ -266,6 +272,76 @@ func fillValue(cfg cue.Value, sv tftypes.Value) (any, bool) {
 	}
 	g, err := ToGo(sv)
 	return g, err == nil
+}
+
+// alignSet returns the stored elements of a set in the order of the configured ones: an element
+// goes to the configured element whose concrete scalar attributes it equals. Elements that match
+// nothing keep to the positions that are left.
+func alignSet(cfg []cue.Value, st []tftypes.Value) []tftypes.Value {
+	out := make([]tftypes.Value, len(st))
+	used := make([]bool, len(st))
+	for i, c := range cfg {
+		for j, e := range st {
+			if !used[j] && setElemMatches(c, e) {
+				out[i], used[j] = e, true
+				break
+			}
+		}
+	}
+	j := 0
+	for i := range out {
+		if out[i].Type() != nil {
+			continue
+		}
+		for used[j] {
+			j++
+		}
+		out[i], used[j] = st[j], true
+	}
+	return out
+}
+
+func setElemMatches(c cue.Value, e tftypes.Value) bool {
+	if c.Kind() != cue.StructKind {
+		if !IsConcrete(c) {
+			return false
+		}
+		var g any
+		if c.Decode(&g) != nil {
+			return false
+		}
+		sg, err := ToGo(e)
+		return err == nil && fmt.Sprint(g) == fmt.Sprint(sg)
+	}
+	var m map[string]tftypes.Value
+	if e.As(&m) != nil {
+		return false
+	}
+	matched := false
+	it, err := c.Fields()
+	if err != nil {
+		return false
+	}
+	for it.Next() {
+		f := it.Value()
+		if f.IncompleteKind()&(cue.StructKind|cue.ListKind) != 0 && f.IncompleteKind() != cue.BottomKind {
+			continue
+		}
+		if !IsConcrete(f) {
+			continue
+		}
+		sv, ok := m[it.Selector().Unquoted()]
+		if !ok || sv.IsNull() || !sv.IsKnown() {
+			return false
+		}
+		var g any
+		sg, err := ToGo(sv)
+		if f.Decode(&g) != nil || err != nil || fmt.Sprint(g) != fmt.Sprint(sg) {
+			return false
+		}
+		matched = true
+	}
+	return matched
 }
 
 // Indent is the indentation unit used when rendering CUE.
