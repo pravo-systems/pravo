@@ -8,7 +8,7 @@ pravo records what it manages in a state graph, not a state file. Every resource
 
 | Path | Contents |
 |---|---|
-| `meta.json` | The format number and the lineage of the store, and in formats 3 to 6 the locks of the readers while the state is sealed, the history of the seal and a seal or an unseal in progress. |
+| `meta.json` | The format number and the lineage of the store, and in formats 3 to 7 the locks of the readers while the state is sealed, the history of the seal and a seal or an unseal in progress. |
 | `resources/<addr>.json` | One node for each resource or data source, named by its address. In format 1 it holds the whole record. In formats 2 and 3 it is a pointer to a record. |
 | `rec/<sha256>` | In formats 2 and 3, one record, named by the SHA-256 of its bytes. It is written once and never changed. |
 | `outputs.json` | The recorded outputs. A sensitive one is `{"$sensitive": value}`. While the state is sealed, the whole object is sealed. |
@@ -103,7 +103,7 @@ Output:
 
 | Field | Meaning |
 |---|---|
-| `format` | The version of the store layout: `1` to `6`. A new store is `1`. |
+| `format` | The version of the store layout: `1` to `7`. A new store is `1`. Format 7 adds no object: it is format 6 with the roles pinned in the record of the environment, so a `"format": 7` after the first apply is no sign of a damaged state. |
 | `lineage` | An identifier chosen when the store was created. A saved plan records it. |
 | `created` | When the store was created. |
 
@@ -129,7 +129,7 @@ A command that writes the state, such as `plan` or `apply`, creates the director
 
 ## Formats
 
-`meta.json` says in which of six formats a store is kept.
+`meta.json` says in which of seven formats a store is kept.
 
 | Format | Layout |
 |---|---|
@@ -141,7 +141,7 @@ A command that writes the state, such as `plan` or `apply`, creates the director
 | 6 | Environments. Format 5, with the signed record of the environment the state serves, the notes of what it runs and the promotions into it. |
 | 7 | Format 6, where the record of the environment pins the roles of the state. A pravo from before the pin cannot verify such a record, and refuses the state with `written by a newer pravo (format 7)`. |
 
-A store moves to a higher format by an upgrade that can be run again after a crash, and does not move back. This pravo reads all six. A pravo that does not know a format refuses the store with the message above, naming the number, whatever it was asked to do. The upgrade replaces `meta.json` before it changes any other object, so that such a pravo refuses the store before the first pointer is in it.
+A store moves to a higher format by an upgrade that can be run again after a crash, and does not move back. This pravo reads all seven. A pravo that does not know a format refuses the store with the message above, naming the number, whatever it was asked to do. The upgrade replaces `meta.json` before it changes any other object, so that such a pravo refuses the store before the first pointer is in it.
 
 ## Format 2: immutable records
 
@@ -812,7 +812,7 @@ In a sealed state with roles, a version that changes the name or the environment
 
 ## Remote layout
 
-On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `rec/<sha256>` in formats 2 to 6, `policy/<name>@<seq>.json` in formats 4 to 6, `secret/<name>@<seq>.json` in formats 5 and 6, `environment/<seq>.json`, `runs/<id>.json` and `promotions/<fp>.<tags>.<key>.<kind>.json` in a state of an environment, `gc/marks.json` once `pravo protect gc` has run, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and their records, the transactions, the policy versions, the secret versions, the record of the environment, the notes of what the state runs, the promotions and the stored plans, with the claims on them. They do not copy locks. A copy does not replace a state that holds records with a sealed state of another lineage, a sealed state with one that is not sealed, or the reverse: the error says so and nothing is copied.
+On S3 or a compatible store the keys are the same, under the `prefix` of the settings: `meta.json`, `resources/<addr>.json`, `rec/<sha256>` in formats 2 to 7, `policy/<name>@<seq>.json` in formats 4 to 7, `secret/<name>@<seq>.json` in formats 5 to 7, `environment/<seq>.json`, `runs/<id>.json` and `promotions/<fp>.<tags>.<key>.<kind>.json` in a state of an environment, `gc/marks.json` once `pravo protect gc` has run, `outputs.json`, `txn/<id>.json`, `locks/<addr>.lock` and, for a stored plan, `plans/<id>.plan.json`, `plans/<id>.meta.json` and `plans/<id>.progress.json`. `pravo state pull DIR` copies the configured graph into a local directory, and `pravo state push DIR` copies a local directory into the configured backend. Both copy `meta.json`, `outputs.json`, the nodes and their records, the transactions, the policy versions, the secret versions, the record of the environment, the notes of what the state runs, the promotions and the stored plans, with the claims on them. They do not copy locks. A copy does not replace a state that holds records with a sealed state of another lineage, a sealed state with one that is not sealed, or the reverse: the error says so and nothing is copied.
 
 ## Discoveries
 

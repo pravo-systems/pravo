@@ -43,7 +43,7 @@ keywords: "encrypt seal secrets readers access rewrap state encryption recovery 
 
 Protection is off by default. A state with protection off is unchanged: format 1, with the layout that every version of pravo reads. These commands turn protection on for one state, show where it stands and keep it in line with the list of readers. Each reader is an identity that [`pravo id`](id.md) makes, and each may have a [role](roles.md). [Signatures and roles](../concepts/signatures-and-roles.md) says what the seal covers and what it leaves open.
 
-A state has six formats. A sealed state is one in format 3 or above that has a sealed part in `meta.json`.
+A state has seven formats; format 7 adds no object, only the pin of the roles in the record of the environment. A sealed state is one in format 3 or above that has a sealed part in `meta.json`.
 
 | Format | Name | What it is |
 |---|---|---|
