@@ -40,7 +40,7 @@ The first line is the version of pravo. The second is the version of CUE built i
 After you replace the binary:
 
 1. Run `pravo init` in each root. It regenerates the CUE packages under `cue.mod/gen` from the provider schemas.
-2. Run `pravo validate`, and then `pravo plan`. A plan that is not empty after a change of binary is a difference to read before you apply anything.
+2. Run `pravo validate`, and then `pravo plan`. A saved plan file or a stored plan that was made before the swap is stale after `pravo init` (exit 3): the generated schemas under `cue.mod/gen` differ between pravo versions. Make the plan again and apply that one. A plan that is not empty after a change of binary is a difference to read before you apply anything.
 
 A store and a saved plan file carry a format number, and a pravo refuses one with a number above the one it writes: `written by a newer pravo`. Every command that shares a state must be the same build or a newer one, so upgrade every machine that uses a shared state together. A state that serves an environment, is sealed and pins its roles is at format 7, and a pravo from before that, such as 0.1.4, stops at it with `written by a newer pravo (format 7)`. Upgrade the machines that apply it, such as a CI image that pins the version, before the first apply that raises the format. With a bucket policy by role, only an admin may put `meta.json`, so an admin runs `pravo environments record --env NAME` (or applies) once before a writer or CI applies; a writer's apply is refused otherwise, before anything is changed, with exit code 5 and that command.
 

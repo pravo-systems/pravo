@@ -1494,7 +1494,7 @@ exit=5
 Error: not-a-plan.plan is not a pravo plan file
 exit=1
 
-Error: change.plan was written by a newer pravo (plan format 2)
+Error: change.plan was written by a newer pravo (plan format 2); use the pravo that wrote it, or a newer one
 exit=1
 ```
 

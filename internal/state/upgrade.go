@@ -117,7 +117,7 @@ func (s *Store) updateMeta(fn func(m *meta) error) error {
 				return nil, false
 			}
 			if m.Format > MaxFormat {
-				refused = fmt.Errorf("state at %s was written by a newer pravo (format %d)", s.b.Name(), m.Format)
+				refused = fmt.Errorf("state at %s was written by a newer pravo (format %d); use the pravo that wrote it, or a newer one: docs/how-to/upgrading.md", s.b.Name(), m.Format)
 				return nil, false
 			}
 			if err := fn(&m); err != nil {

@@ -390,7 +390,7 @@ func parsePlanFile(name string, data []byte) (*PlanFile, error) {
 		return nil, fmt.Errorf("%s is not a pravo plan file", name)
 	}
 	if pf.Format > PlanFileFormat {
-		return nil, fmt.Errorf("%s was written by a newer pravo (plan format %d)", name, pf.Format)
+		return nil, fmt.Errorf("%s was written by a newer pravo (plan format %d); use the pravo that wrote it, or a newer one", name, pf.Format)
 	}
 	return &pf, nil
 }
