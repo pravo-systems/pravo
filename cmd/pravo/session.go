@@ -544,6 +544,9 @@ func checkBoundRecords(root *config.Root, st *state.Store) error {
 		}
 		lines = append(lines, printable(p.Addr)+": "+printable(p.Why))
 	}
+	if state.AllEndUnsigned(v.Problems) {
+		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%w: %s written by a run whose end is not signed:\n%s\nNothing binds them to it. An admin who has looked at the transaction (pravo state log) vouches for it with pravo protect roles --adopt-unsigned.", state.ErrUntrusted, plural(len(v.Problems), "record", "records"), strings.Join(lines, "\n")))
+	}
 	return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%w: %s that no transaction of a writer accounts for (someone who holds the data key may have sealed them):\n%s\nSee pravo protect status. If the transaction was running or was killed when the roles changed, make its key a writer again and store the roles with pravo protect roles; if it was killed, also run pravo apply --refresh=all as a writer or admin (add --allow-create ADDR for a node whose create was stopped), so that a current transaction writes the records again; then demote the key again. Remove a record with pravo state rm only when its object is gone, or restore it from a version of the bucket.", state.ErrUntrusted, plural(len(v.Problems), "record", "records"), strings.Join(lines, "\n")))
 }
 

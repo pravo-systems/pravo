@@ -137,10 +137,24 @@ func (t *Txn) signFinish() error {
 	}
 	sig, err := id.SignMessage(protect.DomainTxnFinish, lineage, txnFinishParts(&t.t)...)
 	if err != nil {
+		if !t.wroteRecords() {
+			return fmt.Errorf("the transaction %s was recorded without the signature of its end: %w. It wrote no record and no secret version, so nothing is refused", t.t.ID, err)
+		}
 		return fmt.Errorf("the transaction %s was recorded without the signature of its end: %w. Nothing binds its records to it, so every command refuses them (exit 7) until an admin has looked at it and runs pravo protect roles --adopt-unsigned", t.t.ID, err)
 	}
 	t.t.FinishSig = &sig
 	return nil
+}
+
+// wroteRecords says whether the transaction wrote a record or a secret version, the things an
+// unsigned end leaves unbound.
+func (t *Txn) wroteRecords() bool {
+	for _, c := range t.t.Changes {
+		if c.After > 0 || strings.HasPrefix(c.Addr, "secret:") && c.Action == "set" {
+			return true
+		}
+	}
+	return false
 }
 
 // TxnVerdict is what a verifier makes of the signatures of one transaction.

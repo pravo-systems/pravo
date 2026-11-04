@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/pravo-systems/pravo/internal/protect"
 )
@@ -212,10 +213,10 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 			// signature. Nothing but the start is signed, so no record of it is bound; an admin
 			// who has looked at it vouches for it (pravo protect roles --adopt-unsigned).
 			sv := VerifyTransaction(lineage, t, readers)
-			if vo, ok := rules.Vouched[t.ID]; ok && sv.Start == protect.SigVerified && vo.Key == t.StartSig.Key && vo.Digest == startDigest(lineage, t) {
+			if vo, ok := rules.Vouched[t.ID]; ok && sv.Start != protect.SigInvalid && vo.Key == t.StartSig.Key && vo.Digest == startDigest(lineage, t) {
 				v.Vouched++
 			} else {
-				problem(n.addr, "the transaction "+t.ID+" that wrote it finished with its end not signed, and no admin vouched for it (pravo protect roles --adopt-unsigned)")
+				problem(n.addr, "the transaction "+t.ID+" that wrote it "+endUnsignedWhy+", and no admin vouched for it (pravo protect roles --adopt-unsigned)")
 			}
 			continue
 		}
@@ -280,6 +281,21 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 		}
 	}
 	return v
+}
+
+// endUnsignedWhy is the part of a problem that says a transaction finished with its end not
+// signed and no admin vouched for it.
+const endUnsignedWhy = "finished with its end not signed"
+
+// AllEndUnsigned says whether every problem is that: nothing is wrong with who wrote the
+// records, only the end of their run has no signature for an admin to vouch for.
+func AllEndUnsigned(ps []RecordProblem) bool {
+	for _, p := range ps {
+		if !strings.Contains(p.Why, endUnsignedWhy) {
+			return false
+		}
+	}
+	return len(ps) > 0
 }
 
 // changeOf is the change of t that made revision of addr.
