@@ -24,7 +24,7 @@ func TestDriftMarkdown(t *testing.T) {
 	if code != 2 {
 		t.Fatalf("drift --markdown exited %d:\n%s", code, text)
 	}
-	for _, want := range []string{"### pravo drift: 1 of 2 resources changed outside pravo", "| `lost` | the object does not exist |"} {
+	for _, want := range []string{"### pravo drift: 1 of 2 resources changed outside pravo", "| `lost` | the provider no longer finds it (deleted, or changed, such as a file edited by hand) |"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the report lacks %q:\n%s", want, text)
 		}

@@ -50,8 +50,15 @@ func (r *Root) discover() error {
 			}
 			continue
 		}
+		before := len(r.Resources) + len(r.decls)
 		if err := r.walk(it.Value(), []cue.Selector{sel}, 0); err != nil {
 			return err
+		}
+		// A top-level field that starts with $ and declares neither a provider nor a
+		// resource is a mistake, such as a $moved list that has no meaning here: a
+		// silent no-op would let a rename destroy and create.
+		if name := sel.Unquoted(); strings.HasPrefix(name, "$") && len(r.Resources)+len(r.decls) == before {
+			return fmt.Errorf("%s: a top-level field that starts with $ is a provider ($name: pkg.#Provider), $settings or $environments; this one declares none of them. To rename a resource, put $from: \"old\" in the resource itself", name)
 		}
 	}
 	if err := r.checkCaseCollisions(); err != nil {

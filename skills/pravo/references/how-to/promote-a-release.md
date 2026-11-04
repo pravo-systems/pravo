@@ -16,6 +16,8 @@ Each environment has a readers file of its own, so a writer of dev is not a writ
 > [!NOTE]
 > The states on this page are directories, so that the page runs on one machine, and the two people are two identity directories that `PRAVO_CONFIG_DIR` picks. A team keeps each state in a bucket ([Keep the state in a shared store](keep-the-state-in-a-shared-store.md)). A command without a prefix is ada's.
 
+A team of one has the same flow: make one identity, list it with the role `admin` in the readers file of every environment, and promote as that person. Run `pravo protect init --encrypt --env NAME` for each environment before its first apply; a command that finds no state yet for a sealed environment says so and names that command. The refusal of `pravo apply --env prod` before the promotion works for one person as for two, because it checks the release and not the person.
+
 ## 1. Declare the promotion flow
 
 Prod follows dev. `access.dir` gives each environment the directory of its readers file.

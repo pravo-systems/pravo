@@ -283,6 +283,19 @@ The roles are checked by every pravo that reads the readers file and the roles i
 
 An object lock on `roles/` keeps the newest versions of the chain from being deleted, which the pin cannot see.
 
+## Replace an admin whose key is lost
+
+When the laptop of an admin is gone and her key will not come back, another admin does the work, in this order, and each step is a command you have met above:
+
+1. Make the new member an identity with `pravo id new --name dave` (the name is a flag), and send the line it prints to an admin who still has a key.
+2. In `.pravo/access/readers.txt`, delete the line of the lost key and add dave's line with the role `admin`.
+3. `pravo protect rewrap --all --yes` seals the state to the readers of the file and takes the lost key out of every record. `rewrap` comes first because it is the step that needs no one who is gone; `--all` also writes the records that were sealed in the old group again.
+4. `pravo protect roles --yes` records the change: the lost key becomes a former key, its transactions stay vouched for, and dave is an admin. `protect status` then reports one transaction that is "signed with a key that is not in the file": that is the lost key's, and it is in order.
+5. `pravo protect gc` drops the old group of keys. It refuses until the group is a day old and has been seen by two runs 15 minutes apart, so run it again later.
+6. Take the lost key's credentials of the bucket away where they are kept: pravo cannot do that for you, and until it is done a copy of the bucket made before step 3 still opens with the old key.
+
+`pravo plan` for each remaining member (and for dave) then reports no changes, which shows that nothing in the state was lost.
+
 ## Recap
 
 - A role is a fifth word on a line of the readers file. The file is a request; `pravo protect roles`, run by an admin, makes it the state's and pins it with one more line.

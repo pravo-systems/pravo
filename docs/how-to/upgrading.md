@@ -7,6 +7,8 @@ needs: "pravo on your PATH and network access to `registry.opentofu.org`. [Quick
 done_when: "`pravo init -upgrade` moves a provider to a newer version, `pravo providers lock` pins four platforms, and `pravo plan` is empty."
 level: intermediate
 normalize:
+  - pattern: '(?m)^\t\t"signer": +"[0-9A-F]+"\n'
+    replace: ''
   - pattern: 'pravo [0-9]+\.[0-9][^\s,]*'
     replace: 'pravo <version>'
   - pattern: '(?m)^Downloading .*\n'

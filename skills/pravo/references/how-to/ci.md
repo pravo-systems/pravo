@@ -106,6 +106,18 @@ jobs:
 
 `plan` stores the plan, keeps one comment on the pull request up to date and sets the outputs `plan-id`, `has-changes`, `exit-code` and `report`. A plan that a policy refuses is commented and fails the job. `apply` takes `plan-id` and turns the exit codes 3, 4 and 5 into a line that says what to do. `drift` and `discover` keep one open issue up to date with what they find and close it when nothing is left. They pass unless `fail-on-findings` is true. The credentials of the providers and the state are the workflow's: set them in `env`, or log in to the cloud in an earlier step.
 
+| Input | Of | What it does |
+|---|---|---|
+| `command` | `pravo-action` | `plan`, `apply`, `drift` or `discover`. |
+| `working-directory` | `pravo-action` | The root, as `pravo -C` takes it. |
+| `plan-id` | `pravo-action` | With `apply`: the stored plan to apply. |
+| `due-limit` | `pravo-action` | With `drift`: how many records one run may read. |
+| `fail-on-findings` | `pravo-action` | `true` makes `drift` and `discover` fail the job when they find something. |
+| `version`, `install` | both, `install` only on `pravo-action` | Pin a release, or skip the install step. |
+| `verify-attestation` | `setup-pravo` | `true` checks the signed provenance of the archive. |
+
+A pipeline that must be safe against pull requests from forks has three rules. Trigger on `pull_request`, never on `pull_request_target`, because a fork's workflow then runs with no secrets and no OIDC token. Give the workflow `permissions: {}` at the top and `id-token: write` only to the jobs that need a role. Run the plan job only when `github.event.pull_request.head.repo.full_name == github.repository`, and the apply job only on `push` to `main`, in a GitHub environment that asks for a review. A plan reads the cloud, and a plan job needs credentials that read it and no more; an apply job needs the role that writes. The `validate` job needs no credentials at all, so it can run for every pull request.
+
 A review on GitHub is not an approval that pravo counts: an approval is a signature by a key in the readers file. Either approve with `pravo plan approve ID` on a machine that holds a key, or gate the `apply` job with a GitHub environment and give the job an identity that the policy accepts.
 
 ## 1. Check without credentials
