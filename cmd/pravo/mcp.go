@@ -245,7 +245,7 @@ func mcpTools() []mcpTool {
 			args: func(in map[string]any) ([]string, error) {
 				return append(append([]string{"state"}, tagArgs(in)...), "locks"), nil
 			}},
-		{Name: "pravo_drift", Description: "Refresh every resource and report drift: resources changed or removed outside pravo. It records what it finds as marks in the state, so that the next plan acts on it, unless no_write is set: then the report is made and the state is left as it was. An error result only means that drift was found. With due, read only the records that are older than their refresh age, the oldest first, at most limit of them; nothing is planned.",
+		{Name: "pravo_drift", Description: "Refresh every resource and report drift: resources changed or removed outside pravo. It records what it finds as marks in the state, so that the next plan acts on it, unless no_write is set: then the report is made and the state is left as it was. An error result only means that drift was found. An item with gone: true is an object that is missing or was changed into another object (a file edited by hand): its note says which, and the plan puts it back. With due, read only the records that are older than their refresh age, the oldest first, at most limit of them; nothing is planned.",
 			InputSchema: obj(map[string]any{"tags": tagsProp, "due": map[string]any{"type": "boolean", "description": "read only the records past their refresh age"},
 				"no_write": map[string]any{"type": "boolean", "description": "report drift and leave the state as it is: no refreshed value is written and no mark is set"},
 				"limit":    map[string]any{"type": "integer", "minimum": 1, "description": "with due: read at most this many records"}}),

@@ -73,6 +73,7 @@ included.`,
 	f := cmd.Flags()
 	f.StringVar(&olderThan, "older-than", "", "delete the records that no pointer names once they are older than this (default 24h; 36h, 7d); it should exceed the clock skew of the machines that write")
 	f.BoolVar(&dryRun, "dry-run", false, "say what would be marked and deleted and change nothing")
+	f.Bool("yes", false, "accepted for symmetry with rewrap and roles: gc asks for no confirmation")
 	return cmd
 }
 
