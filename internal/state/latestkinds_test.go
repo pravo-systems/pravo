@@ -59,7 +59,7 @@ func TestLatestOfKindsSkipsHintedTransactions(t *testing.T) {
 			for _, k := range tc.after {
 				runTxn(t, s, k, "applied")
 			}
-			for i := 0; i < 300; i++ {
+			for i := range 300 {
 				runTxn(t, s, []string{"plan", "edit", "secret"}[i%3], "applied")
 			}
 			cb.txnGets.Store(0)
@@ -111,7 +111,7 @@ func TestSignedFactsOfSkipsHintedTransactions(t *testing.T) {
 		t.Fatal(err)
 	}
 	runTxn(t, s, "environment", "applied")
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		runTxn(t, s, "secret", "applied")
 	}
 	cb.txnGets.Store(0)
