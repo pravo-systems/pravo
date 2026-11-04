@@ -137,8 +137,24 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 			verb, done = "Modifying", "Modifications"
 		}
 		e.step(string(ch.Action), ch.Addr, "start", idOf(ch.Prior), time.Time{}, "%s: %s... %s", ch.Addr, verb, idSuffix(ch.Prior))
+		// A create over a record (the object it records is gone) is noted like the
+		// creation of a replacement: the lock cannot carry the mark, because a plan
+		// reclaims the stale lock of a node that has a record.
+		noted := false
+		if ch.Action == ActionCreate {
+			if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
+				if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), rec.AppliedAt, true, e.txnID(), e.Opts.Command); err != nil {
+					return tftypes.Value{}, fmt.Errorf("%s: noting the create: %w", ch.Addr, err)
+				}
+				noted = true
+			}
+		}
 		res, err := e.applyChange(ctx, prov, ch, ch.Prior, ch.Planned, ch.Config, ch.PlannedPrivate)
 		if err != nil {
+			// A create that failed with nothing in doubt leaves no note.
+			if noted && !e.isUnsettled(ch.Addr) {
+				_ = e.State.ClearPendingCreate(ch.Addr)
+			}
 			return tftypes.Value{}, err
 		}
 		final, private = res.NewState, res.Private
@@ -148,6 +164,9 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 		}
 		if err := e.recordApplied(ch, what, final, private, string(ch.Action)); err != nil {
 			return tftypes.Value{}, err
+		}
+		if noted {
+			_ = e.State.ClearPendingCreate(ch.Addr)
 		}
 		e.step(string(ch.Action), ch.Addr, "done", idOf(final), start, "%s: %s complete after %s %s", ch.Addr, done, since(start), idSuffix(final))
 	case ActionReplace:
@@ -164,7 +183,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 				oldRec = &cp
 			}
 			if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
-				if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), rec.AppliedAt, e.txnID(), e.Opts.Command); err != nil {
+				if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), rec.AppliedAt, ch.Action == ActionCreate, e.txnID(), e.Opts.Command); err != nil {
 					return tftypes.Value{}, fmt.Errorf("%s: noting the replacement: %w", ch.Addr, err)
 				}
 				noted = true

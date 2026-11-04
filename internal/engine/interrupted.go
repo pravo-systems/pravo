@@ -81,8 +81,11 @@ func (e *Engine) orphanedReplacements(plan *Plan) map[string]*state.PendingCreat
 		}
 	}
 	for _, ch := range plan.Changes {
-		if ch.Mode != "managed" || ch.Applied || (ch.Action != ActionReplace || !ch.CreateBeforeDestroy) && ch.Action != ActionDelete {
+		if ch.Mode != "managed" || ch.Applied || (ch.Action != ActionReplace || !ch.CreateBeforeDestroy) && ch.Action != ActionDelete && ch.Action != ActionCreate {
 			continue
+		}
+		if ch.Action == ActionCreate && e.State.Get(ch.Addr) == nil {
+			continue // a create over no record is marked on its lock
 		}
 		p, err := e.State.PendingCreateOf(ch.Addr)
 		if err == nil && p == nil && movedFrom[ch.Addr] != "" {
@@ -113,6 +116,9 @@ func stoppedReplacement(p *state.PendingCreate) string {
 	who := "txn " + p.Txn
 	if p.Host != "" {
 		who += " on host " + p.Host
+	}
+	if p.Recreate {
+		return fmt.Sprintf("an apply (%s) stopped while it created the node again, and the state still records only the object it had before (id %s, which was gone): the new object may exist in the cloud untracked", who, p.OldID)
 	}
 	return fmt.Sprintf("an apply (%s) stopped while it created the replacement, and the state still records only the object it replaces (id %s): the replacement may exist in the cloud untracked", who, p.OldID)
 }
