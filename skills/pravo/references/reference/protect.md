@@ -443,7 +443,7 @@ A policy version is never deleted from a state. Every transaction that applied a
 
 `pravo protect policies` lists the versions that are missing. `--restore` writes them back, signed by your key, from the text of the policies in the specification. The text must have exactly the digest the transaction lists. It needs an identity that is a reader, and an admin when the readers file gives roles. A version whose text is not in the specification is brought back from the bucket's own history or from a copy of the state.
 
-Removing a policy deliberately is another thing: remove it from the specification and apply as an admin. The removal is a new version, so nothing is missing afterwards.
+Removing a policy that you want gone is another thing: remove it from the specification and apply as an admin. The removal is a new version, so nothing is missing afterwards.
 
 ## See also
 
