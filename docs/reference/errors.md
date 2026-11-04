@@ -124,7 +124,7 @@ example.com/errors@v0: import failed: cannot find package "pravo.dev/providers/h
     ./main.cue:3:8
 
 
-hint: a provider schema package is missing. Run "pravo init" to generate it
+hint: null is a CUE keyword, so the package of this provider is named null_: import it as "pravo.dev/providers/hashicorp/null:null_"
 exit=6
 ```
 
