@@ -1182,8 +1182,17 @@ func issuesOf(a *Access, f Facts) (issues []AccessIssue, allClear string) {
 	}
 	if rc := f.Roles; rc != nil && rc.Records != nil && len(rc.Records.Problems) > 0 && a.Roles != nil && a.Roles.State != "off" {
 		n := len(rc.Records.Problems)
-		is := add("bad", fmt.Sprintf("%s %s written by someone who may not change the state", commas(n), plural(n, "record was", "records were")),
-			"These records were written by someone who may not change the state, or whom nobody approved. Look at who wrote them, and remove them with pravo state rm if they are not right.", "")
+		title := fmt.Sprintf("%s %s written by someone who may not change the state", commas(n), plural(n, "record was", "records were"))
+		text := "These records were written by someone who may not change the state, or whom nobody approved. Look at who wrote them, and remove them with pravo state rm if they are not right."
+		var ps []state.RecordProblem
+		for _, p := range rc.Records.Problems {
+			ps = append(ps, state.RecordProblem{Addr: p.Addr, Why: p.Why})
+		}
+		if state.AllEndUnsigned(ps) {
+			title = fmt.Sprintf("%s %s written by a run that ended without its signature", commas(n), plural(n, "record was", "records were"))
+			text = "The run that wrote these records ended without signing its end, so nothing binds them to it. An admin who has looked at the run vouches for it with pravo protect roles --adopt-unsigned."
+		}
+		is := add("bad", title, text, "")
 		for i, p := range rc.Records.Problems {
 			if i == maxIssueItems {
 				is.More = n - maxIssueItems

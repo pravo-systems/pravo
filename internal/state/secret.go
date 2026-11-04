@@ -373,13 +373,13 @@ func (s *Store) secretTxn(t *Transaction, need protect.Role, claim secretClaim, 
 	}
 	if t.FinishSig == nil && t.StartSig != nil && t.Finished != nil {
 		// Finished, and the end is not signed. Only an admin's vouch for the start accepts it.
-		if vo, ok := rules.Vouched[t.ID]; ok && v.Start == protect.SigVerified && vo.Key == t.StartSig.Key && vo.Digest == startDigest(lineage, t) {
+		if vo, ok := rules.Vouched[t.ID]; ok && v.Start != protect.SigInvalid && vo.Key == t.StartSig.Key && vo.Digest == startDigest(lineage, t) {
 			if why := claim.find(t); why != "" {
 				return TrustProblem, why, v
 			}
 			return TrustVouched, "", v
 		}
-		return TrustProblem, "the transaction " + t.ID + " finished with its end not signed, and no admin vouched for it (pravo protect roles --adopt-unsigned)", v
+		return TrustProblem, "the transaction " + t.ID + " " + endUnsignedWhy + ", and no admin vouched for it (pravo protect roles --adopt-unsigned)", v
 	}
 	if t.Finished == nil || t.FinishSig == nil && t.Status == "running" {
 		// A run that is going or was killed: only its start is signed.

@@ -283,6 +283,18 @@ func TestARunWhoseEndCouldNotBeSignedLocksNobodyOut(t *testing.T) {
 	if code == 7 || !strings.Contains(text, "1 vouched for by an admin") {
 		t.Fatalf("protect status: exit %d\n%s", code, text)
 	}
+
+	// dan leaves: his key is removed, and what an admin vouched for stays valid.
+	pin := protect.RolesGenesisKey + " " + loadReadersFile(s.dir, "").Pin
+	s.readers(t, s.adaLine+" role:admin", pin)
+	for _, args := range [][]string{{"protect", "rewrap", "--yes"}, {"protect", "roles", "--yes"}} {
+		if text, code := runPravo(t, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
+			t.Fatalf("%v after dan left: exit %d\n%s", args, code, text)
+		}
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "plan"); code == 7 || code == 2 {
+		t.Fatalf("plan exit %d after dan left\n%s", code, text)
+	}
 }
 
 // One edit by someone who may write the bucket (deleting finish_sig of a finished transaction)
@@ -376,5 +388,17 @@ func TestSecretOfARunWithoutAnEndSignatureNeedsTheVouch(t *testing.T) {
 	}
 	if text, code := runPravo(t, s.dir, "--identity", "ada", "secret", "get", "s2"); code != 0 || !strings.Contains(text, "hunter2") {
 		t.Fatalf("secret get exit %d after the vouch\n%s", code, text)
+	}
+
+	// dan leaves: his key is removed, and what an admin vouched for stays valid.
+	pin := protect.RolesGenesisKey + " " + loadReadersFile(s.dir, "").Pin
+	s.readers(t, s.adaLine+" role:admin", pin)
+	for _, args := range [][]string{{"protect", "rewrap", "--yes"}, {"protect", "roles", "--yes"}} {
+		if text, code := runPravo(t, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
+			t.Fatalf("%v after dan left: exit %d\n%s", args, code, text)
+		}
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "secret", "get", "s2"); code != 0 || !strings.Contains(text, "hunter2") {
+		t.Fatalf("secret get exit %d after dan left\n%s", code, text)
 	}
 }
