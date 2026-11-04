@@ -1098,12 +1098,12 @@ pravo -C platform state list
 ```
 
 ```text out
-No changes. The specification matches the state. 7 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 7 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 7 · not read 7
 
 Outputs: 2 outputs unchanged.
 
-No changes. The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure.
+No changes. The specification matches the state. 1 record was not read, so a change made outside pravo would not show here; run pravo drift to compare it with the infrastructure.
 Graph: planned 0 · skipped 1 · not read 1
 admin
 services.api.config

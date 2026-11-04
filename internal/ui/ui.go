@@ -264,9 +264,9 @@ func noChanges(plan *engine.Plan) string {
 	case plan.NoRefresh:
 		return "The specification matches the state. Nothing was read from the infrastructure."
 	case plan.Stats.NotRead == 1:
-		return "The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure."
+		return "The specification matches the state. 1 record was not read, so a change made outside pravo would not show here; run pravo drift to compare it with the infrastructure."
 	case plan.Stats.NotRead > 1:
-		return fmt.Sprintf("The specification matches the state. %d records were not read; run pravo drift to compare them with the infrastructure.", plan.Stats.NotRead)
+		return fmt.Sprintf("The specification matches the state. %d records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.", plan.Stats.NotRead)
 	}
 	return "Your infrastructure matches the configuration."
 }

@@ -55,7 +55,7 @@
       "expect_exit": 0,
       "line": 278,
       "ok": true,
-      "output": "No changes. The specification matches the state. 4 records were not read; run pravo drift to compare them with the infrastructure.\nGraph: planned 0 · skipped 4 · not read 4",
+      "output": "No changes. The specification matches the state. 4 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.\nGraph: planned 0 · skipped 4 · not read 4",
       "stage": "main"
     },
     {
@@ -243,7 +243,7 @@
         "lines": [
           {
             "cls": "out-add",
-            "t": "No changes. The specification matches the state. 4 records were not read; run pravo drift to compare them with the infrastructure."
+            "t": "No changes. The specification matches the state. 4 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure."
           },
           {
             "cls": "out-dim",

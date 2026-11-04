@@ -227,7 +227,7 @@ pravo plan 2>/dev/null | tail -n 2
 ```
 
 ```text out
-No changes. The specification matches the state. 1 record was not read; run pravo drift to compare it with the infrastructure.
+No changes. The specification matches the state. 1 record was not read, so a change made outside pravo would not show here; run pravo drift to compare it with the infrastructure.
 Graph: planned 1 · skipped 1 · refreshed 1 · not read 1
 ```
 

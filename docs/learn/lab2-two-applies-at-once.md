@@ -256,7 +256,7 @@ pravo plan
 
 ```text out
 ...
-No changes. The specification matches the state. 3 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 3 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 3 · not read 3
 ```
 

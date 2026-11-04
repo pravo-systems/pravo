@@ -146,7 +146,7 @@ pravo -C second plan | grep -E '^(No changes|Graph)'
 ```text out
 port
 server
-No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 2 · not read 2
 ```
 
@@ -276,7 +276,7 @@ pravo -C moved plan | grep -E '^(Plan|No changes)'
 ```text out
 Plan: 2 to add, 0 to change, 0 to destroy.
 Copied 6 objects from pravo.state to s3://pravo-state/demo/moved
-No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 ```
 
 Archive the local directory when you are satisfied. `pravo state pull <dir>` copies the other way, from the bucket into a local directory.

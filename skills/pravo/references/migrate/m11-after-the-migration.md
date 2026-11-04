@@ -96,7 +96,7 @@ pravo plan
 Output:
 
 ```text
-No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 8 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
 Outputs: 3 outputs unchanged.
@@ -204,7 +204,7 @@ pravo plan
 Output:
 
 ```text
-No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 8 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
 Outputs: 3 outputs unchanged.
@@ -310,7 +310,7 @@ Output:
 
 ```text
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
-No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 8 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 banner
 hello
 notes.files.alpha
@@ -363,7 +363,7 @@ pravo plan
 Output:
 
 ```text
-No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 8 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
 Outputs: 3 outputs unchanged.
@@ -430,7 +430,7 @@ Output:
 ```text
 Success! 8 resources, 1 data sources, 0 ephemeral, 0 function calls, 3 outputs across 2 providers.
 
-No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 8 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
 Outputs: 3 outputs unchanged.

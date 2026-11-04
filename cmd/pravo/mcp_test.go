@@ -130,6 +130,7 @@ func TestPlanAndDriftToolsOfferWhatTheCommandsDo(t *testing.T) {
 		{"pravo_plan", map[string]any{"include_skipped": false}, []string{"plan"}},
 		{"pravo_drift", map[string]any{}, []string{"drift"}},
 		{"pravo_drift", map[string]any{"due": true}, []string{"drift", "-due"}},
+		{"pravo_drift", map[string]any{"no_write": true}, []string{"drift", "-no-write"}},
 		{"pravo_drift", map[string]any{"due": true, "limit": float64(500), "tags": []any{"env=prod"}}, []string{"drift", "-t", "env=prod", "-due", "-limit", "500"}},
 	}
 	for _, c := range cases {

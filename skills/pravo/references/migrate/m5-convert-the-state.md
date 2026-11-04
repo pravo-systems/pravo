@@ -109,6 +109,8 @@ An address in pravo is the place of a resource in the specification. The records
 | `random_pet.region["eu"]` | `random_pet.region_eu` | `region.eu` |
 | `module.notes.local_file.note["alpha"]` | `local_file.notes_note_alpha` | `notes.files.alpha` |
 
+Two more things make the first plan show a replacement. A file made with `${path.module}/out/a.txt` is recorded as `./out/a.txt`, so write `filename: "./out/a.txt"` exactly. A resource and an output share one namespace, so an output named `port` and a resource named `port` clash: give the resource another name and point `$from` at the old address.
+
 The command also prints a warning for each thing it cannot carry over, and skips the records of the built-in provider, such as `terraform_remote_state`. [M10](m10-not-in-pravo.md) lists them.
 
 ## A root with workspaces
@@ -532,7 +534,7 @@ echo "exit=$?"
 Output:
 
 ```text
-No changes. The specification matches the state. 8 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 8 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 8 · refreshed 1 · not read 8
 
 Outputs: 3 outputs unchanged.
@@ -618,7 +620,7 @@ pravo plan
 Output:
 
 ```text
-No changes. The specification matches the state. 9 records were not read; run pravo drift to compare them with the infrastructure.
+No changes. The specification matches the state. 9 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 Graph: planned 0 · skipped 9 · refreshed 1 · not read 9
 
 Outputs: 3 outputs unchanged.
