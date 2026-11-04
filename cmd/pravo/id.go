@@ -61,7 +61,12 @@ needs --name, the name of the job, and never takes the name of the user. The
 file holds both private keys in the clear, with mode 0600, in the file given by
 --out. Store its contents as the CI secret PRAVO_IDENTITY and delete the file.
 Nothing is written to the identity directory.`,
-		Args: noArgs,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				return fmt.Errorf("pravo id new takes no argument, but got %q; the name is a flag: pravo id new --name %s", args[0], args[0])
+			}
+			return noArgs(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runIDNew(name, sshFile, outFile, ci, unlock, agentKey)
 		},

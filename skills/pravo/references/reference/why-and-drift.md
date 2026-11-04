@@ -165,7 +165,7 @@ pravo why base --refresh=false
 Output:
 
 ```text
-nope: not declared in the specification and not in the state
+nope: not declared in the specification and not in the state; an address is the CUE path (db, or app.web), without the resource type, so random_pet.db is wrong and db is right
 base: replace
   - the specification changed since the last apply (hash <old> -> <new>)
   - refresh skipped: -refresh=false was given
@@ -328,7 +328,7 @@ Output:
 
 ```text
 Drift. 1 of 2 records changed outside pravo. 2 of 2 records read.
-  note: the object does not exist
+  note: the provider no longer finds it (deleted, or changed, such as a file edited by hand)
 ```
 
 A provider that a due record uses is set up as it is for a plan. Its configuration may read the environment (`pravo.#Env`, `pravo.#SecretEnv`), the outputs of another root, an ephemeral resource, a function call, or a resource or data source of the state. An ephemeral resource that the configuration needs is opened before the reads and closed after them. A provider that is set up from a resource or data source that has no record cannot be configured: the run fails with `provider NAME is set up from ADDR, which the state does not hold`.

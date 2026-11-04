@@ -417,3 +417,20 @@ func TestValidateRejectsAValueThatIsNotConcrete(t *testing.T) {
 		t.Errorf("a reference to another resource is not an error: %d\n%s", code, text)
 	}
 }
+
+// A top-level $ field that is no provider is refused, and a positional name for
+// id new points at --name.
+func TestStrayTopLevelFieldAndIDNewName(t *testing.T) {
+	p := newDemoProvider(t)
+	_ = p
+	dir := demoEstate(t, "known: $demo.#Resource.demo_server & {name: \"known\"}\n")
+	mustWrite(t, dir, "moved.cue", "package estate\n\n$moved: [{from: \"a\", to: \"b\"}]\n")
+	text, code := runPravo(t, dir, "validate")
+	if code == 0 || !strings.Contains(text, "$moved") || !strings.Contains(text, `$from: "old"`) {
+		t.Fatalf("validate exited %d, want a refusal naming $moved:\n%s", code, text)
+	}
+	text, code = runPravo(t, dir, "id", "new", "dave")
+	if code == 0 || !strings.Contains(text, "pravo id new --name dave") {
+		t.Fatalf("id new dave exited %d:\n%s", code, text)
+	}
+}
