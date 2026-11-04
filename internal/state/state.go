@@ -198,8 +198,8 @@ type Store struct {
 	// transaction id (see PolicyListings).
 	listedMu sync.Mutex
 	listed   map[string][]string
-	roles   *RolesChain
-	rolesAt time.Time
+	roles    *RolesChain
+	rolesAt  time.Time
 
 	// snap is what the store remembers of the snapshot of its state (see snapshot.go).
 	snap snapshotState
