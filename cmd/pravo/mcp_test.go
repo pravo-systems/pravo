@@ -176,7 +176,7 @@ func TestStateToolsTakeTags(t *testing.T) {
 		want []string
 	}{
 		"pravo_state_query": {map[string]any{"expression": "resources"}, []string{"state", "-t", "env=prod", "-t", "region=eu", "query", "resources"}},
-		"pravo_state_show":  {map[string]any{"addr": "a"}, []string{"state", "-t", "env=prod", "-t", "region=eu", "show", "a"}},
+		"pravo_state_show":  {map[string]any{"addr": "a"}, []string{"state", "-t", "env=prod", "-t", "region=eu", "show", "--redact", "a"}},
 		"pravo_dependents":  {map[string]any{"addr": "a"}, []string{"state", "-t", "env=prod", "-t", "region=eu", "dependents", "a"}},
 		"pravo_state_log":   {nil, []string{"state", "-t", "env=prod", "-t", "region=eu", "log"}},
 		"pravo_locks":       {nil, []string{"state", "-t", "env=prod", "-t", "region=eu", "locks"}},
@@ -197,7 +197,7 @@ func TestStateToolsTakeTags(t *testing.T) {
 		}
 	}
 	// Without tags the command line is what it was.
-	if got, err := byName["pravo_state_show"].args(map[string]any{"addr": "a"}); err != nil || !reflect.DeepEqual(got, []string{"state", "show", "a"}) {
+	if got, err := byName["pravo_state_show"].args(map[string]any{"addr": "a"}); err != nil || !reflect.DeepEqual(got, []string{"state", "show", "--redact", "a"}) {
 		t.Errorf("without tags: %v, %v", got, err)
 	}
 }

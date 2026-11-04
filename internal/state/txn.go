@@ -68,6 +68,10 @@ type Transaction struct {
 	// Policies lists the versions of the policies that judged the plan, each as
 	// NAME@SEQ:SHA-256 of its text, sorted. It is signed with the start.
 	Policies []string `json:"policies,omitempty"`
+	// PolicyWrites lists the policy versions the run wrote, each as NAME@SEQ:SHA-256 of
+	// its text (the digest of the empty text for a removal), sorted. It is signed with the
+	// end, so that a version that is deleted from the state later is missed.
+	PolicyWrites []string `json:"policy_writes,omitempty"`
 	// StartSig and FinishSig are the signatures of the identity that ran the command,
 	// in a sealed state (see sign.go). The first covers what the run set out to do, and
 	// the second what it did; a run that is killed leaves the first.

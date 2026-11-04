@@ -68,6 +68,11 @@ func txnFinishParts(t *Transaction) [][]byte {
 			parts = append(parts, text(c.Record))
 		}
 	}
+	// The policy versions the run wrote, one part present only when there are any, after
+	// a marker that no change address or record can be mistaken for.
+	if len(t.PolicyWrites) > 0 {
+		parts = append(parts, []byte("policy-writes\x00"+strings.Join(t.PolicyWrites, "\n")))
+	}
 	return parts
 }
 
@@ -97,6 +102,15 @@ func (t *Txn) SetPolicies(refs []string) {
 	defer t.mu.Unlock()
 	t.t.Policies = append([]string(nil), refs...)
 	sort.Strings(t.t.Policies)
+}
+
+// SetPolicyWrites records the policy versions the run wrote, as NAME@SEQ:SHA-256 refs. It
+// is called before the end is signed.
+func (t *Txn) SetPolicyWrites(refs []string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.t.PolicyWrites = append([]string(nil), refs...)
+	sort.Strings(t.t.PolicyWrites)
 }
 
 // signStart signs the start of the transaction, in a sealed state.
