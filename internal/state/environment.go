@@ -200,6 +200,15 @@ func (s *Store) EnvironmentRecord(ctx context.Context, readers []protect.Reader)
 				return nil, fmt.Errorf("%w: the note %s was written under version %d of the record of the environment, and the bucket holds %d: newer versions were deleted", ErrUntrusted, n.ID, n.EnvRecord, head.Seq)
 			}
 		}
+		facts, err := s.signedFacts(ctx, readers)
+		if err != nil {
+			return nil, err
+		}
+		for id, f := range facts {
+			if f.envRecord > head.Seq {
+				return nil, fmt.Errorf("%w: the transaction %s signed version %d of the record of the environment, and the bucket holds %d: newer versions were deleted", ErrUntrusted, id, f.envRecord, head.Seq)
+			}
+		}
 	}
 	if head.Seq > 1 && s.sealedState() {
 		prev, err := s.environmentVersion(ctx, readers, head.Seq-1)
@@ -289,6 +298,9 @@ func (s *Store) PutEnvironmentRecord(ctx context.Context, seq int, rec Environme
 		return Advise(err)
 	}
 	if created {
+		if signed {
+			return s.witnessEnvironmentRecord(seq)
+		}
 		return nil
 	}
 	cur, err := s.b.Get(ctx, key)
@@ -300,6 +312,22 @@ func (s *Store) PutEnvironmentRecord(ctx context.Context, seq int, rec Environme
 		return nil
 	}
 	return fmt.Errorf("%w: %s exists", ErrEnvironmentChanged, key)
+}
+
+// EnvironmentAddr is the address that the change of a transaction gives the record of the
+// environment.
+const EnvironmentAddr = "environment:record"
+
+// witnessEnvironmentRecord signs a transaction that names the version just written, so that
+// deleting the newest versions of the record, which would roll it back, is found even
+// before any apply has noted what the state runs.
+func (s *Store) witnessEnvironmentRecord(seq int) error {
+	t := s.Begin("environment", "record of the environment")
+	if err := t.Start(); err != nil {
+		return err
+	}
+	t.Record(EnvironmentAddr, "set", seq-1, seq)
+	return t.FinishError("applied", fmt.Sprintf("version %d of the record of the environment", seq), "", true)
 }
 
 // EnsureEnvironmentFormat raises the state to the format that the record of the environment
