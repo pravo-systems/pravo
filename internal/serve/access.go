@@ -1184,7 +1184,7 @@ func issuesOf(a *Access, f Facts) (issues []AccessIssue, allClear string) {
 		n := len(rc.Records.Problems)
 		title := fmt.Sprintf("%s %s written by someone who may not change the state", commas(n), plural(n, "record was", "records were"))
 		text := "These records were written by someone who may not change the state, or whom nobody approved. Look at who wrote them, and remove them with pravo state rm if they are not right."
-		var ps []state.RecordProblem
+		ps := make([]state.RecordProblem, 0, n)
 		for _, p := range rc.Records.Problems {
 			ps = append(ps, state.RecordProblem{Addr: p.Addr, Why: p.Why})
 		}

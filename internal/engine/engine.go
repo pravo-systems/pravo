@@ -813,11 +813,7 @@ func (e *Engine) checkBound(addrs []string) error {
 	for _, p := range v.Problems {
 		lines = append(lines, fmt.Sprintf("%s: %s", p.Addr, p.Why))
 	}
-	var ps []state.RecordProblem
-	for _, p := range v.Problems {
-		ps = append(ps, p)
-	}
-	if state.AllEndUnsigned(ps) {
+	if state.AllEndUnsigned(v.Problems) {
 		return WithCode(ExitUntrusted, fmt.Errorf("%w: a record written by a run whose end is not signed, which nothing binds to it (an admin vouches for it with pravo protect roles --adopt-unsigned):\n%s", state.ErrUntrusted, strings.Join(lines, "\n")))
 	}
 	return WithCode(ExitUntrusted, fmt.Errorf("%w: a record that no transaction of a writer accounts for (a reader may have sealed it):\n%s", state.ErrUntrusted, strings.Join(lines, "\n")))
