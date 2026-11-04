@@ -96,7 +96,7 @@ func StartWith(path string, logger hclog.Logger, e env.Env, extraEnv []string) (
 	rpc, err := client.Client()
 	if err != nil {
 		client.Kill()
-		return nil, fmt.Errorf("starting provider %s: %w", path, err)
+		return nil, fmt.Errorf("starting provider %s: %w (if the file is damaged, for instance by an interrupted install, delete it and run \"pravo init\")", path, err)
 	}
 	raw, err := rpc.Dispense("provider")
 	if err != nil {
