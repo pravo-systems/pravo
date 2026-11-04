@@ -504,6 +504,7 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 	// refused.
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
+	e.dropChecked()
 	settled, fills := time.Now(), len(e.pending)
 	if err := e.settleAllLocked(); err != nil && firstErr == nil {
 		firstErr = err
@@ -592,7 +593,61 @@ func (e *Engine) fillFrom(r *config.Resource, fill map[string]any, v cue.Value) 
 		next.older = append(append([]map[string]any(nil), old.older...), old.fill)
 	}
 	e.pending[addr] = next
+	if v.Exists() && len(e.readersOf(addr)) == 0 {
+		e.releaseLeaf(next)
+	}
 	return nil
+}
+
+// dropChecked leaves out of the final settle the fills that nothing reads but task
+// bodies and that were checked against all of them (checkFill). The final
+// unification evaluates the whole configuration once more, and CUE's check of it
+// takes memory that grows faster than the number of tasks. A task that an
+// output, a field or a provider reads, and everything such a task is built from,
+// is unified as before. The caller holds cueMu.
+func (e *Engine) dropChecked() {
+	e.iterMu.Lock()
+	iterated := len(e.iterated)
+	e.iterMu.Unlock()
+	if len(e.pending) == 0 || iterated > 0 {
+		return
+	}
+	if !e.externalDone {
+		e.externalReads, e.externalAll = e.scanExternal()
+		e.externalDone = true
+	}
+	if e.externalAll {
+		return
+	}
+	needed := map[string]bool{}
+	var need func(addr string)
+	need = func(addr string) {
+		if needed[addr] {
+			return
+		}
+		needed[addr] = true
+		for _, d := range e.deps[addr] {
+			need(d)
+		}
+	}
+	for _, r := range e.Root.Resources {
+		if e.externalReads[r.Path.String()] {
+			need(r.Address())
+		}
+	}
+	keep := e.pendingOrder[:0:0]
+	for _, a := range e.pendingOrder {
+		pf, ok := e.pending[a]
+		if !ok {
+			continue
+		}
+		if !needed[a] && e.fastOK(pf) {
+			delete(e.pending, a)
+			continue
+		}
+		keep = append(keep, a)
+	}
+	e.pendingOrder = keep
 }
 
 // settleLocked unifies the pending fills into the configuration if any of the

@@ -346,3 +346,23 @@ func (e *Engine) builtFromPending(name string, val cue.Value, isPending func(cue
 	}
 	return false
 }
+
+// releaseLeaf checks the fill of a task that no other task reads, and lets go of
+// the values it was checked from. Each of them holds a copy of the part of the
+// configuration it was made from, and an estate of thousands of such tasks held
+// all of them until the run ended. Whatever reads the fill later (the final
+// settle) needs the fill itself, which is kept. The caller holds cueMu.
+func (e *Engine) releaseLeaf(pf *pendingFill) {
+	if !e.externalDone {
+		e.externalReads, e.externalAll = e.scanExternal()
+		e.externalDone = true
+	}
+	if e.externalAll || e.externalReads[pf.res.Path.String()] {
+		return
+	}
+	pf.checked = 1
+	if pf.effective().Validate() != nil {
+		pf.checked = 2
+	}
+	pf.body, pf.eff = cue.Value{}, cue.Value{}
+}
