@@ -176,3 +176,76 @@ func containerFree(v cue.Value, self cue.Path, resolve Resolver, pending func(cu
 	}
 	return true
 }
+
+// ExternalReads lists the tasks that something other than a task body reads: a
+// plain field, an output's value, a comprehension that builds tasks. A value
+// computed by one of them cannot be checked against everything that reads it by
+// looking at the task bodies alone. all is true when the specification holds
+// something this cannot account for (an embedding), and then every task counts as
+// read.
+func ExternalReads(root cue.Value, isTask, holdsTask func(cue.Path) bool, resolve Resolver) (reads map[string]bool, all bool) {
+	reads = map[string]bool{}
+	add := func(task, _ cue.Path) { reads[task.String()] = true }
+	var walk func(v cue.Value, p cue.Path)
+	walk = func(v cue.Value, p cue.Path) {
+		if all || (len(p.Selectors()) > 0 && isTask(p)) {
+			return
+		}
+		switch v.IncompleteKind() {
+		case cue.StructKind:
+			if src := v.Source(); src != nil {
+				if holdsTask(p) {
+					// The syntax of a struct that holds tasks includes their bodies, which
+					// are theirs: only what is written beside the tasks is looked at.
+					ast.Walk(src, func(n ast.Node) bool {
+						switch n.(type) {
+						case *ast.Field:
+							return false
+						case *ast.EmbedDecl, *ast.Comprehension, *ast.LetClause:
+							all = true
+						}
+						return !all
+					}, nil)
+				} else {
+					scanComprehensions(src, resolve, nil, map[ast.Node]bool{}, add, func(cue.Path) bool { return true }, func(*ast.LetClause) {})
+					ast.Walk(src, func(n ast.Node) bool {
+						if _, ok := n.(*ast.EmbedDecl); ok {
+							all = true
+						}
+						return !all
+					}, nil)
+				}
+			}
+			for _, c := range conjuncts(v) {
+				if r, rp := c.ReferencePath(); r.Exists() && len(rp.Selectors()) > 0 {
+					for _, t := range SourceTasks(c, cue.Path{}, resolve) {
+						reads[t.String()] = true
+					}
+				}
+			}
+			it, err := v.Fields()
+			if err != nil {
+				all = true
+				return
+			}
+			for it.Next() {
+				walk(it.Value(), cue.MakePath(append(append([]cue.Selector(nil), p.Selectors()...), it.Selector())...))
+			}
+		case cue.ListKind:
+			it, err := v.List()
+			if err != nil {
+				all = true
+				return
+			}
+			for i := 0; it.Next(); i++ {
+				walk(it.Value(), cue.MakePath(append(append([]cue.Selector(nil), p.Selectors()...), cue.Index(i))...))
+			}
+		default:
+			for _, t := range SourceTasks(v, cue.Path{}, resolve) {
+				reads[t.String()] = true
+			}
+		}
+	}
+	walk(root, cue.Path{})
+	return reads, all
+}

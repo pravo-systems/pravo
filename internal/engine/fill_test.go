@@ -274,3 +274,105 @@ func TestConflictAtAPlainReferenceNamesTheSource(t *testing.T) {
 		})
 	}
 }
+
+// Chains whose links build their value from the one before, with an interpolation
+// or a condition, take the fast path too.
+func TestChainOfBuiltValuesIsNotUnifiedPerLink(t *testing.T) {
+	const n = 50
+	var cond strings.Builder
+	var names []string
+	for i := range n {
+		name := fmt.Sprintf("r%03d", i)
+		names = append(names, name)
+		extra := ""
+		if i > 0 {
+			extra = fmt.Sprintf("if r%03d.name != \"\" {pin: \"set\"}", i-1)
+		}
+		fmt.Fprintf(&cond, "%s: %s\n", name, thing(name, extra))
+	}
+	for name, s := range map[string]spec{
+		"interpolation": chainSpec(n, true),
+		"condition":     {cue: cond.String(), resources: names},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			e := h.engine(s, Options{})
+			plan, err := e.Plan(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := e.Apply(context.Background(), plan); err != nil {
+				t.Fatal(err)
+			}
+			if e.settles > 3 {
+				t.Errorf("the chain unified fills %d times, want a few, not one per link", e.settles)
+			}
+			if e.fastFills < n-1 {
+				t.Errorf("%d bodies were worked out on their own, want %d", e.fastFills, n-1)
+			}
+			for i := 1; i < n; i++ {
+				addr := fmt.Sprintf("r%03d", i)
+				prev := recordID(t, thingRecord(t, h, fmt.Sprintf("r%03d", i-1)))
+				r := thingRecord(t, h, addr)
+				if name == "interpolation" {
+					if got := chainContent(t, h, addr); got != "after "+prev {
+						t.Fatalf("%s read %q, want %q", addr, got, "after "+prev)
+					}
+				} else if !strings.Contains(string(r.Attributes), `"pin":"set"`) {
+					t.Fatalf("%s has %s, want pin set", addr, r.Attributes)
+				}
+			}
+			again := h.engine(s, Options{})
+			p2, err := again.Plan(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p2.HasChanges() {
+				t.Error("a second plan found changes")
+			}
+		})
+	}
+}
+
+// A value that something else in the specification refuses is found before any
+// task that reads it starts, whether the other thing is a plain field, an output
+// or the body of another task.
+func TestDependentNeverStartsOnAValueTheSpecificationRefuses(t *testing.T) {
+	for name, s := range map[string]spec{
+		"a plain field": {
+			cue:       "r000: " + thing("r000", "") + "\nr001: " + thing("r001", "content: string & r000.id") + "\ncheck: r000.id & =~\"^never\"\n",
+			resources: []string{"r000", "r001"},
+		},
+		"another task": {
+			cue: "r000: " + thing("r000", "") + "\nr001: " + thing("r001", "content: string & r000.id") + "\n" +
+				"r002: " + thing("r002", `content: string & r000.id & =~"^never"`) + "\n",
+			resources: []string{"r000", "r001", "r002"},
+		},
+		"another task built from it": {
+			cue: "r000: " + thing("r000", "") + "\nr001: " + thing("r001", "content: string & r000.id") + "\n" +
+				"r002: " + thing("r002", `content: string & "x\(r000.id)" & =~"^never"`) + "\n",
+			resources: []string{"r000", "r001", "r002"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			e := h.engine(s, Options{})
+			plan, err := e.Plan(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = e.Apply(context.Background(), plan)
+			if err == nil {
+				t.Fatal("apply accepted a value that the specification refuses")
+			}
+			if !strings.Contains(err.Error(), "r000: filling values into the configuration") {
+				t.Errorf("error %q does not name r000", err)
+			}
+			for _, a := range []string{"r001", "r002"} {
+				if h.state.Get(a) != nil {
+					t.Errorf("%s was created from a value that the specification refuses", a)
+				}
+			}
+		})
+	}
+}

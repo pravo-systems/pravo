@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
@@ -164,6 +165,12 @@ func (e *Engine) buildGraph() (map[string]*node, error) {
 	defer e.cueMu.Unlock()
 	for _, r := range e.Root.Resources {
 		v := e.current.LookupPath(r.Path)
+		if f, ok := v.Source().(*ast.Field); ok {
+			if e.fieldSrc == nil {
+				e.fieldSrc = map[string]*ast.Field{}
+			}
+			e.fieldSrc[r.Address()] = f
+		}
 		deps, _ := convert.Dependencies(v, r.Path, e.resolver())
 		n := nodes[r.Address()]
 		for _, d := range deps {
@@ -479,6 +486,15 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 type pendingFill struct {
 	res  *config.Resource
 	fill map[string]any
+	// body is the value of the task body the task ran from; with the fill it is
+	// everything that is known of the task (see fromPending). It does not exist
+	// for a task that fills without one.
+	body  cue.Value
+	eff   cue.Value
+	older []map[string]any
+	// checked is 0 before the fill is checked against what reads it, 1 when it
+	// may be used without unifying, 2 when it may not.
+	checked int
 }
 
 // snapshot returns the current value of a task body. The fills of the tasks it
@@ -502,96 +518,6 @@ func (e *Engine) snapshot(r *config.Resource) (cue.Value, error) {
 	return e.current.LookupPath(r.Path), nil
 }
 
-// fromPending returns the body of r with the values of the tasks it depends on
-// put in, without unifying them into the configuration. Unifying evaluates the
-// whole configuration, and a chain of tasks where each reads the one before has
-// one such step for every link, so a chain of n grew with the square of n. A body
-// that reads the attributes of the tasks it waited for in plain references
-// (subnet_id: net.id) gets the values leaf by leaf, which costs the size of the
-// body; the fills stay pending until a task needs them in another form, or the
-// run ends. ok is false when the body reads them in any other way, or when a value
-// does not fit: the caller then unifies, which is exact and names what conflicts.
-// The caller holds cueMu.
-func (e *Engine) fromPending(r *config.Resource, deps []string) (cue.Value, bool) {
-	if len(e.pending) == 0 {
-		return cue.Value{}, false
-	}
-	waiting := false
-	for _, a := range deps {
-		if _, ok := e.pending[a]; ok {
-			waiting = true
-			break
-		}
-	}
-	body := e.current.LookupPath(r.Path)
-	if !waiting {
-		return body, true
-	}
-	if !body.Exists() {
-		return cue.Value{}, false
-	}
-	isPending := func(task cue.Path) bool {
-		t, ok := e.byPath[task.String()]
-		if !ok {
-			return false
-		}
-		_, ok = e.pending[t.Address()]
-		return ok
-	}
-	refs, ok := convert.PureRefs(body, r.Path, e.resolver(), isPending)
-	if !ok {
-		return cue.Value{}, false
-	}
-	checked := map[string]bool{}
-	for _, ref := range refs {
-		pf := e.pending[e.byPath[ref.Task.String()].Address()]
-		if !checked[pf.res.Address()] {
-			// The values must fit the task they came from, as unifying them would
-			// check; what else they touch is checked when they are unified.
-			if e.current.LookupPath(pf.res.Path).FillPath(cue.Path{}, pf.fill).Validate() != nil {
-				return cue.Value{}, false
-			}
-			checked[pf.res.Address()] = true
-		}
-		val, found, usable := fillAt(pf.fill, ref.Attr)
-		if !usable {
-			return cue.Value{}, false
-		}
-		if !found {
-			// The task did not compute this attribute: the configuration holds it.
-			continue
-		}
-		body = body.FillPath(ref.Path, val)
-		if body.Validate() != nil {
-			return cue.Value{}, false
-		}
-	}
-	e.fastFills++
-	return body, true
-}
-
-// fillAt reads the attribute at sels from a fill. found is false when the fill
-// does not hold it; usable is false when the fill holds something along the way
-// that is not a struct.
-func fillAt(fill map[string]any, sels []cue.Selector) (val any, found, usable bool) {
-	var cur any = fill
-	for _, s := range sels {
-		if s.LabelType() != cue.StringLabel {
-			return nil, false, false
-		}
-		m, ok := cur.(map[string]any)
-		if !ok {
-			return nil, false, false
-		}
-		next, ok := m[s.Unquoted()]
-		if !ok {
-			return nil, false, true
-		}
-		cur = next
-	}
-	return cur, true, true
-}
-
 // fill records the values a task computed, to be unified into the
 // configuration. Unifying changes the value of the whole configuration, and
 // evaluating the whole configuration costs the same whether one resource or
@@ -600,6 +526,11 @@ func fillAt(fill map[string]any, sels []cue.Selector) (val any, found, usable bo
 // it starts, or until the run ends, and then every fill that waits is unified
 // in one step.
 func (e *Engine) fill(r *config.Resource, fill map[string]any) error {
+	return e.fillFrom(r, fill, cue.Value{})
+}
+
+// fillFrom is fill for a task that ran from the body v.
+func (e *Engine) fillFrom(r *config.Resource, fill map[string]any, v cue.Value) error {
 	if len(fill) == 0 {
 		return nil
 	}
@@ -610,12 +541,18 @@ func (e *Engine) fill(r *config.Resource, fill map[string]any) error {
 		e.onFill(addr)
 	}
 	if e.pending == nil {
-		e.pending = map[string]pendingFill{}
+		e.pending = map[string]*pendingFill{}
 	}
 	if _, ok := e.pending[addr]; !ok {
 		e.pendingOrder = append(e.pendingOrder, addr)
 	}
-	e.pending[addr] = pendingFill{res: r, fill: fill}
+	next := &pendingFill{res: r, fill: fill, body: v}
+	if old, ok := e.pending[addr]; ok {
+		// A task that fills again before its fill was unified: what it filled
+		// before is not lost, as it would not be had that been unified first.
+		next.older = append(old.older, old.fill)
+	}
+	e.pending[addr] = next
 	return nil
 }
 
@@ -649,6 +586,9 @@ func (e *Engine) settleAllLocked() error {
 		fills = e.seedFills()
 	}
 	for _, addr := range order {
+		for _, older := range pending[addr].older {
+			fills = append(fills, convert.PathFill{Path: pending[addr].res.Path, Value: older})
+		}
 		fills = append(fills, convert.PathFill{Path: pending[addr].res.Path, Value: pending[addr].fill})
 	}
 	v := convert.FillAll(e.current, fills)
@@ -659,7 +599,11 @@ func (e *Engine) settleAllLocked() error {
 	var first error
 	for _, addr := range order {
 		p := pending[addr]
-		v := e.current.FillPath(p.res.Path, p.fill)
+		v := e.current
+		for _, older := range p.older {
+			v = v.FillPath(p.res.Path, older)
+		}
+		v = v.FillPath(p.res.Path, p.fill)
 		if err := v.Validate(); err != nil {
 			if first == nil {
 				first = fmt.Errorf("%s: filling values into the configuration: %w", addr, fillError(p.res, err))
