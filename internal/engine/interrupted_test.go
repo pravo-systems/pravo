@@ -506,3 +506,130 @@ func TestCreateBeforeDestroyNoteFollowsAMove(t *testing.T) {
 		refused(t, h, spec{cue: "b: " + thing("two", "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"b"}}, false)
 	})
 }
+
+// The old object of a create_before_destroy replacement is kept in the state, under an address
+// of its own, until its destroy has finished: a destroy that fails, or that the command does
+// not live to see through, is retried by the next apply with no change to the specification.
+func TestCreateBeforeDestroyKeepsTheOldInstanceUntilDestroyed(t *testing.T) {
+	ctx := context.Background()
+	mk := func(name string) spec {
+		return spec{cue: "a: " + thing(name, "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"a"}}
+	}
+	deposedAddrs := func(h *harness) []string {
+		var out []string
+		for _, r := range h.state.List() {
+			if r.Address() != "a" {
+				out = append(out, r.Address())
+			}
+		}
+		return out
+	}
+	retried := func(t *testing.T, h *harness) {
+		t.Helper()
+		h.reopen()
+		if got := deposedAddrs(h); len(got) != 1 || !strings.Contains(got[0], "deposed") {
+			t.Fatalf("records after the ending: %v, want the deposed old instance", got)
+		}
+		if rec := h.state.Get("a"); rec == nil || rec.ID() == "" {
+			t.Fatalf("the replacement is not recorded: %+v", rec)
+		}
+		// No change to the specification: the plan lists the destroy, the apply does it.
+		e := h.engine(mk("two"), Options{})
+		plan := mustPlan(t, e)
+		var destroys []string
+		for _, c := range plan.Changes {
+			if c.Action == ActionDelete {
+				destroys = append(destroys, c.Addr)
+			}
+		}
+		if len(destroys) != 1 || !strings.Contains(destroys[0], "deposed") {
+			t.Fatalf("the plan lists %v, want the deposed instance", destroys)
+		}
+		if _, err := e.Apply(ctx, plan); err != nil {
+			t.Fatalf("the retry: %v", err)
+		}
+		if got := deposedAddrs(h); len(got) != 0 {
+			t.Errorf("records after the retry: %v", got)
+		}
+		e = h.engine(mk("two"), Options{})
+		if plan := mustPlan(t, e); len(plan.Changes) != 0 && plan.Changes[0].Action != ActionNoop {
+			t.Errorf("a plan after the retry still has changes: %v", plan.Changes[0].Action)
+		}
+	}
+	t.Run("the destroy fails", func(t *testing.T) {
+		h := newHarness(t)
+		h.apply(mk("one"))
+		h.fake.refuseDestroy("one")
+		e := h.engine(mk("two"), Options{})
+		_, err := e.Apply(ctx, mustPlan(t, e))
+		if err == nil || !strings.Contains(err.Error(), "the previous instance (id id-1) is kept in the state") {
+			t.Fatalf("apply = %v, want the old instance named", err)
+		}
+		h.fake.mu.Lock()
+		delete(h.fake.undestroyable, "one")
+		h.fake.mu.Unlock()
+		retried(t, h)
+	})
+	t.Run("the command dies during the destroy", func(t *testing.T) {
+		var b *deadBackend
+		h := newHarnessOver(t, func(x state.Backend) state.Backend { b = &deadBackend{Backend: x}; return b })
+		h.apply(mk("one"))
+		h.fake.beforeDestroy = func(string) { b.dead.Store(true) }
+		e := h.engine(mk("two"), Options{})
+		if _, err := e.Apply(ctx, mustPlan(t, e)); err == nil {
+			t.Fatal("the apply of a killed process succeeded")
+		}
+		h.fake.beforeDestroy = nil
+		b.dead.Store(false)
+		retried(t, h)
+	})
+}
+
+// A command that stops after the old object was kept and before the replacement was recorded
+// leaves one object under two records. The plan does not destroy it as a leftover: the
+// apply is refused as after any interrupted create, and once the create is allowed the
+// replacement goes on and the old object is destroyed once.
+func TestCreateBeforeDestroyStoppedBeforeTheReplacementIsRecorded(t *testing.T) {
+	ctx := context.Background()
+	mk := func(name string) spec {
+		return spec{cue: "a: " + thing(name, "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"a"}}
+	}
+	var b *deadBackend
+	h := newHarnessOver(t, func(x state.Backend) state.Backend { b = &deadBackend{Backend: x}; return b })
+	h.apply(mk("one"))
+	h.fake.afterApply = func(string) error { b.refuse.Store(&[]string{"resources/a.json"}); return nil }
+	e := h.engine(mk("two"), Options{})
+	if _, err := e.Apply(ctx, mustPlan(t, e)); err == nil {
+		t.Fatal("apply succeeded")
+	}
+	h.fake.afterApply = nil
+	b.refuse.Store(nil)
+	h.reopen()
+	if n := len(h.state.List()); n != 2 {
+		t.Fatalf("%d records after the ending, want the node and the deposed old object", n)
+	}
+	h.fake.resetCalls()
+	e = h.engine(mk("two"), Options{})
+	plan := mustPlan(t, e)
+	for _, c := range plan.Changes {
+		if c.Action == ActionDelete && !c.Prior.IsNull() {
+			t.Errorf("the plan destroys %s, the object of the node", c.Addr)
+		}
+	}
+	_, err := e.Apply(ctx, plan)
+	var coded *CodedError
+	if err == nil || !errors.As(err, &coded) || coded.Code != ExitRefused {
+		t.Fatalf("apply = %v, want exit code %d", err, ExitRefused)
+	}
+	if n := h.fake.called("ApplyResourceChange"); n != 0 {
+		t.Fatalf("the refused apply reached the provider %d times", n)
+	}
+	e = h.engine(mk("two"), Options{AllowCreate: []string{"a"}})
+	if _, err := e.Apply(ctx, mustPlan(t, e)); err != nil {
+		t.Fatalf("apply with --allow-create: %v", err)
+	}
+	h.reopen()
+	if got := h.state.List(); len(got) != 1 || got[0].Address() != "a" {
+		t.Errorf("records after the apply: %d", len(got))
+	}
+}

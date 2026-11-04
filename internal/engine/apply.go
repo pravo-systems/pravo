@@ -158,6 +158,11 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 			// outlives a command that stops is what keeps the next apply from creating the
 			// replacement again (the lock does not: a plan reclaims it).
 			noted := false
+			var oldRec *state.Resource
+			if rec := e.State.Get(ch.Addr); rec != nil {
+				cp := *rec
+				oldRec = &cp
+			}
 			if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
 				if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), e.txnID(), e.Opts.Command); err != nil {
 					return tftypes.Value{}, fmt.Errorf("%s: noting the replacement: %w", ch.Addr, err)
@@ -173,6 +178,14 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 				return tftypes.Value{}, err
 			}
 			final, private = res.NewState, res.Private
+			// The old object is kept in the state under an address of its own until its
+			// destroy has finished, so that an apply that stops or fails from here on does
+			// not forget it: a plan lists it as a record to destroy, and the next apply
+			// retries. It is written before the replacement is recorded, and the note of
+			// the create is cleared after it: a command that stops between the two leaves
+			// the node and the deposed record with the same id, which the plan treats as
+			// one object, and the note, which refuses the next create.
+			deposed := e.depose(ch.Addr, oldRec)
 			if err := e.recordApplied(ch, "creation", final, private, "replace"); err != nil {
 				return tftypes.Value{}, err
 			}
@@ -181,8 +194,12 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 			}
 			e.Opts.Progress("%s: Destroying previous instance... %s", ch.Addr, idSuffix(ch.Prior))
 			if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
+				if deposed != "" {
+					err = fmt.Errorf("%w; the previous instance (id %s) is kept in the state as %s, and the next apply destroys it", err, oldRec.ID(), deposed)
+				}
 				return tftypes.Value{}, err
 			}
+			e.undepose(deposed)
 		} else {
 			e.Opts.Progress("%s: Destroying... %s", ch.Addr, idSuffix(ch.Prior))
 			if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
@@ -915,4 +932,62 @@ func (e *Engine) isUnsettled(addr string) bool {
 	defer e.mu.Unlock()
 	_, ok := e.unsettled[addr]
 	return ok
+}
+
+// depose writes the record of the old object that a create_before_destroy replacement
+// replaced under an address of its own, and returns the address ("" when it could not be
+// written, in which case the old object is destroyed with nothing to keep it).
+func (e *Engine) depose(addr string, old *state.Resource) string {
+	if old == nil {
+		return ""
+	}
+	sels := cue.ParsePath(addr).Selectors()
+	label := "deposed " + old.ID()
+	dep := cue.MakePath(append(append([]cue.Selector{}, sels...), cue.Str(label))...).String()
+	cp := *old
+	cp.Addr, cp.Name, cp.Revision, cp.Generation = dep, label, 0, ""
+	if err := e.State.Set(&cp, e.txnID()); err != nil {
+		e.Opts.Progress("Warning: %s: the previous instance (id %s) could not be kept in the state: %v", addr, old.ID(), err)
+		return ""
+	}
+	e.txn.Record(dep, "deposed", 0, cp.Revision)
+	return dep
+}
+
+// undepose removes the record of an old object that was destroyed.
+func (e *Engine) undepose(dep string) {
+	if dep == "" {
+		return
+	}
+	rev := 0
+	if r := e.State.Get(dep); r != nil {
+		rev = r.Revision
+	}
+	if _, err := e.State.Remove(dep); err != nil {
+		e.Opts.Progress("Warning: %s: the destroyed previous instance is still in the state: %v", dep, err)
+		return
+	}
+	e.txn.Record(dep, "destroy", rev, 0)
+}
+
+// deposedBase returns the address of the node whose old instance the record at addr keeps,
+// when addr is the address of a deposed record (see depose).
+func deposedBase(addr string) (string, bool) {
+	sels := cue.ParsePath(addr).Selectors()
+	if len(sels) < 2 || !strings.HasPrefix(sels[len(sels)-1].String(), `"deposed `) {
+		return "", false
+	}
+	return cue.MakePath(sels[:len(sels)-1]...).String(), true
+}
+
+// redundantDeposed reports whether the deposed record at addr holds the object that the
+// record of its node holds now: the replacement was not recorded, so there is one object, and
+// destroying it would destroy the node.
+func (e *Engine) redundantDeposed(addr string) bool {
+	base, ok := deposedBase(addr)
+	if !ok {
+		return false
+	}
+	dep, live := e.State.Get(addr), e.State.Get(base)
+	return dep != nil && live != nil && dep.ID() != "" && dep.ID() == live.ID()
 }

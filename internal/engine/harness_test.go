@@ -105,6 +105,8 @@ type fakeProvider struct {
 	// afterApply, when set, runs when ApplyResourceChange of a create is about to return, with
 	// the cloud already holding the object: a test stops the process there.
 	afterApply func(name string) error
+	// beforeDestroy, when set, runs when a destroy of the object called name begins.
+	beforeDestroy func(name string)
 }
 
 // canImport makes ImportResourceState find the object with this id.
@@ -563,6 +565,9 @@ func (f *fakeProvider) destroy(prior tftypes.Value) (fails bool) {
 	var m map[string]tftypes.Value
 	if prior.As(&m) == nil {
 		_ = m["name"].As(&name)
+	}
+	if f.beforeDestroy != nil {
+		f.beforeDestroy(name)
 	}
 	f.mu.Lock()
 	f.tick++
