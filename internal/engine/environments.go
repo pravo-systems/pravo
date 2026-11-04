@@ -295,11 +295,17 @@ func (g GateReader) standing(p *state.Promotion) (protect.SigStatus, string, pro
 		return protect.SigVerified, p.Signature.Signer, role
 	}
 	role, _ := protect.RoleOf(g.Readers, p.Signature.Key)
+	// A withdrawal only restricts, so `protect roles` vouches for the ones that an admin
+	// signed when that key is demoted or leaves: it keeps its standing as an admin's.
+	if st == protect.SigVerified && p.Kind == state.PromotionRevoked && !role.Allows(protect.RoleAdmin) && p.Vouched(g.State.Lineage(), g.Vouched) {
+		role = protect.RoleAdmin
+	}
 	return st, who, role
 }
 
-// Withdrawal reads the newest withdrawal of the release by an admin of the state, and says
-// who made it, how long ago and why. ok is false where there is none.
+// Withdrawal reads the newest withdrawal of the release by an admin of the state that no
+// admin's promotion lifted since, and says who made it, how long ago and why. ok is false where
+// there is none. Check and the promote command both go by it, so that they cannot disagree.
 func (g GateReader) Withdrawal(ctx context.Context, rel Release) (by string, ago time.Duration, why string, ok bool) {
 	all, err := g.State.Promotions(ctx, rel.Fingerprint)
 	if err != nil {
@@ -319,6 +325,15 @@ func (g GateReader) Withdrawal(ctx context.Context, rel Release) (by string, ago
 	}
 	if at.IsZero() {
 		return "", 0, "", false
+	}
+	for _, o := range all {
+		p := o.Promotion
+		if p == nil || p.Kind == state.PromotionRevoked || p.Fingerprint != rel.Fingerprint || !maps.Equal(p.Tags, rel.Tags) || p.Environment != g.Environment || !p.At.After(at) {
+			continue
+		}
+		if st, _, role := g.standing(p); st == protect.SigVerified && role.Allows(protect.RoleAdmin) {
+			return "", 0, "", false
+		}
 	}
 	return PlainText(by), g.now().Sub(at), PlainText(why), true
 }

@@ -77,7 +77,7 @@ When the state of an environment before cannot be read, an admin of ENVIRONMENT 
 
 ## A withdrawal
 
-`--revoke "reason"` writes a withdrawal of the release into the state of ENVIRONMENT. The release is blocked: promotions of it signed before the withdrawal stop counting, and one signed after it counts only when an admin signed it. An apply is refused with the reason until an admin promotes the release again; a writer's `promote` is refused too (exit 5). Another release is not affected. A release that ENVIRONMENT already runs stays applied: a withdrawal stops the next apply, and a fix is a new release.
+`--revoke "reason"` writes a withdrawal of the release into the state of ENVIRONMENT. The release is blocked: promotions of it signed before the withdrawal stop counting, and one signed after it counts only when an admin signed it. An apply is refused with the reason until an admin promotes the release again; a writer's `promote` is refused too (exit 5). Another release is not affected. A withdrawal counts when it was signed by an admin of ENVIRONMENT: if that admin is demoted or removed, `pravo protect roles` keeps the withdrawal in force with no flag, since it only restricts, and says so. Once an admin has promoted the release again, a writer's `promote` of it behaves as for any release that is promoted: it signs nothing and exits 0 when the environment already runs it. A lifting promotion by an admin who has left stops counting, which keeps the release blocked. A release that ENVIRONMENT already runs stays applied: a withdrawal stops the next apply, and a fix is a new release.
 
 ## Example
 

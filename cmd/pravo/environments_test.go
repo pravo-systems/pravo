@@ -854,3 +854,89 @@ func TestPromoteWithoutARecordTellsTheWriterWhatAnAdminRuns(t *testing.T) {
 		t.Fatalf("promote by a writer without a record: exit %d\n%s", code, text)
 	}
 }
+
+// editReaders rewrites the line of who in the readers file of env: f returns the new line, or ""
+// to drop it.
+func (l *ladder) editReaders(t *testing.T, env, who string, f func(line string) string) {
+	t.Helper()
+	path := filepath.Join(l.dir, ".pravo", "access", env, "readers.txt")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kept []string
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if strings.HasPrefix(line, who+" ") {
+			if line = f(line); line == "" {
+				continue
+			}
+		}
+		kept = append(kept, line)
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(kept, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// withdrawnLadder has ada withdraw the release from prod, with zoe as the second admin and cia a writer.
+func withdrawnLadder(t *testing.T) *ladder {
+	l := newLadderPerEnv(t, "ada:admin", "zoe:admin", "cia:writer")
+	l.must(t, "ada", "apply", "-t", "env=dev", "--auto-approve")
+	l.must(t, "ada", "promote", "staging", "--auto-approve")
+	l.must(t, "ada", "promote", "prod", "--revoke", "corrupts uploads")
+	if text, code := l.as(t, "cia", "promote", "prod", "--sign-only"); code != 5 || !strings.Contains(text, "ada withdrew this release") {
+		t.Fatalf("cia before the change: exit %d\n%s", code, text)
+	}
+	return l
+}
+
+func (l *ladder) stillWithdrawn(t *testing.T, when string) {
+	t.Helper()
+	text, code := l.as(t, "cia", "promote", "prod", "--sign-only")
+	if code != 5 || !strings.Contains(text, "ada withdrew this release") {
+		t.Fatalf("promote %s: exit %d\n%s", when, code, text)
+	}
+	text, code = l.as(t, "cia", "apply", "-t", "env=prod", "--auto-approve")
+	if code != 5 || !strings.Contains(text, "withdrawn by ada") {
+		t.Fatalf("apply %s: exit %d\n%s", when, code, text)
+	}
+}
+
+// A withdrawal keeps holding when the admin who made it is demoted, or leaves, with or without
+// --vouch-notes: it only restricts, so roles carry it over with no flag.
+func TestAWithdrawalHoldsWhenItsAdminIsDemoted(t *testing.T) {
+	l := withdrawnLadder(t)
+	l.editReaders(t, "prod", "ada", func(s string) string { return strings.Replace(s, "role:admin", "role:writer", 1) })
+	text := l.must(t, "zoe", "protect", "roles", "--yes", "-t", "env=prod")
+	if !strings.Contains(text, "a withdrawal stays in force") {
+		t.Fatalf("protect roles:\n%s", text)
+	}
+	l.stillWithdrawn(t, "after the demotion")
+}
+
+func TestAWithdrawalHoldsWhenItsAdminLeaves(t *testing.T) {
+	for _, flag := range []string{"", "--vouch-notes"} {
+		l := withdrawnLadder(t)
+		l.editReaders(t, "prod", "ada", func(string) string { return "" })
+		l.must(t, "zoe", "protect", "rewrap", "--yes", "-t", "env=prod")
+		args := []string{"protect", "roles", "--yes", "-t", "env=prod"}
+		if flag != "" {
+			args = append(args, flag)
+		}
+		text := l.must(t, "zoe", args...)
+		if strings.Contains(text, "will stop counting") && strings.Contains(text, "withdrawal") && !strings.Contains(text, "keeps holding") {
+			t.Fatalf("the warning:\n%s", text)
+		}
+		l.stillWithdrawn(t, "after the offboarding "+flag)
+	}
+}
+
+// After an admin lifted the withdrawal, a writer's promote and apply of the release work.
+func TestAWriterPromotesAfterAnAdminLiftedTheWithdrawal(t *testing.T) {
+	l := withdrawnLadder(t)
+	l.must(t, "zoe", "promote", "prod", "--auto-approve")
+	if text, code := l.as(t, "cia", "promote", "prod", "--sign-only"); code != 0 || !strings.Contains(text, "already runs this release") {
+		t.Fatalf("writer's promote after the lift: exit %d\n%s", code, text)
+	}
+	l.must(t, "cia", "apply", "-t", "env=prod", "--auto-approve")
+}

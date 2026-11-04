@@ -145,14 +145,24 @@ func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin bool, re
 	if err != nil {
 		return err
 	}
-	envVouches, left, err := environmentVouches(p.ctx, st, chain, before, beforeFormer, next, seen, vouchNotes)
+	// A withdrawal only restricts, so those that an admin signed stay in force when that key is
+	// demoted or leaves, with no flag.
+	withdrawn, err := withdrawalVouches(p.ctx, st, chain, before, next)
+	if err != nil {
+		return err
+	}
+	isWithdrawal := map[string]bool{}
+	for _, v := range withdrawn {
+		isWithdrawal[v.Txn] = true
+	}
+	envVouches, left, err := environmentVouches(p.ctx, st, chain, before, beforeFormer, next, seen, vouchNotes, isWithdrawal)
 	if err != nil {
 		return err
 	}
 	txnVouches := vouches
-	vouches = append(append([]protect.Vouch(nil), vouches...), envVouches...)
+	vouches = append(append(append([]protect.Vouch(nil), vouches...), envVouches...), withdrawn...)
 	if left > 0 && !flags.JSON {
-		out.Printf("Warning: %s of keys that leave the writers will stop counting, so the environments after this one refuse this release until a current writer applies it again. If the keys are safe, run this with --vouch-notes to carry them over. Do not, if a key may be compromised.\n", plural(left, "run note or promotion", "run notes and promotions"))
+		out.Printf("Warning: %s of keys that leave the writers will stop counting, so the environments after this one refuse this release until a current writer applies it again. If the keys are safe, run this with --vouch-notes to carry them over. Do not, if a key may be compromised. A withdrawal by an admin who is demoted or leaves keeps holding either way.\n", plural(left, "run note or promotion", "run notes and promotions"))
 	}
 	text := protect.FormatRolesSet(next, nextFormer, vouches)
 	changes := roleChanges(before, next)
@@ -186,6 +196,13 @@ func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin bool, re
 			who = k
 		}
 		changes = append(changes, fmt.Sprintf("%s: vouched for %s (records they wrote stay valid)", who, plural(vouchedFor[k], "transaction", "transactions")))
+	}
+	for _, v := range withdrawn {
+		who := names[v.Key]
+		if who == "" {
+			who = v.Key
+		}
+		changes = append(changes, who+": a withdrawal stays in force (it only restricts, so it is kept with no flag)")
 	}
 	var envKeys []string
 	for k := range envVouched {
@@ -400,7 +417,7 @@ func newVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, b
 // that a key signed which leaves the writers: it was a writer in before, is one of seen or a
 // former key, or there are no roles yet. They are returned only when vouch is set; left counts those that are
 // not vouched for and stop counting, since the key is not a writer in next.
-func environmentVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, before []protect.Reader, former []protect.FormerKey, next []protect.Reader, seen []string, vouch bool) ([]protect.Vouch, int, error) {
+func environmentVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, before []protect.Reader, former []protect.FormerKey, next []protect.Reader, seen []string, vouch bool, skip map[string]bool) ([]protect.Vouch, int, error) {
 	all, err := st.EnvironmentVouches(ctx)
 	if err != nil {
 		return nil, 0, err
@@ -430,7 +447,7 @@ func environmentVouches(ctx context.Context, st *state.Store, chain *state.Roles
 	var found []protect.Vouch
 	left := 0
 	for _, v := range all {
-		if done[v.Txn] || isWriter[v.Key] || (chain.Head() != nil && !wasWriter[v.Key] && !unlisted[v.Key]) {
+		if done[v.Txn] || skip[v.Txn] || isWriter[v.Key] || (chain.Head() != nil && !wasWriter[v.Key] && !unlisted[v.Key]) {
 			continue
 		}
 		if vouch {
@@ -443,6 +460,44 @@ func environmentVouches(ctx context.Context, st *state.Store, chain *state.Roles
 		return nil, 0, fmt.Errorf("%d run notes and promotions would be vouched for, and one version of the roles holds %d", len(found), maxVouches)
 	}
 	return found, left, nil
+}
+
+// withdrawalVouches are the vouches for the withdrawals (promote --revoke) in the state that a
+// key signed while it was an admin in before and is not an admin in next: the key was demoted or
+// left. The signature is checked against before, since a key that left has no key in next.
+func withdrawalVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, before, next []protect.Reader) ([]protect.Vouch, error) {
+	if len(before) == 0 {
+		return nil, nil
+	}
+	all, err := st.Promotions(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	done := map[string]bool{}
+	for _, v := range chain.Versions {
+		for _, vo := range v.Vouched {
+			done[vo.Txn] = true
+		}
+	}
+	var found []protect.Vouch
+	for _, o := range all {
+		p := o.Promotion
+		if p == nil || p.Kind != state.PromotionRevoked || done[p.VouchID()] {
+			continue
+		}
+		if sst, _ := p.Verify(st.Lineage(), before); sst != protect.SigVerified {
+			continue
+		}
+		was, _ := protect.RoleOf(before, p.Signature.Key)
+		now, _ := protect.RoleOf(next, p.Signature.Key)
+		if !was.Allows(protect.RoleAdmin) || now.Allows(protect.RoleAdmin) {
+			continue
+		}
+		if v, ok := p.Vouch(st.Lineage()); ok {
+			found = append(found, v)
+		}
+	}
+	return found, nil
 }
 
 // setPin makes the roles-genesis line of the readers file hold digest: it replaces the line
