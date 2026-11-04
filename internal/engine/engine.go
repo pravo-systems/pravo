@@ -206,6 +206,8 @@ type readState struct {
 	imported map[string]importMark
 	// touchedAddrs are the records that the apply of the declarations wrote (see declared.go).
 	touchedAddrs map[string]bool
+	// stagedMoves maps the new address of a record that a plan moves in memory to its move.
+	stagedMoves map[string]*Change
 	// ages holds the refresh ages that were parsed, by their text.
 	ages map[string]parsedAge
 	// suspects holds the stale locks the plan found, by address: the node was

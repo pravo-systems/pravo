@@ -20,11 +20,14 @@ type PendingCreate struct {
 	// object (the id of a local_file is a hash of its content), so a replacement that has the
 	// old id is told from the old object by this time, which the replacement's record renews.
 	OldAppliedAt *time.Time `json:"old_applied_at,omitempty"`
-	Txn          string     `json:"txn"`
-	Host         string     `json:"host,omitempty"`
-	PID          int        `json:"pid,omitempty"`
-	Command      string     `json:"command,omitempty"`
-	Since        time.Time  `json:"since"`
+	// Recreate marks a create over the record of an object that is gone, as opposed to the
+	// replacement of one that is still there.
+	Recreate bool      `json:"recreate,omitempty"`
+	Txn      string    `json:"txn"`
+	Host     string    `json:"host,omitempty"`
+	PID      int       `json:"pid,omitempty"`
+	Command  string    `json:"command,omitempty"`
+	Since    time.Time `json:"since"`
 }
 
 // Holds reports whether rec is still the record of the object that the note names: it has
@@ -39,8 +42,8 @@ func (p *PendingCreate) Holds(rec *Resource) bool {
 func pendingKey(addr string) string { return "locks/" + encodeAddr(addr) + ".replacing" }
 
 // NotePendingCreate writes the note for addr, in place of any that is there.
-func (s *Store) NotePendingCreate(addr, oldID string, oldAppliedAt *time.Time, txn, command string) error {
-	p := PendingCreate{Addr: addr, OldID: oldID, OldAppliedAt: oldAppliedAt, Txn: txn, Command: command, Since: time.Now().UTC()}
+func (s *Store) NotePendingCreate(addr, oldID string, oldAppliedAt *time.Time, recreate bool, txn, command string) error {
+	p := PendingCreate{Addr: addr, OldID: oldID, OldAppliedAt: oldAppliedAt, Recreate: recreate, Txn: txn, Command: command, Since: time.Now().UTC()}
 	p.Host, _ = os.Hostname()
 	p.PID = os.Getpid()
 	data, err := indentJSON(p)

@@ -229,8 +229,45 @@ func (e *Engine) stageMove(from *state.Resource, toAddr string, target *config.R
 		}
 	}
 	e.count(func(st *Stats) { st.Moved++ })
-	return &Change{Addr: toAddr, Mode: moved.Mode, Type: moved.Type, Name: moved.Name, Action: ActionMove, MovedFrom: fromAddr, ProviderKey: moved.ProviderKey,
+	ch := &Change{Addr: toAddr, Mode: moved.Mode, Type: moved.Type, Name: moved.Name, Action: ActionMove, MovedFrom: fromAddr, ProviderKey: moved.ProviderKey,
 		PriorRevision: from.Revision, PriorGeneration: from.Generation}
+	e.mu.Lock()
+	if e.stagedMoves == nil {
+		e.stagedMoves = map[string]*Change{}
+	}
+	e.stagedMoves[toAddr] = ch
+	e.mu.Unlock()
+	return ch
+}
+
+// markMovedOrigin hands on to the record that a plan moves in memory what a read found at
+// its new address. The apply that carries the move out copies the record of the backend,
+// which is the one at the old address; without the mark the finding (the object is gone,
+// or differs) would be lost with the plan. The move then names the revision written.
+func (e *Engine) markMovedOrigin(addr, action string, found *state.Resource) {
+	e.mu.Lock()
+	ch := e.stagedMoves[addr]
+	e.mu.Unlock()
+	if ch == nil {
+		return
+	}
+	// The transaction is in the state before the record that names it.
+	if e.txn != nil {
+		if err := e.txn.Ensure(); err != nil {
+			return
+		}
+	}
+	e.mu.Lock()
+	before := ch.PriorRevision
+	e.mu.Unlock()
+	if rev, gen, ok := e.State.RefreshStagedOrigin(ch.MovedFrom, found, e.txnID()); ok {
+		e.mu.Lock()
+		ch.PriorRevision, ch.PriorGeneration = rev, gen
+		e.mu.Unlock()
+		if e.txn != nil {
+			e.txn.Record(ch.MovedFrom, action, before, rev)
+		}
+	}
 }
 
 // importResource reads the object that an $import names: the provider is asked for it by id
