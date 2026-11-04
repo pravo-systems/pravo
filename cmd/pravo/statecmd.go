@@ -455,6 +455,14 @@ func stateLocksCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// The note of a create that was interrupted while its node had a record is shown
+			// with the locks: it refuses the next create of the node as a lock does.
+			notes, _ := st.PendingCreates()
+			for _, p := range notes {
+				rec := st.Get(p.Addr)
+				orphan, _ := st.Orphaned(p, rec)
+				locks = append(locks, state.Lock{Addr: p.Addr, PID: p.PID, Host: p.Host, Command: p.Command, Txn: p.Txn, Since: p.Since, RenewedAt: p.Since, Kind: "note", Stale: orphan})
+			}
 			if flags.JSON {
 				if locks == nil {
 					locks = []state.Lock{}
@@ -472,6 +480,10 @@ func stateLocksCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 				stale := ""
 				if l.Stale {
 					stale = " [stale]"
+				}
+				if l.Kind == "note" {
+					out.Printf("%s  note of a create that stopped (txn %s, on %s since %s, %s)%s: the object it created may exist untracked; adopt it (pravo state rm %s, then pravo import %s ID) or clear the note with pravo state unlock --allow-create %s\n", l.Addr, l.Txn, l.Host, l.Since.Local().Format(time.RFC3339), l.Command, stale, l.Addr, l.Addr, l.Addr)
+					continue
 				}
 				if l.Kind == "reservation" {
 					until := "no expiry"
@@ -638,6 +650,16 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 				}
 				return nil
 			}
+			if note, _ := st.PendingCreateOf(args[0]); note != nil {
+				if !allowCreate {
+					out.Printf("%s has the note of a create that stopped (txn %s): the object it created may exist in the cloud untracked, and the next create of the node would make a second one. Adopt the object (pravo state rm %s, then pravo import %s ID), or run pravo state unlock --allow-create %s if the create never reached the cloud.\n", args[0], note.Txn, args[0], args[0], args[0])
+					return engine.WithCode(engine.ExitRefused, errors.New("note kept"))
+				}
+				if err := st.ClearPendingCreate(args[0]); err != nil {
+					return err
+				}
+				out.Printf("Cleared the note of the stopped create of %s\n", args[0])
+			}
 			if creating[args[0]] && !allowCreate {
 				kept(args[0])
 				return engine.WithCode(engine.ExitRefused, errors.New("lock kept"))
@@ -655,7 +677,7 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&stale, "stale", false, "release every lock and reservation that may be reclaimed: its process is gone, it was not renewed for 10 minutes, or it expired")
-	cmd.Flags().BoolVar(&allowCreate, "allow-create", false, "also release the lock of a node with no record that an apply stopped while it created: you know the create never reached the cloud, so the next apply may create the node")
+	cmd.Flags().BoolVar(&allowCreate, "allow-create", false, "also release the lock of a node with no record that an apply stopped while it created: you know the create never reached the cloud, so the next apply may create the node; also clears the note of a stopped create over a record")
 	return cmd
 }
 
