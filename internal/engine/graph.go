@@ -130,6 +130,10 @@ func (r taskResolver) Below(p cue.Path) []cue.Path                { return r.e.b
 // Value reads the current value of the specification. The caller holds cueMu.
 func (r taskResolver) Value(p cue.Path) cue.Value { return r.e.at(p) }
 
+// InertFields is the memo of the analysis while the graph is built, when the
+// values it reads do not change; nil otherwise.
+func (r taskResolver) InertFields() map[string]bool { return r.e.inert }
+
 // at is current.LookupPath(p). While current is still the specification as
 // loaded, a declaration comes from the root's own record of them, since a
 // lookup in CUE walks the fields of the parent and the passes over all
@@ -186,6 +190,8 @@ func (e *Engine) buildGraph() (map[string]*node, error) {
 	}
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
+	e.inert = map[string]bool{}
+	defer func() { e.inert = nil }()
 	for _, r := range e.Root.Resources {
 		v := e.at(r.Path)
 		if f, ok := v.Source().(*ast.Field); ok {

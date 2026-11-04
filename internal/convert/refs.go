@@ -29,6 +29,15 @@ type Resolver interface {
 	Value(p cue.Path) cue.Value
 }
 
+// Memo is what a Resolver can offer to spare the analysis of a plain field that
+// is read by many tasks (a shared setting): whether following it reaches a task
+// is the same every time, so it is found once. The map holds the paths that
+// were followed and reached nothing. A resolver offers one only while the values
+// it reads do not change.
+type Memo interface {
+	InertFields() map[string]bool
+}
+
 // ResolverFunc is a Resolver whose tasks all sit at the paths the function
 // maps; it knows no container of tasks.
 type ResolverFunc func(p cue.Path) (task, alias cue.Path, ok bool)
@@ -93,7 +102,13 @@ func analyse(v cue.Value, resolve Resolver, self *cue.Path, deep bool) RefInfo {
 	seen := map[string]bool{}
 	tasks := map[string]bool{}
 	aliasSeen := map[string]bool{}
+	var inert map[string]bool
+	if m, ok := resolve.(Memo); ok {
+		inert = m.InertFields()
+	}
+	touched := 0
 	addTask := func(task, alias cue.Path) {
+		touched++
 		if self != nil && task.String() == self.String() {
 			return
 		}
@@ -204,11 +219,21 @@ func analyse(v cue.Value, resolve Resolver, self *cue.Path, deep bool) RefInfo {
 					// it belongs to names the path that is read, and that path is
 					// followed. Following the container would take every task
 					// below it as a source and validate everything it holds.
+					memoKey := ""
+					if inert != nil {
+						memoKey = fmt.Sprintf("%v %s", deep, p)
+					}
 					target := root.LookupPath(p)
 					if !nav && target.Exists() {
 						if d, _ := target.Default(); deep || d.Validate(cue.Concrete(true)) != nil {
 							before := len(info.TaskRefs)
-							walk(target, depth+1, false)
+							if memoKey == "" || !inert[memoKey] {
+								touchedBefore, incBefore := touched, info.Incomplete
+								walk(target, depth+1, false)
+								if memoKey != "" && touched == touchedBefore && info.Incomplete == incBefore && len(info.TaskRefs) == before {
+									inert[memoKey] = true
+								}
+							}
 							if !deep && len(below) == 0 && len(info.TaskRefs) == before && info.Incomplete == nil {
 								pp := p
 								info.Incomplete = &pp
