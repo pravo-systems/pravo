@@ -79,7 +79,7 @@ Output:
       4 provider
       1 resource
      10 setup
-      8 state
+      9 state
 ```
 
 The spans end in this order: what is under a span ends before it, and the command ends last. Their nesting:

@@ -76,7 +76,7 @@ pravo apply
      18 provider
       4 resource
      15 setup
-     28 state
+     29 state
 ```
 
 Eighty-six spans for two resources. (A run can have `wait` spans too, for a task that stood still for a provider to start; the count leaves them out.) `engine` is the plan and the apply; `phase` the stages inside each, evaluate, refresh, apply changes; `resource` one span per resource per stage; `provider` the calls to the providers; `state` the requests to the state store. The spans of one resource, with their durations in microseconds, show what an apply of a resource is made of:
