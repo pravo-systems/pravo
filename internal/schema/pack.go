@@ -327,6 +327,7 @@ func (p *ProviderSchema) schemaOf(k kind, name string) *Schema {
 	}
 	// The types of the attributes are worked out on first use and kept. Work them
 	// out now, before the schema is shared between tasks.
+	markDerived(name, &s)
 	s.Block.Type()
 	m[name] = &s
 	return &s

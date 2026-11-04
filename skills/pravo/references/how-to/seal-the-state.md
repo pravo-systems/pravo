@@ -285,6 +285,8 @@ Readers in .pravo/access/readers.txt: ada dan deploy-bot  (eve removed)
 New data keys for 1 reader group. Records are sealed again as they are next written.
 ```
 
+In a state with [pinned roles](../reference/roles.md), deleting the line is not enough: the roles in the state still name the key. An admin runs `pravo protect roles --yes` after the edit to write the new roles to the state, and then the rewrap below. [Give people roles](give-people-roles.md) shows the command.
+
 Removal has four parts, and the last is yours.
 
 - The line stops **future** records from being sealed to Eve. It cannot make Eve forget what Eve read, and a copy of the bucket that was made before is still readable with Eve's key.
