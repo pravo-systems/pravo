@@ -141,7 +141,8 @@ func stateListCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 
 // stateShowCmd is "state show".
 func stateShowCmd(loadValues func() (*state.Store, error)) *cobra.Command {
-	return &cobra.Command{
+	var redact bool
+	cmd := &cobra.Command{
 		Use: "show <addr>", Short: "Show a node: attributes as CUE plus its bookkeeping", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			st, err := loadValues()
@@ -151,6 +152,16 @@ func stateShowCmd(loadValues func() (*state.Store, error)) *cobra.Command {
 			r := st.Get(args[0])
 			if r == nil {
 				return fmt.Errorf("%s is not in state", args[0])
+			}
+			if redact {
+				snap, n, err := redactedSnapshot(cmd.Context(), st)
+				if err != nil {
+					return err
+				}
+				r = snap.Resources[r.Address()]
+				if n > 0 {
+					fmt.Fprintf(os.Stderr, "%d values withheld (--redact)\n", n)
+				}
 			}
 			if flags.JSON {
 				return emitJSON(map[string]any{"node": r, "dependents": st.Dependents(r.Address())})
@@ -177,6 +188,8 @@ func stateShowCmd(loadValues func() (*state.Store, error)) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&redact, "redact", false, "withhold the values the viewer withholds: sensitive and write-only attributes, names of secrets, anything built from them, and the private blob")
+	return cmd
 }
 
 // stateRmCmd is "state rm".
@@ -371,7 +384,7 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 					dur = " " + t.Finished.Sub(t.Started).Round(time.Millisecond).String()
 				}
 				out.Printf("%s  %-8s %-9s %s%s\n", t.ID, t.Kind, t.Status, t.Started.Local().Format("2006-01-02 15:04:05"), dur)
-				out.Printf("    %s\n", out.C(ui.Dim, t.Command))
+				out.Printf("    %s\n", out.C(ui.Dim, ui.Safe(t.Command)))
 				// The signature line names a signer that the readers file vouches for, so an actor
 				// that is only that name is not said twice.
 				actor := t.Actor
@@ -381,9 +394,9 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 				if actor != "" || t.Reason != "" || t.GitRevision != "" {
 					label := ""
 					if actor != "" || t.Reason == "" && t.GitRevision == "" {
-						label = "actor " + orNone(actor) + "  "
+						label = "actor " + orNone(ui.Safe(actor)) + "  "
 					}
-					out.Printf("    %s\n", out.C(ui.Dim, strings.TrimSpace(fmt.Sprintf("%s%s  %s", label, t.Reason, t.GitRevision))))
+					out.Printf("    %s\n", out.C(ui.Dim, strings.TrimSpace(fmt.Sprintf("%s%s  %s", label, ui.Safe(t.Reason), ui.Safe(t.GitRevision)))))
 				}
 				if checked {
 					line := txnSigText(verdicts[i])
@@ -523,7 +536,8 @@ func stateDependentsCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 
 // stateQueryCmd is "state query".
 func stateQueryCmd(loadValues func() (*state.Store, error)) *cobra.Command {
-	return &cobra.Command{
+	var redact bool
+	cmd := &cobra.Command{
 		Use:   "query <cue-expression>",
 		Short: "Evaluate a CUE expression over the state graph",
 		Long: `Evaluates a CUE expression with the state graph in scope and prints the
@@ -544,7 +558,16 @@ Examples:
 			if err != nil {
 				return err
 			}
-			res, err := pravo.QueryState(st, args[0])
+			var res *pravo.QueryResult
+			if redact {
+				snap, _, rerr := redactedSnapshot(cmd.Context(), st)
+				if rerr != nil {
+					return rerr
+				}
+				res, err = pravo.QuerySnapshot(snap, args[0])
+			} else {
+				res, err = pravo.QueryState(st, args[0])
+			}
 			if err != nil {
 				return err
 			}
@@ -565,6 +588,8 @@ Examples:
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&redact, "redact", false, "withhold the values the viewer withholds (see state show --redact)")
+	return cmd
 }
 
 // upgradeCmd is "state upgrade": the first step of "protect init" alone. It is

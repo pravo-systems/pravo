@@ -216,7 +216,13 @@ func (w *Workspace) QueryState(expr string) (*QueryResult, error) {
 
 // QueryState is Workspace.QueryState for a state that is open.
 func QueryState(st *Store, expr string) (*QueryResult, error) {
-	data, err := json.Marshal(st.Snapshot())
+	return QuerySnapshot(st.Snapshot(), expr)
+}
+
+// QuerySnapshot evaluates the expression over a snapshot of the state, which the caller
+// may have changed first, for example to withhold values.
+func QuerySnapshot(snap *Snapshot, expr string) (*QueryResult, error) {
+	data, err := json.Marshal(snap)
 	if err != nil {
 		return nil, err
 	}
