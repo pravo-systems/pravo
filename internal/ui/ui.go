@@ -159,6 +159,9 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 			continue
 		}
 		header := fmt.Sprintf("  # %s %s", addrWithType(c), actionVerb(c.Action))
+		if c.GoneNote != "" && c.Action == engine.ActionCreate {
+			header = fmt.Sprintf("  # %s will be written again", addrWithType(c))
+		}
 		if c.Imported {
 			from := "id"
 			if c.ImportIdentity {

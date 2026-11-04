@@ -220,6 +220,10 @@ func openStateForPlan(ctx context.Context, root *config.Root) (*state.Store, err
 	return st, err
 }
 
+// stateInMemory is set by --no-write: the command works on the state with its writes
+// held in memory, as a reader's plan does, and leaves the bucket as it found it.
+var stateInMemory bool
+
 // openStateAs opens the state, to write it or not. A state that is sealed is
 // opened with the identity of the user, which is looked for only then, so that
 // a state that is not sealed never asks for a passphrase. Without a usable
@@ -238,7 +242,7 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 	)
 	open := func(id *protect.Identity, overlay bool) (*state.Store, error) {
 		so := pravo.StoreOptions{
-			Write: write, Overlay: overlay, Identity: id, Env: environment(),
+			Write: write, Overlay: overlay || stateInMemory, Identity: id, Env: environment(),
 			CheckConditions: func(ctx context.Context, b state.Backend) error { return checkStoreConditions(ctx, root, b) },
 			Warn:            func(msg string) { out.Warning(msg) },
 		}
