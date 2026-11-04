@@ -2,8 +2,6 @@
   "name": "pravo",
   "title": "pravo · Terraform, reimagined",
   "description": "OpenTofu and Terraform, rebuilt for teams: per-resource state, plans that read what a change reaches, sealed and signed state and a viewer, on the providers that already exist.",
-  "pravo_version": "0.1",
-  "cue_version": "0.17",
   "repo": "https://github.com/pravo-systems/pravo",
   "base_url": "https://pravo.systems",
   "start_label": "Quick start",

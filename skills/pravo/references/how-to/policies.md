@@ -125,7 +125,7 @@ cue version | head -n 1
 Output:
 
 ```text
-pravo 0.1.0-dev
+pravo <version>
 cue v0.17.1
 cue version v0.17.1
 ```
@@ -502,7 +502,7 @@ Output:
 Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <id>]
 Transaction <txn>
-  signed by ada, pravo 0.1.0-dev
+  signed by ada, pravo <version>
   plan      sha256:<digest>
   judged by 1 policy versions:
     guard@3:<digest>

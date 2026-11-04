@@ -25,7 +25,7 @@ pravo version
 Output:
 
 ```text
-pravo 0.1.0-dev
+pravo <version>
 cue v0.17.1
 ```
 
@@ -162,7 +162,7 @@ pravo state show pet --json | jq -c 'keys'
 Output:
 
 ```text
-pravo 0.1.0-dev
+pravo <version>
 cue v0.17.1
 pet
 ["dependents","node"]

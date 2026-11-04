@@ -4,6 +4,8 @@ description: OpenTelemetry traces and metrics for every command, resource and pr
 order: 53
 group: Formats and interfaces
 normalize:
+  - pattern: '"pravo\.version":"[^"]*"'
+    replace: '"pravo.version":"<version>"'
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
   - pattern: '\[txn [0-9TZ]+-[0-9a-f]{6}\]'
@@ -131,7 +133,7 @@ jq -c 'select(.Name == "resource hello") | [.Attributes[] | {(.Key): .Value.Valu
 ```
 
 ```text out
-{"pravo.command":"pravo plan","pravo.version":"0.1.0-dev","pravo.actor":"","pravo.reason":"","pravo.json":false,"pravo.command_line":"pravo plan","pravo.exit_code":0}
+{"pravo.command":"pravo plan","pravo.version":"<version>","pravo.actor":"","pravo.reason":"","pravo.json":false,"pravo.command_line":"pravo plan","pravo.exit_code":0}
 {"pravo.resource.address":"hello","pravo.resource.type":"local_file","pravo.mode":"managed","pravo.provider":"local","pravo.provider.instance":"$local","pravo.phase":"plan","pravo.action":"create","pravo.skipped":false,"pravo.refreshed":false,"pravo.drifted":false,"pravo.deferred":false}
 ```
 

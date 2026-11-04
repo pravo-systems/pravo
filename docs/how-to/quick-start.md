@@ -8,6 +8,8 @@ needs: Go 1.26 or newer, the pravo source tree and network access.
 done_when: "`pravo destroy` reports 2 destroyed and `server.env` is gone."
 level: beginner
 normalize:
+  - pattern: 'pravo [0-9]+\.[0-9][^\s,]*'
+    replace: 'pravo <version>'
   - pattern: '(?m)^Downloading .*\n'
     replace: ""
   - pattern: '\[id=[a-z]+-[a-z]+\]'
@@ -71,7 +73,7 @@ pravo version
 ```
 
 ```text out
-pravo 0.1.0-dev
+pravo <version>
 cue v0.17.1
 ```
 

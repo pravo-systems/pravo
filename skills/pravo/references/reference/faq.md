@@ -146,7 +146,7 @@ Install a release with the script at `https://pravo.systems/install.sh` (macOS a
 
 ## Which version is this?
 
-`pravo version` prints the version of pravo and of the CUE it embeds. The footer of each page names the versions it was written against. See [Compatibility](compatibility.md).
+`pravo version` prints the version of pravo and of the CUE it embeds. See [Compatibility](compatibility.md).
 
 ## See also
 
