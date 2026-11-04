@@ -646,8 +646,13 @@ func (e *Engine) noteRun(ctx context.Context, admitted *state.Admission, txn str
 	if e.State.Sealer() != nil {
 		pin = e.Opts.RolesPin
 	}
+	envSeq := 0
+	if rec != nil {
+		envSeq = rec.Seq
+	}
 	switch {
 	case rec == nil:
+		envSeq = 1
 		cur, _ := e.Root.Current()
 		next := state.EnvironmentRecord{Name: cur.Name, RolesPin: pin}
 		for _, a := range cur.After {
@@ -661,6 +666,7 @@ func (e *Engine) noteRun(ctx context.Context, admitted *state.Admission, txn str
 		// state holds, so that from now on another readers file does not give other roles.
 		next := *rec
 		next.RolesPin, next.At, next.Signature = pin, time.Time{}, nil
+		envSeq = rec.Seq + 1
 		if err := e.State.PutEnvironmentRecord(ctx, rec.Seq+1, next); err != nil && !errors.Is(err, state.ErrEnvironmentChanged) {
 			return fmt.Errorf("recording the roles of %s: %w", rec.Name, err)
 		}
@@ -677,7 +683,7 @@ func (e *Engine) noteRun(ctx context.Context, admitted *state.Admission, txn str
 			}
 		}
 	}
-	n := &state.RunNote{Environment: e.Root.Environment, Fingerprint: rel.Fingerprint, Tags: rel.Tags, GitRevision: e.Opts.GitRevision, Txn: txn, Admitted: admitted, Deferred: deferred}
+	n := &state.RunNote{Environment: e.Root.Environment, Fingerprint: rel.Fingerprint, Tags: rel.Tags, GitRevision: e.Opts.GitRevision, Txn: txn, Admitted: admitted, Deferred: deferred, EnvRecord: envSeq}
 	if err := e.State.PutRunNote(ctx, n); err != nil {
 		if errors.Is(err, state.ErrNotReader) {
 			return nil // a reader plans in memory and notes nothing

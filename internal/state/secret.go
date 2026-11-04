@@ -506,6 +506,9 @@ func (s *Store) Secrets(ctx context.Context, rules RecordRules) ([]SecretSummary
 	if err != nil {
 		return nil, err
 	}
+	if err := s.checkSecretsHeld(ctx, rules.Readers, "", names); err != nil {
+		return nil, err
+	}
 	encs := make([]string, 0, len(names))
 	for enc := range names {
 		encs = append(encs, enc)
@@ -608,6 +611,11 @@ func (s *Store) pickSecret(ctx context.Context, name string, version int, rules 
 	names, err := s.secretNames(ctx)
 	if err != nil {
 		return SecretInfo{}, secretFile{}, err
+	}
+	if version == 0 {
+		if err := s.checkSecretsHeld(ctx, rules.Readers, name, names); err != nil {
+			return SecretInfo{}, secretFile{}, err
+		}
 	}
 	n := names[enc]
 	if n == 0 {

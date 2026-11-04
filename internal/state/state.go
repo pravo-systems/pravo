@@ -197,7 +197,7 @@ type Store struct {
 	// listedMu guards listed: the policy versions that verified transactions listed, by
 	// transaction id (see PolicyListings).
 	listedMu sync.Mutex
-	listed   map[string][]string
+	listed   map[string]txnFacts
 	roles    *RolesChain
 	rolesAt  time.Time
 

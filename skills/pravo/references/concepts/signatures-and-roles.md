@@ -154,7 +154,7 @@ These are limits of the version that exists. Each is a fact to plan around.
 
 - Sealing encrypts attributes, private data, outputs, the values in stored plans and the values in command lines to a list of readers kept in the repository. Addresses, types, names, dependencies and revisions stay readable, and so do the names and roles of the readers.
 - A secret is a signed, versioned object in the sealed state. Every reader reads every secret, and a reader who leaves has read what they could open.
-- A signature says which key wrote which transaction, plan or policy version, and with roles, which records a writer wrote. It does not detect a rollback of the whole bucket.
+- A signature says which key wrote which transaction, plan or policy version, and with roles, which records a writer wrote. It does not detect a rollback of the whole bucket. Deleting the newest version of one object kind is found for policy versions, secret versions and the record of the environment, because a signed transaction or note names the newest version it saw: the commands refuse the state (exit 7) and say which version is gone.
 - A role is a field of the readers file, pinned in the state as a signed chain, so that no reader promotes themselves in a checkout. A former key keeps what an admin vouched for and can add nothing.
 - Each mechanism is checked by a pravo that has the repository. The credentials of the bucket, given by role, are what stop a write that pravo never sees.
 
