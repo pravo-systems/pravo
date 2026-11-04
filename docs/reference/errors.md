@@ -1193,7 +1193,7 @@ pet: $random.#Resource.random_pet & {length: 3}
 NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 echo "{\"addr\":\"pet\",\"pid\":48213,\"host\":\"build-7\",\"user\":\"ci\",\"command\":\"pravo apply\",\"nonce\":\"abc\",\"actor\":\"ci\",\"since\":\"$NOW\",\"kind\":\"lock\",\"renewed_at\":\"$NOW\"}" > pravo.state/locks/pet.lock
 pravo apply --auto-approve; echo "exit=$?"
-pravo state unlock pet
+pravo state unlock --force pet
 ```
 
 ```text out
@@ -1354,7 +1354,7 @@ exit=1
 | `pet: the plan changed while it waited: REASON; run "pravo plan" again` | In a plain `pravo apply`, a provider answered differently when the apply planned `pet` again than when the plan was printed. Nothing was done to `pet`. Resources applied before the apply reached it keep their changes. Exit code 3. | Make a new plan. |
 | `pet: REASON; run "pravo plan" again` | In `pravo apply FILE`, a provider answered differently when the apply planned `pet` again than when the plan was saved, for example `the provider produced a different plan than the saved one`. Nothing was done to `pet`. Resources applied before the apply reached it keep their changes, and the file is marked with them. Exit code 3. | Make a new plan. |
 | `s3://infra-state/prod cannot hold a state that more than one command writes: ...` | The store ignores or rejects a conditional request that the locks need. The rest of the message names which. | Use a store that honours them, or test the store and set `PRAVO_S3_PROBE=off`. See [S3-compatible stores](s3-stores.md). |
-| `apply rejected: pet is locked by pravo apply (pid 48213 on build-7, ci, since <time>)` | Another command holds the node. Exit code 4. | Wait for it to finish. `pravo state locks` shows the holder, and `pravo state unlock` removes a lock that a crashed command left. |
+| `apply rejected: pet is locked by pravo apply (pid 48213 on build-7, ci, since <time>)` | Another command holds the node. Exit code 4. | Wait for it to finish. `pravo state locks` shows the holder, and `pravo state unlock ADDRESS` removes a lock that a crashed command left. If the holder may still be running (its process is alive on this host, or it renewed the lock in the last 3 minutes), `unlock` exits 5 and names it; `--force` releases the lock anyway. With a bucket, the lock of a killed command stays for 10 minutes; the message then says that the process is not running on this host. |
 | `plan rejected: pet is reserved by ci (...)` | Another actor reserved the node with `plan --reserve`. Exit code 4. | Wait until the reservation ends, or ask its owner to release it. |
 | `apply with --json needs -auto-approve, or apply a reviewed plan file` | `apply --json` has changes to make and no prompt to answer. | Add `--auto-approve`, or apply a saved plan. |
 | `-replace is decided when the plan is made: use "pravo plan -replace <addr> -out <file>"` | `--replace` with a saved plan. | Pass it to `pravo plan --out`. |
@@ -1417,7 +1417,7 @@ exit=1
 | `change.plan was written by a newer pravo (plan format 2)` | A plan file with a newer format. | Make the plan again with this pravo. |
 | `not-a-plan.plan is not a pravo plan file` | The file is not a saved plan. | Pass a file written by `plan --out`. |
 | `apply cancelled` | The answer to the prompt was not `yes`. | Answer `yes`, or use `--auto-approve`. |
-| `lock lost: this apply does not hold the lock on pet any more (...)` | A renewal found that another command took the lock on `pet` over, after it went stale while the apply ran, for example on a computer that was suspended. The apply makes no further change. The changes it made are recorded, and the transaction is `failed`. Exit code 4. | Run `pravo plan`, and apply again. |
+| `lock lost: this apply does not hold the lock on pet any more (...)` | A renewal, or the note of a create on the lock, found that the lock on `pet` was released with `state unlock` or taken over by another command, after it went stale while the apply ran, for example on a computer that was suspended. The apply makes no further change. The changes it made are recorded, and the transaction is `failed`. Exit code 4. | Run `pravo plan`, and apply again. |
 | `cannot confirm that this apply still holds its locks: they were last renewed 6m0s ago` | More than five minutes passed since the apply knew that its locks were its own, and a renewal failed. The apply makes no further change. Exit code 1. | Check the connection to the state, run `pravo state locks`, then plan and apply again. |
 | `pet changed while the plan read it; run pravo plan again` | A plan read the records that the resources it reached read, and found the record of `pet` changed in a walk after it had been found changed in an earlier one. The marks that the plan wrote stay. Exit code 1. | Run `pravo plan` again. |
 | `pet: the record could not be written: ...` | The provider changed the object and the state did not take the record. The message that follows says that the creation, update or destruction of `pet` finished, but the state does not record it. Exit code 1. | Look at the object with the provider's own tools, restore the connection to the state, then run `pravo plan`. See [Interrupting an apply](apply.md#interrupting-an-apply). |

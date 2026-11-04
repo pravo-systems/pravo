@@ -273,6 +273,10 @@ func (e *Engine) applyChange(ctx context.Context, prov plugin.Provider, ch *Chan
 	// killed from here on is known to have maybe created the object.
 	if prior.IsNull() && !planned.IsNull() && e.held != nil {
 		if err := e.State.MarkCreating(ch.Addr); err != nil {
+			var locked *state.ErrLocked
+			if errors.Is(err, state.ErrNotFound) || errors.As(err, &locked) {
+				return nil, lostLock(ch.Addr, err)
+			}
 			return nil, fmt.Errorf("%s: noting the create on its lock: %w", ch.Addr, err)
 		}
 	}

@@ -41,7 +41,7 @@ An address is the CUE path of a resource: `pet`, `api.config`, `servers[0]`. Quo
 | `verify TXN [--plan FILE]` | Checks the receipt of an apply: its signatures, its plan and the policy versions that judged it. | no | yes |
 | `locks` | The locks and reservations held. | no | yes |
 | `probe` | Checks that the S3 store or http server honours the conditional requests that locks need. One line for each check. See [S3-compatible stores](s3-stores.md#test-a-store) and [HTTP state servers](http-stores.md). | no, it writes and deletes scratch objects | yes |
-| `unlock ADDR`, `unlock --stale` | Releases a lock or a reservation, or every one that may be reclaimed. A lock of a node that has no record, left by an apply that stopped while it created the node, stays and the command exits 5, unless `--allow-create` says that the create never reached the cloud. | yes | no |
+| `unlock ADDR`, `unlock --stale` | Releases a lock or a reservation, or every one that may be reclaimed. A lock whose holder may still be running (the process is alive on this host, or the lock was renewed in the last 3 minutes) stays and the command exits 5, unless `--force` says to release it anyway. A lock of a node that has no record, left by an apply that stopped while it created the node, stays and the command exits 5, unless `--allow-create` says that the create never reached the cloud. | yes | no |
 | `pull DIR` | Copies the configured state, stored plans included, into the local directory `DIR`. | no | no |
 | `push DIR` | Copies the local directory `DIR`, stored plans included, into the configured backend. | yes | no |
 | `graph [--dot]` | The dependency edges, as `from -> to` or as Graphviz. | no | no |
@@ -247,7 +247,7 @@ Unlocked port
 No locks or reservations held.
 ```
 
-A running command renews its locks every 2 minutes. The next command reclaims a lock whose process is gone on the same host, or that was not renewed for 10 minutes, and `locks` marks such a lock with `[stale]`. `unlock ADDRESS` releases a lock by hand. `unlock --stale` releases every lock and reservation that may be reclaimed, and no other.
+A running command renews its locks every 2 minutes. In a state on this machine, the next command reclaims a lock whose process is gone on the same host; in a bucket and for every other host, a lock is reclaimed once it was not renewed for 10 minutes, and `locks` marks such a lock with `[stale]`. `unlock ADDRESS` releases a lock by hand earlier, for example after a killed command on a bucket; when the holder may still be running, `unlock` exits 5 and names it, and `--force` releases the lock anyway. `unlock --stale` releases every lock and reservation that may be reclaimed, and no other.
 
 ### Another environment
 

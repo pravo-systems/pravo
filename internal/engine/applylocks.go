@@ -117,6 +117,12 @@ func (h *heldLocks) lastBeat() time.Time {
 
 // renew renews every lock taken so far. A lock that is no longer this apply's
 // is recorded as lost.
+// lostLock is the error of an apply that finds the lock on addr gone or taken, wherever it
+// notices: at a renewal, or when it notes a create on the lock.
+func lostLock(addr string, err error) error {
+	return WithCode(ExitLocked, fmt.Errorf("lock lost: this apply does not hold the lock on %s any more (%w)", addr, err))
+}
+
 func (h *heldLocks) renew() {
 	h.renewMu.Lock()
 	defer h.renewMu.Unlock()
@@ -134,7 +140,7 @@ func (h *heldLocks) renew() {
 		if errors.Is(err, state.ErrNotFound) || errors.As(err, &locked) {
 			h.mu.Lock()
 			if h.lost == nil {
-				h.lost = WithCode(ExitLocked, fmt.Errorf("lock lost: this apply does not hold the lock on %s any more (%w)", addrs[i], err))
+				h.lost = lostLock(addrs[i], err)
 			}
 			h.mu.Unlock()
 		}

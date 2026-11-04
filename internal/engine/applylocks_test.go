@@ -1089,3 +1089,26 @@ func TestPlanWarnsOfAReservedInput(t *testing.T) {
 		t.Errorf("plan of the reserved node: %v", err)
 	}
 }
+
+// A lock that is gone when an apply notes a create on it is the same lost lock, with the same
+// exit code and words, as one that is found gone at a renewal.
+func TestCreateOnALockThatWasUnlockedIsALostLock(t *testing.T) {
+	h := newHarness(t)
+	s := spec{cue: "r: " + thing("r", "content: \"v1\"") + "\n", resources: []string{"r"}}
+	e := h.engineOn(h.process(), s, Options{})
+	p := plan(t, e)
+	e.onTask = func(addr string, apply bool) {
+		if !apply {
+			return
+		}
+		if _, err := h.process().ForceUnlock("r"); err != nil {
+			t.Error(err)
+		}
+	}
+	h.fake.resetCalls()
+	_, err := e.Apply(context.Background(), p)
+	if exitCodeOf(err) != ExitLocked || err == nil || !strings.Contains(err.Error(), "lock lost: this apply does not hold the lock on r any more") {
+		t.Fatalf("apply: %v, exit code %d; want exit code 4 and lock lost", err, exitCodeOf(err))
+	}
+	expectCalls(t, h, map[string]int{"ApplyResourceChange": 0})
+}
