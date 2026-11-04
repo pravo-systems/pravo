@@ -197,7 +197,7 @@ debug state opened backend=local location=./pravo.state nodes=2 took=0ms
 debug schemas ready providers=2 took=0ms
 debug graph built tasks=2 took=0ms
 debug tasks run phase=plan tasks=2 took=0ms
-debug settled phase=plan fills=0 took=0ms
+debug settled phase=plan fills=1 took=0ms
 debug finished command="pravo plan" exit=0 took=0ms
 ```
 
