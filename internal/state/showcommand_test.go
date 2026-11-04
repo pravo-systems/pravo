@@ -49,6 +49,7 @@ func TestRedactArgs(t *testing.T) {
 		{"webhook", []string{"drift", "--webhook", "https://hooks.example.com/T0/secret"}, "pravo drift --webhook " + tok("webhook", "https://hooks.example.com/T0/secret")},
 		{"expression", []string{"eval", "-e", "password"}, "pravo eval -e " + tok("expression", "password")},
 		{"expression, long equals", []string{"eval", "--expression=password"}, "pravo eval --expression=" + tok("expression", "password")},
+		{"environment name stays readable", []string{"drift", "--env", "prod", "--env=dev"}, "pravo drift --env prod --env=dev"},
 		{"public flags keep their value", []string{"apply", "--only", "a.b,c.d", "--replace=x.y", "-C", "/srv/w"}, "pravo apply --only a.b,c.d --replace=x.y -C /srv/w"},
 		{"unknown flag with equals", []string{"apply", "--actor=ada@example.com"}, "pravo apply --actor=" + tok("actor", "ada@example.com")},
 		{"boolean with equals", []string{"apply", "--json=true"}, "pravo apply --json=true"},
