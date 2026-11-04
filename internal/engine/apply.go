@@ -96,6 +96,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 	if err != nil {
 		return tftypes.Value{}, err
 	}
+	e.adoptPredestroyed(ch)
 	if e.saved != nil {
 		if err := e.checkSaved(ch); err != nil {
 			return tftypes.Value{}, err
@@ -232,18 +233,10 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 				return nil
 			})
 		} else {
-			e.Opts.Progress("%s: Destroying... %s", ch.Addr, idSuffix(ch.Prior))
-			if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
-				return tftypes.Value{}, err
-			}
-			// The record goes and comes back: its revision continues, so a plan
-			// made against the old record is stale.
-			if prev := e.State.Get(ch.Addr); prev != nil {
-				ch.removedRevision = prev.Revision
-			}
-			if _, err := e.State.Remove(ch.Addr); err != nil {
-				e.unrecorded(ch.Addr, "destruction", "")
-				return tftypes.Value{}, fmt.Errorf("%s: the record could not be removed: %w", ch.Addr, err)
+			if !ch.predestroyed {
+				if err := e.destroyOld(ctx, prov, ch); err != nil {
+					return tftypes.Value{}, err
+				}
 			}
 			e.Opts.Progress("%s: Creating replacement...", ch.Addr)
 			res, err := e.applyChange(ctx, prov, ch, nullV, ch.PlannedCreate, ch.Config, ch.CreatePrivate)
@@ -657,6 +650,9 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		e.scope = sc
 		defer func() { e.scope = nil }()
 		e.resetRun(true)
+		if err := e.destroyReplaced(ctx, plan); err != nil {
+			return fail(err)
+		}
 		actx, done := e.phase(ctx, "apply changes", attribute.Int("pravo.tasks", len(plan.Changes)))
 		final, err := e.run(actx, true)
 		done(err)
@@ -1130,4 +1126,130 @@ func (e *Engine) redundantDeposed(addr string) bool {
 	// object. The replacement's record was applied later than the copy that the deposed
 	// record holds; when either time is not known the records are taken for one object.
 	return dep.AppliedAt == nil || live.AppliedAt == nil || dep.AppliedAt.Equal(*live.AppliedAt)
+}
+
+// goneObject is the old object of a replacement that was destroyed ahead of the walk.
+type goneObject struct {
+	prior    tftypes.Value
+	private  []byte
+	revision int
+}
+
+// destroyOld destroys the old object of a replacement that is not create_before_destroy and removes
+// its record. The record goes and comes back: its revision continues, so a plan made against the
+// old record is stale.
+func (e *Engine) destroyOld(ctx context.Context, prov plugin.Provider, ch *Change) error {
+	nullV := tftypes.NewValue(ch.Schema.Block.Type(), nil)
+	e.Opts.Progress("%s: Destroying... %s", ch.Addr, idSuffix(ch.Prior))
+	if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
+		return err
+	}
+	if prev := e.State.Get(ch.Addr); prev != nil {
+		ch.removedRevision = prev.Revision
+	}
+	if _, err := e.State.Remove(ch.Addr); err != nil {
+		e.unrecorded(ch.Addr, "destruction", "")
+		return fmt.Errorf("%s: the record could not be removed: %w", ch.Addr, err)
+	}
+	return nil
+}
+
+// destroyReplaced destroys, before the walk, the old objects of the replacements the plan lists
+// that wait for each other: the old object of a node goes after the old objects of the replaced
+// nodes that depend on it, directly or through nodes that are not replaced, so a provider that
+// refuses to delete what is still in use (a bucket that is not empty) finds it free. The walk then
+// creates the new objects in dependency order. A replacement that no other replacement waits for,
+// and one with create_before_destroy, is destroyed by its own task as before. After a failure no
+// further destroy starts and the ones that run finish; a node whose old object is destroyed has no
+// record, so the next apply plans it as a new one.
+func (e *Engine) destroyReplaced(ctx context.Context, plan *Plan) error {
+	replaced := map[string]*Change{}
+	for _, ch := range plan.Changes {
+		if ch.Action == ActionReplace && !ch.CreateBeforeDestroy && ch.Mode == "managed" && !ch.Applied && !ch.Prior.IsNull() {
+			replaced[ch.Addr] = ch
+		}
+	}
+	if len(replaced) < 2 {
+		return nil
+	}
+	// below lists, for each replaced node, the replaced nodes it reads through any chain of nodes.
+	pseudo := map[string]*Change{}
+	linked := map[string]bool{}
+	// The graph of the walk is not built yet: the plan's changes carry the edges, also for the
+	// nodes that do not change.
+	deps := map[string][]string{}
+	for _, ch := range plan.Changes {
+		deps[ch.Addr] = ch.Deps
+	}
+	for addr := range replaced {
+		var list []string
+		seen := map[string]bool{addr: true}
+		var walk func(a string)
+		walk = func(a string) {
+			for _, d := range deps[a] {
+				if seen[d] {
+					continue
+				}
+				seen[d] = true
+				if replaced[d] != nil {
+					list = append(list, d)
+					linked[d], linked[addr] = true, true
+				}
+				walk(d)
+			}
+		}
+		walk(addr)
+		sort.Strings(list)
+		pseudo[addr] = &Change{Addr: addr, Deps: list}
+	}
+	var chain []*Change
+	for _, ch := range plan.Changes {
+		if linked[ch.Addr] {
+			chain = append(chain, pseudo[ch.Addr])
+		}
+	}
+	if len(chain) == 0 {
+		return nil
+	}
+	warm := newWarmth()
+	for _, c := range chain {
+		warm.up(replaced[c.Addr].Schema)
+	}
+	e.mu.Lock()
+	e.predestroyed = map[string]*goneObject{}
+	e.mu.Unlock()
+	return inReverse(chain, Parallelism, func(c *Change) error {
+		if ctx.Err() != nil {
+			return fmt.Errorf("interrupted before %s was destroyed", c.Addr)
+		}
+		ch := replaced[c.Addr]
+		prov, err := e.Providers.Provider(ctx, ch.ProviderKey)
+		if err != nil {
+			return err
+		}
+		if err := e.destroyOld(ctx, prov, ch); err != nil {
+			return err
+		}
+		e.mu.Lock()
+		e.predestroyed[ch.Addr] = &goneObject{prior: ch.Prior, private: ch.PriorPrivate, revision: ch.removedRevision}
+		e.mu.Unlock()
+		return nil
+	})
+}
+
+// adoptPredestroyed turns the plan of a node whose old object was destroyed ahead of the walk back
+// into the replacement it was: the record is gone, so the plan sees a new resource.
+func (e *Engine) adoptPredestroyed(ch *Change) {
+	e.mu.Lock()
+	gone := e.predestroyed[ch.Addr]
+	e.mu.Unlock()
+	if gone == nil || ch.Action != ActionCreate {
+		return
+	}
+	ch.Action = ActionReplace
+	ch.PlannedCreate, ch.CreatePrivate = ch.Planned, ch.PlannedPrivate
+	ch.Prior, ch.PriorPrivate = gone.prior, gone.private
+	ch.removedRevision = gone.revision
+	ch.predestroyed = true
+	ch.Reasons = append(ch.Reasons, "replacement: the old object was destroyed before the nodes it depends on")
 }
