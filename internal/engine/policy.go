@@ -121,8 +121,9 @@ func (e *Engine) planPolicies(ctx context.Context) ([]PolicyEntry, error) {
 // checkPolicyRoles refuses the removal of a policy by a key that is not an admin in the
 // readers file. A writer adds and edits policies; removing one is for an admin, since it
 // is the one change that lets a plan through that the policy would have stopped.
-func (e *Engine) checkPolicyRoles(plan *Plan) error {
-	if !protect.RolesOn(e.Opts.Readers) {
+func (e *Engine) checkPolicyRoles(ctx context.Context, plan *Plan) error {
+	readers, fromState := e.judgingReaders(ctx)
+	if !protect.RolesOn(readers) {
 		return nil
 	}
 	var removing []string
@@ -134,9 +135,12 @@ func (e *Engine) checkPolicyRoles(plan *Plan) error {
 	if len(removing) == 0 {
 		return nil
 	}
-	role, ok := protect.RoleOf(e.Opts.Readers, e.State.SigningKey())
+	role, ok := protect.RoleOf(readers, e.State.SigningKey())
 	if ok && role.Allows(protect.RoleAdmin) {
 		return nil
+	}
+	if fromState {
+		return refused("removing the polic%s %s needs an admin, and your key is %s in the roles stored in the state; %s does not pin those roles, so the roles in the state decide: commit the %s line that pravo protect roles printed", map[bool]string{true: "y", false: "ies"}[len(removing) == 1], strings.Join(removing, ", "), map[bool]string{true: "a " + role.String(), false: "not listed"}[ok], e.Opts.ReadersFile, protect.RolesGenesisKey)
 	}
 	return refused("removing the polic%s %s needs an admin, and your key is %s in the readers file", map[bool]string{true: "y", false: "ies"}[len(removing) == 1], strings.Join(removing, ", "), map[bool]string{true: "a " + role.String(), false: "not in it"}[ok])
 }
@@ -367,7 +371,7 @@ func (e *Engine) judgeApply(ctx context.Context, plan *Plan, writes bool) (*stat
 	if err != nil {
 		return nil, err
 	}
-	if err := e.checkPolicyRoles(plan); err != nil {
+	if err := e.checkPolicyRoles(ctx, plan); err != nil {
 		return nil, err
 	}
 	var reasons []string

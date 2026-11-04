@@ -190,6 +190,23 @@ func (n *ApprovalNeed) Counted(approvals []Approval, storers []string) (counted 
 	return counted
 }
 
+// judgingReaders are the readers whose roles judge the key that applies and the keys that
+// approve. When the state holds a roles chain that the readers file does not pin, the roles
+// are the lower of the file and the chain: a local file that dropped the pin line, or an old
+// branch from before it, must not make a writer an admin. fromState says that the chain
+// lowered the roles of the file.
+func (e *Engine) judgingReaders(ctx context.Context) (readers []protect.Reader, fromState bool) {
+	rs := e.Opts.Readers
+	if e.Opts.RolesPin != "" || len(rs) == 0 || e.State.Sealer() == nil {
+		return rs, false
+	}
+	_, st, err := e.State.RolesFor(ctx, rs, "")
+	if err != nil || !st.Unpinned {
+		return rs, false
+	}
+	return protect.CapRoles(rs, st.Stored), true
+}
+
 // checkApprovals refuses an apply of a plan that the policies ask approvals for and has too few. A plan that is
 // not stored has nowhere to keep approvals.
 func (e *Engine) checkApprovals(ctx context.Context, need *ApprovalNeed) error {
@@ -198,7 +215,9 @@ func (e *Engine) checkApprovals(ctx context.Context, need *ApprovalNeed) error {
 	}
 	// An admin needs no approval, and with no roles in the readers file every key is an admin: a
 	// state with one member applies as it did before.
-	if role, ok := protect.RoleOf(e.Opts.Readers, e.State.SigningKey()); ok && role.Allows(protect.RoleAdmin) {
+	readers, fromState := e.judgingReaders(ctx)
+	role, known := protect.RoleOf(readers, e.State.SigningKey())
+	if known && role.Allows(protect.RoleAdmin) {
 		return nil
 	}
 	ask := fmt.Sprintf("%d approval%s by %s (%s)", need.Min, map[bool]string{true: "", false: "s"}[need.Min == 1], roleWords(need.Role), strings.Join(need.By, ", "))
@@ -213,7 +232,7 @@ func (e *Engine) checkApprovals(ctx context.Context, need *ApprovalNeed) error {
 	if err != nil {
 		return err
 	}
-	stored, err := ps.SignaturesOf(ctx, e.planID, digest, e.Opts.Readers)
+	stored, err := ps.SignaturesOf(ctx, e.planID, digest, readers)
 	if err != nil {
 		return err
 	}
@@ -223,7 +242,7 @@ func (e *Engine) checkApprovals(ctx context.Context, need *ApprovalNeed) error {
 			storers = append(storers, v.Key)
 		}
 	}
-	approvals, err := ps.Approvals(ctx, e.planID, digest, e.Opts.Readers)
+	approvals, err := ps.Approvals(ctx, e.planID, digest, readers)
 	if err != nil {
 		return err
 	}
@@ -241,6 +260,9 @@ func (e *Engine) checkApprovals(ctx context.Context, need *ApprovalNeed) error {
 	}
 	if !need.Self {
 		msg += ". The key that stored the plan does not count."
+	}
+	if fromState {
+		msg += fmt.Sprintf(" Your key is %s in the roles stored in the state; %s does not pin those roles, so the roles in the state decide: commit the %s line that pravo protect roles printed.", map[bool]string{true: "a " + role.String(), false: "not listed"}[known], e.Opts.ReadersFile, protect.RolesGenesisKey)
 	}
 	return refused("%s", msg)
 }

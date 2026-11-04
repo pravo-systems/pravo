@@ -274,3 +274,21 @@ func ParseRolesSet(text string) ([]Reader, []FormerKey, []Vouch, error) {
 	}
 	return out, former, vouches, nil
 }
+
+// CapRoles gives the readers of a file the lower of the role the file gives and the role in
+// stored, the roles of a chain that the file does not pin. A key the chain does not list is a
+// reader. The result has roles for every key, also when the file has none, so that a state
+// that holds roles is not read as "every key is an admin". The chain only restricts.
+func CapRoles(file, stored []Reader) []Reader {
+	out := make([]Reader, len(file))
+	copy(out, file)
+	for i, r := range out {
+		fileRole, _ := RoleOf(file, SSHFingerprint(r.Sign))
+		chainRole := RoleReader
+		if cr, ok := RoleOf(stored, SSHFingerprint(r.Sign)); ok {
+			chainRole = cr
+		}
+		out[i].Role = min(fileRole, chainRole)
+	}
+	return out
+}
