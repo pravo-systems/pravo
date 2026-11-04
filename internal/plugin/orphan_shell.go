@@ -31,7 +31,7 @@ func watchWithShell(cmd *exec.Cmd) func() {
 		w.Close()
 		return func() {}
 	}
-	go w2.Wait()
+	go func() { _ = w2.Wait() }()
 	return func() {
 		// Kill the watcher's group first so closing the pipe cannot make it fire.
 		_ = syscall.Kill(-w2.Process.Pid, syscall.SIGKILL)
