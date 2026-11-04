@@ -38,6 +38,10 @@ type ResolvedProvider struct {
 	// recordBinary says that the lock file may take it when it holds none.
 	BinaryHash   string
 	recordBinary bool
+	// Signer is the fingerprint of the key that signed the checksum list of the
+	// archive that was downloaded, and recordSigner says that the lock file may take it.
+	Signer       string
+	recordSigner bool
 	// Protocol is how pravo talks to the provider (config.ProtocolTfplugin
 	// or config.ProtocolReattach); Reattach is set for the latter.
 	Protocol string
@@ -231,8 +235,17 @@ func (m *Providers) Resolve(ctx context.Context, lock *Lock, upgrade, install bo
 				return err
 			}
 			rp.Path, rp.Hash = res.Path, res.Hash
+			rp.Signer, rp.recordSigner = res.Signer, res.Signer != ""
 			plat := registry.CurrentPlatform().String()
 			if e, ok := lock.Providers[req.Source.String()]; ok && e.Version == ver {
+				if want := e.Hashes[SignerKey]; want != "" && want != res.Signer {
+					_ = os.RemoveAll(filepath.Dir(res.Path))
+					got := res.Signer
+					if got == "" {
+						got = "no signature"
+					}
+					return fmt.Errorf("provider %s v%s: the checksum list was signed by %s, but %s pins the key %s. The registry changed its signing key or stopped signing. If that is expected, remove the %q line from the lock file and run \"pravo init\"", req.Source.Display(), ver, got, LockFileName, want, SignerKey)
+				}
 				if want, ok := e.Hashes[plat]; ok && want != res.Hash {
 					_ = os.RemoveAll(filepath.Dir(res.Path))
 					return fmt.Errorf("provider %s v%s: the downloaded archive for %s is %s, but %s pins %s; a published version must not change. If this is expected, remove the hash from the lock file and run \"pravo init\"", req.Source.Display(), ver, plat, res.Hash, LockFileName, want)
@@ -259,6 +272,11 @@ func (m *Providers) Resolve(ctx context.Context, lock *Lock, upgrade, install bo
 	}
 	return nil
 }
+
+// SignerKey is the key in the hashes of a lock entry that holds the fingerprint
+// of the key that signed the checksum list of the version. A registry that later
+// signs with another key, or stops signing, is refused. An older pravo ignores it.
+const SignerKey = "signer"
 
 // BinaryHashKey is the key in the hashes of a lock entry that holds the digest of
 // the unpacked executable for a platform. The hash of the archive cannot be compared
@@ -331,6 +349,12 @@ func (m *Providers) UpdateLock(lock *Lock) {
 			lock.Providers[key] = e
 		}
 		e.Constraints = rp.Req.Version
+		if rp.recordSigner && rp.Signer != "" {
+			if e.Hashes == nil {
+				e.Hashes = map[string]string{}
+			}
+			e.Hashes[SignerKey] = rp.Signer
+		}
 		if rp.recordBinary && rp.BinaryHash != "" {
 			if e.Hashes == nil {
 				e.Hashes = map[string]string{}

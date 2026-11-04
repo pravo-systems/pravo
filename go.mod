@@ -7,6 +7,7 @@ go 1.26.0
 require (
 	cuelabs.dev/go/oci/ociregistry v0.0.0-20260601085548-328ff8e2c943
 	cuelang.org/go v0.17.1
+	github.com/ProtonMail/go-crypto v1.1.0
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/aws/aws-sdk-go-v2 v1.47.3
 	github.com/aws/aws-sdk-go-v2/config v1.33.9
@@ -46,11 +47,13 @@ require (
 )
 
 require (
+	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/terraform-plugin-log v0.10.0 // indirect
 	github.com/hashicorp/terraform-registry-address v0.4.0 // indirect
 	github.com/hashicorp/terraform-svchost v0.1.1 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
 )
 
 require (
