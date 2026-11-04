@@ -292,3 +292,26 @@ func TestTokenGoesToItsHostOnly(t *testing.T) {
 		t.Errorf("token sent over plain http: %q", tok)
 	}
 }
+
+func TestSweepStale(t *testing.T) {
+	parent := t.TempDir()
+	old := filepath.Join(parent, ".install-old")
+	fresh := filepath.Join(parent, ".install-fresh")
+	other := filepath.Join(parent, "1.0.0")
+	for _, d := range []string{old, fresh, other} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	past := time.Now().Add(-2 * staleStage)
+	if err := os.Chtimes(old, past, past); err != nil {
+		t.Fatal(err)
+	}
+	sweepStale(parent)
+	for d, want := range map[string]bool{old: false, fresh: true, other: true} {
+		_, err := os.Stat(d)
+		if (err == nil) != want {
+			t.Errorf("%s present=%v, want %v", filepath.Base(d), err == nil, want)
+		}
+	}
+}
