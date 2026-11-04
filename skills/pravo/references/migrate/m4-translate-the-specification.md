@@ -674,6 +674,8 @@ port_numbers: pravo.#Output & {
 
 `random_integer.port[*].result` becomes a list comprehension over the instances. An output may not read an ephemeral value. A `precondition` on an output has no counterpart.
 
+OpenTofu keeps outputs and resources in separate namespaces, so `output "port"` and `resource "random_integer" "port"` can coexist. pravo has one namespace: the output and the resource would be the same path. Rename one of them when you translate, such as the output to `port_number` or the resource to `rport`, and point `$from` at the old address when the resource is the one you rename.
+
 ```sh
 pravo validate
 ```

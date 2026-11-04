@@ -315,6 +315,8 @@ txn
 
 `import-tfstate` converts the state file of OpenTofu or legacy Terraform. It accepts format version 4 and does not change the file. Work in a second root.
 
+The records come in under the addresses OpenTofu used (`module.net.random_pet.x` becomes `random_pet.net_x`). Once the specification declares each resource, `pravo plan` lists one move for every record whose address differs from its place in the specification, and nothing else; one `pravo apply` carries the moves out, with no add, change or destroy and no call to a provider, and the plan after it is empty. A resource whose address already equals its CUE path needs no move. Put `$from` on the resource in the specification when the OpenTofu address differs from where the resource now sits.
+
 OpenTofu 1.13.1 wrote the state file below for this HCL. The page does not run OpenTofu and does not print the file.
 
 ```hcl

@@ -165,7 +165,7 @@ func (w *Workspace) Why(ctx context.Context, refresh RefreshMode, addrs ...strin
 				ex.Reasons = []string{"nothing to report"}
 			}
 		} else {
-			ex.Reasons = []string{"not declared in the specification and not in the state"}
+			ex.Reasons = []string{"not declared in the specification and not in the state; an address is the CUE path (db, or app.web), without the resource type, so random_pet.db is wrong and db is right"}
 		}
 		all = append(all, ex)
 	}

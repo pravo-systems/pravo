@@ -97,7 +97,7 @@ func mcpTools() []mcpTool {
 		{Name: "pravo_validate", Description: "Evaluate the specification in the root this server was started in and check it against provider schemas. Returns counts, or the evaluation errors. One server serves one root; start another with -C for another directory.",
 			InputSchema: obj(map[string]any{"tags": tagsProp}),
 			args:        func(in map[string]any) ([]string, error) { return append([]string{"validate"}, tagArgs(in)...), nil }},
-		{Name: "pravo_plan", Description: "Compute the plan: every change the plan ran, with before/after values, reasons, blast radius and statistics. The nodes it left alone are not listed unless include_skipped is true. Optionally save it to a plan file, or store it in the state, for review and later apply, and reserve the nodes for a duration.",
+		{Name: "pravo_plan", Description: "Compute the plan: every change the plan ran, with before/after values, reasons, blast radius and statistics. The nodes it left alone are not listed unless include_skipped is true. Optionally save it to a plan file, or store it in the state, for review and later apply, and reserve the nodes for a duration. To rename a resource without destroying it, put $from: \"old\" in the new declaration; the plan then shows a move.",
 			InputSchema: obj(map[string]any{"tags": tagsProp, "out": map[string]any{"type": "string", "description": "save the plan to this file"},
 				"refresh":         map[string]any{"type": "string", "enum": []string{"age", "expired", "false", "all"}, "description": "when to read records from their providers: age (the records the plan looks at, once past their refresh age), expired (every record past its refresh age), false (none) or all"},
 				"full":            map[string]any{"type": "boolean"},

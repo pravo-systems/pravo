@@ -280,6 +280,17 @@ func showsProgress(cmd *cobra.Command) bool {
 	return false
 }
 
+// flagError adds the flag a reader of another tool would have meant to an unknown-flag error.
+func flagError(cmd *cobra.Command, err error) error {
+	switch err.Error() {
+	case "unknown flag: --yes", "unknown flag: --auto-approve", "unknown shorthand flag: 'y' in -y":
+		if cmd.Flags().Lookup("auto-approve") != nil {
+			return fmt.Errorf("%w (to apply without the question, pass -auto-approve; protect commands take --yes)", err)
+		}
+	}
+	return err
+}
+
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "pravo",
@@ -337,6 +348,7 @@ func newRootCmd() *cobra.Command {
 		schemaCmd(), whyCmd(), driftCmd(), mcpCmd(), modCmd(), serveCmd(), skillCmd(), idCmd(), protectCmd(), policyCmd(), secretCmd(),
 		promoteCmd(), environmentsCmd(),
 	)
+	cmd.SetFlagErrorFunc(flagError)
 	return cmd
 }
 

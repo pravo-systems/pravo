@@ -25,7 +25,7 @@ func driftMarkdown(rep *pravo.DriftReport, proposal *driftProposal) string {
 		for _, d := range rep.Drifted {
 			what := "the real state differs from the state"
 			if d.Gone {
-				what = "the object does not exist"
+				what = "the provider no longer finds it (deleted, or changed, such as a file edited by hand)"
 			}
 			fmt.Fprintf(&b, "| %s | %s |\n", engine.MDCode(d.Addr), what)
 		}
@@ -53,7 +53,7 @@ func dueMarkdown(rep *engine.DueReport) string {
 	for _, d := range rep.Drifted {
 		what := "the real state differs from the state"
 		if d.Gone {
-			what = "the object does not exist"
+			what = "the provider no longer finds it (deleted, or changed, such as a file edited by hand)"
 		}
 		fmt.Fprintf(&b, "| %s | %s |\n", engine.MDCode(d.Addr), what)
 	}
