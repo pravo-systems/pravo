@@ -147,6 +147,10 @@ type downloadInfo struct {
 	Filename    string   `json:"filename"`
 	DownloadURL string   `json:"download_url"`
 	Shasum      string   `json:"shasum"`
+
+	ShasumsURL          string      `json:"shasums_url"`
+	ShasumsSignatureURL string      `json:"shasums_signature_url"`
+	SigningKeys         signingKeys `json:"signing_keys"`
 }
 
 // Client talks to provider registries and manages the local provider store.
@@ -645,6 +649,17 @@ type InstallResult struct {
 	Hash string
 	// Downloaded reports whether a download happened.
 	Downloaded bool
+	// Signer is the fingerprint of the key that signed the checksum list of the
+	// download, or empty when the registry did not sign it.
+	Signer string
+}
+
+func truthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }
 
 // staleStage is how old an unfinished staging directory must be before a
@@ -687,7 +702,7 @@ func (c *Client) Install(ctx context.Context, src Source, ver string, progress f
 		return nil, err
 	}
 	defer os.RemoveAll(stage)
-	archive, sum, err := c.Archive(ctx, src, ver, CurrentPlatform(), stage, progress)
+	archive, sum, signer, err := c.archive(ctx, src, ver, CurrentPlatform(), stage, progress)
 	if err != nil {
 		return nil, err
 	}
@@ -711,13 +726,13 @@ func (c *Client) Install(ctx context.Context, src Source, ver string, progress f
 		err := os.Rename(stage, dir)
 		if err == nil {
 			p, _ := FindBinary(dir, src.Type)
-			return &InstallResult{Path: p, Version: ver, Hash: "sha256:" + sum, Downloaded: true}, nil
+			return &InstallResult{Path: p, Version: ver, Hash: "sha256:" + sum, Downloaded: true, Signer: signer}, nil
 		}
 		last = err
 		// The directory is there: a concurrent install won, or an old,
 		// unfinished one is in the way.
 		if p, ok := findComplete(dir, src.Type); ok {
-			return &InstallResult{Path: p, Version: ver, Hash: "sha256:" + sum, Downloaded: true}, nil
+			return &InstallResult{Path: p, Version: ver, Hash: "sha256:" + sum, Downloaded: true, Signer: signer}, nil
 		}
 		os.RemoveAll(dir)
 	}
@@ -752,51 +767,69 @@ func (c *Client) Checksum(ctx context.Context, src Source, ver string, plat Plat
 // dir, checks it against the checksum the registry gave, and returns its path
 // and sha256.
 func (c *Client) Archive(ctx context.Context, src Source, ver string, plat Platform, dir string, progress func(string)) (path, sum string, err error) {
+	path, sum, _, err = c.archive(ctx, src, ver, plat, dir, progress)
+	return path, sum, err
+}
+
+// archive is Archive that also returns the fingerprint of the key that signed
+// the checksum list, or "" when the registry did not sign it.
+func (c *Client) archive(ctx context.Context, src Source, ver string, plat Platform, dir string, progress func(string)) (path, sum, signer string, err error) {
 	if src.OCI {
-		return c.archiveOCI(ctx, src, ver, plat, dir, progress)
+		path, sum, err = c.archiveOCI(ctx, src, ver, plat, dir, progress)
+		return path, sum, "", err
 	}
 	base, err := c.providersBase(ctx, src.Host)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	var dl downloadInfo
 	u := fmt.Sprintf("%s%s/%s/%s/download/%s/%s", base, url.PathEscape(src.Namespace), url.PathEscape(src.Type), ver, plat.OS, plat.Arch)
 	if err := c.getJSON(ctx, u, &dl); err != nil {
 		if notFound(err) {
-			return "", "", fmt.Errorf("%s v%s was not found for %s", src.Display(), ver, plat)
+			return "", "", "", fmt.Errorf("%s v%s was not found for %s", src.Display(), ver, plat)
 		}
-		return "", "", fmt.Errorf("resolving download for %s %s: %w", src.Display(), ver, err)
+		return "", "", "", fmt.Errorf("resolving download for %s %s: %w", src.Display(), ver, err)
 	}
 	if err := checkDownloadInfo(&dl, plat); err != nil {
-		return "", "", fmt.Errorf("%s %s: %w", src.Display(), ver, err)
+		return "", "", "", fmt.Errorf("%s %s: %w", src.Display(), ver, err)
 	}
 	if progress != nil {
 		progress(fmt.Sprintf("Downloading %s v%s (%s)", src.Display(), ver, clean(dl.Filename)))
 	}
 	if !secureURL(dl.DownloadURL) {
-		return "", "", fmt.Errorf("the registry gave the download address %s for %s %s; it must be https", clean(dl.DownloadURL), src.Display(), ver)
+		return "", "", "", fmt.Errorf("the registry gave the download address %s for %s %s; it must be https", clean(dl.DownloadURL), src.Display(), ver)
 	}
 	resp, err := c.get(ctx, dl.DownloadURL)
 	if err != nil {
-		return "", "", fmt.Errorf("downloading %s: %w", clean(dl.DownloadURL), err)
+		return "", "", "", fmt.Errorf("downloading %s: %w", clean(dl.DownloadURL), err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("downloading %s: %s", clean(dl.DownloadURL), clean(resp.Status))
+		return "", "", "", fmt.Errorf("downloading %s: %s", clean(dl.DownloadURL), clean(resp.Status))
 	}
 	sum, path, err = spool(dir, resp.Body)
 	if err != nil {
-		return "", "", fmt.Errorf("downloading %s: %w", clean(dl.DownloadURL), err)
+		return "", "", "", fmt.Errorf("downloading %s: %w", clean(dl.DownloadURL), err)
 	}
 	if dl.Shasum == "" {
 		os.Remove(path)
-		return "", "", fmt.Errorf("the registry gave no checksum for %s, so the archive cannot be checked", clean(dl.Filename))
+		return "", "", "", fmt.Errorf("the registry gave no checksum for %s, so the archive cannot be checked", clean(dl.Filename))
 	}
 	if !strings.EqualFold(sum, dl.Shasum) {
 		os.Remove(path)
-		return "", "", fmt.Errorf("checksum mismatch for %s: registry says %s, archive is %s", clean(dl.Filename), clean(dl.Shasum), sum)
+		return "", "", "", fmt.Errorf("checksum mismatch for %s: registry says %s, archive is %s", clean(dl.Filename), clean(dl.Shasum), sum)
 	}
-	return path, sum, nil
+	if dl.signed() {
+		signer, err = c.verifySignature(ctx, &dl, sum)
+		if err != nil {
+			os.Remove(path)
+			return "", "", "", fmt.Errorf("%s %s: %w", src.Display(), ver, err)
+		}
+	} else if truthy(c.Env.Get("PRAVO_REQUIRE_SIGNED")) {
+		os.Remove(path)
+		return "", "", "", fmt.Errorf("%s %s is not signed by the registry (no signing keys or no signature of the checksum list), and PRAVO_REQUIRE_SIGNED is set", src.Display(), ver)
+	}
+	return path, sum, signer, nil
 }
 
 // checkDownloadInfo refuses an answer that is for another platform than the one
