@@ -225,6 +225,14 @@ func fillValue(cfg cue.Value, sv tftypes.Value) (any, bool) {
 			cfgElems = append(cfgElems, it.Value())
 		}
 		if len(cfgElems) != len(elems) {
+			// A list whose length the configuration fixes keeps it. A provider that
+			// stores the configured blocks in another shape (an empty list for a block
+			// that switches a feature off, a block it merged with another) does not
+			// change what was asked for, and unifying the stored list would conflict
+			// with it. Only a list that the configuration leaves open is filled whole.
+			if l := cfg.Len(); l.IsConcrete() && l.Err() == nil {
+				return nil, false
+			}
 			g, err := ToGo(sv)
 			return g, err == nil
 		}
@@ -237,6 +245,15 @@ func fillValue(cfg cue.Value, sv tftypes.Value) (any, bool) {
 			if ok {
 				out[i] = x
 				filled = true
+			} else if IsConcrete(cfgElems[i]) {
+				// Keep what was configured; the stored element may differ from it.
+				var g any
+				if err := cfgElems[i].Decode(&g); err != nil {
+					return nil, false
+				}
+				out[i] = g
+			} else if cfgElems[i].Kind() == cue.StructKind {
+				out[i] = map[string]any{}
 			} else {
 				g, err := ToGo(e)
 				if err != nil {

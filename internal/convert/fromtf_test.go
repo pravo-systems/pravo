@@ -74,3 +74,41 @@ func TestFieldLabelKeepsMarkupCharacters(t *testing.T) {
 		}
 	}
 }
+
+// A provider that stores a configured block in another shape (fewer elements, other order, other
+// values) must not make the fill conflict with the configuration.
+func TestFillKeepsConfiguredListWhenProviderReshapesIt(t *testing.T) {
+	ctx := cuecontext.New()
+	elem := tftypes.Object{AttributeTypes: map[string]tftypes.Type{"enabled": tftypes.Bool, "arn": tftypes.String}}
+	lst := tftypes.List{ElementType: elem}
+	mk := func(enabled bool, arn string) tftypes.Value {
+		return tftypes.NewValue(elem, map[string]tftypes.Value{
+			"enabled": tftypes.NewValue(tftypes.Bool, enabled),
+			"arn":     tftypes.NewValue(tftypes.String, arn),
+		})
+	}
+	cases := []struct {
+		name, cfg string
+		state     tftypes.Value
+		wantOK    bool
+	}{
+		{"block normalised to empty", `[{enabled: false, arn: string}]`, tftypes.NewValue(lst, []tftypes.Value{}), false},
+		{"extra stored element", `[{enabled: true, arn: string}]`, tftypes.NewValue(lst, []tftypes.Value{mk(true, "a"), mk(true, "b")}), false},
+		{"stored value differs", `[{enabled: false, arn: string}]`, tftypes.NewValue(lst, []tftypes.Value{mk(true, "a")}), true},
+	}
+	for _, c := range cases {
+		cfg := ctx.CompileString(c.cfg)
+		got, ok := fillValue(cfg, c.state)
+		if ok != c.wantOK {
+			t.Errorf("%s: filled = %v, want %v (%v)", c.name, ok, c.wantOK, got)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		v := cfg.Unify(ctx.Encode(got))
+		if err := v.Validate(); err != nil {
+			t.Errorf("%s: fill conflicts with the configuration: %v", c.name, err)
+		}
+	}
+}
