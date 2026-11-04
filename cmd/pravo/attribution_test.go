@@ -266,3 +266,25 @@ func TestStateListAndShowRefuseWhenAPointerIsGone(t *testing.T) {
 		t.Errorf("state log must still read: exit %d\n%s", code, text)
 	}
 }
+
+// A sealed state without a baseline transaction (sealed by an older version) says so in plan
+// and protect status, and rewrap --all records one.
+func TestAStateWithoutABaselineSaysSoUntilRewrap(t *testing.T) {
+	s := sealedBucket(t)
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status"); code != 0 || strings.Contains(text, "Baseline") {
+		t.Fatalf("status with baseline: exit %d\n%s", code, text)
+	}
+	for _, id := range txnIDs(t, s) {
+		delete(s.f.Objects, "prod/txn/"+id+".json")
+	}
+	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status")
+	if code != 0 || !strings.Contains(text, "Baseline     none") {
+		t.Fatalf("status: exit %d\n%s", code, text)
+	}
+	if text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "rewrap", "--all", "--yes"); code != 0 {
+		t.Fatalf("rewrap: exit %d\n%s", code, text)
+	}
+	if text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "status"); code != 0 || strings.Contains(text, "Baseline") {
+		t.Fatalf("status after rewrap: exit %d\n%s", code, text)
+	}
+}

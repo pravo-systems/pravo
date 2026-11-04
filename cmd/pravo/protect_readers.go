@@ -357,3 +357,14 @@ func article(r protect.Role) string {
 	}
 	return "a " + r.String()
 }
+
+// noBaselineNotice is the line printed by plan and protect status for a sealed state that
+// holds no baseline transaction.
+const noBaselineNotice = "Notice: this sealed state has no baseline transaction, so a resource pointer deleted from the bucket may go unnoticed. Run pravo protect rewrap --all to record one."
+
+// noteNoBaseline prints the notice for st when it applies.
+func noteNoBaseline(ctx context.Context, root *config.Root, st *state.Store) {
+	if readers, ok := attributionReaders(readersOf(root)); ok && st.NoBaseline(ctx, readers) {
+		fmt.Fprintln(os.Stderr, noBaselineNotice)
+	}
+}

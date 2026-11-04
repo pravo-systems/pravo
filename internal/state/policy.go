@@ -333,6 +333,8 @@ type txnFacts struct {
 	// changed, the revision it left (0 when it removed the node), in the order of its changes.
 	started time.Time
 	nodes   []nodeChange
+	// baseline is set for a signed transaction of kind baseline, which names every pointer.
+	baseline bool
 }
 
 type nodeChange struct {
@@ -384,6 +386,7 @@ func (s *Store) signedFacts(ctx context.Context, readers []protect.Reader) (map[
 			if st, _ := protect.VerifySignature(t.FinishSig, readers, protect.DomainTxnFinish, s.Lineage(), txnFinishParts(&t)...); st == protect.SigVerified {
 				f.policies = append(f.policies, t.PolicyWrites...)
 				f.started = t.Started
+				f.baseline = t.Kind == "baseline"
 				for _, c := range t.Changes {
 					if strings.HasPrefix(c.Addr, secretAddrPrefix) || c.Addr == EnvironmentAddr {
 						continue
@@ -650,4 +653,24 @@ func (s *Store) checkNodes(ctx context.Context, readers []protect.Reader, loaded
 		list = fmt.Sprintf("%s and %d more", missing[0], len(missing)-1)
 	}
 	return fmt.Errorf("%w: the pointer of %s is gone from the bucket (resources/), and the newest signed transaction that changed it left a record: the resource would read as new and a duplicate would be planned. Restore the object from the bucket's history (pravo protect status lists them)", ErrUntrusted, list)
+}
+
+// NoBaseline says whether a sealed state that holds resources has no signed baseline
+// transaction (see nameAllPointers): a pointer from before it cannot be found when it is
+// deleted. It is false for a state that is not sealed, one with no resources, and when the
+// readers needed to verify are not given.
+func (s *Store) NoBaseline(ctx context.Context, readers []protect.Reader) bool {
+	if len(readers) == 0 || !s.sealedState() || s.Locked() || len(s.Addresses()) == 0 {
+		return false
+	}
+	facts, err := s.signedFacts(ctx, readers)
+	if err != nil {
+		return false
+	}
+	for _, f := range facts {
+		if f.baseline {
+			return false
+		}
+	}
+	return true
 }

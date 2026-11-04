@@ -139,6 +139,9 @@ func (p *protectRun) status() error {
 	}
 	rolesOn := erf.Found && erf.Err == nil && protect.RolesOn(erf.Readers)
 	add("Roles", rolesText(erf, rstat, st))
+	if erf.Found && erf.Err == nil && st.NoBaseline(p.ctx, erf.Readers) {
+		add("Baseline", "none: a deleted resource pointer from before may go unnoticed (pravo protect rewrap --all)")
+	}
 	var recs *state.RecordVerdict
 	if rolesOn && prot.Sealed != nil && !st.Locked() {
 		v := st.VerifyRecordsWith(txns, recordRules(erf.Readers, rstat))
