@@ -103,6 +103,7 @@ find pravo.state -type f | sort
 
 ```text out
 Apply complete! Resources: 3 added, 0 changed, 0 destroyed. [txn <id>]
+pravo.state/kinds/<txn>.apply
 pravo.state/meta.json
 pravo.state/outputs.json
 pravo.state/resources/hello.json
