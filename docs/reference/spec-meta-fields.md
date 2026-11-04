@@ -154,6 +154,8 @@ pet: Replacement complete after 0s [id=<pet>]
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <id>]
 ```
 
+Until the destroy of the previous instance has finished, the state keeps it as a record of its own, with an address such as `pet."deposed id-1"`. If the destroy fails (a security group still in use, a certificate still attached), or the command stops during it, the error names the old object's id, and the next plan lists the record as a destroy. The next apply retries it, with no change to the specification. If a command stops while the replacement is being created, the next plan warns and the next apply refuses to create it again: see [Plans](../concepts/plans.md).
+
 ### prevent_destroy
 
 With `prevent_destroy: true`, a plan that replaces the resource stops with an error. The attribute change is not made.

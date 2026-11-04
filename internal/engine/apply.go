@@ -158,6 +158,11 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 			// outlives a command that stops is what keeps the next apply from creating the
 			// replacement again (the lock does not: a plan reclaims it).
 			noted := false
+			var oldRec *state.Resource
+			if rec := e.State.Get(ch.Addr); rec != nil {
+				cp := *rec
+				oldRec = &cp
+			}
 			if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
 				if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), e.txnID(), e.Opts.Command); err != nil {
 					return tftypes.Value{}, fmt.Errorf("%s: noting the replacement: %w", ch.Addr, err)
@@ -179,10 +184,18 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 			if noted {
 				_ = e.State.ClearPendingCreate(ch.Addr)
 			}
+			// The old object is kept in the state under an address of its own until its
+			// destroy has finished, so that an apply that stops or fails now does not forget
+			// it: a plan lists it as a record to destroy, and the next apply retries.
+			deposed := e.depose(ch.Addr, oldRec)
 			e.Opts.Progress("%s: Destroying previous instance... %s", ch.Addr, idSuffix(ch.Prior))
 			if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
+				if deposed != "" {
+					err = fmt.Errorf("%w; the previous instance (id %s) is kept in the state as %s, and the next apply destroys it", err, oldRec.ID(), deposed)
+				}
 				return tftypes.Value{}, err
 			}
+			e.undepose(deposed)
 		} else {
 			e.Opts.Progress("%s: Destroying... %s", ch.Addr, idSuffix(ch.Prior))
 			if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
@@ -915,4 +928,40 @@ func (e *Engine) isUnsettled(addr string) bool {
 	defer e.mu.Unlock()
 	_, ok := e.unsettled[addr]
 	return ok
+}
+
+// depose writes the record of the old object that a create_before_destroy replacement
+// replaced under an address of its own, and returns the address ("" when it could not be
+// written, in which case the old object is destroyed with nothing to keep it).
+func (e *Engine) depose(addr string, old *state.Resource) string {
+	if old == nil {
+		return ""
+	}
+	sels := cue.ParsePath(addr).Selectors()
+	label := "deposed " + old.ID()
+	dep := cue.MakePath(append(append([]cue.Selector{}, sels...), cue.Str(label))...).String()
+	cp := *old
+	cp.Addr, cp.Name, cp.Revision, cp.Generation = dep, label, 0, ""
+	if err := e.State.Set(&cp, e.txnID()); err != nil {
+		e.Opts.Progress("Warning: %s: the previous instance (id %s) could not be kept in the state: %v", addr, old.ID(), err)
+		return ""
+	}
+	e.txn.Record(dep, "deposed", 0, cp.Revision)
+	return dep
+}
+
+// undepose removes the record of an old object that was destroyed.
+func (e *Engine) undepose(dep string) {
+	if dep == "" {
+		return
+	}
+	rev := 0
+	if r := e.State.Get(dep); r != nil {
+		rev = r.Revision
+	}
+	if _, err := e.State.Remove(dep); err != nil {
+		e.Opts.Progress("Warning: %s: the destroyed previous instance is still in the state: %v", dep, err)
+		return
+	}
+	e.txn.Record(dep, "destroy", rev, 0)
 }
