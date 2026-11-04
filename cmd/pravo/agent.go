@@ -456,6 +456,9 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 						out.Printf("    - %s\n", d.Note)
 					}
 				}
+				if proposal == nil {
+					out.Println("Run pravo plan to see what puts them back, or pravo apply to do it.")
+				}
 			}
 			if proposal != nil && !flags.JSON && !flags.Markdown {
 				proposal.print()

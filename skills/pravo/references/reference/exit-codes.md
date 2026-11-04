@@ -58,6 +58,7 @@ Drift. 1 of 1 resources changed outside pravo:
   hello: rewrite
     - refresh found the real state differs from the state (drift)
     - hello.txt exists, so it was changed, not deleted
+Run pravo plan to see what puts them back, or pravo apply to do it.
 drift, found: 2
 ```
 

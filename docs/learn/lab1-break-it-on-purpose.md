@@ -428,6 +428,7 @@ pravo drift
 Drift. 1 of 4 resources changed outside pravo:
   manifest: create
     - refresh found the real state differs from the state (drift)
+Run pravo plan to see what puts them back, or pravo apply to do it.
 ```
 
 Exit code 2 is drift. Revert by applying the specification.

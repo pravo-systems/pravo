@@ -366,6 +366,7 @@ Output:
 Drift. 1 of 4 resources changed outside pravo:
   note: create
     - refresh found the real state differs from the state (drift)
+Run pravo plan to see what puts them back, or pravo apply to do it.
 ```
 
 With `-webhook <url>` the report is also posted as JSON, so a scheduler can hand drift to whoever triages it. With `--plan --store` the job also stores the plan that puts the drift right, and the webhook receives an event with its id: [Let drift propose the fix](let-drift-propose-the-fix.md).

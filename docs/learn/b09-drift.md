@@ -155,6 +155,7 @@ pravo drift
 Drift. 1 of 2 resources changed outside pravo:
   motd: create
     - refresh found the real state differs from the state (drift)
+Run pravo plan to see what puts them back, or pravo apply to do it.
 ```
 
 Exit code 2 means drift was found. Exit code 0 means none. A CI job reads the code and the JSON.
