@@ -981,3 +981,45 @@ func TestRecreateOverARecordKeepsTheNote(t *testing.T) {
 		}
 	})
 }
+
+// The note of an interrupted replacement is spoken of by every plan, also by one that no longer
+// replaces the node (the rename was reverted): a warning only, the plan is as it was. Clearing
+// the note ends the warning.
+func TestInterruptedReplacementIsWarnedOfByAPlanThatLeavesTheNodeAlone(t *testing.T) {
+	ctx := context.Background()
+	mk := func(name string) spec {
+		return spec{cue: "a: " + thing(name, "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"a"}}
+	}
+	h := newHarness(t)
+	h.apply(mk("one"))
+	h.fake.afterApply = func(string) error { return errors.New("rpc error: code = Unavailable") }
+	e := h.engine(mk("two"), Options{})
+	if _, err := e.Apply(ctx, mustPlan(t, e)); err == nil {
+		t.Fatal("apply succeeded")
+	}
+	h.fake.afterApply = nil
+	h.reopen()
+	warned := func() bool {
+		var said []string
+		e := h.engine(mk("one"), Options{Progress: func(f string, a ...any) { said = append(said, fmt.Sprintf(f, a...)) }})
+		plan := mustPlan(t, e)
+		for _, ch := range plan.Changes {
+			if ch.Addr == "a" && ch.Action != ActionNoop && ch.Action != ActionRead {
+				t.Errorf("the plan changes a: %v", ch.Action)
+			}
+		}
+		return strings.Contains(strings.Join(said, "\n"), "a: an apply (txn ")
+	}
+	if !warned() {
+		t.Fatal("a plan that leaves the node alone does not warn of the stopped replacement")
+	}
+	if !warned() {
+		t.Fatal("the second plan does not warn")
+	}
+	if err := h.state.ClearPendingCreate("a"); err != nil {
+		t.Fatal(err)
+	}
+	if warned() {
+		t.Error("the warning stays after the note was cleared")
+	}
+}

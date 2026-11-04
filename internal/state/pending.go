@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -125,4 +127,29 @@ func (s *Store) MovePendingCreate(from, to string) error {
 		return err
 	}
 	return s.ClearPendingCreate(from)
+}
+
+// PendingCreates returns every note, sorted by address. It lists the lock directory once, so
+// a plan finds the notes of all nodes with one call, not one read per node.
+func (s *Store) PendingCreates() ([]*PendingCreate, error) {
+	keys, err := s.b.List(s.cx(), "locks")
+	if err != nil {
+		return nil, err
+	}
+	var out []*PendingCreate
+	for _, k := range keys {
+		if !strings.HasSuffix(k, ".replacing") {
+			continue
+		}
+		data, err := s.b.Get(s.cx(), k)
+		if err != nil {
+			continue
+		}
+		var p PendingCreate
+		if json.Unmarshal(data, &p) == nil && p.Addr != "" {
+			out = append(out, &p)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Addr < out[j].Addr })
+	return out, nil
 }

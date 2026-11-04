@@ -82,7 +82,7 @@ Output:
      18 provider
       4 resource
      15 setup
-     28 state
+     29 state
 ```
 
 ## 4. Read a run that failed
@@ -158,7 +158,7 @@ Output:
 ```text
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
       2 network DELETE 127.0.0.1
-     16 network GET 127.0.0.1
+     17 network GET 127.0.0.1
       8 network PUT 127.0.0.1
 /traced-state/demo/locks/server.lock
 /traced-state/demo/meta.json

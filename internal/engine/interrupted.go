@@ -212,6 +212,7 @@ func (e *Engine) warnUntracked(plan *Plan) {
 	for _, addr := range slices.Sorted(maps.Keys(replacing)) {
 		e.Opts.Progress("Warning: %s: %s. Adopt it (pravo state rm %s, then %s) or delete it in the cloud, before you apply", addr, stoppedReplacement(replacing[addr]), addr, e.importCommand(addr, "ID"))
 	}
+	e.warnStrayNotes(plan, replacing)
 	for _, addr := range slices.Sorted(maps.Keys(e.suspects)) {
 		// Only a node whose create began can have an object nothing tracks; a node the stopped
 		// apply had locked and never started has none.
@@ -219,5 +220,41 @@ func (e *Engine) warnUntracked(plan *Plan) {
 			continue
 		}
 		e.Opts.Progress("Warning: %s: %s, and the state has no record of it: if the create reached the cloud the object exists but is not tracked, and an apply would create it again. Look for it with pravo discover, or import it (%s), before you apply", addr, stoppedApply(e.suspects[addr]), e.importCommand(addr, "ID"))
+	}
+}
+
+// warnStrayNotes warns of the notes of interrupted creates for the nodes that the plan neither
+// replaces, creates nor deletes (covered holds the ones it does, which the refusal speaks of):
+// the replacement or the new object may exist in the cloud untracked, and a plan that
+// says nothing of it lets the person forget it. Only the warning: the plan and its exit
+// code are as they were. A note whose command is gone and that the record has outgrown is
+// deleted.
+func (e *Engine) warnStrayNotes(plan *Plan, covered map[string]*state.PendingCreate) {
+	notes, err := e.State.PendingCreates()
+	if err != nil || len(notes) == 0 {
+		return
+	}
+	movedFrom := map[string]bool{}
+	for _, ch := range plan.Changes {
+		if ch.Action == ActionMove && ch.MovedFrom != "" {
+			movedFrom[ch.MovedFrom] = true
+		}
+	}
+	for _, p := range notes {
+		if covered[p.Addr] != nil || movedFrom[p.Addr] {
+			continue
+		}
+		rec := e.State.Get(p.Addr)
+		orphan, err := e.State.Orphaned(p, rec)
+		if err != nil {
+			continue
+		}
+		if !orphan {
+			if rec != nil && !p.Holds(rec) {
+				_ = e.State.ClearPendingCreate(p.Addr)
+			}
+			continue
+		}
+		e.Opts.Progress("Warning: %s: %s. Find it with pravo discover (with a #Discovery rule) or adopt it (pravo state rm %s, then %s), or if it does not exist, say so (%s), before you change this node", p.Addr, stoppedReplacement(p), p.Addr, e.importCommand(p.Addr, "ID"), "pravo state unlock --allow-create "+p.Addr+e.envFlag())
 	}
 }
