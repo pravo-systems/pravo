@@ -117,7 +117,7 @@ func TestBuildTestdata(t *testing.T) {
 	}
 
 	// Terminal merged from a run block and its out block.
-	mustContain(t, page, `<figure class="term" data-exit="0" data-ran="0.1">`)
+	mustContain(t, page, `<figure class="term" data-exit="0">`)
 
 	// Section images and the contents page.
 	contents := readOut(t, out, "contents.html")

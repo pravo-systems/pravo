@@ -7,11 +7,11 @@ import (
 	"testing"
 )
 
-func TestCaptureFalseHasNoRanTag(t *testing.T) {
+func TestTerminalsCarryNoVersionTag(t *testing.T) {
 	body := "```sh run\npravo version\n```\n\n```text out\npravo 0.1\n```\n"
 	html, msgs := renderBody(t, body)
 	noErrors(t, msgs)
-	mustContain(t, html, `data-ran="0.1"`)
+	mustNotContain(t, html, "data-ran")
 	s := newTestSite(t, map[string]string{"learn/a01-lesson.md": strings.Replace(lessonSource(body), "order: 1", "order: 1\ncapture: false", 1)})
 	noErrors(t, s.msgs)
 	mustNotContain(t, string(s.mustPage(t, "learn/a01-lesson.md").Content), "data-ran")
