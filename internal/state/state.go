@@ -194,6 +194,10 @@ type meta struct {
 type Store struct {
 	// roles is the chain of roles read last, and rolesAt when (see RolesChain).
 	rolesMu sync.Mutex
+	// listedMu guards listed: the policy versions that verified transactions listed, by
+	// transaction id (see PolicyListings).
+	listedMu sync.Mutex
+	listed   map[string][]string
 	roles   *RolesChain
 	rolesAt time.Time
 
