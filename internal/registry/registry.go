@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-version"
 
@@ -46,8 +48,28 @@ type Source struct {
 // OCIPrefix starts the address of a provider kept in a container registry.
 const OCIPrefix = "oci://"
 
-// maxUnzippedFile is the most that one file of a provider package may unpack to.
-const maxUnzippedFile = 4 << 30
+// Limits on what a registry can make pravo read or write. A provider is a few
+// hundred megabytes at most; the limits sit well above that and below what
+// would fill a disk or the memory of a build machine.
+var (
+	// maxUnzippedFile is the most that one file of a provider package may unpack to.
+	maxUnzippedFile int64 = 4 << 30
+	// maxUnzippedTotal is the most that a whole package may unpack to.
+	maxUnzippedTotal int64 = 6 << 30
+	// maxZipEntries is the most entries that a provider package may hold.
+	maxZipEntries = 1000
+	// maxArchive is the most that one archive download may be.
+	maxArchive int64 = 2 << 30
+	// maxJSON is the most that one JSON answer of a registry may be.
+	maxJSON int64 = 64 << 20
+	// maxManifest is the most that an OCI manifest or index may be.
+	maxManifest int64 = 4 << 20
+	// maxTags is the most tags of one OCI repository that pravo lists.
+	maxTags = 100000
+	// idleTimeout is how long a registry may send nothing, while pravo waits for a
+	// header or the next bytes of a body, before the request fails.
+	idleTimeout = 60 * time.Second
+)
 
 // ParseSource parses "type", "namespace/type" or "host/namespace/type".
 func ParseSource(s string) (Source, error) {
@@ -142,7 +164,108 @@ type Client struct {
 
 // NewClient returns a client using the default home directory of e.
 func NewClient(e env.Env) *Client {
-	return &Client{HTTP: &http.Client{Transport: &retryTransport{}}, Home: Home(e), Env: e}
+	return &Client{HTTP: newHTTPClient(), Home: Home(e), Env: e}
+}
+
+// newHTTPClient is the client for registries. It retries what may pass, gives up
+// on a registry that stops answering, and refuses a redirect from https to http,
+// which would send the answer and the checksum in clear text. Loopback is
+// exempt, as it is for the container registry client.
+func newHTTPClient() *http.Client {
+	base := http.DefaultTransport.(*http.Transport).Clone()
+	base.ResponseHeaderTimeout = idleTimeout
+	base.TLSHandshakeTimeout = 30 * time.Second
+	return &http.Client{
+		Transport: &retryTransport{base: base},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return errors.New("stopped after 10 redirects")
+			}
+			if req.URL.Scheme != "https" && via[len(via)-1].URL.Scheme == "https" && !loopback(req.URL.Hostname()) {
+				return fmt.Errorf("refusing a redirect from https to %s", clean(req.URL.Redacted()))
+			}
+			return nil
+		},
+	}
+}
+
+// loopback reports whether host is the local machine, where plain http is allowed.
+func loopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// clean makes text that a registry sent safe to print: control characters,
+// which could rewrite a terminal or add lines to a CI log, become "?".
+func clean(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r < 0xa0) {
+			return '?'
+		}
+		return r
+	}, s)
+}
+
+// idleBody is a response body that fails when no byte arrives for idleTimeout.
+type idleBody struct {
+	io.ReadCloser
+	timer  *time.Timer
+	cancel context.CancelFunc
+}
+
+func (b *idleBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	b.timer.Reset(idleTimeout)
+	if err != nil && errors.Is(err, context.Canceled) {
+		err = fmt.Errorf("the registry sent nothing for %s", idleTimeout)
+	}
+	return n, err
+}
+
+func (b *idleBody) Close() error {
+	b.timer.Stop()
+	err := b.ReadCloser.Close()
+	b.cancel()
+	return err
+}
+
+// idleTransport makes every response body of a round tripper an idleBody.
+type idleTransport struct{ base http.RoundTripper }
+
+func (t idleTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx, cancel := context.WithCancel(req.Context())
+	timer := time.AfterFunc(idleTimeout, cancel)
+	resp, err := t.base.RoundTrip(req.WithContext(ctx))
+	if err != nil {
+		timer.Stop()
+		cancel()
+		return nil, err
+	}
+	resp.Body = &idleBody{ReadCloser: resp.Body, timer: timer, cancel: cancel}
+	return resp, nil
+}
+
+// get starts a GET request whose body is read under the idle timeout. The caller closes the body.
+func (c *Client) get(ctx context.Context, u string) (*http.Response, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "pravo")
+	timer := time.AfterFunc(idleTimeout, cancel)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		timer.Stop()
+		cancel()
+		return nil, err
+	}
+	resp.Body = &idleBody{ReadCloser: resp.Body, timer: timer, cancel: cancel}
+	return resp, nil
 }
 
 // Home returns $PRAVO_HOME or ~/.pravo, from the environment e.
@@ -199,6 +322,9 @@ func (c *Client) providersBase(ctx context.Context, host string) (string, error)
 	if !strings.HasPrefix(p, "http") {
 		base = "https://" + host + p
 	}
+	if bu, err := url.Parse(base); err != nil || (bu.Scheme != "https" && !(bu.Scheme == "http" && loopback(bu.Hostname()))) {
+		return "", fmt.Errorf("registry %s names the providers.v1 service at %s; the address must be https", host, clean(base))
+	}
 	if !strings.HasSuffix(base, "/") {
 		base += "/"
 	}
@@ -209,12 +335,7 @@ func (c *Client) providersBase(ctx context.Context, host string) (string, error)
 }
 
 func (c *Client) getJSON(ctx context.Context, u string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("User-Agent", "pravo")
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.get(ctx, u)
 	if err != nil {
 		return err
 	}
@@ -223,7 +344,14 @@ func (c *Client) getJSON(ctx context.Context, u string, out any) error {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return &statusError{URL: u, Code: resp.StatusCode, Status: resp.Status, Body: bodyLine(body, resp.Status)}
 	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	lr := &io.LimitedReader{R: resp.Body, N: maxJSON + 1}
+	if err := json.NewDecoder(lr).Decode(out); err != nil {
+		if lr.N <= 0 {
+			return fmt.Errorf("the answer is larger than %d MB", maxJSON>>20)
+		}
+		return err
+	}
+	return nil
 }
 
 // statusError is a registry response that is not 200.
@@ -285,7 +413,7 @@ func bodyLine(body []byte, status string) string {
 	if r := []rune(text); len(r) > maxBodyLine {
 		text = string(r[:maxBodyLine]) + "..."
 	}
-	return text
+	return clean(text)
 }
 
 // Versions lists the versions the registry offers for src.
@@ -579,34 +707,48 @@ func (c *Client) Archive(ctx context.Context, src Source, ver string, plat Platf
 		}
 		return "", "", fmt.Errorf("resolving download for %s %s: %w", src.Display(), ver, err)
 	}
+	if err := checkDownloadInfo(&dl, plat); err != nil {
+		return "", "", fmt.Errorf("%s %s: %w", src.Display(), ver, err)
+	}
 	if progress != nil {
-		progress(fmt.Sprintf("Downloading %s v%s (%s)", src.Display(), ver, dl.Filename))
+		progress(fmt.Sprintf("Downloading %s v%s (%s)", src.Display(), ver, clean(dl.Filename)))
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, dl.DownloadURL, http.NoBody)
-	if err != nil {
-		return "", "", err
+	if du, err := url.Parse(dl.DownloadURL); err != nil || (du.Scheme != "https" && !(du.Scheme == "http" && loopback(du.Hostname()))) {
+		return "", "", fmt.Errorf("the registry gave the download address %s for %s %s; it must be https", clean(dl.DownloadURL), src.Display(), ver)
 	}
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.get(ctx, dl.DownloadURL)
 	if err != nil {
-		return "", "", fmt.Errorf("downloading %s: %w", dl.DownloadURL, err)
+		return "", "", fmt.Errorf("downloading %s: %w", clean(dl.DownloadURL), err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("downloading %s: %s", dl.DownloadURL, resp.Status)
+		return "", "", fmt.Errorf("downloading %s: %s", clean(dl.DownloadURL), clean(resp.Status))
 	}
 	sum, path, err = spool(dir, resp.Body)
 	if err != nil {
-		return "", "", fmt.Errorf("downloading %s: %w", dl.DownloadURL, err)
+		return "", "", fmt.Errorf("downloading %s: %w", clean(dl.DownloadURL), err)
 	}
 	if dl.Shasum == "" {
 		os.Remove(path)
-		return "", "", fmt.Errorf("the registry gave no checksum for %s, so the archive cannot be checked", dl.Filename)
+		return "", "", fmt.Errorf("the registry gave no checksum for %s, so the archive cannot be checked", clean(dl.Filename))
 	}
 	if !strings.EqualFold(sum, dl.Shasum) {
 		os.Remove(path)
-		return "", "", fmt.Errorf("checksum mismatch for %s: registry says %s, archive is %s", dl.Filename, dl.Shasum, sum)
+		return "", "", fmt.Errorf("checksum mismatch for %s: registry says %s, archive is %s", clean(dl.Filename), clean(dl.Shasum), sum)
 	}
 	return path, sum, nil
+}
+
+// checkDownloadInfo refuses an answer that is for another platform than the one
+// asked for, or for a plugin protocol that pravo does not speak.
+func checkDownloadInfo(dl *downloadInfo, plat Platform) error {
+	if (dl.OS != "" && dl.OS != plat.OS) || (dl.Arch != "" && dl.Arch != plat.Arch) {
+		return fmt.Errorf("the registry answered with a build for %s_%s, but %s was asked for", clean(dl.OS), clean(dl.Arch), plat)
+	}
+	if !supportsProtocol(dl.Protocols) {
+		return fmt.Errorf("the build speaks plugin protocol %s, and pravo speaks 5 and 6", clean(strings.Join(dl.Protocols, ", ")))
+	}
+	return nil
 }
 
 // spool writes r to a temporary file in dir and returns its sha256 and path.
@@ -616,8 +758,11 @@ func spool(dir string, r io.Reader) (sum, path string, err error) {
 		return "", "", err
 	}
 	h := sha256.New()
-	_, err = io.Copy(io.MultiWriter(tmp, h), r)
+	n, err := io.Copy(io.MultiWriter(tmp, h), io.LimitReader(r, maxArchive+1))
 	tmp.Close()
+	if err == nil && n > maxArchive {
+		err = fmt.Errorf("the archive is larger than %d MB", maxArchive>>20)
+	}
 	if err != nil {
 		os.Remove(tmp.Name())
 		return "", "", err
@@ -631,10 +776,17 @@ func unzip(archive, dir string) error {
 		return err
 	}
 	defer r.Close()
+	if len(r.File) > maxZipEntries {
+		return fmt.Errorf("the archive has %d entries; a provider package has at most %d", len(r.File), maxZipEntries)
+	}
+	var total int64
 	for _, f := range r.File {
-		name := filepath.Clean(f.Name)
-		if strings.HasPrefix(name, "..") || filepath.IsAbs(name) {
-			return fmt.Errorf("refusing to extract %q", f.Name)
+		if !filepath.IsLocal(filepath.FromSlash(strings.TrimSuffix(f.Name, "/"))) {
+			return fmt.Errorf("refusing to extract %q", clean(f.Name))
+		}
+		name := filepath.Clean(filepath.FromSlash(f.Name))
+		if m := f.Mode(); !m.IsRegular() && !m.IsDir() {
+			return fmt.Errorf("refusing to extract %q: it is a %s, and a provider package holds files and directories", clean(f.Name), kindOf(m))
 		}
 		dst := filepath.Join(dir, name)
 		if f.FileInfo().IsDir() {
@@ -659,9 +811,9 @@ func unzip(archive, dir string) error {
 			rc.Close()
 			return err
 		}
-		// A provider is a few hundred megabytes at most. The cap keeps a
-		// package that lies about its size from filling the disk.
-		_, err = io.Copy(out, io.LimitReader(rc, maxUnzippedFile))
+		// A provider is a few hundred megabytes at most. The caps keep a package
+		// that lies about its size from filling the disk, and say so when they stop it.
+		n, err := io.Copy(out, io.LimitReader(rc, maxUnzippedFile+1))
 		rc.Close()
 		if err == nil {
 			err = out.Sync()
@@ -669,9 +821,32 @@ func unzip(archive, dir string) error {
 		if cerr := out.Close(); err == nil {
 			err = cerr
 		}
+		if err == nil && n > maxUnzippedFile {
+			err = fmt.Errorf("%q unpacks to more than %d MB", clean(f.Name), maxUnzippedFile>>20)
+		}
+		if err == nil {
+			total += n
+			if total > maxUnzippedTotal {
+				err = fmt.Errorf("the archive unpacks to more than %d MB", maxUnzippedTotal>>20)
+			}
+		}
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func kindOf(m os.FileMode) string {
+	switch {
+	case m&os.ModeSymlink != 0:
+		return "symbolic link"
+	case m&os.ModeDevice != 0, m&os.ModeCharDevice != 0:
+		return "device"
+	case m&os.ModeNamedPipe != 0:
+		return "named pipe"
+	case m&os.ModeSocket != 0:
+		return "socket"
+	}
+	return "special file"
 }
