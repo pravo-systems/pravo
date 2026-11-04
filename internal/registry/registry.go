@@ -382,13 +382,19 @@ func hasPlatform(ps []Platform, want Platform) bool {
 // default ~/.terraform.d/plugin-cache that OpenTofu inherited), keyed by the
 // provider's own registry host.
 func (c *Client) FindInstalled(src Source, ver string) (string, bool) {
-	dirs := []string{c.ProviderDir(src, ver)}
+	// pravo's own store counts only a finished install: a binary there
+	// without the completion marker, or cut short, is a leftover of an
+	// interrupted unpack and is installed again.
+	if p, ok := findComplete(c.ProviderDir(src, ver), src.Type); ok {
+		return p, true
+	}
+	var dirs []string
 	plat := CurrentPlatform().String()
 	var caches []string
 	if src.OCI {
 		// The OpenTofu plugin cache is keyed by registry address; it holds
 		// nothing for a provider from a container registry.
-		return findIn(dirs, src.Type)
+		return "", false
 	}
 	if d := c.Env.Get("TF_PLUGIN_CACHE_DIR"); d != "" {
 		caches = append(caches, d)
@@ -400,6 +406,27 @@ func (c *Client) FindInstalled(src Source, ver string) (string, bool) {
 		dirs = append(dirs, filepath.Join(cache, src.Host, src.Namespace, src.Type, ver, plat))
 	}
 	return findIn(dirs, src.Type)
+}
+
+// completeMarker names the file that Install writes into a finished provider
+// directory. It holds the size of the binary.
+const completeMarker = ".complete"
+
+// findComplete finds the binary in an install directory that Install finished.
+func findComplete(dir, typ string) (string, bool) {
+	p, ok := FindBinary(dir, typ)
+	if !ok {
+		return "", false
+	}
+	want, err := os.ReadFile(filepath.Join(dir, completeMarker))
+	if err != nil {
+		return "", false
+	}
+	st, err := os.Stat(p)
+	if err != nil || strings.TrimSpace(string(want)) != fmt.Sprint(st.Size()) {
+		return "", false
+	}
+	return p, true
 }
 
 func findIn(dirs []string, typ string) (string, bool) {
@@ -459,22 +486,53 @@ func (c *Client) Install(ctx context.Context, src Source, ver string, progress f
 		return &InstallResult{Path: p, Version: ver}, nil
 	}
 	dir := c.ProviderDir(src, ver)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	// Unpack beside the final directory and rename it into place, so that
+	// the final directory is either absent or complete, whatever kills this
+	// process or runs at the same time.
+	parent := filepath.Dir(dir)
+	if err := os.MkdirAll(parent, 0o755); err != nil {
 		return nil, err
 	}
-	archive, sum, err := c.Archive(ctx, src, ver, CurrentPlatform(), dir, progress)
+	stage, err := os.MkdirTemp(parent, ".install-*")
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(archive)
-	if err := unzip(archive, dir); err != nil {
+	defer os.RemoveAll(stage)
+	archive, sum, err := c.Archive(ctx, src, ver, CurrentPlatform(), stage, progress)
+	if err != nil {
+		return nil, err
+	}
+	if err := unzip(archive, stage); err != nil {
 		return nil, fmt.Errorf("unpacking %s %s: %w", src.Display(), ver, err)
 	}
-	p, ok := FindBinary(dir, src.Type)
+	os.Remove(archive)
+	bin, ok := FindBinary(stage, src.Type)
 	if !ok {
 		return nil, fmt.Errorf("the archive of %s %s did not contain a terraform-provider-%s executable", src.Display(), ver, src.Type)
 	}
-	return &InstallResult{Path: p, Version: ver, Hash: "sha256:" + sum, Downloaded: true}, nil
+	st, err := os.Stat(bin)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(filepath.Join(stage, completeMarker), []byte(fmt.Sprintln(st.Size())), 0o644); err != nil {
+		return nil, err
+	}
+	var last error
+	for i := 0; i < 5; i++ {
+		if err := os.Rename(stage, dir); err == nil {
+			p, _ := FindBinary(dir, src.Type)
+			return &InstallResult{Path: p, Version: ver, Hash: "sha256:" + sum, Downloaded: true}, nil
+		} else {
+			last = err
+		}
+		// The directory is there: a concurrent install won, or an old,
+		// unfinished one is in the way.
+		if p, ok := findComplete(dir, src.Type); ok {
+			return &InstallResult{Path: p, Version: ver, Hash: "sha256:" + sum, Downloaded: true}, nil
+		}
+		os.RemoveAll(dir)
+	}
+	return nil, fmt.Errorf("installing %s %s into %s: %w", src.Display(), ver, dir, last)
 }
 
 // Checksum returns the sha256 of the archive of one provider version for plat,
@@ -604,6 +662,9 @@ func unzip(archive, dir string) error {
 		// package that lies about its size from filling the disk.
 		_, err = io.Copy(out, io.LimitReader(rc, maxUnzippedFile))
 		rc.Close()
+		if err == nil {
+			err = out.Sync()
+		}
 		if cerr := out.Close(); err == nil {
 			err = cerr
 		}
