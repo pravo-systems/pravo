@@ -1008,6 +1008,9 @@ func importCmd() *cobra.Command {
 			}
 			ps := s.schemas[res.LocalProvider()]
 			sch := ps.Resource(res.Type)
+			// The engine hands the providers the configuration of their blocks (region, endpoint,
+			// credentials); without one the provider is configured with an empty block.
+			s.engine(engine.Options{Command: "import"})
 			prov, err := s.providers.Provider(ctx, res.ProviderKey)
 			if err != nil {
 				return err
