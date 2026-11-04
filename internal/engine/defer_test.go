@@ -192,3 +192,54 @@ func TestNoteOfAnEnvironmentSaysWhatWasDeferred(t *testing.T) {
 		t.Fatalf("note after the second apply: %+v %v; want none deferred", n, err)
 	}
 }
+
+// A change that is deferred still points at the old instance of a create_before_destroy
+// replacement: the instance is destroyed by the apply that follows, after the change.
+func TestCreateBeforeDestroyKeepsTheOldInstanceForADeferredDependent(t *testing.T) {
+	ctx := context.Background()
+	mk := func(name string) spec {
+		return spec{
+			cue:       "base: " + thing(name, "$lifecycle: create_before_destroy: true") + "\na: " + thing("a", "content: \"in-\\(base.id)\"") + "\n",
+			resources: []string{"base", "a"},
+		}
+	}
+	h := newHarness(t)
+	h.apply(mk("one"))
+	h.fake.defersUnknown = true
+	h.fake.mu.Lock()
+	h.fake.order = nil
+	h.fake.mu.Unlock()
+	e := h.engine(mk("two"), Options{})
+	plan := mustPlan(t, e)
+	if plan.DeferredCount() != 1 {
+		t.Fatalf("deferred %d, want 1", plan.DeferredCount())
+	}
+	res, err := e.Apply(ctx, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	order := func() string {
+		h.fake.mu.Lock()
+		defer h.fake.mu.Unlock()
+		return strings.Join(h.fake.order, "; ")
+	}
+	if got := order(); strings.Contains(got, "destroy") {
+		t.Errorf("calls = %q: the old instance was destroyed while a change that points at it was deferred", got)
+	}
+	if res.Added != 1 || res.Destroyed != 0 {
+		t.Errorf("apply counts = %d added, %d destroyed, want 1 and 0", res.Added, res.Destroyed)
+	}
+	h.reopen()
+	h.fake.defersUnknown = false
+	h.fake.mu.Lock()
+	h.fake.order = nil
+	h.fake.mu.Unlock()
+	e = h.engine(mk("two"), Options{})
+	res, err = e.Apply(ctx, mustPlan(t, e))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := order(); got != "update a; destroy one" || res.Destroyed != 1 {
+		t.Errorf("follow-up calls = %q, %d destroyed; want the update, then the destroy", got, res.Destroyed)
+	}
+}
