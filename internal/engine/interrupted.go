@@ -255,6 +255,6 @@ func (e *Engine) warnStrayNotes(plan *Plan, covered map[string]*state.PendingCre
 			}
 			continue
 		}
-		e.Opts.Progress("Warning: %s: %s. Adopt it (pravo state rm %s, then %s), or if it does not exist, say so (%s), before you change this node", p.Addr, stoppedReplacement(p), p.Addr, e.importCommand(p.Addr, "ID"), "pravo state unlock --allow-create "+p.Addr+e.envFlag())
+		e.Opts.Progress("Warning: %s: %s. Find it with pravo discover (with a #Discovery rule) or adopt it (pravo state rm %s, then %s), or if it does not exist, say so (%s), before you change this node", p.Addr, stoppedReplacement(p), p.Addr, e.importCommand(p.Addr, "ID"), "pravo state unlock --allow-create "+p.Addr+e.envFlag())
 	}
 }

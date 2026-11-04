@@ -482,7 +482,7 @@ func stateLocksCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 					stale = " [stale]"
 				}
 				if l.Kind == "note" {
-					out.Printf("%s  note of a create that stopped (txn %s, on %s since %s, %s)%s: the object it created may exist untracked; adopt it (pravo state rm %s, then pravo import %s ID) or clear the note with pravo state unlock --allow-create %s\n", l.Addr, l.Txn, l.Host, l.Since.Local().Format(time.RFC3339), l.Command, stale, l.Addr, l.Addr, l.Addr)
+					out.Printf("%s  note of a create that stopped (txn %s, on %s since %s, %s)%s: the object it created may exist untracked; find it with pravo discover (with a #Discovery rule), adopt it (pravo state rm %s, then pravo import %s ID) or clear the note with pravo state unlock --allow-create %s\n", l.Addr, l.Txn, l.Host, l.Since.Local().Format(time.RFC3339), l.Command, stale, l.Addr, l.Addr, l.Addr)
 					continue
 				}
 				if l.Kind == "reservation" {
