@@ -312,6 +312,19 @@ func (e *Engine) applyChange(ctx context.Context, prov plugin.Provider, ch *Chan
 		}
 		return nil, err
 	}
+	if res != nil && !res.NewState.IsNull() && !planned.IsNull() && !res.LegacyTypeSystem {
+		// A provider written for the legacy SDK is known to return values other than the
+		// planned ones, and the check leaves it alone, as OpenTofu does. Any other provider
+		// that does so has a bug, and the state that it returned is recorded all the same, so
+		// that the object is not forgotten.
+		if bad := inconsistencies(planned, res.NewState); len(bad) > 0 {
+			err := fmt.Errorf("%s: the provider produced an inconsistent result after apply (this is a bug in the provider, not in the specification):\n  %s", ch.Addr, strings.Join(bad, "\n  "))
+			if werr := e.recordApplied(ch, what, res.NewState, res.Private, "partial"); werr != nil {
+				return nil, fmt.Errorf("%w; the state it returned: %w", err, werr)
+			}
+			return nil, err
+		}
+	}
 	return res, nil
 }
 
