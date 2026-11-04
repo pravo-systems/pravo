@@ -298,6 +298,18 @@ func plantStaleLock(t *testing.T, st *state.Store, addr, txn string) state.Lock 
 	return l
 }
 
+// plantCreatingLock leaves the lock of an apply that was killed while the provider created
+// the node: stale, and marked as a create in flight.
+func plantCreatingLock(t *testing.T, st *state.Store, addr, txn string) {
+	t.Helper()
+	l := plantStaleLock(t, st, addr, txn)
+	l.Creating = true
+	data, _ := json.Marshal(l)
+	if err := st.Backend().Put(context.Background(), "locks/"+addr+".lock", data); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func locksHeld(t *testing.T, st *state.Store) []string {
 	t.Helper()
 	locks, err := st.Locks()
@@ -423,7 +435,11 @@ func TestStaleLockOfANodeWithNoRecordIsWarnedOf(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
 	s := spec{cue: "a: " + thing("a", "content: \"x\"") + "\n", resources: []string{"a"}}
-	plantStaleLock(t, h.state, "a", "T1")
+	plantCreatingLock(t, h.state, "a", "T1")
+	// b was locked by the same apply and never started: nothing is said of it.
+	plantStaleLock(t, h.state, "b", "T1")
+	s.cue += "b: " + thing("b", "content: \"x\"") + "\n"
+	s.resources = append(s.resources, "b")
 	for _, mode := range []RefreshMode{RefreshAge, RefreshNone} {
 		var warned []string
 		opts := Options{DefaultRefresh: "6h", Refresh: mode, Progress: func(f string, a ...any) { warned = append(warned, fmt.Sprintf(f, a...)) }}
@@ -435,11 +451,39 @@ func TestStaleLockOfANodeWithNoRecordIsWarnedOf(t *testing.T) {
 			if strings.HasPrefix(w, "Warning: a: ") {
 				got = w
 			}
+			if strings.HasPrefix(w, "Warning: b: ") {
+				t.Errorf("refresh mode %v: a warning about b, which was never started: %q", mode, w)
+			}
 		}
 		for _, want := range []string{"txn T1", "no record", "pravo discover", "import"} {
 			if !strings.Contains(got, want) {
 				t.Errorf("refresh mode %v: warning %q lacks %q (all: %q)", mode, got, want, warned)
 			}
+		}
+	}
+}
+
+// A destroy says it too: tearing down a specification leaves the object whose create was
+// stopped, and "No changes" must not be the whole answer.
+func TestDestroyWarnsOfAnUntrackedCreate(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	s := spec{cue: "a: " + thing("a", "content: \"x\"") + "\n", resources: []string{"a"}}
+	plantCreatingLock(t, h.state, "a", "T1")
+	var warned []string
+	e := h.engine(s, Options{Destroy: true, Progress: func(f string, a ...any) { warned = append(warned, fmt.Sprintf(f, a...)) }})
+	if _, err := e.Plan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var got string
+	for _, w := range warned {
+		if strings.HasPrefix(w, "Warning: a: ") {
+			got = w
+		}
+	}
+	for _, want := range []string{"txn T1", "no record", "pravo discover", "pravo import a ID"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("destroy warning %q lacks %q (all: %q)", got, want, warned)
 		}
 	}
 }

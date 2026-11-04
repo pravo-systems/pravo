@@ -428,6 +428,7 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		plan.Changes = changes
 		e.markTemplates(plan.Changes)
 		plan.Stats = e.statsNow()
+		e.warnUntracked(plan)
 		return plan, e.finishPhase(ctx, "planned", e.summary(plan), false)
 	}
 	_, done = e.phase(ctx, "moves")
