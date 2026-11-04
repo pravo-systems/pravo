@@ -19,6 +19,7 @@ import (
 	"runtime"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -423,7 +424,7 @@ func findComplete(dir, typ string) (string, bool) {
 		return "", false
 	}
 	st, err := os.Stat(p)
-	if err != nil || strings.TrimSpace(string(want)) != fmt.Sprint(st.Size()) {
+	if err != nil || strings.TrimSpace(string(want)) != strconv.FormatInt(st.Size(), 10) {
 		return "", false
 	}
 	return p, true
@@ -518,13 +519,13 @@ func (c *Client) Install(ctx context.Context, src Source, ver string, progress f
 		return nil, err
 	}
 	var last error
-	for i := 0; i < 5; i++ {
-		if err := os.Rename(stage, dir); err == nil {
+	for range 5 {
+		err := os.Rename(stage, dir)
+		if err == nil {
 			p, _ := FindBinary(dir, src.Type)
 			return &InstallResult{Path: p, Version: ver, Hash: "sha256:" + sum, Downloaded: true}, nil
-		} else {
-			last = err
 		}
+		last = err
 		// The directory is there: a concurrent install won, or an old,
 		// unfinished one is in the way.
 		if p, ok := findComplete(dir, src.Type); ok {

@@ -95,7 +95,7 @@ func TestConcurrentInstallsAllSucceed(t *testing.T) {
 	cl, src := installServer(t, providerZip(t, strings.Repeat("x", 1<<16)))
 	var wg sync.WaitGroup
 	errs := make(chan error, 8)
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
