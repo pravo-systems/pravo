@@ -170,7 +170,8 @@ func (e *Engine) startPlan(r *config.Resource, v cue.Value, strict bool) (*resou
 	ch.ConfigHash = configHash(cfg)
 	ch.CreateBeforeDestroy, ch.PreventDestroy = cbd, prevent
 	sr := e.State.Get(addr)
-	forced := sr != nil && r.Mode == "managed" && e.replaceRequested(addr)
+	tainted := sr != nil && r.Mode == "managed" && sr.Tainted
+	forced := tainted || (sr != nil && r.Mode == "managed" && e.replaceRequested(addr))
 	return &resourcePlan{
 		r: r, s: s, conv: conv, ch: ch, sr: sr, cfg: cfg, age: age, ignore: ignore, strict: strict, forced: forced,
 		// A node that a read left a mark on is planned until an apply writes it.
@@ -209,7 +210,9 @@ func (e *Engine) explainChange(p *resourcePlan) {
 	if e.Opts.Full {
 		ch.Reasons = append(ch.Reasons, "-full: every resource is planned")
 	}
-	if p.forced {
+	if sr != nil && sr.Tainted && r.Mode == "managed" {
+		ch.Reasons = append(ch.Reasons, "created halfway: the create failed after the provider returned an id; it will be replaced")
+	} else if p.forced {
 		ch.Reasons = append(ch.Reasons, "replacement requested with -replace")
 	}
 }
