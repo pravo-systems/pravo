@@ -32,6 +32,8 @@ type DueDrift struct {
 	Addr string `json:"addr"`
 	// Gone reports that the object does not exist.
 	Gone bool `json:"gone,omitempty"`
+	// Note says more about a gone record: that its file exists and was changed.
+	Note string `json:"note,omitempty"`
 }
 
 // DriftDue visits every managed record and reads the ones that are older than
@@ -144,7 +146,7 @@ func (e *Engine) readDue(ctx context.Context, due []*state.Resource, rep *DueRep
 				return
 			}
 			if drifted {
-				rep.Drifted = append(rep.Drifted, DueDrift{Addr: sr.Address(), Gone: gone})
+				rep.Drifted = append(rep.Drifted, DueDrift{Addr: sr.Address(), Gone: gone, Note: e.noteIfGone(sr, gone)})
 			}
 		}(sr, schemas[i])
 	}
@@ -295,4 +297,19 @@ func (e *Engine) fillInputsOf(ctx context.Context, keys map[string]bool) error {
 	defer func() { e.scope, e.only = nil, nil }()
 	_, err := e.run(ctx, true)
 	return err
+}
+
+func (e *Engine) noteIfGone(sr *state.Resource, gone bool) string {
+	if !gone {
+		return ""
+	}
+	return e.FileNote(sr)
+}
+
+// DriftNote is the note of a gone record at addr: see FileNote.
+func (e *Engine) DriftNote(addr string) string {
+	if sr := e.State.Get(addr); sr != nil {
+		return e.FileNote(sr)
+	}
+	return ""
 }

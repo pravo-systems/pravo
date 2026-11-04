@@ -458,6 +458,15 @@ func (e *Engine) unreadReason(sr *state.Resource, age string) string {
 // file exists there: a read that no longer finds such an object means the file was
 // changed by hand, not deleted.
 func (e *Engine) existingFileNote(sr *state.Resource) string {
+	if n := e.FileNote(sr); n != "" {
+		return ": " + n
+	}
+	return ""
+}
+
+// FileNote is existingFileNote without the leading colon: "" or "<file> exists, so
+// it was changed, not deleted".
+func (e *Engine) FileNote(sr *state.Resource) string {
 	var attrs struct {
 		Filename string `json:"filename"`
 	}
@@ -471,5 +480,5 @@ func (e *Engine) existingFileNote(sr *state.Resource) string {
 	if fi, err := os.Stat(p); err != nil || fi.IsDir() {
 		return ""
 	}
-	return ": " + attrs.Filename + " exists, so it was changed, not deleted"
+	return attrs.Filename + " exists, so it was changed, not deleted"
 }

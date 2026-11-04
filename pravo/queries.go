@@ -51,8 +51,11 @@ type DriftItem struct {
 	Addr    string   `json:"addr"`
 	Action  string   `json:"action"`
 	Reasons []string `json:"reasons"`
-	// Gone says that the object no longer exists.
-	Gone bool `json:"gone,omitempty"`
+	// Gone says that the provider no longer finds the object as recorded: it was
+	// deleted, or changed into another object (a file edited by hand). Note says
+	// when it is the second.
+	Gone bool   `json:"gone,omitempty"`
+	Note string `json:"note,omitempty"`
 }
 
 // DriftReport is what Drift found. The JSON is the report "pravo drift --json" prints.
@@ -97,7 +100,11 @@ func (w *Workspace) DriftPlanned(ctx context.Context) (*DriftReport, *Planned, e
 			if reasons == nil {
 				reasons = []string{}
 			}
-			rep.Drifted = append(rep.Drifted, DriftItem{Addr: c.Addr, Action: string(c.Action), Reasons: reasons, Gone: c.Action == engine.ActionCreate})
+			item := DriftItem{Addr: c.Addr, Action: string(c.Action), Reasons: reasons, Gone: c.Action == engine.ActionCreate}
+			if item.Gone {
+				item.Note = eng.DriftNote(c.Addr)
+			}
+			rep.Drifted = append(rep.Drifted, item)
 		}
 		if c.Action != engine.ActionNoop && c.Action != engine.ActionRead && c.Action != engine.ActionOpen && c.Action != engine.ActionCall {
 			rep.Pending++

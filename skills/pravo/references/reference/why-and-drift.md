@@ -335,7 +335,7 @@ A provider that a due record uses is set up as it is for a plan. Its configurati
 
 `--limit N` reads at most `N` records, the oldest first, and the report says how many more are older than their refresh age. A job that runs `pravo drift --due --limit N` on a schedule reads the estate in turns, and each run costs what it reads. [CI](../how-to/ci.md) shows the job. With `--json`, the report of `--due` has `time`, `root`, `actor`, `records`, `due`, `read` and `drifted`: the number of records, the number that are due, the addresses that were read and the ones that differ.
 
-The report of a plain `drift` has `time`, `root`, `actor`, `drifted`, `pending_changes` and `summary`. An item has `addr`, `action`, `reasons` and, for a resource that has vanished, `gone: true`. With `--webhook`, the same document is sent as a POST with the content type `application/json`:
+The report of a plain `drift` has `time`, `root`, `actor`, `drifted`, `pending_changes` and `summary`. An item has `addr`, `action`, `reasons` and, for a resource that has vanished, `gone: true`, and a `note` when the record names a file that exists, which means it was changed by hand, not deleted. With `--webhook`, the same document is sent as a POST with the content type `application/json`:
 
 ```sh
 pravo drift --actor drift-cron --webhook https://ops.example/hooks/pravo
