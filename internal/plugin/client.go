@@ -103,7 +103,11 @@ func StartWith(path string, logger hclog.Logger, e env.Env, extraEnv []string) (
 	if cmd.Process != nil {
 		unwatch = watchChild(cmd)
 	}
-	kill := func() { unwatch(); client.Kill() }
+	kill := func() {
+		unwatch()
+		client.Kill()
+		killGroup(cmd)
+	}
 	if err != nil {
 		kill()
 		return nil, fmt.Errorf("starting provider %s: %w (if the file is damaged, for instance by an interrupted install, delete it and run \"pravo init\")", path, err)

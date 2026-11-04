@@ -97,3 +97,32 @@ func TestChildDiesWithParentShellWatcher(t *testing.T) {
 	}
 	testOrphan(t, "shell")
 }
+
+// TestCloseKillsTheGroup: after the provider itself is gone, what it started
+// is killed too.
+func TestCloseKillsTheGroup(t *testing.T) {
+	cmd := exec.Command("sh", "-c", "sleep 300 & echo $!; wait")
+	guardChild(cmd)
+	out, _ := cmd.StdoutPipe()
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	var grand int
+	if _, err := fmt.Fscan(out, &grand); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { syscall.Kill(grand, syscall.SIGKILL) })
+	cmd.Process.Kill()
+	cmd.Wait()
+	if !alive(grand) {
+		t.Fatalf("grandchild %d should outlive the provider's own kill", grand)
+	}
+	killGroup(cmd)
+	deadline := time.Now().Add(5 * time.Second)
+	for alive(grand) {
+		if time.Now().After(deadline) {
+			t.Fatalf("grandchild %d still running after killGroup", grand)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
