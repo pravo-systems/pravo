@@ -93,7 +93,7 @@ One page for each command and each part of the specification, tables first.
 |---|---|---|
 | [reference/errors.md](reference/errors.md) | Every error a user is likely to meet, as pravo prints it: the symptom, the cause and the fix. | 75 KB |
 | [reference/glossary.md](reference/glossary.md) | The terms of CUE and of pravo, each with a definition of one or two sentences and a link to the lesson that teaches it. | 33 KB |
-| [reference/faq.md](reference/faq.md) | Short, factual answers to the questions asked first. | 10 KB |
+| [reference/faq.md](reference/faq.md) | Short, factual answers to the questions asked first. | 11 KB |
 | [reference/not-in-pravo.md](reference/not-in-pravo.md) | The commands, flags, blocks and files of OpenTofu and Terraform that pravo does not have, and what to use in each place. | 9 KB |
 
 ## Concepts
