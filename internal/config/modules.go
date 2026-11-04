@@ -320,7 +320,7 @@ func ModuleNotFoundHint(err error) error {
 		return fmt.Errorf("%w\n\n%s", err, h)
 	}
 	if m := keywordPackageRe.FindStringSubmatch(err.Error()); m != nil {
-		return fmt.Errorf("%w\n\nhint: the package of a provider whose name is a CUE keyword is named %s_: import it as \"%s:%s_\" (for hashicorp/null: import nl \"pravo.dev/providers/hashicorp/null:null_\")", err, m[2], m[1], m[2])
+		return fmt.Errorf("%w\n\nhint: %s is a CUE keyword, so the package of this provider is named %s_: import it as \"%s:%s_\"", err, m[2], m[2], m[1], m[2])
 	}
 	if strings.Contains(err.Error(), ProviderPackagePrefix) && strings.Contains(err.Error(), "cannot find package") {
 		return fmt.Errorf("%w\n\nhint: a provider schema package is missing. Run \"pravo init\" to generate it", err)

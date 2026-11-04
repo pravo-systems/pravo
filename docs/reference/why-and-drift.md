@@ -163,7 +163,7 @@ pravo why base --refresh=false
 ```
 
 ```text out
-nope: not declared in the specification and not in the state
+nope: not declared in the specification and not in the state; an address is the CUE path (db, or app.web), without the resource type, so random_pet.db is wrong and db is right
 base: replace
   - the specification changed since the last apply (hash <old> -> <new>)
   - refresh skipped: -refresh=false was given

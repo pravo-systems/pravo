@@ -204,7 +204,7 @@ pravo.local/ws@v0: import failed: cannot find package "pravo.dev/providers/hashi
     ./main.cue:3:8
 
 
-hint: a provider schema package is missing. Run "pravo init" to generate it
+hint: null is a CUE keyword, so the package of this provider is named null_: import it as "pravo.dev/providers/hashicorp/null:null_"
 ```
 
 Choose an alias that differs from the provider's local name and from every field name in scope. A top-level field with the name of an import is an error, `random redeclared as imported package name`. Provider structs are named with a leading `$` for this reason. The examples use `rnd` for random, `loc` for local, `awsp` for aws, `tlsp` for tls and `k8s` for kubernetes.
