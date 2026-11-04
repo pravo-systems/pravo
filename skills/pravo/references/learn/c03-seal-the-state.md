@@ -80,7 +80,8 @@ Identity ada created
   signing  ssh-ed25519 SHA256:<fingerprint>  new key, kept in the identity file
   reader   x25519:<key>  sealed with a passphrase in people/ada/id/ada
 
-Give whoever keeps .pravo/access/readers.txt this line, and nothing else:
+Give whoever keeps .pravo/access/readers.txt this line, and nothing else.
+They add the role as its last word: role:reader (the default), role:writer or role:admin.
 
   ada ssh-ed25519 <ssh-key> x25519:<key>
 ```

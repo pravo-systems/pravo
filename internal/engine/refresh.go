@@ -115,7 +115,12 @@ func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state
 		if ch.removal {
 			e.Opts.Progress("%s: the provider no longer finds it; its record will be removed", addr)
 		} else {
-			e.Opts.Progress("%s: the provider no longer finds it (deleted, or changed into another object)%s; it will be created again", addr, e.existingFileNote(sr))
+			note := e.existingFileNote(sr)
+			again := "created again"
+			if note != "" {
+				again = "written again from the specification"
+			}
+			e.Opts.Progress("%s: the provider no longer finds it (deleted, or changed into another object)%s; it will be %s", addr, note, again)
 		}
 		if !ch.removal {
 			ch.GoneNote = e.FileNote(sr)

@@ -183,7 +183,7 @@ func mcpTools() []mcpTool {
 				}
 				return a, nil
 			}},
-		{Name: "pravo_schema", Description: "The CUE definition of resource, data source, ephemeral or function types, with the provider's documentation. In the specification a resource is declared as name: $provider.#Resource.type & {...} and read as name.attribute, such as pet.id. required=true keeps only what the schema marks as required and hides the optional attributes, which a resource often still needs (the content of a local_file, the length of a random_pet, tags): leave it out to see all.",
+		{Name: "pravo_schema", Description: "The CUE definition of resource, data source, ephemeral or function types, with the provider's documentation. In the specification a resource is declared as name: $provider.#Resource.type & {...} and read as name.attribute, such as pet.id; inside a string use CUE interpolation, such as content: \"Hello, \\(pet.id)!\". required=true keeps only what the schema marks as required and hides the optional attributes, which a resource often still needs (the content of a local_file, the length of a random_pet, tags): leave it out to see all.",
 			InputSchema: obj(map[string]any{"types": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "type names such as aws_s3_bucket, or provider/type"}, "required": map[string]any{"type": "boolean"}}, "types"),
 			args: func(in map[string]any) ([]string, error) {
 				types := listArg(in, "types")

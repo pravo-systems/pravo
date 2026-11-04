@@ -239,7 +239,8 @@ func runIDNew(name, sshFile, outFile string, ci bool, unlock, agentKey string) e
 	out.Printf("  signing  ssh-ed25519 %s  %s\n", sum.Fingerprint, sum.Source)
 	out.Printf("  reader   %s  %s in %s\n", sum.Reader, keeping, tilde(path))
 	out.Println()
-	out.Println("Give whoever keeps .pravo/access/readers.txt this line, and nothing else:")
+	out.Println("Give whoever keeps .pravo/access/readers.txt this line, and nothing else.")
+	out.Println("They add the role as its last word: role:reader (the default), role:writer or role:admin.")
 	out.Println()
 	fmt.Println("  " + sum.Line)
 	return nil
@@ -413,7 +414,8 @@ func runIDShow(name string) error {
 	out.Printf("  signing  ssh-ed25519 %s  %s\n", sum.Fingerprint, sum.Source)
 	out.Printf("  reader   %s  %s\n", sum.Reader, keeping)
 	out.Println()
-	out.Println("Give whoever keeps .pravo/access/readers.txt this line, and nothing else:")
+	out.Println("Give whoever keeps .pravo/access/readers.txt this line, and nothing else.")
+	out.Println("They add the role as its last word: role:reader (the default), role:writer or role:admin.")
 	out.Println()
 	fmt.Println("  " + sum.Line)
 	return nil
