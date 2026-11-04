@@ -28,7 +28,7 @@ func (e *Engine) checkInterruptedCreates(plan *Plan) error {
 	}
 	var refused, replaced []string
 	for _, ch := range plan.Changes {
-		if p, ok := replacing[ch.Addr]; ok && !ch.Applied && ch.Action != ActionDelete {
+		if p, ok := replacing[ch.Addr]; ok && !ch.Applied && ch.Action != ActionDelete && ch.Action != ActionMove {
 			if slices.Contains(e.Opts.AllowCreate, ch.Addr) {
 				e.Opts.Progress("Warning: %s: creating the replacement although %s, as --allow-create said", ch.Addr, stoppedReplacement(p))
 				continue
@@ -72,11 +72,22 @@ func (e *Engine) checkInterruptedCreates(plan *Plan) error {
 // A note the record has outgrown is deleted.
 func (e *Engine) orphanedReplacements(plan *Plan) map[string]*state.PendingCreate {
 	var out map[string]*state.PendingCreate
+	// A node that the plan moves has its note under the address it comes from, until the
+	// apply carries it along.
+	movedFrom := map[string]string{}
+	for _, ch := range plan.Changes {
+		if ch.Action == ActionMove && ch.MovedFrom != "" {
+			movedFrom[ch.Addr] = ch.MovedFrom
+		}
+	}
 	for _, ch := range plan.Changes {
 		if ch.Mode != "managed" || ch.Applied || (ch.Action != ActionReplace || !ch.CreateBeforeDestroy) && ch.Action != ActionDelete {
 			continue
 		}
 		p, err := e.State.PendingCreateOf(ch.Addr)
+		if err == nil && p == nil && movedFrom[ch.Addr] != "" {
+			p, err = e.State.PendingCreateOf(movedFrom[ch.Addr])
+		}
 		if err != nil || p == nil {
 			continue
 		}

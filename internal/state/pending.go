@@ -92,3 +92,21 @@ func (s *Store) Orphaned(p *PendingCreate, rec *Resource) (bool, error) {
 	}
 	return true, nil
 }
+
+// MovePendingCreate carries the note for from to the address to, where the record went. A
+// node that has no note is left alone.
+func (s *Store) MovePendingCreate(from, to string) error {
+	p, err := s.PendingCreateOf(from)
+	if err != nil || p == nil {
+		return err
+	}
+	p.Addr = to
+	data, err := indentJSON(p)
+	if err != nil {
+		return err
+	}
+	if err := s.b.Put(s.cx(), pendingKey(to), data); err != nil {
+		return err
+	}
+	return s.ClearPendingCreate(from)
+}

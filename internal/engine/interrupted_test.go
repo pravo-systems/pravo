@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -435,5 +436,73 @@ func TestCreateBeforeDestroyKeepsTheNote(t *testing.T) {
 		}
 		h.fake.holds = nil
 		h.apply(mk("two"))
+	})
+}
+
+// The note follows the record when the node is renamed: by a $from in the plan and the
+// apply, and by the move of the record in the state.
+func TestCreateBeforeDestroyNoteFollowsAMove(t *testing.T) {
+	ctx := context.Background()
+	old := spec{cue: "a: " + thing("one", "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"a"}}
+	moved := func(name string) spec {
+		return spec{cue: "b: " + thing(name, "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"b"}}
+	}
+	interrupted := func(t *testing.T) *harness {
+		h := newHarness(t)
+		h.apply(old)
+		h.fake.afterApply = func(string) error { return errors.New("rpc error: code = Unavailable") }
+		e := h.engine(spec{cue: "a: " + thing("two", "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"a"}}, Options{})
+		if _, err := e.Apply(ctx, mustPlan(t, e)); err == nil {
+			t.Fatal("apply succeeded")
+		}
+		h.fake.afterApply = nil
+		h.reopen()
+		return h
+	}
+	refused := func(t *testing.T, h *harness, s spec, from bool) {
+		t.Helper()
+		calls := h.fake.called("ApplyResourceChange")
+		e := h.engine(s, Options{})
+		if from {
+			e.Root.Moves = []config.Move{{From: "a", To: "b"}}
+		}
+		_, err := e.Apply(ctx, mustPlan(t, e))
+		var coded *CodedError
+		if err == nil || !errors.As(err, &coded) || coded.Code != ExitRefused || !strings.Contains(err.Error(), "pravo state rm b") {
+			t.Fatalf("apply after the move = %v, want a refusal that names b", err)
+		}
+		if n := h.fake.called("ApplyResourceChange"); n != calls {
+			t.Fatalf("the refused apply reached the provider: %d calls, was %d", n, calls)
+		}
+	}
+	t.Run("$from in the specification", func(t *testing.T) {
+		h := interrupted(t)
+		refused(t, h, moved("two"), true)
+	})
+	t.Run("a move of the record", func(t *testing.T) {
+		h := interrupted(t)
+		rec := h.state.Get("a")
+		txn := h.state.Begin("edit", "mv")
+		if err := txn.Start(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.state.Remove("a"); err != nil {
+			t.Fatal(err)
+		}
+		mv := *rec
+		mv.Addr, mv.Name, mv.Revision = "b", "b", 0
+		if err := h.state.Set(&mv, txn.ID()); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.state.MovePendingCreate("a", "b"); err != nil {
+			t.Fatal(err)
+		}
+		if err := txn.Finish("applied", "mv", true); err != nil {
+			t.Fatal(err)
+		}
+		if p, _ := h.state.PendingCreateOf("a"); p != nil {
+			t.Error("the note stays under the old address")
+		}
+		refused(t, h, spec{cue: "b: " + thing("two", "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"b"}}, false)
 	})
 }

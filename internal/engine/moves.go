@@ -168,6 +168,9 @@ func (e *Engine) moveNode(fromAddr, toAddr string, target *config.Resource, stag
 		return nil, err
 	}
 	e.touched(toAddr)
+	if err := e.State.MovePendingCreate(fromAddr, toAddr); err != nil {
+		return nil, fmt.Errorf("$from %s -> %s: moving the note of the replacement that was under way: %w", fromAddr, toAddr, err)
+	}
 	for _, d := range deps {
 		other := e.State.Get(d)
 		changed := false
