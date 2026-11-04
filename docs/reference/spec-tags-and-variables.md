@@ -66,7 +66,7 @@ name:   "acme-dev-eu-west-1"
 | A value outside the allowed values or the constraint. | Evaluation, before any provider starts. |
 | A tag that no field declares. | Loading: `no tag for "nope"`. |
 | A value that does not parse as the declared type. | Loading: `invalid number for injection tag "count"`. |
-| A field that stays non-concrete. | `pravo eval -c`, or the plan: `value depends on ... which is not concrete (is a -t tag missing?)`. |
+| A field that stays non-concrete. | `pravo eval -c`, or the plan: `value depends on ... which is not concrete (give it a value, or pass -t if it is a tag)`. |
 
 ```sh run exit=6
 pravo eval -t region=eu-west-1 -t env=qa

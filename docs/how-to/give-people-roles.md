@@ -268,7 +268,7 @@ exit=5
 
 `protect rewrap` and `protect roles` refuse a change that leaves no admin, so the last admin cannot take herself off by mistake (`--allow-no-admin` overrides it). They also refuse to add dan back from a readers file that is out of date and still lists him; `--readd dan` says that you mean it.
 
-A copy of the bucket made before this step still opens with dan's key, and the records that were sealed in the old group do until they are written again. `pravo protect rewrap --all` seals them again now, `pravo protect gc` drops the old group afterwards, and the credentials of the bucket are taken from dan where they are kept: [Remove a reader](seal-the-state.md#10-remove-a-reader) has the three.
+A copy of the bucket made before this step still opens with dan's key, and the records that were sealed in the old group do until they are written again. `pravo protect rewrap --all` seals them again now, as a signed run of its own, so the records stay bound to a writer's run, `pravo protect gc` drops the old group afterwards, and the credentials of the bucket are taken from dan where they are kept: [Remove a reader](seal-the-state.md#10-remove-a-reader) has the three.
 
 ## 7. Give a CI job a role
 

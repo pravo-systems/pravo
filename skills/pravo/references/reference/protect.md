@@ -41,6 +41,7 @@ The format is the layout, and it only goes up. Whether the state is sealed is a 
 | `protect status` | Says whether the state is sealed, to whom, and whether it verifies. | yes | No. | yes |
 | `protect rewrap` | Brings the keys of the state in line with the readers file. | yes | yes | yes |
 | `protect roles` | Stores the roles of the readers file in the state and pins them. [Its own page](roles.md). | yes | yes | yes |
+| `protect policies` | Lists the policy versions that signed transactions name and the state lost, and with `--restore` writes them back. | yes | with `--restore` | no |
 | `protect recover` | Opens the state with the shares of its recovery key, and makes the readers those of the readers file. | yes | yes | yes |
 | `protect unseal` | Takes the seal off: writes everything in the open, and removes the sealed part of `meta.json`. | yes | yes | yes |
 | `protect gc` | Deletes the records that no pointer names, and the reader groups that nothing is sealed in. | yes | yes | yes |
@@ -432,7 +433,17 @@ No group needs to be dropped: the state has only its current group.
 
 With `--json`, `gc` prints one document: `format`, `dry_run`, `older_than_seconds`, `settle_seconds` (15 minutes, 900), `records` (`listed`, `named`, `unnamed`, `young`, `unknown_age`, `marked`, `settling`, `deleted`, `bytes` and `foreign`) and, for a sealed state, `groups` (`examined`, `dropped`, `kept` with `id`, `records`, `unnamed_records`, `outputs`, `plans` and `summaries`, and `skipped` with the reason when the groups were not looked at).
 
+In a state whose roles are pinned, a record that is sealed again has another key than the one the run that wrote it signed. `--all` is a run of its own then: it is recorded as a transaction of kind `rewrap`, signed by the key that runs it, which must be a writer or an admin. It lists the new key of each record it sealed, and each record names it in `resealed`. `pravo protect status` counts those records as bound. Records that an earlier pravo sealed again without that signature are refused with exit code 7 and "signed another record for revision N". An admin runs `pravo protect rewrap --all` again to repair them: it seals exactly those records once more and signs them, whoever the leaver was, and needs no key of the leaver.
+
 A stored plan that an apply holds a claim on is left as it is. `--all` counts these plans and prints `2 stored plans in use were not sealed again; run pravo protect rewrap --all when they are done.` With `--json` the count is `plans_skipped`.
+
+## protect policies
+
+A policy version is never deleted from a state. Every transaction that applied a plan lists, under its signature, the policy versions that judged the plan and the ones it wrote. When an object of `policy/` that such a transaction names is gone, or holds other text, every command that reads the policies (`plan`, `apply`, `state verify`, `protect status`) refuses the state with exit code 7 and names the policy and the transaction. Without the check, deleting the only version of a policy would lift it: the next plan that declares the policy again would add it as a new policy, which no policy judges, and a destroy would need no approval.
+
+`pravo protect policies` lists the versions that are missing. `--restore` writes them back, signed by your key, from the text of the policies in the specification. The text must have exactly the digest the transaction lists. It needs an identity that is a reader, and an admin when the readers file gives roles. A version whose text is not in the specification is brought back from the bucket's own history or from a copy of the state.
+
+Removing a policy that you want gone is another thing: remove it from the specification and apply as an admin. The removal is a new version, so nothing is missing afterwards.
 
 ## See also
 

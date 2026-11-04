@@ -132,7 +132,7 @@ func TestALadderTakesOnlyWhatWasPromoted(t *testing.T) {
 	// prod follows staging, which runs nothing yet: the apply is refused with the way there.
 	text, code := l.as(t, "ada", "apply", "-t", "env=prod", "--auto-approve")
 	if code != 5 || !strings.Contains(text, "prod only takes what was promoted from staging, and nobody has promoted this release yet") ||
-		!strings.Contains(text, "    pravo apply --env dev\n    pravo promote staging\n    pravo apply --env staging\n    pravo promote prod") {
+		!strings.Contains(text, "    pravo apply --env dev\n    pravo promote staging\n    pravo promote prod") {
 		t.Fatalf("first prod apply: exit %d\n%s", code, text)
 	}
 	if text, code = l.as(t, "ada", "promote", "prod", "--sign-only"); code != 5 || !strings.Contains(text, "staging does not run this release: nothing has been applied there yet") {

@@ -148,7 +148,7 @@ pravo plan
 ```
 
 ```text out
-Error: state at ./pravo.state was written by a newer pravo (format 8)
+Error: state at ./pravo.state was written by a newer pravo (format 8); use the pravo that wrote it, or a newer one: docs/how-to/upgrading.md
 ```
 
 ```sh run

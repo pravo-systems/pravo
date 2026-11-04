@@ -991,6 +991,11 @@ func scrubCommand(cmd string) string {
 	return b.String()
 }
 
+// ScrubCommand is scrubCommand for the recorded command line of a run: the span
+// that carries it is exported and written to disk, so the values are withheld
+// there and not only when the viewer shows them.
+func ScrubCommand(cmd string) string { return scrubCommand(cmd) }
+
 func isFlag(w string) bool { return strings.HasPrefix(w, "-") }
 
 // A short flag may be clustered with others that take no argument, and the last

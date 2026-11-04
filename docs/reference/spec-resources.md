@@ -367,7 +367,7 @@ pravo plan
 ```
 
 ```text out
-Error: svc.pet.prefix: value depends on svc.port, which is not concrete (is a -t tag missing?)
+Error: svc.pet.prefix: value depends on svc.port, which is not concrete (give it a value, or pass -t if it is a tag)
 ```
 
 ## How a resource finds its provider

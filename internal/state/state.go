@@ -131,6 +131,10 @@ type Resource struct {
 	UpdatedAt time.Time `json:"updated_at"`
 	// Txn is the id of the transaction that last wrote the node.
 	Txn string `json:"txn,omitempty"`
+	// Resealed is the id of the rewrap transaction that sealed this record again, empty for a
+	// record no rewrap touched since Txn wrote it. The record's key changes when it is sealed
+	// again, so Txn's signature no longer names it; the signature of the rewrap does.
+	Resealed string `json:"resealed,omitempty"`
 }
 
 // Marked reports whether a read left a mark on the node: it drifted or it is
@@ -190,8 +194,12 @@ type meta struct {
 type Store struct {
 	// roles is the chain of roles read last, and rolesAt when (see RolesChain).
 	rolesMu sync.Mutex
-	roles   *RolesChain
-	rolesAt time.Time
+	// listedMu guards listed: the policy versions that verified transactions listed, by
+	// transaction id (see PolicyListings).
+	listedMu sync.Mutex
+	listed   map[string][]string
+	roles    *RolesChain
+	rolesAt  time.Time
 
 	// snap is what the store remembers of the snapshot of its state (see snapshot.go).
 	snap snapshotState
@@ -294,7 +302,7 @@ func openBackend(ctx context.Context, b Backend, o Options) (*Store, error) {
 			return nil, fmt.Errorf("reading %s/meta.json: %w", b.Name(), err)
 		}
 		if s.meta.Format > MaxFormat {
-			return nil, fmt.Errorf("state at %s was written by a newer pravo (format %d)", b.Name(), s.meta.Format)
+			return nil, fmt.Errorf("state at %s was written by a newer pravo (format %d); use the pravo that wrote it, or a newer one: docs/how-to/upgrading.md", b.Name(), s.meta.Format)
 		}
 	case errors.Is(err, ErrNotFound):
 		format := o.NewFormat
@@ -855,7 +863,7 @@ func (s *Store) put(r *Resource, revision int, generation, txn string) error {
 	c.Revision, c.Generation = revision, generation
 	c.UpdatedAt = time.Now().UTC()
 	if txn != "" {
-		c.Txn = txn
+		c.Txn, c.Resealed = txn, ""
 	}
 	ref, err := s.putNode(&c)
 	if err != nil {
@@ -863,7 +871,7 @@ func (s *Store) put(r *Resource, revision int, generation, txn string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	r.Revision, r.Generation, r.UpdatedAt, r.Txn = c.Revision, c.Generation, c.UpdatedAt, c.Txn
+	r.Revision, r.Generation, r.UpdatedAt, r.Txn, r.Resealed = c.Revision, c.Generation, c.UpdatedAt, c.Txn, c.Resealed
 	s.nodes[r.Address()] = r
 	s.held[r.Address()] = ref
 	s.index = nil

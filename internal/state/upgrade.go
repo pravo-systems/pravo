@@ -117,7 +117,7 @@ func (s *Store) updateMeta(fn func(m *meta) error) error {
 				return nil, false
 			}
 			if m.Format > MaxFormat {
-				refused = fmt.Errorf("state at %s was written by a newer pravo (format %d)", s.b.Name(), m.Format)
+				refused = fmt.Errorf("state at %s was written by a newer pravo (format %d); use the pravo that wrote it, or a newer one: docs/how-to/upgrading.md", s.b.Name(), m.Format)
 				return nil, false
 			}
 			if err := fn(&m); err != nil {
@@ -195,6 +195,11 @@ type rewrite struct {
 	// replaced. A rewrite that seals sets it: the record it replaces holds the
 	// values in plain text, or sealed in a group that is no longer wanted.
 	dropOld bool
+	// force, if set, selects a node that needs does not, by address.
+	force func(addr string) bool
+	// done, if set, is told of each node that was rewritten: its address, revision and the
+	// key of the new record. It is called from several goroutines.
+	done func(addr string, revision int, rkey string)
 }
 
 // convertNodes rewrites every object under resources/ that rw selects into an
@@ -312,10 +317,10 @@ func (s *Store) convertNode(ctx context.Context, key string, rw rewrite) (bool, 
 				return false, fmt.Errorf("reading state node %s: %w", key, err)
 			}
 		}
-		if !rw.needs(group, isPtr) {
+		addr := r.Address()
+		if !rw.needs(group, isPtr) && (rw.force == nil || !rw.force(addr)) {
 			return false, nil
 		}
-		addr := r.Address()
 		if key != nodeKey(addr) {
 			return false, fmt.Errorf("%s holds the record of %s", key, addr)
 		}
@@ -353,6 +358,9 @@ func (s *Store) convertNode(ctx context.Context, key string, rw rewrite) (bool, 
 				s.held[addr] = nodeRef{Version: Version{Revision: r.Revision, Generation: r.Generation}, Record: rkey, Group: newGroup}
 			}
 			s.mu.Unlock()
+			if rw.done != nil {
+				rw.done(addr, r.Revision, rkey)
+			}
 			return true, nil
 		case refused:
 			return false, errConvertChanged

@@ -51,13 +51,14 @@ func configDiffReason(saved, now map[string]string) string {
 			removed = append(removed, name)
 		}
 	}
-	var parts []string
+	var parts, all []string
 	for _, group := range []struct {
 		names []string
 		verb  string
 	}{{changed, "changed"}, {added, "added"}, {removed, "removed"}} {
 		sort.Strings(group.names)
 		for _, n := range group.names {
+			all = append(all, n)
 			parts = append(parts, n+" "+group.verb)
 		}
 	}
@@ -68,5 +69,19 @@ func configDiffReason(saved, now map[string]string) string {
 		rest := len(parts) - maxConfigFilesNamed
 		parts = append(parts[:maxConfigFilesNamed], fmt.Sprintf("and %d more", rest))
 	}
-	return configChangedReason + " (" + strings.Join(parts, ", ") + ")"
+	reason := configChangedReason + " (" + strings.Join(parts, ", ") + ")"
+	if onlyGenerated(all) {
+		reason += "; only the generated schemas under cue.mod/gen differ, which happens after pravo init ran with another pravo or provider version. Make the plan again"
+	}
+	return reason
+}
+
+// onlyGenerated reports whether every named file is a generated schema.
+func onlyGenerated(names []string) bool {
+	for _, n := range names {
+		if !strings.HasPrefix(n, "cue.mod/gen/") {
+			return false
+		}
+	}
+	return len(names) > 0
 }

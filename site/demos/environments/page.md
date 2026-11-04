@@ -88,7 +88,6 @@ Run these, skipping a step that is already done:
 
     pravo apply --env dev
     pravo promote staging
-    pravo apply --env staging
     pravo promote prod
 ```
 

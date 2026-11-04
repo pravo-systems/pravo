@@ -136,7 +136,7 @@ These messages come up most often.
 | `N errors in empty disjunction` | A field has alternatives and the value fits none. Read the first error. |
 | `field not allowed` | A closed definition does not have the field. Check the spelling. |
 | `reference "x" not found` | A name does not exist in the scope. |
-| `value depends on cfg, which is not concrete (is a -t tag missing?)` | A value still depends on a tag. Pass `-t`. [Why is my value incomplete?](../learn/why-is-my-value-incomplete.md) |
+| `value depends on cfg, which is not concrete (give it a value, or pass -t if it is a tag)` | A value still depends on a tag. Pass `-t`. [Why is my value incomplete?](../learn/why-is-my-value-incomplete.md) |
 | `$settings.state.path is not concrete` | The state path depends on a tag. Pass `-t env=...`. |
 | `a provider schema package is missing` | Run `pravo init`. |
 | `saved plan is stale` | The specification or the state changed after the plan. Plan again. Exit code 3. |
