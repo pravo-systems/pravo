@@ -94,7 +94,7 @@ func mcpTools() []mcpTool {
 		return s
 	}
 	return []mcpTool{
-		{Name: "pravo_validate", Description: "Evaluate the specification in the root this server was started in and check it against provider schemas. Returns counts, or the evaluation errors. One server serves one root; start another with -C for another directory.",
+		{Name: "pravo_validate", Description: "Evaluate the specification in the root this server was started in and check it against provider schemas. Returns counts, or the evaluation errors. One server serves one root and the tools take no directory argument; another directory needs another server, started with `pravo mcp -C <dir>`. An error that no packages matched means the root holds no .cue files: it is the directory the server was started in.",
 			InputSchema: obj(map[string]any{"tags": tagsProp}),
 			args:        func(in map[string]any) ([]string, error) { return append([]string{"validate"}, tagArgs(in)...), nil }},
 		{Name: "pravo_plan", Description: "Compute the plan: every change the plan ran, with before/after values, reasons, blast radius and statistics. The nodes it left alone are not listed unless include_skipped is true. Optionally save it to a plan file, or store it in the state, for review and later apply, and reserve the nodes for a duration. To rename a resource without destroying it, put $from: \"old\" in the new declaration; the plan then shows a move.",
@@ -183,7 +183,7 @@ func mcpTools() []mcpTool {
 				}
 				return a, nil
 			}},
-		{Name: "pravo_schema", Description: "The CUE definition of resource, data source, ephemeral or function types, with the provider's documentation. required=true keeps only what the schema marks as required and hides the optional attributes, which a resource often still needs (the content of a local_file, the length of a random_pet, tags): leave it out to see all.",
+		{Name: "pravo_schema", Description: "The CUE definition of resource, data source, ephemeral or function types, with the provider's documentation. In the specification a resource is declared as name: $provider.#Resource.type & {...} and read as name.attribute, such as pet.id. required=true keeps only what the schema marks as required and hides the optional attributes, which a resource often still needs (the content of a local_file, the length of a random_pet, tags): leave it out to see all.",
 			InputSchema: obj(map[string]any{"types": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "type names such as aws_s3_bucket, or provider/type"}, "required": map[string]any{"type": "boolean"}}, "types"),
 			args: func(in map[string]any) ([]string, error) {
 				types := listArg(in, "types")

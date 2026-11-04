@@ -75,6 +75,9 @@ type Change struct {
 	// whatever the time of the read: there is nothing to write. The apply leaves
 	// the record alone, takes no lock for it and reads it as a record.
 	Kept bool
+	// GoneNote says, for a create that follows a read which found the object gone, that
+	// the file of the record still exists, so the apply writes it again.
+	GoneNote string
 	// Drifted reports that the refresh returned something new.
 	Drifted bool
 	// Forced marks a replacement that was requested rather than required

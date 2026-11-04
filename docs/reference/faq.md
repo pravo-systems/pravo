@@ -58,7 +58,7 @@ No. A plan finds drift in the resources it looks at: those it reaches and those 
 
 ## Does a plan change anything?
 
-A plan is not read-only. It installs providers, writes the lock file, refreshes the records it looks at whose refresh age ran out, marks a record whose object differs or is gone, renames records for `$from`, adopts the objects named by `$import`, reads data sources and opens ephemeral resources. It creates, updates and destroys no infrastructure. See [Before the verdict](policies-operations.md#before-the-verdict).
+A plan is not read-only. `pravo drift` and a plan with `--refresh=all` write marks into the state in the same way, and record a transaction in the log; they change no infrastructure. It installs providers, writes the lock file, refreshes the records it looks at whose refresh age ran out, marks a record whose object differs or is gone, renames records for `$from`, adopts the objects named by `$import`, reads data sources and opens ephemeral resources. It creates, updates and destroys no infrastructure. See [Before the verdict](policies-operations.md#before-the-verdict).
 
 ## Where are `moved` and `import` blocks?
 

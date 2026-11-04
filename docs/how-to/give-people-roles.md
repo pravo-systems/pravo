@@ -306,7 +306,7 @@ An object lock on `roles/` keeps the newest versions of the chain from being del
 
 When the laptop of an admin is gone and her key will not come back, another admin does the work, in this order, and each step is a command you have met above:
 
-1. Make the new member an identity with `pravo id new --name dave` (the name is a flag), and send the line it prints to an admin who still has a key.
+1. Make the new member an identity with `pravo id new --name dave` (the name is a flag), and send the line it prints to an admin who still has a key (when the output is piped or captured, `pravo id show` prints the same line).
 2. In `.pravo/access/readers.txt`, delete the line of the lost key and add dave's line with the role `admin`.
 3. `pravo protect rewrap --all --yes` seals the state to the readers of the file and takes the lost key out of every record. `rewrap` comes first because it is the step that needs no one who is gone; `--all` also writes the records that were sealed in the old group again.
 4. `pravo protect roles --yes` records the change: the lost key becomes a former key, its transactions stay vouched for, and dave is an admin. `protect status` then reports one transaction that is "signed with a key that is not in the file": that is the lost key's, and it is in order.

@@ -774,7 +774,10 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 		if destroy {
 			question = "Do you really want to destroy all resources?"
 		}
-		if !confirmApply(question) {
+		if ok, noInput := confirmApply(question); !ok {
+			if noInput {
+				return errors.New("apply cancelled: nothing was read from the input to answer the question; pass --auto-approve to approve without a prompt, or apply a reviewed plan file")
+			}
 			return errors.New("apply cancelled")
 		}
 	}
@@ -801,21 +804,25 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 		if !plan.HasWrites() {
 			return nil
 		}
-		if !autoApprove && !confirmApply("Do you want to perform these actions too?") {
-			return errors.New("apply cancelled: the deferred changes are left to the next plan")
+		if !autoApprove {
+			if ok, _ := confirmApply("Do you want to perform these actions too?"); !ok {
+				return errors.New("apply cancelled: the deferred changes are left to the next plan")
+			}
 		}
 	}
 }
 
 // confirmApply asks the question and reports whether it was answered "yes".
-func confirmApply(question string) bool {
+// confirmApply asks the question and reports whether the answer was yes. noInput says
+// that nothing could be read to answer with (a closed or empty input).
+func confirmApply(question string) (ok, noInput bool) {
 	out.Println()
 	out.Println(out.C(ui.Bold, question))
 	out.Println("  Only 'yes' will be accepted to approve.")
 	out.Printf("\n  %s ", out.C(ui.Bold, "Enter a value:"))
-	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	out.Println()
-	return strings.TrimSpace(line) == "yes"
+	return strings.TrimSpace(line) == "yes", err != nil && strings.TrimSpace(line) == ""
 }
 
 // reportApply prints the outcome of an apply, as text or as a final JSON line.

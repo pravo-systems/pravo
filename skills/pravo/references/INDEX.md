@@ -93,7 +93,7 @@ One page for each command and each part of the specification, tables first.
 |---|---|---|
 | [reference/errors.md](reference/errors.md) | Every error a user is likely to meet, as pravo prints it: the symptom, the cause and the fix. | 75 KB |
 | [reference/glossary.md](reference/glossary.md) | The terms of CUE and of pravo, each with a definition of one or two sentences and a link to the lesson that teaches it. | 33 KB |
-| [reference/faq.md](reference/faq.md) | Short, factual answers to the questions asked first. | 10 KB |
+| [reference/faq.md](reference/faq.md) | Short, factual answers to the questions asked first. | 11 KB |
 | [reference/not-in-pravo.md](reference/not-in-pravo.md) | The commands, flags, blocks and files of OpenTofu and Terraform that pravo does not have, and what to use in each place. | 9 KB |
 
 ## Concepts
@@ -150,7 +150,7 @@ One task each, for a reader who knows the basics.
 | File | Covers | Size |
 |---|---|---|
 | [how-to/ci.md](how-to/ci.md) | Validate without credentials, plan under a policy, apply a saved or a stored plan, wait for an approval, find drift, test offline and keep a trace of each job, with the exit code of every step. | 25 KB |
-| [how-to/policies.md](how-to/policies.md) | Write a policy rule, test it on fixtures with the matching cue version, try it on the plans you have, roll a new rule out as advice, exempt by type, apply under the policies of the state, ask for approvals and retire a policy. | 19 KB |
+| [how-to/policies.md](how-to/policies.md) | Write a policy rule, test it on fixtures with the matching cue version, try it on the plans you have, roll a new rule out as advice, exempt by type, apply under the policies of the state, ask for approvals and retire a policy. | 20 KB |
 | [how-to/agents-and-mcp.md](how-to/agents-and-mcp.md) | Give a program or an AI agent the schema, a plan file, a reservation, a tool server that the policies of the state bind, and an identity with the role of a reader, so that it plans and stores and a person applies, and see what that does and does not protect. | 19 KB |
 | [how-to/embed-pravo-in-your-program.md](how-to/embed-pravo-in-your-program.md) | Build a small runner on the Go library. Open a workspace, plan, judge the plan with the policies of the specification, apply it or store it for later, read the result as data, map an error to an exit code, and open a sealed state with a key the program holds. | 15 KB |
 | [how-to/secrets.md](how-to/secrets.md) | Read a secret from the environment with pravo.#SecretEnv, hand it to a provider and see where pravo allows the value and where it refuses. | 11 KB |

@@ -177,6 +177,9 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 			header += p.C(Dim, " (already applied in txn "+c.AppliedTxn+")")
 		}
 		p.Println(p.C(Bold, header))
+		if c.GoneNote != "" && c.Action == engine.ActionCreate {
+			p.Println(p.C(Dim, "    "+c.GoneNote+"; the apply writes it again from the specification"))
+		}
 		if c.Action == engine.ActionDefer {
 			p.Println(p.C(Dim, "    "+deferWhy(c)))
 			continue
