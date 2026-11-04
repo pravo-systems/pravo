@@ -8,6 +8,8 @@ A secret is a named value that the sealed state keeps for its readers: a databas
 
 Everyone who can read the state can read every secret in it. A secret for other readers belongs in another state, with another list of readers.
 
+A secret that already sits in a file on disk, and has to end up in another file, is a different case: `pravo.#Secret` hands a value to an argument, and `local_file` takes no secret for `content`. Use `local_sensitive_file` with `source` set to the path of the file, as [A secret in a file](secrets.md#a-secret-in-a-file) shows; the spec then holds the path and never the value.
+
 > [!NOTE]
 > Every command below runs against `tools/fakes3`, the in-memory S3 server in pravo's source, on port 9000, and the three people are three directories on one machine. The page uses the `tls` provider, which `pravo init` downloads.
 

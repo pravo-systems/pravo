@@ -418,3 +418,35 @@ func TestNoLockIsWrittenTwiceInAShortApply(t *testing.T) {
 		t.Errorf("%d locks taken, want 20", got)
 	}
 }
+
+// A refresh that finds the record as its own view holds it writes nothing, so it
+// cannot put a view older than the state over a record that an apply finished
+// since (L4). The record is the one A wrote, with no lock taken and no write.
+func TestUnchangedRefreshFromAnOlderViewWritesNothing(t *testing.T) {
+	mk := func(content string) spec {
+		return spec{cue: "r: " + thing("r", fmt.Sprintf("content: %q", content)) + "\n", resources: []string{"r"}}
+	}
+	h := newHarness(t)
+	h.apply(mk("v1"))
+	p := h.engineOn(h.process(), mk("v1"), Options{DefaultRefresh: "always", Refresh: RefreshAll})
+	a := h.engineOn(h.process(), mk("v2"), Options{})
+	apply(t, a, plan(t, a))
+	before := h.process().Get("r")
+	// The real world still holds what P's view holds.
+	h.fake.drift("r", "v1")
+	h.fake.resetCalls()
+	h.backend.Reset()
+	if _, err := p.Plan(context.Background()); err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	if h.fake.called("ReadResource") != 1 {
+		t.Fatalf("the plan read r %d times, want once", h.fake.called("ReadResource"))
+	}
+	if w, l := h.backend.Count("Put", "resources"), h.backend.Count("PutIfAbsent", "locks"); w != 0 || l != 0 {
+		t.Errorf("an unchanged refresh made %d record writes and took %d locks", w, l)
+	}
+	after := h.process().Get("r")
+	if after.Revision != before.Revision || after.Txn != before.Txn || !after.AppliedAt.Equal(*before.AppliedAt) {
+		t.Errorf("the record changed:\nbefore %+v\nafter  %+v", before, after)
+	}
+}

@@ -89,7 +89,7 @@ Output:
 
 ```text
 ...
-motd: no longer exists; it will be created again
+motd: the provider no longer finds it (deleted, or changed into another object); it will be created again
 ...
   # motd (local_file) will be created
   + motd: {

@@ -236,3 +236,13 @@ func TestSafeReplacesWhatMovesATerminal(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderPlanSaysWhenTheLastApplyDidNotFinish(t *testing.T) {
+	plan := &engine.Plan{Stats: engine.Stats{Total: 1, Reached: 1}, Changes: []*engine.Change{
+		{Addr: "report", Type: "local_file", Action: engine.ActionUpdate, Schema: pageBlock(),
+			Prior: page("a", "x"), Planned: page("b", "x"), Reasons: []string{"the last apply of it did not finish"}},
+	}}
+	if got := render(plan); !strings.Contains(got, "The last apply did not finish report; apply this plan to continue") {
+		t.Errorf("the plan does not say it:\n%s", got)
+	}
+}

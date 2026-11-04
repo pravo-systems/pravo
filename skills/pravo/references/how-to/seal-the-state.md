@@ -186,7 +186,7 @@ Store        s3://northwind-state/prod
 Readers      .pravo/access/readers.txt matches the store
 You          ada · reader key x25519:<key>
 Roles        off
-Signatures   0 of 1 transaction verified · 1 unsigned
+Signatures   1 of 2 transactions verified · 1 unsigned
 Unsettled    none
 ```
 
@@ -285,6 +285,8 @@ Readers in .pravo/access/readers.txt: ada dan deploy-bot  (eve removed)
 New data keys for 1 reader group. Records are sealed again as they are next written.
 ```
 
+In a state with [pinned roles](../reference/roles.md), deleting the line is not enough: the roles in the state still name the key. An admin runs `pravo protect roles --yes` after the edit to write the new roles to the state, and then the rewrap below. [Give people roles](give-people-roles.md) shows the command.
+
 Removal has four parts, and the last is yours.
 
 - The line stops **future** records from being sealed to Eve. It cannot make Eve forget what Eve read, and a copy of the bucket that was made before is still readable with Eve's key.
@@ -339,7 +341,9 @@ Moved aws_vpc.main to aws_vpc.moved
 Moved aws_vpc.moved to aws_vpc.main
     signed by deploy-bot (verified)
     signed by ada (verified)
-Signatures   2 of 3 transactions verified · 1 unsigned
+    signed by ada (verified)
+    signed by ada (verified)
+Signatures   4 of 5 transactions verified · 1 unsigned
 ```
 
 The transaction from before the seal is unsigned, which is not an error. A signature from a key that the readers file does not list, such as a reader who has left, shows as `signed by NAME, whose key is not in the readers file`, and is not an error either. A transaction that was changed in the bucket after it was signed shows `the signature does not verify`, and `state log` and `protect status` exit with 7.

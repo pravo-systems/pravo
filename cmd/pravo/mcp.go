@@ -97,7 +97,7 @@ func mcpTools() []mcpTool {
 		{Name: "pravo_validate", Description: "Evaluate the specification in the root this server was started in and check it against provider schemas. Returns counts, or the evaluation errors. One server serves one root; start another with -C for another directory.",
 			InputSchema: obj(map[string]any{"tags": tagsProp}),
 			args:        func(in map[string]any) ([]string, error) { return append([]string{"validate"}, tagArgs(in)...), nil }},
-		{Name: "pravo_plan", Description: "Compute the plan: every change the plan ran, with before/after values, reasons, blast radius and statistics. The nodes it left alone are not listed unless include_skipped is true. Optionally save it to a plan file, or store it in the state, for review and later apply, and reserve the nodes for a duration.",
+		{Name: "pravo_plan", Description: "Compute the plan: every change the plan ran, with before/after values, reasons, blast radius and statistics. The nodes it left alone are not listed unless include_skipped is true. Optionally save it to a plan file, or store it in the state, for review and later apply, and reserve the nodes for a duration. To rename a resource without destroying it, put $from: \"old\" in the new declaration; the plan then shows a move.",
 			InputSchema: obj(map[string]any{"tags": tagsProp, "out": map[string]any{"type": "string", "description": "save the plan to this file"},
 				"refresh":         map[string]any{"type": "string", "enum": []string{"age", "expired", "false", "all"}, "description": "when to read records from their providers: age (the records the plan looks at, once past their refresh age), expired (every record past its refresh age), false (none) or all"},
 				"full":            map[string]any{"type": "boolean"},
@@ -379,6 +379,10 @@ func serveMCP(ctx context.Context, in io.Reader, outW io.Writer) error {
 				reply(req.ID, map[string]any{"isError": true, "content": []map[string]any{{"type": "text", "text": err.Error()}}}, nil)
 				continue
 			}
+			// The plan document that an agent reads does not carry sensitive values.
+			if withholdsSensitive[p.Name] && len(cliArgs) > 1 {
+				cliArgs = append([]string{cliArgs[0], "--withhold-sensitive"}, cliArgs[1:]...)
+			}
 			callCtx, span := telemetry.Tracer().Start(ctx, "mcp tools/call "+p.Name, trace.WithSpanKind(trace.SpanKindServer),
 				trace.WithAttributes(attribute.String("mcp.tool", p.Name), attribute.String("pravo.actor", flags.Actor)))
 			var text string
@@ -482,3 +486,7 @@ func positional(name string, values ...string) error {
 	}
 	return nil
 }
+
+// withholdsSensitive names the tools whose command prints a plan document: the server runs
+// them with --withhold-sensitive.
+var withholdsSensitive = map[string]bool{"pravo_plan": true, "pravo_show_plan": true, "pravo_apply_plan": true}

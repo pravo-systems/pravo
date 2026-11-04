@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 // ViewFormat is the layout version of the plan document.
@@ -47,6 +48,10 @@ type ViewOptions struct {
 	// Full gives the entries of the nodes the plan walked and left alone what the
 	// plan knows of them: their reasons and the nodes they depend on.
 	Full bool
+	// Redact replaces the sensitive and write-only attributes of the changes, and the
+	// sensitive outputs, with {"$sensitive": true}. The document for a machine that holds
+	// the specification keeps them; a reader that is an agent should not.
+	Redact bool
 }
 
 // Summary counts the actions of a plan.
@@ -165,6 +170,9 @@ func (e *Engine) NewView(plan *Plan, opts ViewOptions) *View {
 			}
 		}
 		cv := changeViewOf(ch)
+		if opts.Redact {
+			redactChange(&cv, ch.Schema)
+		}
 		if pending(ch) && !ch.Applied {
 			touched[ch.Addr] = true
 			changed = append(changed, ch.Addr)
@@ -185,7 +193,54 @@ func (e *Engine) NewView(plan *Plan, opts ViewOptions) *View {
 		v.Changes = e.withSkipped(v.Changes)
 	}
 	addOutputs(v, plan)
+	if opts.Redact {
+		for n := range v.Outputs {
+			if plan.SensitiveOutputs[n] {
+				v.Outputs[n] = Sensitive
+			}
+		}
+	}
 	return v
+}
+
+// Sensitive is the JSON marker for a value that the document withholds.
+var Sensitive = map[string]any{"$sensitive": true}
+
+// redactChange withholds the sensitive and write-only attributes of a change.
+func redactChange(cv *ChangeView, s *schema.Schema) {
+	if s == nil || s.Block == nil {
+		return
+	}
+	cv.Before, cv.After = redactData(cv.Before, s.Block), redactData(cv.After, s.Block)
+}
+
+func redactData(d any, blk *schema.Block) any {
+	m, ok := d.(map[string]any)
+	if !ok || blk == nil {
+		return d
+	}
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	for _, a := range blk.Attributes {
+		if _, ok := out[a.Name]; ok && (a.Sensitive || a.WriteOnly) && out[a.Name] != nil {
+			out[a.Name] = Sensitive
+		}
+	}
+	for _, nb := range blk.BlockTypes {
+		switch x := out[nb.TypeName].(type) {
+		case map[string]any:
+			out[nb.TypeName] = redactData(x, nb.Block)
+		case []any:
+			list := make([]any, len(x))
+			for i, e := range x {
+				list[i] = redactData(e, nb.Block)
+			}
+			out[nb.TypeName] = list
+		}
+	}
+	return out
 }
 
 func addOutputs(v *View, plan *Plan) {

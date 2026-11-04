@@ -439,7 +439,7 @@ pravo drift
 
 ```text out
 ...
-manifest: no longer exists; it will be created again
+manifest: the provider no longer finds it (deleted, or changed into another object); it will be created again
 ...
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 No drift. 4 resources refreshed; 0 pending changes from the specification.

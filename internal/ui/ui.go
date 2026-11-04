@@ -351,6 +351,21 @@ func (p *Printer) renderStats(plan *engine.Plan) {
 		parts = append(parts, fmt.Sprintf("to move %d", st.Moved))
 	}
 	p.Println(p.C(Dim, "Graph: "+strings.Join(parts, " · ")))
+	// An apply that stopped halfway left records that no configuration was seen through.
+	var unfinished []string
+	for _, c := range plan.Changes {
+		if c.Action == engine.ActionNoop {
+			continue
+		}
+		for _, r := range c.Reasons {
+			if r == "the last apply of it did not finish" {
+				unfinished = append(unfinished, c.Addr)
+			}
+		}
+	}
+	if len(unfinished) > 0 {
+		p.Println(p.C(Dim, "The last apply did not finish "+strings.Join(unfinished, ", ")+"; apply this plan to continue where it stopped."))
+	}
 }
 
 // renderOutputs shows the outputs the plan changes, each with the value it has

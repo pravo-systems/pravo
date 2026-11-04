@@ -174,7 +174,8 @@ func (s *Store) readNodeFrom(ctx context.Context, key string, pre *nodeBytes) (*
 			if err := json.Unmarshal(data, &r); err != nil {
 				return nil, nodeRef{}, nodeBytes{}, fmt.Errorf("reading state node %s: %w", key, err)
 			}
-			return &r, nodeRef{Version: Version{Revision: r.Revision, Generation: r.Generation}}, nodeBytes{}, nil
+			// A whole record is its own pointer: the snapshot keeps the object as it was read.
+			return &r, nodeRef{Version: Version{Revision: r.Revision, Generation: r.Generation}}, nodeBytes{ptr: data}, nil
 		}
 		r, group, rec, err := s.readRecord(ctx, key, p, have)
 		if errors.Is(err, errRecordGone) && attempt+1 < readAttempts {

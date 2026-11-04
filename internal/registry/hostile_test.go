@@ -292,3 +292,52 @@ func TestTokenGoesToItsHostOnly(t *testing.T) {
 		t.Errorf("token sent over plain http: %q", tok)
 	}
 }
+
+func TestSweepStale(t *testing.T) {
+	parent := t.TempDir()
+	old := filepath.Join(parent, ".install-old")
+	fresh := filepath.Join(parent, ".install-fresh")
+	other := filepath.Join(parent, "1.0.0")
+	for _, d := range []string{old, fresh, other} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	past := time.Now().Add(-2 * staleStage)
+	if err := os.Chtimes(old, past, past); err != nil {
+		t.Fatal(err)
+	}
+	sweepStale(parent)
+	for d, want := range map[string]bool{old: false, fresh: true, other: true} {
+		_, err := os.Stat(d)
+		if (err == nil) != want {
+			t.Errorf("%s present=%v, want %v", filepath.Base(d), err == nil, want)
+		}
+	}
+}
+
+type okTransport struct{ n int }
+
+func (o *okTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	o.n++
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+}
+
+func TestHostGuardRefusesAnotherHostOverHTTP(t *testing.T) {
+	base := &okTransport{}
+	g := hostGuard{host: "reg.example.com", base: base}
+	for u, want := range map[string]bool{
+		"https://reg.example.com/v2/":       true,
+		"https://auth.example.net/token":    true,
+		"http://reg.example.com/v2/":        true,
+		"http://auth.example.net/token":     false,
+		"http://127.0.0.2:5002/token":       false,
+		"http://reg.example.com:8080/token": false,
+	} {
+		req, _ := http.NewRequest(http.MethodGet, u, nil)
+		_, err := g.RoundTrip(req)
+		if (err == nil) != want {
+			t.Errorf("%s: err = %v, want allowed=%v", u, err, want)
+		}
+	}
+}

@@ -238,7 +238,7 @@ func planCmd() *cobra.Command {
 			// The plan is printed before it is judged, and the document that is
 			// judged is the one that is printed. With --store and --json the document
 			// says where the plan was stored, so the plan is judged and stored first.
-			view := eng.NewView(plan, engine.ViewOptions{Skipped: includeSkipped})
+			view := eng.NewView(plan, engine.ViewOptions{Skipped: includeSkipped, Redact: flags.Withhold})
 			var policyErr error
 			var stored *storedPlan
 			judged := false
@@ -394,7 +394,7 @@ func showCmd() *cobra.Command {
 				return err
 			}
 			if flags.Markdown {
-				v := eng.NewView(plan, engine.ViewOptions{})
+				v := eng.NewView(plan, engine.ViewOptions{Redact: flags.Withhold})
 				v.Actor, v.Reason, v.GitRevision = pf.Actor, pf.Reason, pf.GitRevision
 				opts := engine.MarkdownOptions{Title: "Saved plan"}
 				if stale != nil {
@@ -406,7 +406,7 @@ func showCmd() *cobra.Command {
 				return emitMarkdown(v.Markdown(opts))
 			}
 			if flags.JSON {
-				v := eng.NewView(plan, engine.ViewOptions{})
+				v := eng.NewView(plan, engine.ViewOptions{Redact: flags.Withhold})
 				v.Created, v.Actor, v.Reason, v.GitRevision = pf.Created, pf.Actor, pf.Reason, pf.GitRevision
 				v.Reservation = pf.Reservation
 				return emitJSON(map[string]any{"planfile": args[0], "stale": stale, "plan": v})
@@ -424,6 +424,7 @@ func showCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&flags.Markdown, "markdown", false, "print the plan as Markdown for a comment on a pull request: names and actions, never values")
+	addWithholdFlag(cmd)
 	// A plan in the state is found by the state, which the tags select.
 	addTagFlags(cmd)
 	return cmd
@@ -473,6 +474,12 @@ func addRunFlags(cmd *cobra.Command, refresh *string, full *bool) {
 	cmd.Flags().StringVar(refresh, "refresh", "age", "when to read real state from providers: age (a record that the plan looks at, when it is older than its refresh age), expired (every record older than its refresh age), false (never) or all (every resource)")
 	cmd.Flags().Lookup("refresh").NoOptDefVal = "all"
 	cmd.Flags().BoolVar(full, "full", false, "plan every resource with its provider instead of skipping unchanged ones")
+	addWithholdFlag(cmd)
+}
+
+// addWithholdFlag adds --withhold-sensitive to a command that prints a plan document.
+func addWithholdFlag(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&flags.Withhold, "withhold-sensitive", false, "with --json, put {\"$sensitive\": true} in place of sensitive and write-only attributes and sensitive outputs; the plan file and the policies keep the values")
 }
 
 func applyCmd() *cobra.Command {
@@ -719,7 +726,7 @@ func runApply(cmd *cobra.Command, refresh string, full, autoApprove, destroy boo
 	if err != nil {
 		return err
 	}
-	view := eng.NewView(plan, engine.ViewOptions{})
+	view := eng.NewView(plan, engine.ViewOptions{Redact: flags.Withhold})
 	if flags.JSON {
 		emitLine(map[string]any{"kind": "plan", "phase": "done", "plan": view})
 	} else {

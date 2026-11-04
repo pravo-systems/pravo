@@ -321,7 +321,7 @@ pravo plan -refresh=all | grep -E '^(note|Plan|Graph)'
 
 ```text out
 note: Refreshing state... [id=<id>]
-note: no longer exists; it will be created again
+note: the provider no longer finds it (deleted, or changed into another object); it will be created again
 Plan: 1 to add, 0 to change, 0 to destroy.
 Graph: planned 1 · skipped 1 · refreshed 2 · drifted 1
 ```
@@ -341,6 +341,7 @@ jq -r '.Name' trace.jsonl | grep -E '^(pravo|engine|resource|provider)' | sort -
 engine plan
 pravo plan
 provider ConfigureProvider
+provider GetSchema
 provider PlanResourceChange
 provider UpgradeResourceState
 provider ValidateProviderConfig

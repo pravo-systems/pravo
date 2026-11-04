@@ -319,6 +319,9 @@ func ModuleNotFoundHint(err error) error {
 	if h := providerImportHint(err.Error()); h != "" {
 		return fmt.Errorf("%w\n\n%s", err, h)
 	}
+	if m := keywordPackageRe.FindStringSubmatch(err.Error()); m != nil {
+		return fmt.Errorf("%w\n\nhint: %s is a CUE keyword, so the package of this provider is named %s_: import it as \"%s:%s_\"", err, m[2], m[2], m[1], m[2])
+	}
 	if strings.Contains(err.Error(), ProviderPackagePrefix) && strings.Contains(err.Error(), "cannot find package") {
 		return fmt.Errorf("%w\n\nhint: a provider schema package is missing. Run \"pravo init\" to generate it", err)
 	}
@@ -399,6 +402,10 @@ var cueStdlibRoots = map[string]bool{"bytes": true, "crypto": true, "encoding": 
 // import that failed is the address of one in a registry: "hashicorp/random",
 // or "registry.opentofu.org/hashicorp/random". A provider is imported from
 // pravo.dev/providers, below the address.
+// keywordPackageRe matches the error for a provider package that is imported
+// without the underscore its name carries: null, true, false, package, import, for, in, if, let.
+var keywordPackageRe = regexp.MustCompile(`cannot find package "(pravo\.dev/providers/[^"]*/([a-z]+))": no files in package directory with package name "(?:null|true|false|package|import|for|in|if|let)"`)
+
 func providerImportHint(text string) string {
 	m := badPackageRe.FindStringSubmatch(text)
 	if m == nil {

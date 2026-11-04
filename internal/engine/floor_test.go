@@ -187,8 +187,8 @@ func TestGraphIsBuiltOncePerProcess(t *testing.T) {
 		if e.graphBuilds != 1 {
 			t.Errorf("the graph was built %d times by a plan that walked twice, want once", e.graphBuilds)
 		}
-		if e.settles < 2 {
-			t.Errorf("the plan unified fills %d times; it was meant to walk again", e.settles)
+		if e.settles+e.fastFills < 2 {
+			t.Errorf("the plan settled fills %d times and filled %d bodies directly; it was meant to walk again", e.settles, e.fastFills)
 		}
 	})
 

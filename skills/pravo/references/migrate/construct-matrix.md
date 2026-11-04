@@ -63,6 +63,7 @@ Use the matrix to read your preflight list from [M1](m1-before-you-start.md). Th
 | `%{ if }` and `%{ for }` in a string | Not supported | A comprehension and `strings.Join`. |
 | Heredoc | Supported | A multi-line string with `"""`. |
 | `each.key`, `each.value`, `count.index` | Supported | The loop variables of the comprehension. |
+| `aws_x.y.block` of a block that the provider stores in another shape | Partial | A reference to a field of a resource reads the configured value, where OpenTofu reads the value the provider stored. They differ only for a block or attribute that the provider normalises, such as `server_side_encryption { enabled = false }` stored as an empty list. Reference the attribute the provider computes instead, or write the stored value into the specification. |
 | `var.x`, `local.x`, `module.m.o` | Supported | The field name: `x`, `_x`, `m.o`. |
 | Built-in function | Partial | Most have an equivalent. See the [Function map](function-map.md). |
 | `provider::name::fn()` | Supported | A declaration built from `#Function`, with `args` and `result`. |

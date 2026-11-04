@@ -56,3 +56,11 @@ func TestHCLFieldNames(t *testing.T) {
 		t.Errorf("a root with a provider has names %v", got)
 	}
 }
+
+func TestKeywordPackageHint(t *testing.T) {
+	err := errors.New(`import failed: cannot find package "pravo.dev/providers/hashicorp/null": no files in package directory with package name "null"`)
+	got := ModuleNotFoundHint(err).Error()
+	if !strings.Contains(got, `"pravo.dev/providers/hashicorp/null:null_"`) {
+		t.Errorf("no hint for the null_ package:\n%s", got)
+	}
+}
