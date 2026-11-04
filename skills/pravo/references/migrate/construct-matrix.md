@@ -68,7 +68,7 @@ Use the matrix to read your preflight list from [M1](m1-before-you-start.md). Th
 | Built-in function | Partial | Most have an equivalent. See the [Function map](function-map.md). |
 | `provider::name::fn()` | Supported | A declaration built from `#Function`, with `args` and `result`. |
 | `terraform.workspace` | Not supported | A tag: `-t env=prod`. |
-| `path.module`, `path.root` | Not supported | Paths are relative to the root. `-T` supplies `cwd` as a tag. |
+| `path.module`, `path.root` | Not supported | Paths are relative to the root. `-T` supplies `cwd` as a tag. A file created with `${path.module}/out/a.txt` is recorded as `./out/a.txt` in the imported state: write `filename: "./out/a.txt"` exactly, or the next plan replaces the file. |
 | `optional()` and `object()` types | Supported | Optional fields (`a?: string`) and structs. |
 | `validation` | Supported | A constraint on the field. The message is the one CUE prints. |
 | `sensitive` | Partial | `sensitive: true` on an output. The provider schema marks attributes. No `sensitive()` function. |

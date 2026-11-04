@@ -344,7 +344,7 @@ Output:
 
 ```text
 note: Refreshing state... [id=<id>]
-note: the provider no longer finds it (deleted, or changed into another object); it will be created again
+note: the provider no longer finds it (deleted, or changed into another object): note.txt exists, so it was changed, not deleted; it will be created again
 Plan: 1 to add, 0 to change, 0 to destroy.
 Graph: planned 1 · skipped 1 · refreshed 2 · drifted 1
 ```

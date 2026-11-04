@@ -64,3 +64,11 @@ func TestKeywordPackageHint(t *testing.T) {
 		t.Errorf("no hint for the null_ package:\n%s", got)
 	}
 }
+
+func TestKindClashHint(t *testing.T) {
+	err := errors.New(`port.$kind: conflicting values "output" and "resource"`)
+	got := ModuleNotFoundHint(err).Error()
+	if !strings.Contains(got, "port is declared twice") || !strings.Contains(got, "Rename one") {
+		t.Errorf("no hint for the kind clash:\n%s", got)
+	}
+}

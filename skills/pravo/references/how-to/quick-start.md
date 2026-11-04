@@ -94,7 +94,7 @@ Read it from the top.
 - `pet` and `config` are resources. A resource is built through a provider, here `$random` and `$local`.
 - `#Provider` and `#Resource` are definitions: shapes that the generated packages declare. `&` combines the shape of a resource type with the values you give. [A8](https://pravo.systems/learn/a08-definitions-reject-typos.html) teaches definitions.
 - The name of a resource is its address. `pet` and `config` are two addresses.
-- `\(pet.id)` puts the name of the pet into the file. That reference is the dependency: pravo creates `pet` first. There is no `depends_on`.
+- `\(pet.id)` puts the name of the pet into the file. That reference is the dependency: pravo creates `pet` first. There is no `depends_on`. The `id` of a `random_pet` is its name, so `pet.id` is the string such as `funky-toad`.
 
 *Figure: The two resources. config uses pet.id, so pravo creates pet first.*
 

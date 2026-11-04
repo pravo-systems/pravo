@@ -498,6 +498,9 @@ func driftDue(cmd *cobra.Command, s *session, limit int, webhook string) error {
 			what := "the real state differs from the state"
 			if d.Gone {
 				what = "the provider no longer finds it (deleted, or changed, such as a file edited by hand)"
+				if d.Note != "" {
+					what += "; " + d.Note
+				}
 			}
 			out.Printf("  %s: %s\n", out.C(ui.Bold, d.Addr), what)
 		}
