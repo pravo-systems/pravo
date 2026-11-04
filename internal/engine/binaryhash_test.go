@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -26,7 +27,11 @@ func installedProvider(t *testing.T, body string) (*Providers, *registry.Client,
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	bin := filepath.Join(dir, "terraform-provider-dev_v1.0.0")
+	name := "terraform-provider-dev_v1.0.0"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	bin := filepath.Join(dir, name)
 	if err := os.WriteFile(bin, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
