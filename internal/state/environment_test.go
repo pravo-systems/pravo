@@ -311,3 +311,26 @@ func TestADeletedNewestEnvironmentRecordIsFound(t *testing.T) {
 		t.Fatalf("version 2 deleted: %v", err)
 	}
 }
+
+// Writing the record signs a transaction that names the version, so a deletion is found
+// before any note of a run exists.
+func TestADeletedEnvironmentRecordIsFoundWithoutANote(t *testing.T) {
+	skipWhenSealed(t)
+	ctx := context.Background()
+	b := testBackends()[0].make(t)
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	readers := readersOf(ada)
+	readers[0].Role = protect.RoleAdmin
+	for seq, rec := range []EnvironmentRecord{{Name: "prod"}, {Name: "prod", RolesPin: "pin"}} {
+		if err := s.PutEnvironmentRecord(ctx, seq+1, rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := b.Delete(ctx, environmentKey(2)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.EnvironmentRecord(ctx, readers); !errors.Is(err, ErrUntrusted) {
+		t.Fatalf("version 2 deleted, no note: %v", err)
+	}
+}

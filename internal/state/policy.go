@@ -327,6 +327,8 @@ func (m MissingPolicy) Unwrap() error { return ErrUntrusted }
 type txnFacts struct {
 	policies []string
 	secrets  map[string]int
+	// envRecord is the newest version of the record of the environment the transaction wrote.
+	envRecord int
 }
 
 // signedFacts returns the facts of the transactions whose signatures verify against the
@@ -372,6 +374,13 @@ func (s *Store) signedFacts(ctx context.Context, readers []protect.Reader) (map[
 		if t.FinishSig != nil && t.Finished != nil {
 			if st, _ := protect.VerifySignature(t.FinishSig, readers, protect.DomainTxnFinish, s.Lineage(), txnFinishParts(&t)...); st == protect.SigVerified {
 				f.policies = append(f.policies, t.PolicyWrites...)
+				if t.Kind == "environment" {
+					for _, c := range t.Changes {
+						if c.Addr == EnvironmentAddr && c.Action == "set" {
+							f.envRecord = max(f.envRecord, c.After)
+						}
+					}
+				}
 				if t.Kind == "secret" {
 					for _, c := range t.Changes {
 						name, ok := strings.CutPrefix(c.Addr, secretAddrPrefix)
