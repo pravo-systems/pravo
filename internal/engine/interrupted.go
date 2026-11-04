@@ -88,7 +88,9 @@ func (e *Engine) warnUntracked(plan *Plan) {
 		}
 	}
 	for _, addr := range slices.Sorted(maps.Keys(e.suspects)) {
-		if e.State.Get(addr) != nil || imported[addr] {
+		// Only a node whose create began can have an object nothing tracks; a node the stopped
+		// apply had locked and never started has none.
+		if e.State.Get(addr) != nil || imported[addr] || !e.suspects[addr].Creating {
 			continue
 		}
 		e.Opts.Progress("Warning: %s: %s, and the state has no record of it: if the create reached the cloud the object exists but is not tracked, and an apply would create it again. Look for it with pravo discover, or import it (%s), before you apply", addr, stoppedApply(e.suspects[addr]), e.importCommand(addr, "ID"))
