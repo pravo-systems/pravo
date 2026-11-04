@@ -343,6 +343,9 @@ func (c *Converter) Value(path string, t tftypes.Type, v cue.Value) tftypes.Valu
 		for i := 0; it.Next(); i++ {
 			elems = append(elems, c.Value(fmt.Sprintf("%s[%d]", path, i), et, it.Value()))
 		}
+		if t.Is(tftypes.Set{}) {
+			elems = dedupeSet(elems)
+		}
 		return tftypes.NewValue(t, elems)
 	case t.Is(tftypes.Tuple{}):
 		if v.Kind() == cue.NullKind {
@@ -483,4 +486,25 @@ func inferType(v cue.Value) tftypes.Type {
 		return tftypes.Object{AttributeTypes: ats}
 	}
 	return tftypes.DynamicPseudoType
+}
+
+// dedupeSet drops the elements of a set that equal an earlier one, as OpenTofu does when it
+// converts a list to a set; an element that is not fully known stays.
+func dedupeSet(elems []tftypes.Value) []tftypes.Value {
+	out := make([]tftypes.Value, 0, len(elems))
+	for _, e := range elems {
+		dup := false
+		if e.IsFullyKnown() {
+			for _, o := range out {
+				if o.IsFullyKnown() && o.Equal(e) {
+					dup = true
+					break
+				}
+			}
+		}
+		if !dup {
+			out = append(out, e)
+		}
+	}
+	return out
 }

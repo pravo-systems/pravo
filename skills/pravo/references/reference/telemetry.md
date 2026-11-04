@@ -54,6 +54,7 @@ jq -r .Name trace.jsonl | grep -E '^(pravo|engine|resource|provider)'
 Output:
 
 ```text
+provider GetSchema
 provider ValidateProviderConfig
 provider ConfigureProvider
 provider ValidateResourceConfig
@@ -76,7 +77,7 @@ Output:
       1 engine
       9 phase
       1 pravo
-      4 provider
+      5 provider
       1 resource
      10 setup
       9 state
