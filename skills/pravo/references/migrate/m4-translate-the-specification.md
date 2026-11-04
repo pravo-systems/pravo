@@ -58,6 +58,8 @@ $local:  loc.#Provider & {$version: "~> 2.5"}
 
 The import path is `pravo.dev/providers/<namespace>/<type>`. The name before the colon starts with `$` by convention, so it never collides with an attribute. `pravo init` installs the providers and generates the packages the imports name.
 
+A provider whose type is a CUE keyword gets another package name: `hashicorp/null` generates the package `null_`, so the import is `n "pravo.dev/providers/hashicorp/null:null_"`. `pravo schema` prints the right line.
+
 ```sh
 pravo init
 pravo validate

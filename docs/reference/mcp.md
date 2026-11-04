@@ -86,6 +86,8 @@ A policy binds the tool and not the process around it. An agent with a shell or 
 | `isError` | `true` when the exit code is not 0. |
 | `structuredContent.exit_code` | The exit code of the command. Exit code 2, which means changes or drift, is a result and not a failure of the server. |
 
+Strings that someone else can write (names, tags, descriptions, attribute values, policy messages, plan labels, drift differences) appear in results as they are, next to Pravo's own text. The `instructions` string tells the agent to treat them as data.
+
 The `initialize` result carries an `instructions` string that tells the agent the order of work: `pravo_schema`, edit the files, `pravo_validate`, `pravo_plan` with `out`, then `pravo_apply_plan` on that file.
 
 ## Examples

@@ -735,7 +735,7 @@ func ApplyCommand(root *config.Root, env string) string {
 
 // Steps are the commands that bring the release of the root to the environment to, in the
 // order of the promotion flow: apply it in each first environment that leads there, then promote it
-// into each one after and apply it there. The last step is the promotion into to.
+// into each one after and apply it there. The last step is the promotion into to. A promotion applies the release as well.
 func Steps(root *config.Root, to string) string {
 	need := map[string]bool{to: true}
 	for i := len(root.Environments) - 1; i >= 0; i-- {
@@ -751,10 +751,11 @@ func Steps(root *config.Root, to string) string {
 		if !need[env.Name] {
 			continue
 		}
+		// A promotion applies the release too, so only an environment that
+		// follows none needs its own apply.
 		if len(env.After) > 0 {
 			lines = append(lines, "    "+PromoteCommand(root, env.Name))
-		}
-		if env.Name != to {
+		} else if env.Name != to {
 			lines = append(lines, "    "+ApplyCommand(root, env.Name))
 		}
 	}
