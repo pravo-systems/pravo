@@ -778,6 +778,7 @@ Output:
 Drift. 1 of 21 resources changed outside pravo:
   files.f7: create
     - refresh found the real state differs from the state (drift)
+Run pravo plan to see what puts them back, or pravo apply to do it.
 ```
 
 ```sh
