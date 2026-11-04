@@ -259,6 +259,7 @@ func sanitiseReadersError(err error) error {
 	}
 	msg = quotedText.ReplaceAllString(msg, "")
 	msg = strings.Replace(msg, "reader key of is already listed", "reader key is already listed", 1)
+	msg = strings.Replace(msg, "the signing key of is already listed", "this signing key is already listed", 1)
 	e.Reason = msg
 	return e
 }

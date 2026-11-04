@@ -342,6 +342,19 @@ file and not in the state.`,
 	}
 }
 
+// approveRefusal says why a plan with this status takes no approval.
+func approveRefusal(s engine.PlanStatus) string {
+	switch s {
+	case engine.PlanApplied:
+		return "was applied"
+	case engine.PlanExpired:
+		return "expired"
+	case engine.PlanStale:
+		return "is stale"
+	}
+	return "cannot be applied"
+}
+
 func planApproveCmd() *cobra.Command {
 	var webhook string
 	cmd := &cobra.Command{
@@ -351,8 +364,8 @@ func planApproveCmd() *cobra.Command {
 		Long: `Signs an approval of a stored plan with your identity. A policy can ask for
 approvals before a plan is applied (set approvals in its rule, see the policy
 reference), and the apply counts the approvals of keys in the readers file
-whose role suffices. The approval is for exactly this plan; a plan made again
-needs its own. A reader cannot approve. The key that stored the plan can sign,
+whose role suffices. The approval is for exactly this plan; a plan whose content changed
+needs its own. A plan that was applied, has expired or is stale takes none (exit 3). A reader cannot approve. The key that stored the plan can sign,
 but its approval counts only where the policy sets self. Give the -t and -T that the plan was made with. With --webhook
 a plan.approved event is POSTed to that URL.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -373,6 +386,15 @@ a plan.approved event is POSTed to that URL.`,
 			id, err := ps.Resolve(ctx, args[0])
 			if err != nil {
 				return err
+			}
+			// An approval of a plan that cannot be applied changes nothing, and would
+			// read in the audit trail as if it came before the apply.
+			entry, err := ps.Entry(ctx, id, engine.PlanCheckFor(st))
+			if err != nil {
+				return err
+			}
+			if !entry.Status.Open() {
+				return engine.WithCode(engine.ExitStale, fmt.Errorf("%s %s; approving it changes nothing", id, approveRefusal(entry.Status)))
 			}
 			obj, err := ps.Approve(ctx, id)
 			if err != nil {

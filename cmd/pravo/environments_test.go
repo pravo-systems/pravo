@@ -979,7 +979,7 @@ func TestAWithdrawalSurvivesARecovery(t *testing.T) {
 	shares := filepath.Join(l.dir, "recovery-shares")
 	text := l.must(t, "zed", "protect", "recover", "--yes", "--env", "prod",
 		"--share", filepath.Join(shares, "share-1-of-3.txt"), "--share", filepath.Join(shares, "share-3-of-3.txt"))
-	if !strings.Contains(text, "withdrawn by admins of the old roles stay in force") {
+	if !strings.Contains(text, "1 release withdrawn by an admin of the old roles stays in force") {
 		t.Fatalf("protect recover:\n%s", text)
 	}
 	write(zed, cia)

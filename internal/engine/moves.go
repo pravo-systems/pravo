@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"cuelang.org/go/cue"
@@ -147,6 +148,9 @@ func (e *Engine) moveNode(fromAddr, toAddr string, target *config.Resource, stag
 	// that another command wrote since this one was read is not moved from a copy.
 	for _, a := range []string{fromAddr, toAddr} {
 		if err := e.State.Verify(a); err != nil {
+			if errors.Is(err, state.ErrChanged) {
+				return nil, WithCode(ExitStale, fmt.Errorf("the plan changed while it waited; run \"pravo plan\" again:\n  - $from %s -> %s: %w", fromAddr, toAddr, err))
+			}
 			return nil, fmt.Errorf("$from %s -> %s: %w", fromAddr, toAddr, err)
 		}
 	}

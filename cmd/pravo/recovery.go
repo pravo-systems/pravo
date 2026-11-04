@@ -547,7 +547,11 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 			out.Println("The record of the environment pinned the old roles; it pins the new ones now.")
 		}
 		if rolesInfo.Withdrawals > 0 {
-			out.Printf("%s withdrawn by admins of the old roles stay in force; an admin promotes them again to lift them.\n", plural(rolesInfo.Withdrawals, "release", "releases"))
+			if rolesInfo.Withdrawals == 1 {
+				out.Println("1 release withdrawn by an admin of the old roles stays in force; an admin promotes it again to lift it.")
+			} else {
+				out.Printf("%d releases withdrawn by admins of the old roles stay in force; an admin promotes them again to lift them.\n", rolesInfo.Withdrawals)
+			}
 		}
 		if rolesInfo.WithdrawalsLost != "" {
 			out.Println(out.C(ui.Yellow, "Withdrawals could not be carried over: "+rolesInfo.WithdrawalsLost+". A release that an admin withdrew is open to a writer again; withdraw it again with pravo promote ENV --revoke."))
