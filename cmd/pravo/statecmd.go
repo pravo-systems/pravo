@@ -660,15 +660,20 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 				}
 				out.Printf("Cleared the note of the stopped create of %s\n", args[0])
 			}
-			if creating[args[0]] && !allowCreate {
-				kept(args[0])
-				return engine.WithCode(engine.ExitRefused, errors.New("lock kept"))
-			}
 			if !force {
 				if l, err := st.LockOf(args[0]); err == nil && l.Live() {
 					out.Printf("%s is held by a running command: %s (pid %d on %s, %s, last renewed %s). Releasing it lets a second command change the node at the same time, and the first one stops with a lost lock. Wait for it to end, or run pravo state unlock --force %s to release the lock anyway.\n", args[0], l.Command, l.PID, l.Host, l.Holder(), l.RenewedAt.Local().Format(time.RFC3339), args[0])
 					return engine.WithCode(engine.ExitRefused, errors.New("lock kept: its holder is running"))
 				}
+			}
+			// The mark is read from the lock itself, whatever its age: a lock that is still
+			// live (a bucket keeps one for ten minutes) of a killed apply carries it too.
+			if l, err := st.LockOf(args[0]); err == nil && l.Kind != "reservation" && l.Creating && st.Get(args[0]) == nil {
+				creating[args[0]] = true
+			}
+			if creating[args[0]] && !allowCreate {
+				kept(args[0])
+				return engine.WithCode(engine.ExitRefused, errors.New("lock kept"))
 			}
 			ok, err := st.ForceUnlock(args[0])
 			if err != nil {

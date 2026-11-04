@@ -3,11 +3,13 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
 )
@@ -583,6 +585,37 @@ func TestStateUnlockKeepsTheMarkOfAnInterruptedCreate(t *testing.T) {
 	exists := func() bool { _, err := os.Stat(filepath.Join(locks, "web.lock")); return err == nil }
 	plant()
 	for _, args := range [][]string{{"state", "unlock", "web"}, {"state", "unlock", "--stale"}} {
+		text, code := runPravo(t, dir, args...)
+		if code != 5 || !strings.Contains(text, "web has no record") || !strings.Contains(text, "--allow-create") || !exists() {
+			t.Fatalf("%v: exit %d, lock kept %v\n%s", args, code, exists(), text)
+		}
+	}
+	if text, code := runPravo(t, dir, "state", "unlock", "--allow-create", "web"); code != 0 || exists() {
+		t.Fatalf("with --allow-create: exit %d, lock kept %v\n%s", code, exists(), text)
+	}
+}
+
+// The lock of a killed apply that is still live (a bucket keeps it for ten minutes) carries
+// the mark of the create as well: state unlock, with or without --force, keeps it until
+// --allow-create says that the create never reached the cloud (F61).
+func TestStateUnlockKeepsTheMarkOfALiveLock(t *testing.T) {
+	dir := specDir(t, map[string]string{"main.cue": "package t\n"})
+	locks := filepath.Join(dir, "pravo.state", "locks")
+	if err := os.MkdirAll(locks, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	plant := func() {
+		// Renewed five minutes ago on another host: not live for state unlock (three minutes),
+		// and not stale yet (ten), as the lock of a killed apply in a bucket is.
+		now := time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339)
+		lock := fmt.Sprintf(`{"addr":"web","pid":4242,"host":"ci-1","user":"alice","command":"pravo apply","txn":"T1","nonce":"n1","since":%q,"kind":"lock","renewed_at":%q,"creating":true}`, now, now)
+		if err := os.WriteFile(filepath.Join(locks, "web.lock"), []byte(lock), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exists := func() bool { _, err := os.Stat(filepath.Join(locks, "web.lock")); return err == nil }
+	plant()
+	for _, args := range [][]string{{"state", "unlock", "web"}, {"state", "unlock", "--force", "web"}} {
 		text, code := runPravo(t, dir, args...)
 		if code != 5 || !strings.Contains(text, "web has no record") || !strings.Contains(text, "--allow-create") || !exists() {
 			t.Fatalf("%v: exit %d, lock kept %v\n%s", args, code, exists(), text)

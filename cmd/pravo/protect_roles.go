@@ -609,5 +609,5 @@ func describeRunning(rs []runningTxn) string {
 }
 
 func runningLeaversError(rs []runningTxn) error {
-	return fmt.Errorf("%s. Wait for it to end, or release its locks with pravo state unlock if it is dead, and run this again. If the key must be cut off now (it may be compromised), run this with --allow-running: what that transaction writes afterwards will not be trusted.", describeRunning(rs))
+	return fmt.Errorf("%s. Wait for it to end, or release its locks with pravo state unlock if it is dead (the lock of a node it was creating stays until the object is adopted; unlock says how to go on), and run this again. If the key must be cut off now (it may be compromised), run this with --allow-running: what that transaction writes afterwards will not be trusted.", describeRunning(rs))
 }

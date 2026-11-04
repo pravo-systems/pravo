@@ -66,7 +66,11 @@ func (e *ErrLocked) Error() string {
 	}
 	msg := fmt.Sprintf("%s is locked by %s (pid %d on %s, %s, since %s)", l.Addr, l.Command, l.PID, l.Host, who, l.Since.Local().Format(time.RFC3339))
 	if l.GoneHere() {
-		msg += fmt.Sprintf("; that process is not running on this host. If the command was killed, `pravo state unlock %s` releases the lock (it is reclaimed by itself ten minutes after its last renewal)", l.Addr)
+		if l.Creating {
+			msg += fmt.Sprintf("; that process is not running on this host, and it was creating this node: the object may exist in the cloud untracked. Adopt it (pravo discover, or pravo import %s ID); `pravo state unlock --allow-create %s` releases the lock if the create never reached the cloud", l.Addr, l.Addr)
+		} else {
+			msg += fmt.Sprintf("; that process is not running on this host. If the command was killed, `pravo state unlock %s` releases the lock (it is reclaimed by itself ten minutes after its last renewal)", l.Addr)
+		}
 	}
 	return msg
 }
