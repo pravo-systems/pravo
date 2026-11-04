@@ -358,13 +358,14 @@ func (e *Engine) planManaged(ctx context.Context, p *resourcePlan) (*Change, err
 		return nil, fmt.Errorf("%s: %w", addr, err)
 	}
 	ch.Warnings = append(ch.Warnings, diags.Warnings()...)
-	ch.Planned, ch.PlannedPrivate, ch.RequiresReplace = res.PlannedState, res.PlannedPrivate, res.RequiresReplace
+	ch.Planned, ch.PlannedPrivate = res.PlannedState, res.PlannedPrivate
+	ch.RequiresReplace = changedPaths(prior, res.PlannedState, res.RequiresReplace)
 
 	switch {
 	case prior.IsNull():
 		ch.Action = ActionCreate
-	case p.forced || (len(res.RequiresReplace) > 0 && !prior.Equal(res.PlannedState)):
-		if err := e.planReplacement(ctx, prov, p, cfg, res.RequiresReplace); err != nil {
+	case p.forced || len(ch.RequiresReplace) > 0:
+		if err := e.planReplacement(ctx, prov, p, cfg, ch.RequiresReplace); err != nil {
 			return nil, err
 		}
 	case prior.Equal(res.PlannedState):
@@ -513,4 +514,32 @@ func (e *Engine) dependsOnPendingChange(addr string) bool {
 		}
 	}
 	return false
+}
+
+// changedPaths keeps the paths of requires_replace whose planned value differs
+// from the prior one. A path the provider lists but leaves as it was does not
+// force a replacement; an unknown planned value counts as different.
+func changedPaths(prior, planned tftypes.Value, paths []*tftypes.AttributePath) []*tftypes.AttributePath {
+	if prior.IsNull() {
+		return paths
+	}
+	var out []*tftypes.AttributePath
+	for _, path := range paths {
+		a, aok := valueAt(prior, path)
+		b, bok := valueAt(planned, path)
+		if aok != bok || (aok && (!b.IsFullyKnown() || !a.Equal(b))) {
+			out = append(out, path)
+		}
+	}
+	return out
+}
+
+// valueAt reads the value at a path; ok is false when the path leads nowhere.
+func valueAt(v tftypes.Value, path *tftypes.AttributePath) (tftypes.Value, bool) {
+	got, remaining, err := tftypes.WalkAttributePath(v, path)
+	if err != nil || len(remaining.Steps()) > 0 {
+		return tftypes.Value{}, false
+	}
+	val, ok := got.(tftypes.Value)
+	return val, ok
 }
