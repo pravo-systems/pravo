@@ -123,3 +123,25 @@ func inOrder(t *testing.T, got string, steps ...string) {
 		at += i + len(w)
 	}
 }
+
+// A replacement whose dependent is replaced create_before_destroy is replaced that way too: its
+// old object waits until the dependent's old object is gone.
+func TestReplaceInheritsCreateBeforeDestroy(t *testing.T) {
+	mk := func(v string) spec {
+		return spec{cue: fmt.Sprintf("a: {name: \"a-%s\", id: string | null}\nb: {name: \"b-\\(a.name)\", id: string | null, $lifecycle: create_before_destroy: true}\n", v), resources: []string{"a", "b"}}
+	}
+	h := newHarness(t)
+	h.apply(mk("1"))
+	h.fake.order = nil
+	e := h.engine(mk("2"), Options{})
+	p := mustPlan(t, e)
+	for _, ch := range p.Changes {
+		if !ch.CreateBeforeDestroy {
+			t.Errorf("%s is not planned create_before_destroy", ch.Addr)
+		}
+	}
+	if _, err := e.Apply(context.Background(), p); err != nil {
+		t.Fatal(err)
+	}
+	inOrder(t, orderOf(h), "create a-2", "create b-a-2", "destroy b-a-1", "destroy a-1")
+}
