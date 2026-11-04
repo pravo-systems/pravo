@@ -148,8 +148,8 @@ func TestRecordWriteFailureAfterCreationNamesTheNode(t *testing.T) {
 	if tx.Status != "failed" || !strings.Contains(tx.Summary, "creation of c finished, but the state does not record it") {
 		t.Errorf("transaction %s %q; want failed with the note about c", tx.Status, tx.Summary)
 	}
-	if got := locksHeld(t, h.state); len(got) != 0 {
-		t.Errorf("locks left after the apply: %v", got)
+	if got := locksHeld(t, h.state); !slices.Equal(got, []string{"c"}) {
+		t.Errorf("locks left after the apply: %v, want the lock of the creation c alone (its mark)", got)
 	}
 }
 

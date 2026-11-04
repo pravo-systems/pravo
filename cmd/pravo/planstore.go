@@ -746,7 +746,7 @@ func printConflicts(entry *engine.PlanEntry, stale *engine.ErrStalePlan) {
 
 // applyStored applies a plan that is stored in the state. The checks are those of
 // a plan file; besides them the plan must not have expired.
-func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []string, webhook string) error {
+func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []string, webhook string, allowCreate []string) error {
 	ctx := cmd.Context()
 	streamEvents = true
 	if cmd.Flags().Changed("refresh") || full {
@@ -759,7 +759,10 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 	defer s.close()
 	o := pravo.ApplyStoredOptions{
 		Only: only,
-		Tune: s.readersInto,
+		Tune: func(o *engine.Options) {
+			s.readersInto(o)
+			o.AllowCreate = allowCreate
+		},
 		Selected: func(id string, selected, left int) {
 			out.Printf("Applying %d of %d remaining changes from %s.\n", selected, left, id)
 		},

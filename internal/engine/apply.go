@@ -83,7 +83,7 @@ func (e *Engine) writeState(ch *Change, v tftypes.Value, private []byte, action 
 func (e *Engine) recordApplied(ch *Change, what string, v tftypes.Value, private []byte, action string) error {
 	err := e.writeState(ch, v, private, action)
 	if err != nil {
-		e.unrecorded(ch.Addr, what)
+		e.unrecorded(ch.Addr, what, idOf(v))
 	}
 	return err
 }
@@ -177,7 +177,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 				ch.removedRevision = prev.Revision
 			}
 			if _, err := e.State.Remove(ch.Addr); err != nil {
-				e.unrecorded(ch.Addr, "destruction")
+				e.unrecorded(ch.Addr, "destruction", "")
 				return tftypes.Value{}, fmt.Errorf("%s: the record could not be removed: %w", ch.Addr, err)
 			}
 			e.Opts.Progress("%s: Creating replacement...", ch.Addr)
@@ -202,6 +202,13 @@ func (e *Engine) applyChange(ctx context.Context, prov plugin.Provider, ch *Chan
 	if e.held != nil {
 		if err := e.held.fence(); err != nil {
 			return nil, err
+		}
+	}
+	// A create is noted on the lock before the provider is asked, so that an apply that is
+	// killed from here on is known to have maybe created the object.
+	if prior.IsNull() && !planned.IsNull() && e.held != nil {
+		if err := e.State.MarkCreating(ch.Addr); err != nil {
+			return nil, fmt.Errorf("%s: noting the create on its lock: %w", ch.Addr, err)
 		}
 	}
 	what := mutation(prior, planned)
@@ -409,6 +416,9 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			}
 			return &ApplyResult{Outputs: map[string]json.RawMessage{}, Deferred: plan.DeferredCount()}, nil
 		}
+	}
+	if err := e.checkInterruptedCreates(plan); err != nil {
+		return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
 	}
 	e.txn = e.State.Begin(kind, e.Opts.Command)
 	e.txn.SetPlan(e.planID, e.planDigest)

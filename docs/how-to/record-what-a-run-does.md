@@ -104,7 +104,7 @@ jq -r '.spans[].name | select(startswith("wait ") | not) | split(" ")[0]' local/
      18 provider
       4 resource
      15 setup
-     25 state
+     28 state
 ```
 
 ## 4. Read a run that failed
@@ -174,8 +174,8 @@ jq -r '.spans[] | select(.name | startswith("network PUT")) | .attrs["url.path"]
 ```text out
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
       2 network DELETE 127.0.0.1
-     14 network GET 127.0.0.1
-      7 network PUT 127.0.0.1
+     16 network GET 127.0.0.1
+      8 network PUT 127.0.0.1
 /traced-state/demo/locks/server.lock
 /traced-state/demo/meta.json
 /traced-state/demo/outputs.json

@@ -102,6 +102,9 @@ type fakeProvider struct {
 	// defersNamed makes PlanResourceChange of the resource with this name defer,
 	// whatever its content.
 	defersNamed map[string]bool
+	// afterApply, when set, runs when ApplyResourceChange of a create is about to return, with
+	// the cloud already holding the object: a test stops the process there.
+	afterApply func(name string) error
 }
 
 // canImport makes ImportResourceState find the object with this id.
@@ -544,6 +547,11 @@ func (f *fakeProvider) ApplyResourceChange(ctx context.Context, _ string, prior,
 		m["content"] = tftypes.NewValue(tftypes.String, nil)
 		return &plugin.ApplyResult{NewState: tftypes.NewValue(planned.Type(), m), Private: private},
 			plugin.Diagnostics{{Severity: "error", Summary: "the provider stopped before it set the content"}}, nil
+	}
+	if f.afterApply != nil {
+		if err := f.afterApply(name); err != nil {
+			return nil, nil, err
+		}
 	}
 	return &plugin.ApplyResult{NewState: tftypes.NewValue(planned.Type(), m), Private: private}, nil, nil
 }

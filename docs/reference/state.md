@@ -41,7 +41,7 @@ An address is the CUE path of a resource: `pet`, `api.config`, `servers[0]`. Quo
 | `verify TXN [--plan FILE]` | Checks the receipt of an apply: its signatures, its plan and the policy versions that judged it. | no | yes |
 | `locks` | The locks and reservations held. | no | yes |
 | `probe` | Checks that the S3 store or http server honours the conditional requests that locks need. One line for each check. See [S3-compatible stores](s3-stores.md#test-a-store) and [HTTP state servers](http-stores.md). | no, it writes and deletes scratch objects | yes |
-| `unlock ADDR`, `unlock --stale` | Releases a lock or a reservation, or every one that may be reclaimed. | yes | no |
+| `unlock ADDR`, `unlock --stale` | Releases a lock or a reservation, or every one that may be reclaimed. A lock of a node that has no record, left by an apply that stopped while it created the node, stays and the command exits 5, unless `--allow-create` says that the create never reached the cloud. | yes | no |
 | `pull DIR` | Copies the configured state, stored plans included, into the local directory `DIR`. | no | no |
 | `push DIR` | Copies the local directory `DIR`, stored plans included, into the configured backend. | yes | no |
 | `graph [--dot]` | The dependency edges, as `from -> to` or as Graphviz. | no | no |

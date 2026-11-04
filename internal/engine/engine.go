@@ -48,7 +48,11 @@ type Options struct {
 	// Replace lists resource addresses to destroy and create again even
 	// though the specification did not change.
 	Replace []string
-	Destroy bool
+	// AllowCreate lists nodes that an apply may create although an apply that stopped
+	// left a lock on them and the state has no record of them: the person who names
+	// them knows that the create never reached the cloud.
+	AllowCreate []string
+	Destroy     bool
 	// Command is the command line as the state shows it in transactions, locks and
 	// the summaries of stored plans. In a sealed state it holds the tags of the
 	// values that are sealed: see state.Store.ShowCommand.
@@ -505,6 +509,7 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		e.finishError("rejected", err, true)
 		return nil, err
 	}
+	e.warnUntracked(plan)
 	return plan, e.finishPhase(ctx, "planned", e.summary(plan), false)
 }
 
