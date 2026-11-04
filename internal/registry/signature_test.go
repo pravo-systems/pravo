@@ -153,3 +153,28 @@ func TestUnsignedIsAllowedUnlessRequired(t *testing.T) {
 }
 
 func filepathGlob(dir string) ([]string, error) { return filepath.Glob(filepath.Join(dir, "*")) }
+
+func TestOversizedChecksumListIsRefused(t *testing.T) {
+	k := newKey(t)
+	c, src, _ := signedServer(t, sigCase{keyOf: k, signer: k})
+	old := maxSums
+	maxSums = 8
+	defer func() { maxSums = old }()
+	_, _, _, err := c.archive(context.Background(), src, "1.0.0", CurrentPlatform(), t.TempDir(), nil)
+	if err == nil || !strings.Contains(err.Error(), "larger than") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestUnreadableSigningKeysAreRefused(t *testing.T) {
+	c := &Client{}
+	dl := &downloadInfo{}
+	dl.SigningKeys.GPGPublicKeys = append(dl.SigningKeys.GPGPublicKeys, struct {
+		KeyID      string `json:"key_id"`
+		ASCIIArmor string `json:"ascii_armor"`
+	}{"K", "not a key"})
+	_, err := c.verifySignature(context.Background(), dl, "00")
+	if err == nil || !strings.Contains(err.Error(), "cannot be read") {
+		t.Errorf("err = %v", err)
+	}
+}
