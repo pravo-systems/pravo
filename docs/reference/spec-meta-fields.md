@@ -141,7 +141,7 @@ The plan replaces `pet` and leaves `note` alone. On the `Graph:` line, `within r
 
 ### create_before_destroy
 
-With `create_before_destroy: true` the apply creates the replacement first and destroys the previous instance afterwards:
+With `create_before_destroy: true` the apply creates the replacement first and destroys the previous instance afterwards, after the nodes that depend on the replaced node were updated to use the replacement. The destroys come at the end of the apply, the last replaced node first, so that nothing points at an old object when it goes. If an update fails, the previous instance is not destroyed in that apply. The apply prints:
 
 ```sh run
 pravo apply --auto-approve 2>&1 | grep -E '^pet: (Creating|Destroying|Replacement)|^Apply'
@@ -149,8 +149,8 @@ pravo apply --auto-approve 2>&1 | grep -E '^pet: (Creating|Destroying|Replacemen
 
 ```text out
 pet: Creating replacement...
-pet: Destroying previous instance... [id=<pet>]
 pet: Replacement complete after 0s [id=<pet>]
+pet: Destroying previous instance... [id=<pet>]
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <id>]
 ```
 

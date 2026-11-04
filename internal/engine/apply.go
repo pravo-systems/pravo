@@ -164,42 +164,54 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 				oldRec = &cp
 			}
 			if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
-				if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), e.txnID(), e.Opts.Command); err != nil {
+				if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), rec.AppliedAt, e.txnID(), e.Opts.Command); err != nil {
 					return tftypes.Value{}, fmt.Errorf("%s: noting the replacement: %w", ch.Addr, err)
 				}
 				noted = true
 			}
+			// The old object is kept in the state under an address of its own until its
+			// destroy has finished, so that an apply that stops or fails from here on does
+			// not forget it, whether the create is killed, fails with a state of the new
+			// object (which is recorded over the node's record) or succeeds: a plan lists
+			// the record as one to destroy, and the next apply retries. While the node's
+			// record still holds the old object the plan takes the two records for one
+			// object, and the note refuses a second create.
+			deposed := e.depose(ch.Addr, oldRec)
 			res, err := e.applyChange(ctx, prov, ch, nullV, ch.PlannedCreate, ch.Config, ch.CreatePrivate)
 			if err != nil {
-				// A create that failed with nothing in doubt leaves no note.
-				if noted && !e.isUnsettled(ch.Addr) {
-					_ = e.State.ClearPendingCreate(ch.Addr)
+				// A create that failed with nothing in doubt leaves no note and, when the
+				// node's record still names the old object, no second record of it.
+				if !e.isUnsettled(ch.Addr) {
+					if rec := e.State.Get(ch.Addr); oldRec != nil && rec != nil && rec.ID() == oldRec.ID() && sameApplied(rec, oldRec) {
+						e.undepose(deposed)
+					}
+					if noted {
+						_ = e.State.ClearPendingCreate(ch.Addr)
+					}
 				}
 				return tftypes.Value{}, err
 			}
 			final, private = res.NewState, res.Private
-			// The old object is kept in the state under an address of its own until its
-			// destroy has finished, so that an apply that stops or fails from here on does
-			// not forget it: a plan lists it as a record to destroy, and the next apply
-			// retries. It is written before the replacement is recorded, and the note of
-			// the create is cleared after it: a command that stops between the two leaves
-			// the node and the deposed record with the same id, which the plan treats as
-			// one object, and the note, which refuses the next create.
-			deposed := e.depose(ch.Addr, oldRec)
 			if err := e.recordApplied(ch, "creation", final, private, "replace"); err != nil {
 				return tftypes.Value{}, err
 			}
 			if noted {
 				_ = e.State.ClearPendingCreate(ch.Addr)
 			}
-			e.Opts.Progress("%s: Destroying previous instance... %s", ch.Addr, idSuffix(ch.Prior))
-			if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
-				if deposed != "" {
-					err = fmt.Errorf("%w; the previous instance (id %s) is kept in the state as %s, and the next apply destroys it", err, oldRec.ID(), deposed)
+			// The destroy waits for the end of the walk: what depends on this node is updated
+			// first, so that nothing points at the old object when it goes. The closures run
+			// in reverse order of registration, which puts dependents before what they use.
+			e.deferDestroy(func(ctx context.Context) error {
+				e.Opts.Progress("%s: Destroying previous instance... %s", ch.Addr, idSuffix(ch.Prior))
+				if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
+					if deposed != "" {
+						err = fmt.Errorf("%w; the previous instance (id %s) is kept in the state as %s, and the next apply destroys it", err, oldRec.ID(), deposed)
+					}
+					return err
 				}
-				return tftypes.Value{}, err
-			}
-			e.undepose(deposed)
+				e.undepose(deposed)
+				return nil
+			})
 		} else {
 			e.Opts.Progress("%s: Destroying... %s", ch.Addr, idSuffix(ch.Prior))
 			if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
@@ -319,6 +331,35 @@ type PolicyWritten struct {
 	Seq int `json:"seq"`
 	// Change is "new", "changed" or "removed".
 	Change string `json:"change"`
+}
+
+// sameApplied reports whether two records were applied at the same time, or one does not say.
+func sameApplied(a, b *state.Resource) bool {
+	return a.AppliedAt == nil || b.AppliedAt == nil || a.AppliedAt.Equal(*b.AppliedAt)
+}
+
+// deferDestroy keeps the destroy of the old instance of a create_before_destroy replacement
+// for the end of the walk.
+func (e *Engine) deferDestroy(f func(context.Context) error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.destroyLater = append(e.destroyLater, f)
+}
+
+// runDeferredDestroys destroys the old instances that replacements left, the last
+// replaced node first. It stops at the first failure: the instances not yet destroyed stay as
+// deposed records for the next apply.
+func (e *Engine) runDeferredDestroys(ctx context.Context) error {
+	e.mu.Lock()
+	fs := e.destroyLater
+	e.destroyLater = nil
+	e.mu.Unlock()
+	for i := len(fs) - 1; i >= 0; i-- {
+		if err := fs[i](ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // complete notes that the apply finished and recorded the change at addr.
@@ -548,6 +589,12 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			return fail(err)
 		}
 		e.tally(result)
+		dd, ddDone := e.phase(ctx, "destroy previous instances")
+		err = e.runDeferredDestroys(dd)
+		ddDone(err)
+		if err != nil {
+			return fail(err)
+		}
 		if err := e.evalOutputs(final, plan, result); err != nil {
 			return fail(err)
 		}
@@ -989,5 +1036,11 @@ func (e *Engine) redundantDeposed(addr string) bool {
 		return false
 	}
 	dep, live := e.State.Get(addr), e.State.Get(base)
-	return dep != nil && live != nil && dep.ID() != "" && dep.ID() == live.ID()
+	if dep == nil || live == nil || dep.ID() == "" || dep.ID() != live.ID() {
+		return false
+	}
+	// An id is not always unique to an object: a replacement can have the id of the old
+	// object. The replacement's record was applied later than the copy that the deposed
+	// record holds; when either time is not known the records are taken for one object.
+	return dep.AppliedAt == nil || live.AppliedAt == nil || dep.AppliedAt.Equal(*live.AppliedAt)
 }

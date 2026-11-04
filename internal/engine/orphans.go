@@ -222,9 +222,11 @@ func (e *Engine) destroyOrphans(ctx context.Context, plan *Plan) (int, error) {
 			e.txn.Record(ch.Addr, "forget", before, 0)
 			e.complete(ch.Addr)
 			e.Opts.Progress("%s: Record removed (the object no longer exists)", ch.Addr)
-			mu.Lock()
-			destroyed++
-			mu.Unlock()
+			if _, dep := deposedBase(ch.Addr); !dep {
+				mu.Lock()
+				destroyed++
+				mu.Unlock()
+			}
 			return nil
 		}
 		prov, err := e.Providers.Provider(ctx, ch.ProviderKey)
