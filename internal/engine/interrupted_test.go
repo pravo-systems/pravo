@@ -854,7 +854,7 @@ func TestCreateBeforeDestroyDestroysTheOldInstancesInParallel(t *testing.T) {
 	many := func(suffix string) spec {
 		var b strings.Builder
 		var addrs []string
-		for i := 0; i < 12; i++ {
+		for i := range 12 {
 			fmt.Fprintf(&b, "n%d: %s\n", i, thing(fmt.Sprintf("n%d%s", i, suffix), cbd))
 			addrs = append(addrs, fmt.Sprintf("n%d", i))
 		}
