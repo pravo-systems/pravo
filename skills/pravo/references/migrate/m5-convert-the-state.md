@@ -109,7 +109,7 @@ An address in pravo is the place of a resource in the specification. The records
 | `random_pet.region["eu"]` | `random_pet.region_eu` | `region.eu` |
 | `module.notes.local_file.note["alpha"]` | `local_file.notes_note_alpha` | `notes.files.alpha` |
 
-Two more things make the first plan show a replacement. A file made with `${path.module}/out/a.txt` is recorded as `./out/a.txt`, so write `filename: "./out/a.txt"` exactly. A resource and an output share one namespace, so an output named `port` and a resource named `port` clash: give the resource another name and point `$from` at the old address.
+Two more things make the first plan show a replacement. A file made with `${path.module}/out/a.txt` is recorded as `./out/a.txt`, so write `filename: "./out/a.txt"` exactly. A resource and an output share one namespace, so an output named `port` and a resource named `port` clash: give the resource another name and point `$from` at the old address. Copy the permissions of a file from its record (`file_permission`, `directory_permission`, for example `"0777"`), because a value you leave out does not match the recorded one and the plan shows a change. A counted resource has no key to write in CUE, and a name that starts with an underscore is a hidden field, so `worker: _0` does not declare a resource: write each instance under a plain name such as `worker_0` and point its `$from` at the old address.
 
 The command also prints a warning for each thing it cannot carry over, and skips the records of the built-in provider, such as `terraform_remote_state`. [M10](m10-not-in-pravo.md) lists them.
 
