@@ -23,7 +23,9 @@ import (
 const (
 	DomainTxnStart  = "pravo/v1/txn-start"
 	DomainTxnFinish = "pravo/v1/txn-finish"
-	DomainPlan      = "pravo/v1/plan"
+	// DomainTxnKind signs the kind of a transaction in the name of the hint kinds/ID.KIND.
+	DomainTxnKind = "pravo/v1/txn-kind"
+	DomainPlan    = "pravo/v1/plan"
 	// DomainPlanApproval signs the approval of a stored plan.
 	DomainPlanApproval  = "pravo/v1/plan-approval"
 	DomainPolicyVersion = "pravo/v1/policy-version"

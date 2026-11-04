@@ -26,6 +26,8 @@ normalize:
     replace: 'x25519:<key>'
   - pattern: '[0-9]+(\.[0-9])? s\b'
     replace: '<time> s'
+  - pattern: '(kinds/[^ \n]*)\.[0-9a-f]{16}-[0-9a-f]+'
+    replace: '$1'
   - pattern: 'rec/[0-9a-f]{64}'
     replace: 'rec/<sha256>'
   - pattern: 'pravo [0-9][0-9A-Za-z.+-]*'

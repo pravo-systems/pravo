@@ -196,7 +196,7 @@ func (e *environmentsOf) open(ctx context.Context, name string) *envState {
 	if note != nil {
 		// The newest apply or destroy decides: a plan, an edit or a secret set after the
 		// destroy does not bring the environment back.
-		if t, err := st.LatestOfKinds("apply", "destroy"); err == nil && t != nil && t.Kind == "destroy" && t.Status == "applied" && t.Started.After(note.At) {
+		if t, err := st.LatestOfKinds(s.rf.Readers, "apply", "destroy"); err == nil && t != nil && t.Kind == "destroy" && t.Status == "applied" && t.Started.After(note.At) {
 			s.Destroyed = true
 		}
 	}

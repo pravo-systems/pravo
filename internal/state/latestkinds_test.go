@@ -63,7 +63,7 @@ func TestLatestOfKindsSkipsHintedTransactions(t *testing.T) {
 				runTxn(t, s, []string{"plan", "edit", "secret"}[i%3], "applied")
 			}
 			cb.txnGets.Store(0)
-			got, err := s.LatestOfKinds("apply", "destroy")
+			got, err := s.LatestOfKinds(nil, "apply", "destroy")
 			if err != nil || got == nil {
 				t.Fatalf("LatestOfKinds = %v, %v", got, err)
 			}
@@ -97,7 +97,7 @@ func TestLatestOfKindsWithoutHints(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	got, err := s.LatestOfKinds("apply", "destroy")
+	got, err := s.LatestOfKinds(nil, "apply", "destroy")
 	if err != nil || got == nil || got.Kind != "destroy" {
 		t.Fatalf("LatestOfKinds = %v, %v", got, err)
 	}
@@ -126,4 +126,50 @@ func TestSignedFactsOfSkipsHintedTransactions(t *testing.T) {
 	if facts, _ = s.signedFacts(context.Background(), nil); len(facts) != 51 || cb.txnGets.Load() != 51 {
 		t.Errorf("all facts = %d, reads = %d, want 51 and 51", len(facts), cb.txnGets.Load())
 	}
+}
+
+// In a sealed state a hint is believed only with its tag. A hint that someone who holds no key
+// relabels, adds or deletes costs a read and never hides a transaction.
+func TestKindHintsAreTamperEvidentInASealedState(t *testing.T) {
+	ctx := context.Background()
+	id := testIdentity(t, "ada")
+	cb := &getCounter{Backend: &LocalBackend{Dir: filepath.Join(t.TempDir(), "pravo.state")}}
+	s := sealedStore(t, cb, id)
+	runTxn(t, s, "apply", "applied")
+	destroy := runTxn(t, s, "destroy", "applied")
+	for range 30 {
+		runTxn(t, s, "plan", "applied")
+	}
+	check := func(what string, maxReads int64) {
+		t.Helper()
+		cb.txnGets.Store(0)
+		got, err := s.LatestOfKinds(readersOf(id), "apply", "destroy")
+		if err != nil || got == nil || got.ID != destroy {
+			t.Fatalf("%s: LatestOfKinds = %v, %v; want the destroy %s", what, got, err, destroy)
+		}
+		if n := cb.txnGets.Load(); n > maxReads {
+			t.Errorf("%s: read %d transaction objects, want at most %d", what, n, maxReads)
+		}
+	}
+	check("untouched", 3)
+
+	keys, _ := cb.List(ctx, KindDir)
+	var mine string
+	for _, k := range keys {
+		if strings.Contains(k, destroy+".destroy.") {
+			mine = k
+		}
+	}
+	if mine == "" {
+		t.Fatalf("no tagged hint for the destroy in %v", keys)
+	}
+	// Relabelled as a plan, with the tag of the destroy and with none.
+	_ = cb.Delete(ctx, mine)
+	_ = cb.Put(ctx, KindDir+"/"+destroy+".plan."+mine[strings.LastIndex(mine, ".")+1:], []byte("{}"))
+	check("relabelled with the old tag", 40)
+	_ = cb.Delete(ctx, KindDir+"/"+destroy+".plan."+mine[strings.LastIndex(mine, ".")+1:])
+	_ = cb.Put(ctx, KindDir+"/"+destroy+".plan", []byte("{}"))
+	check("relabelled without a tag", 40)
+	_ = cb.Delete(ctx, KindDir+"/"+destroy+".plan")
+	check("deleted", 40)
 }

@@ -3,6 +3,8 @@ package state
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
@@ -415,7 +417,27 @@ func (t *Txn) Len() int {
 // reading it. A transaction of an earlier pravo has no hint and is read, and so is one whose
 // hint names a kind that is wanted. A hint is never the answer: the answer is always taken from
 // a transaction object, and a hint only decides which objects are not read.
+//
+// In a sealed state the name ends in the signature of the writer, kinds/<id>.<kind>.<key>-<sig>:
+// the signature of the id and the kind under the key of the identity that ran the transaction,
+// which a reader checks against the readers file and needs no key of the state to do. A hint
+// without a valid signature is not believed and its transaction is read, so someone who can
+// write the bucket cannot make a transaction look like another kind, and a hint they delete or
+// replace only costs a read. A writer whose signing key lives in an ssh-agent writes no hint in
+// a sealed state, so as not to ask the agent (and its owner's touch) for one more signature
+// per run; its transactions are read.
 const KindDir = "kinds"
+
+// hintParts are what the signature of a hint covers.
+func hintParts(id, kind string) [][]byte { return [][]byte{text(id), text(kind)} }
+
+// hintSuffix is the part of the name of a hint that proves it: the first bytes of the SHA-256
+// of the fingerprint of the key, which tell the readers apart without a dot in the name, and
+// the signature, in hex.
+func hintSuffix(sig protect.Signature) string {
+	sum := sha256.Sum256([]byte(sig.Key))
+	return hex.EncodeToString(sum[:8]) + "-" + hex.EncodeToString(sig.Sig)
+}
 
 // markKind writes the hint of a transaction. A hint that cannot be written is not an error:
 // the transaction is then read when it is looked for.
@@ -423,21 +445,70 @@ func (s *Store) markKind(id, kind string) {
 	if kind == "" || strings.ContainsAny(kind, "./") {
 		return
 	}
-	_ = s.b.Put(s.cx(), KindDir+"/"+id+"."+kind, []byte("{}\n"))
+	name := KindDir + "/" + id + "." + kind
+	if s.sealedState() {
+		who := s.signingIdentity()
+		if who == nil || who.SignVia != "file" {
+			return
+		}
+		sig, err := who.SignMessage(protect.DomainTxnKind, s.Lineage(), hintParts(id, kind)...)
+		if err != nil {
+			return
+		}
+		name += "." + hintSuffix(sig)
+	}
+	_ = s.b.Put(s.cx(), name, []byte("{}\n"))
 }
 
-// kindHints returns the kind that each hint names, per transaction id.
-func (s *Store) kindHints() (map[string]string, error) {
+// hintVerified reports whether the suffix of a hint is the signature of a reader on the id and
+// the kind.
+func (s *Store) hintVerified(readers []protect.Reader, id, kind, suffix string) bool {
+	prefix, sigHex, ok := strings.Cut(suffix, "-")
+	if !ok {
+		return false
+	}
+	sig, err := hex.DecodeString(sigHex)
+	if err != nil {
+		return false
+	}
+	for _, r := range readers {
+		sum := sha256.Sum256([]byte(protect.SSHFingerprint(r.Sign)))
+		if len(r.Sign) == 0 || hex.EncodeToString(sum[:8]) != prefix {
+			continue
+		}
+		st, _ := protect.VerifySignature(&protect.Signature{Key: protect.SSHFingerprint(r.Sign), Sig: sig}, readers, protect.DomainTxnKind, s.Lineage(), hintParts(id, kind)...)
+		return st == protect.SigVerified
+	}
+	return false
+}
+
+// kindHints returns the kind that the hints name, per transaction id, for the hints that are
+// believed: in a sealed state those whose signature a reader made. A transaction with two hints
+// that name different kinds is left out, so it is read.
+func (s *Store) kindHints(readers []protect.Reader) (map[string]string, error) {
 	keys, err := s.b.List(s.cx(), KindDir)
 	if err != nil {
 		return nil, err
 	}
+	sealed := s.sealedState()
 	out := make(map[string]string, len(keys))
+	conflict := map[string]bool{}
 	for _, k := range keys {
-		name := strings.TrimPrefix(k, KindDir+"/")
-		if id, kind, ok := strings.Cut(name, "."); ok && id != "" && kind != "" {
-			out[id] = kind
+		parts := strings.Split(strings.TrimPrefix(k, KindDir+"/"), ".")
+		if len(parts) < 2 || len(parts) > 3 || parts[0] == "" || parts[1] == "" {
+			continue
 		}
+		id, kind := parts[0], parts[1]
+		if sealed && (len(parts) != 3 || !s.hintVerified(readers, id, kind, parts[2])) {
+			continue
+		}
+		if prev, ok := out[id]; ok && prev != kind {
+			conflict[id] = true
+		}
+		out[id] = kind
+	}
+	for id := range conflict {
+		delete(out, id)
 	}
 	return out, nil
 }
@@ -447,12 +518,12 @@ func (s *Store) kindHints() (map[string]string, error) {
 // the first match, so a plan, an edit or a secret that came after does not hide it. A
 // transaction whose hint (see KindDir) names another kind is not read, so the cost does not
 // grow with the plans, edits and secrets that came after the match.
-func (s *Store) LatestOfKinds(kinds ...string) (*Transaction, error) {
+func (s *Store) LatestOfKinds(readers []protect.Reader, kinds ...string) (*Transaction, error) {
 	keys, err := s.b.List(s.cx(), "txn")
 	if err != nil {
 		return nil, err
 	}
-	hints, err := s.kindHints()
+	hints, err := s.kindHints(readers)
 	if err != nil {
 		return nil, err
 	}
