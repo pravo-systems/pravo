@@ -19,7 +19,7 @@ import (
 // ---------- protect roles ----------
 
 func protectRolesCmd() *cobra.Command {
-	var yes, adoptUnsigned, vouchNotes, allowNoAdmin bool
+	var yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning bool
 	var readd []string
 	cmd := &cobra.Command{
 		Use:   "roles",
@@ -53,7 +53,7 @@ many would stop counting. Do not use it for a key that may be compromised.`,
 			if err != nil {
 				return err
 			}
-			return p.roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, readd)
+			return p.roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning, readd)
 		},
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask before the roles are stored")
@@ -61,10 +61,11 @@ many would stop counting. Do not use it for a key that may be compromised.`,
 	cmd.Flags().BoolVar(&vouchNotes, "vouch-notes", false, "also vouch for the run note and the promotions that keys leaving the writers signed, so that the environments after this one keep taking its release (not for a key that may be compromised)")
 	cmd.Flags().StringArrayVar(&readd, "readd", nil, "NAME of a former key that the readers file lists again, and that you mean to add back")
 	cmd.Flags().BoolVar(&allowNoAdmin, "allow-no-admin", false, "store roles that leave no admin")
+	cmd.Flags().BoolVar(&allowRunning, "allow-running", false, "store roles that demote or remove a key whose apply is still running (what it writes after this stays refused)")
 	return cmd
 }
 
-func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin bool, readd []string) error {
+func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning bool, readd []string) error {
 	if err := p.rf.require(); err != nil {
 		return err
 	}
@@ -140,6 +141,16 @@ func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin bool, re
 	}
 	if !allowNoAdmin && prot.Sealed != nil && !adminReadsState(next, p.rf.Readers, prot.Sealed.Status(p.rf.Readers).Missing) {
 		return engine.WithCode(engine.ExitRefused, errors.New("no admin in these roles can read the state yet: the admin in the readers file has no lock in the state. Hand the role over in two steps: list the new admin next to the old one, run pravo protect rewrap and then pravo protect roles, and only then remove the old key (rewrap again). Or pass --allow-no-admin (a recovery set is then the only way back)."))
+	}
+	if running, err := runningLeavers(st, before, next); err != nil {
+		return err
+	} else if len(running) > 0 {
+		if !allowRunning {
+			return engine.WithCode(engine.ExitLocked, runningLeaversError(running))
+		}
+		if !flags.JSON {
+			out.Printf("Warning: %s. What it writes from now on is signed by a key that is not a writer and stays refused (exit 7). To trust it, make the key a writer again, store the roles, and demote it again once the transaction has ended.\n", describeRunning(running))
+		}
 	}
 	vouches, err := newVouches(p.ctx, st, chain, before, next, seen, adoptUnsigned)
 	if err != nil {
@@ -541,4 +552,62 @@ func (p *protectRun) verifyRolesStored(st *state.Store, seq int, text string) er
 		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("the roles were stored as version %d, and reading them back gave something else. Nothing is pinned; run pravo protect check.", seq))
 	}
 	return nil
+}
+
+// runningTxn is a transaction that is still running and that a key signed which the new
+// roles take from the writers.
+type runningTxn struct{ Name, Txn, Host string }
+
+// runningLeavers lists the running transactions of the keys that are writers in before and
+// are not in next. Only a finished transaction is vouched for, so what such a transaction
+// writes when it ends would be signed by a key that is no writer: every command would then
+// refuse the state (exit 7).
+func runningLeavers(st *state.Store, before, next []protect.Reader) ([]runningTxn, error) {
+	isWriter := map[string]bool{}
+	for _, r := range next {
+		if r.Role >= protect.RoleWriter {
+			isWriter[protect.SSHFingerprint(r.Sign)] = true
+		}
+	}
+	names := map[string]string{}
+	for _, r := range before {
+		if r.Role >= protect.RoleWriter {
+			if fp := protect.SSHFingerprint(r.Sign); !isWriter[fp] {
+				names[fp] = r.Name
+			}
+		}
+	}
+	if len(names) == 0 {
+		return nil, nil
+	}
+	txns, err := st.Transactions()
+	if err != nil {
+		return nil, err
+	}
+	interrupted, err := st.Interrupted(txns)
+	if err != nil {
+		return nil, err
+	}
+	var found []runningTxn
+	for _, t := range txns {
+		if t.Status != "running" || interrupted[t.ID] || t.StartSig == nil {
+			continue
+		}
+		if who, ok := names[t.StartSig.Key]; ok {
+			found = append(found, runningTxn{Name: who, Txn: t.ID, Host: t.Host})
+		}
+	}
+	return found, nil
+}
+
+func describeRunning(rs []runningTxn) string {
+	var parts []string
+	for _, r := range rs {
+		parts = append(parts, fmt.Sprintf("%s has a running apply (txn %s, on host %s)", r.Name, r.Txn, r.Host))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func runningLeaversError(rs []runningTxn) error {
+	return fmt.Errorf("%s. Wait for it to end, or release its locks with pravo state unlock if it is dead, and run this again. If the key must be cut off now (it may be compromised), run this with --allow-running: what that transaction writes afterwards will not be trusted.", describeRunning(rs))
 }

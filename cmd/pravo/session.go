@@ -544,7 +544,7 @@ func checkBoundRecords(root *config.Root, st *state.Store) error {
 		}
 		lines = append(lines, printable(p.Addr)+": "+printable(p.Why))
 	}
-	return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%w: %s that no transaction of a writer accounts for (someone who holds the data key may have sealed them):\n%s\nSee pravo protect status. Remove or restore them with pravo state rm or from a version of the bucket.", state.ErrUntrusted, plural(len(v.Problems), "record", "records"), strings.Join(lines, "\n")))
+	return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%w: %s that no transaction of a writer accounts for (someone who holds the data key may have sealed them):\n%s\nSee pravo protect status. If the transaction was running when the roles changed, make its key a writer again, store the roles with pravo protect roles, and demote the key again: the finished transaction is then vouched for. Remove a record with pravo state rm only when its object is gone, or restore it from a version of the bucket.", state.ErrUntrusted, plural(len(v.Problems), "record", "records"), strings.Join(lines, "\n")))
 }
 
 // recordRules are the rules for the signers of the transactions that wrote records: the keys
