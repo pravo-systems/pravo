@@ -83,7 +83,7 @@ func (e *Engine) writeState(ch *Change, v tftypes.Value, private []byte, action 
 func (e *Engine) recordApplied(ch *Change, what string, v tftypes.Value, private []byte, action string) error {
 	err := e.writeState(ch, v, private, action)
 	if err != nil {
-		e.unrecorded(ch.Addr, what, idOf(v))
+		e.unrecorded(ch.Addr, what, idOf(ch, v))
 	}
 	return err
 }
@@ -136,7 +136,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 		if ch.Action == ActionUpdate {
 			verb, done = "Modifying", "Modifications"
 		}
-		e.step(string(ch.Action), ch.Addr, "start", idOf(ch.Prior), time.Time{}, "%s: %s... %s", ch.Addr, verb, idSuffix(ch.Prior))
+		e.step(string(ch.Action), ch.Addr, "start", idOf(ch, ch.Prior), time.Time{}, "%s: %s... %s", ch.Addr, verb, idSuffix(ch, ch.Prior))
 		// A create over a record (the object it records is gone) is noted like the
 		// creation of a replacement: the lock cannot carry the mark, because a plan
 		// reclaims the stale lock of a node that has a record.
@@ -168,7 +168,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 		if noted {
 			_ = e.State.ClearPendingCreate(ch.Addr)
 		}
-		e.step(string(ch.Action), ch.Addr, "done", idOf(final), start, "%s: %s complete after %s %s", ch.Addr, done, since(start), idSuffix(final))
+		e.step(string(ch.Action), ch.Addr, "done", idOf(ch, final), start, "%s: %s complete after %s %s", ch.Addr, done, since(start), idSuffix(ch, final))
 	case ActionReplace:
 		nullV := tftypes.NewValue(ch.Schema.Block.Type(), nil)
 		if ch.CreateBeforeDestroy {
@@ -221,7 +221,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 			// first, so that nothing points at the old object when it goes. The closures run
 			// in reverse order of registration, which puts dependents before what they use.
 			e.deferDestroy(ch, func(ctx context.Context) error {
-				e.Opts.Progress("%s: Destroying previous instance... %s", ch.Addr, idSuffix(ch.Prior))
+				e.Opts.Progress("%s: Destroying previous instance... %s", ch.Addr, idSuffix(ch, ch.Prior))
 				if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
 					if deposed != "" {
 						err = fmt.Errorf("%w; the previous instance (id %s) is kept in the state as %s, and the next apply destroys it", err, oldRec.ID(), deposed)
@@ -232,7 +232,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 				return nil
 			})
 		} else {
-			e.Opts.Progress("%s: Destroying... %s", ch.Addr, idSuffix(ch.Prior))
+			e.Opts.Progress("%s: Destroying... %s", ch.Addr, idSuffix(ch, ch.Prior))
 			if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
 				return tftypes.Value{}, err
 			}
@@ -255,7 +255,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 				return tftypes.Value{}, err
 			}
 		}
-		e.step("replace", ch.Addr, "done", idOf(final), start, "%s: Replacement complete after %s %s", ch.Addr, since(start), idSuffix(final))
+		e.step("replace", ch.Addr, "done", idOf(ch, final), start, "%s: Replacement complete after %s %s", ch.Addr, since(start), idSuffix(ch, final))
 	default:
 		return tftypes.Value{}, fmt.Errorf("%s: unexpected action %s during apply", ch.Addr, ch.Action)
 	}
@@ -957,7 +957,13 @@ func orderForDestroy(changes []*Change) []*Change {
 	return out
 }
 
-func idSuffix(v tftypes.Value) string {
+func idSuffix(ch *Change, v tftypes.Value) string {
+	if ch != nil && ch.Schema != nil && ch.Schema.Block != nil {
+		// The id of a sensitive file is the hash of its content.
+		if a := ch.Schema.Block.Attribute("id"); a != nil && a.Sensitive {
+			return ""
+		}
+	}
 	if v.IsNull() || !v.IsKnown() {
 		return ""
 	}
@@ -975,8 +981,8 @@ func idSuffix(v tftypes.Value) string {
 }
 
 // idOf returns the provider id of an object, or "".
-func idOf(v tftypes.Value) string {
-	s := idSuffix(v)
+func idOf(ch *Change, v tftypes.Value) string {
+	s := idSuffix(ch, v)
 	if s == "" {
 		return ""
 	}

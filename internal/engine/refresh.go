@@ -85,7 +85,7 @@ func (e *Engine) priorState(ctx context.Context, prov plugin.Provider, sr *state
 func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state.Resource, ch *Change, prior tftypes.Value, private []byte) (tftypes.Value, []byte, error) {
 	addr := ch.Addr
 	announce(ctx, func() {
-		e.step("refresh", addr, "start", idOf(prior), time.Time{}, "%s: Refreshing state... %s", addr, idSuffix(prior))
+		e.step("refresh", addr, "start", idOf(ch, prior), time.Time{}, "%s: Refreshing state... %s", addr, idSuffix(ch, prior))
 	})
 	newState, newPrivate, diags, err := prov.ReadResource(ctx, sr.Type, prior, private)
 	if err != nil {

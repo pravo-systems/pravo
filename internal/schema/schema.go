@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
@@ -292,6 +293,7 @@ func (o *Object) sort() {
 // Sort orders everything in the provider schema for stable output.
 func (p *ProviderSchema) Sort() {
 	_ = p.Materialize()
+	p.markDerivedSecrets()
 	if p.Provider != nil && p.Provider.Block != nil {
 		p.Provider.Block.Sort()
 	}
@@ -331,6 +333,7 @@ func Unmarshal(data []byte) (*ProviderSchema, error) {
 	if p.CacheVersion < CacheVersion {
 		return nil, ErrStaleCache
 	}
+	p.markDerivedSecrets()
 	if p.Ephemerals == nil {
 		p.Ephemerals = map[string]*Schema{}
 	}
@@ -352,3 +355,32 @@ func Unmarshal(data []byte) (*ProviderSchema, error) {
 // NameGuard matches the name of an attribute or a map key that says its value
 // is a secret. A value so named is withheld whatever the schema says.
 var NameGuard = regexp.MustCompile(`(?i)(password|passwd|secret|token|private_key|credential|api_key|access_key)`)
+
+// derivedSecret matches the attributes that a provider computes from the content of a file
+// or a value: its hashes and its encodings, and the id of a file whose id is the sha1 of its content.
+var derivedSecret = regexp.MustCompile(`(^|_)(md5|sha1|sha256|sha512|base64|base64sha256|base64sha512|hash)($|_)|^content_|^id$`)
+
+// markDerivedSecrets marks as sensitive the attributes that a provider computes from the
+// secret content of a resource whose type says it is sensitive, such as the md5 and sha256
+// of local_sensitive_file. A short secret can be recovered from an unsalted hash, so the
+// hash is withheld wherever the content is. The provider does not mark them, since a
+// hash is not a secret to it.
+func (p *ProviderSchema) markDerivedSecrets() {
+	for _, set := range []map[string]*Schema{p.Resources, p.DataSources} {
+		for name, s := range set {
+			markDerived(name, s)
+		}
+	}
+}
+
+// markDerived marks the computed hashes of one type, if its name says it is sensitive.
+func markDerived(name string, s *Schema) {
+	if !strings.Contains(name, "sensitive") || s == nil || s.Block == nil {
+		return
+	}
+	for _, a := range s.Block.Attributes {
+		if !a.Sensitive && derivedSecret.MatchString(a.Name) {
+			a.Sensitive = true
+		}
+	}
+}
