@@ -172,8 +172,21 @@ func (s *Store) CheckCurrent() error {
 	if json.Unmarshal(data, &m) != nil || m.Lineage != held.Lineage {
 		return nil
 	}
-	if m.Format != held.Format || (m.Sealed != nil) != (held.Sealed != nil) || (m.Migration != nil) != (held.Migration != nil) {
+	if (m.Sealed != nil) != (held.Sealed != nil) || (m.Migration != nil) != (held.Migration != nil) {
 		return ErrUpgraded
+	}
+	if m.Format != held.Format {
+		// The formats from FormatSealed up (the first policy, the first secret, the first
+		// record of an environment, the pin of its roles) only add objects: the layout of a
+		// record does not change, so a command that is running goes on, and holds the new format.
+		if held.Format < FormatSealed || m.Format < held.Format {
+			return ErrUpgraded
+		}
+		s.mu.Lock()
+		if s.meta.Format < m.Format {
+			s.meta.Format = m.Format
+		}
+		s.mu.Unlock()
 	}
 	return nil
 }

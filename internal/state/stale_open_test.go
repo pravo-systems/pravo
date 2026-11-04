@@ -39,3 +39,43 @@ func TestStoreOpenedBeforeASealWritesNothingInPlainText(t *testing.T) {
 		assertNoSecret(t, b, secretValue)
 	}
 }
+
+// A format raised from 3 up (the first policy, secret, record of an environment, pin of
+// roles) only adds objects: a store that is open goes on writing its records and holds the
+// new format. A seal that appears, or a format below 3, still stops it (F57).
+func TestStoreOpenWhenTheFormatIsRaisedKeepsWriting(t *testing.T) {
+	ctx := context.Background()
+	ada := testIdentity(t, "ada")
+	b, _ := NewLocalBackend(t.TempDir())
+	first, err := OpenBackendWith(ctx, b, Options{Identity: ada})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustSet(t, first, node("a"))
+	if _, err := first.Upgrade(ctx, UpgradeOptions{To: FormatSealed, Readers: readersOf(ada), Identity: ada}); err != nil {
+		t.Fatal(err)
+	}
+	running, err := OpenBackendWith(ctx, b, Options{Identity: ada})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if running.Format() != FormatSealed {
+		t.Fatalf("the format is %d, want %d", running.Format(), FormatSealed)
+	}
+	other, err := OpenBackendWith(ctx, b, Options{Identity: ada})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := other.EnsureFormat(FormatSecret); err != nil {
+		t.Fatal(err)
+	}
+	running.mu.Lock()
+	running.metaChecked = running.metaChecked.Add(-2 * metaRecheck)
+	running.mu.Unlock()
+	if err := running.Set(node("b"), ""); err != nil {
+		t.Fatalf("Set after another process raised the format: %v", err)
+	}
+	if running.Format() != FormatSecret {
+		t.Errorf("the format is %d after the check, want %d", running.Format(), FormatSecret)
+	}
+}
