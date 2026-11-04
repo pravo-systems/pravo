@@ -73,13 +73,13 @@ pravo apply
       2 engine
      17 phase
       1 pravo
-     20 provider
+     18 provider
       4 resource
      15 setup
      29 state
 ```
 
-Eighty-eight spans for two resources. (A run can have `wait` spans too, for a task that stood still for a provider to start; the count leaves them out.) `engine` is the plan and the apply; `phase` the stages inside each, evaluate, refresh, apply changes; `resource` one span per resource per stage; `provider` the calls to the providers; `state` the requests to the state store. The spans of one resource, with their durations in microseconds, show what an apply of a resource is made of:
+Eighty-six spans for two resources. (A run can have `wait` spans too, for a task that stood still for a provider to start; the count leaves them out.) `engine` is the plan and the apply; `phase` the stages inside each, evaluate, refresh, apply changes; `resource` one span per resource per stage; `provider` the calls to the providers; `state` the requests to the state store. The spans of one resource, with their durations in microseconds, show what an apply of a resource is made of:
 
 ```sh
 F=$(ls .pravo/traces/*.json)
@@ -95,8 +95,8 @@ Output:
       2 provider ConfigureProvider
       2 provider GetSchema
       4 provider PlanResourceChange
-      2 provider ReadResource
-      2 provider UpgradeResourceState
+      1 provider ReadResource
+      1 provider UpgradeResourceState
       2 provider ValidateProviderConfig
       4 provider ValidateResourceConfig
 ```
