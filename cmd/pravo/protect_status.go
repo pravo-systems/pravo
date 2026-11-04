@@ -158,6 +158,16 @@ func (p *protectRun) status() error {
 			add("Secrets", secretsText(v))
 		}
 	}
+	var lostPolicies []state.MissingPolicy
+	if prot.Sealed != nil && !st.Locked() {
+		lostPolicies, err = st.MissingPolicies(p.ctx, erf.Readers)
+		if err != nil {
+			return err
+		}
+		if len(lostPolicies) > 0 {
+			add("Policies", plural(len(lostPolicies), "version that signed transactions list is gone", "versions that signed transactions list are gone")+" (pravo protect policies)")
+		}
+	}
 	var sigs *sigCounts
 	if prot.Sealed != nil {
 		if readers, ok := attributionReaders(rf); ok {
@@ -198,6 +208,13 @@ func (p *protectRun) status() error {
 		if recs != nil {
 			doc["record_check"] = recs
 		}
+		if len(lostPolicies) > 0 {
+			var names []string
+			for _, m := range lostPolicies {
+				names = append(names, m.Display())
+			}
+			doc["missing_policies"] = names
+		}
 		if secs != nil {
 			doc["secrets"] = secs
 		}
@@ -225,6 +242,9 @@ func (p *protectRun) status() error {
 				out.Println(out.C(ui.Red, "Untrusted: txn/"+printable(id)+".json has a signature that does not verify"))
 			}
 		}
+		for _, m := range lostPolicies {
+			out.Println(out.C(ui.Red, "Untrusted: "+printable(m.Error())))
+		}
 		if recs != nil {
 			for _, pr := range recs.Problems {
 				out.Println(out.C(ui.Red, "Untrusted: "+printable(pr.Addr)+": "+printable(pr.Why)))
@@ -241,6 +261,9 @@ func (p *protectRun) status() error {
 	}
 	if sigs != nil && sigs.Invalid > 0 {
 		return invalidTxns(sigs.Invalid)
+	}
+	if len(lostPolicies) > 0 {
+		return fmt.Errorf("%w: %s", state.ErrUntrusted, plural(len(lostPolicies), "policy version is", "policy versions are")+" gone")
 	}
 	if recs != nil && len(recs.Problems) > 0 {
 		return fmt.Errorf("%w: %s that no transaction of a writer accounts for", state.ErrUntrusted, plural(len(recs.Problems), "record", "records"))

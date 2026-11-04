@@ -154,6 +154,9 @@ func (s *Store) PolicySet(ctx context.Context, readers []protect.Reader) (*Polic
 	if !s.sealedState() {
 		return nil, fmt.Errorf("%w: the policies of an unsealed state cannot be trusted", ErrNotReader)
 	}
+	if err := s.checkPolicyListings(ctx, readers); err != nil {
+		return nil, err
+	}
 	keys, err := s.b.List(ctx, policyDir)
 	if err != nil {
 		return nil, err
@@ -288,3 +291,182 @@ func (s *Store) PutPolicyVersion(ctx context.Context, name string, seq int, text
 // PolicyList joins refs as the part of the start of a transaction that lists the
 // policies it judged.
 func policyList(refs []string) []byte { return []byte(strings.Join(refs, "\n")) }
+
+// MissingPolicy is a policy version that a signed transaction lists as having judged its
+// plan, and that no object of the state holds, or holds with other text.
+type MissingPolicy struct {
+	Name string
+	Seq  int
+	// Digest is the SHA-256 of the text the transaction lists.
+	Digest string
+	// Txn is the first transaction found that lists it.
+	Txn string
+	// Other is set when the state holds a version at that number with other text.
+	Other bool
+}
+
+// Display is NAME@SEQ as the policy reads in the specification.
+func (m MissingPolicy) Display() string { return fmt.Sprintf("%s@%d", PolicyDisplay(m.Name), m.Seq) }
+
+// ErrPolicyMissing is the ErrUntrusted of a state that lacks a policy version a signed
+// transaction lists.
+func (m MissingPolicy) Error() string {
+	what := "the state holds no object for it"
+	if m.Other {
+		what = "the state holds other text at that number"
+	}
+	return fmt.Sprintf("%v: transaction %s was judged by policy version %s (sha256:%s), and %s. A policy version is never deleted; an admin restores it with pravo protect policies --restore", ErrUntrusted, m.Txn, m.Display(), m.Digest[:min(12, len(m.Digest))], what)
+}
+
+// Unwrap makes a MissingPolicy an ErrUntrusted.
+func (m MissingPolicy) Unwrap() error { return ErrUntrusted }
+
+// policyListings returns the policy versions that the transactions with a verified
+// signature list, per transaction id. A transaction is immutable once its start is
+// signed, so the ones read before are kept.
+func (s *Store) policyListings(ctx context.Context, readers []protect.Reader) (map[string][]string, error) {
+	keys, err := s.b.List(ctx, "txn")
+	if err != nil {
+		return nil, err
+	}
+	s.listedMu.Lock()
+	defer s.listedMu.Unlock()
+	if s.listed == nil {
+		s.listed = map[string][]string{}
+	}
+	out := map[string][]string{}
+	for _, k := range keys {
+		id, ok := strings.CutPrefix(k, "txn/")
+		if !ok {
+			continue
+		}
+		if id, ok = strings.CutSuffix(id, ".json"); !ok {
+			continue
+		}
+		if refs, ok := s.listed[id]; ok {
+			out[id] = refs
+			continue
+		}
+		data, err := s.b.Get(ctx, k)
+		if err != nil {
+			continue
+		}
+		var t Transaction
+		if json.Unmarshal(data, &t) != nil || t.ID != id {
+			continue
+		}
+		var refs []string
+		if len(t.Policies) > 0 && t.StartSig != nil {
+			if st, _ := protect.VerifySignature(t.StartSig, readers, protect.DomainTxnStart, s.Lineage(), txnStartParts(&t)...); st == protect.SigVerified {
+				refs = append(refs, t.Policies...)
+			}
+		}
+		if len(t.PolicyWrites) > 0 && t.FinishSig != nil {
+			if st, _ := protect.VerifySignature(t.FinishSig, readers, protect.DomainTxnFinish, s.Lineage(), txnFinishParts(&t)...); st == protect.SigVerified {
+				refs = append(refs, t.PolicyWrites...)
+			}
+		}
+		if len(refs) == 0 {
+			continue
+		}
+		s.listed[id] = refs
+		out[id] = refs
+	}
+	return out, nil
+}
+
+// MissingPolicies lists the policy versions that a signed transaction lists and that
+// the state no longer holds (or holds with other text). The ones a removal explains do
+// not appear: a removal is a tombstone, a new version above the listed one, so the
+// listed version stays. Only a deleted or replaced object makes one missing.
+func (s *Store) MissingPolicies(ctx context.Context, readers []protect.Reader) ([]MissingPolicy, error) {
+	if s.Format() < FormatPolicy || !s.sealedState() {
+		return nil, nil
+	}
+	listings, err := s.policyListings(ctx, readers)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(listings))
+	for id := range listings {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	seen := map[string]bool{}
+	var out []MissingPolicy
+	for _, id := range ids {
+		for _, ref := range listings[id] {
+			if seen[ref] {
+				continue
+			}
+			seen[ref] = true
+			name, seq, digest, ok := ParsePolicyRef(ref)
+			if !ok {
+				continue
+			}
+			m := MissingPolicy{Name: name, Seq: seq, Digest: digest, Txn: id}
+			data, err := s.b.Get(ctx, policyKey(name, seq))
+			if errors.Is(err, ErrNotFound) {
+				out = append(out, m)
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			var v PolicyVersion
+			if json.Unmarshal(data, &v) != nil || TextDigest(v.Text) != digest {
+				m.Other = true
+				out = append(out, m)
+			}
+		}
+	}
+	return out, nil
+}
+
+// checkPolicyListings refuses a state that lacks a policy version a signed transaction
+// lists. Without it, deleting the only version of a policy from the bucket would lift the
+// policy: the next plan that declares it again counts as a new policy, which no policy
+// judges.
+func (s *Store) checkPolicyListings(ctx context.Context, readers []protect.Reader) error {
+	missing, err := s.MissingPolicies(ctx, readers)
+	if err != nil {
+		return err
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	if len(missing) == 1 {
+		return missing[0]
+	}
+	return fmt.Errorf("%w: %d policy versions that signed transactions list are gone from the state, among them %s (transaction %s). A policy version is never deleted; an admin restores them with pravo protect policies --restore", ErrUntrusted, len(missing), missing[0].Display(), missing[0].Txn)
+}
+
+// ParsePolicyRef splits NAME@SEQ:SHA-256.
+func ParsePolicyRef(ref string) (name string, seq int, digest string, ok bool) {
+	at := strings.IndexByte(ref, '@')
+	colon := strings.IndexByte(ref, ':')
+	if at <= 0 || colon < at {
+		return "", 0, "", false
+	}
+	n, err := strconv.Atoi(ref[at+1 : colon])
+	if err != nil || n < 1 {
+		return "", 0, "", false
+	}
+	return ref[:at], n, ref[colon+1:], true
+}
+
+// RestorePolicyVersion writes a missing version back: text must have the digest the
+// transactions list. The restoring key signs it, so it is the key of an admin when the
+// readers give roles.
+func (s *Store) RestorePolicyVersion(ctx context.Context, m MissingPolicy, text string, at time.Time) error {
+	if TextDigest(text) != m.Digest {
+		return fmt.Errorf("that text is not the one transaction %s lists for %s", m.Txn, m.Display())
+	}
+	if m.Other {
+		key := policyKey(m.Name, m.Seq)
+		if err := s.b.Delete(ctx, key); err != nil && !errors.Is(err, ErrNotFound) {
+			return Advise(err)
+		}
+	}
+	return s.PutPolicyVersion(ctx, m.Name, m.Seq, text, at)
+}
