@@ -161,8 +161,11 @@ type cueState struct {
 	// with the settled fills applied. pending holds the fills of finished
 	// tasks that are not unified into current yet, by address, in the order
 	// they were made: see fill and settle.
-	cueMu        sync.Mutex
-	current      cue.Value
+	cueMu   sync.Mutex
+	current cue.Value
+	// filled says that current has had fills applied: it is no longer the
+	// specification as the root loaded it.
+	filled       bool
 	pending      map[string]*pendingFill
 	pendingOrder []string
 	// seeded reports that the first batch of fills of the run carried the seed
@@ -379,7 +382,7 @@ func (e *Engine) checkReplace() error {
 // whose resource was removed from the specification has no lifecycle to read
 // and is destroyed.
 func (e *Engine) checkDestroy() error {
-	e.current = e.Value
+	e.current, e.filled = e.Value, false
 	if _, err := e.buildGraph(); err != nil {
 		return err
 	}
@@ -394,7 +397,7 @@ func (e *Engine) checkPreventDestroy() error {
 		if r == nil || r.Mode != "managed" || sr.Mode != "managed" {
 			continue
 		}
-		if _, prevent, _, _ := lifecycle(e.Value.LookupPath(r.Path)); prevent {
+		if _, prevent, _, _ := lifecycle(e.atRoot(r.Path)); prevent {
 			held = append(held, sr.Address())
 		}
 	}

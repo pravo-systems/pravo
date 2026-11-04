@@ -226,11 +226,11 @@ Output:
 
 ```text
 Warning: local_file.cfg: deposed object 8098c1fa skipped (pravo keeps one object per resource; destroy it with tofu first)
-Warning: null_resource.gate: tainted in the source state; pravo has no taint, the object is recorded as healthy
-Warning: random_pet.server: tainted in the source state; pravo has no taint, the object is recorded as healthy
+Warning: null_resource.gate: tainted in the source state; recorded as tainted, the next plan replaces it
+Warning: random_pet.server: tainted in the source state; recorded as tainted, the next plan replaces it
 ```
 
-Cause: pravo keeps one healthy object per resource. Fix for a tainted object: run `tofu apply`, which replaces it, or plan with `--replace server` after the conversion, which destroys and creates it again. Fix for a deposed object: run `tofu apply`, which destroys it, before you convert. [M10](m10-not-in-pravo.md) lists the state that does not carry over.
+Cause: pravo keeps one object per resource. A tainted object is recorded as tainted, and the next plan replaces it. Fix for a tainted object: run `tofu apply`, which replaces it before the conversion. Fix for a deposed object: run `tofu apply`, which destroys it, before you convert. [M10](m10-not-in-pravo.md) lists the state that does not carry over.
 
 ### A record of the built-in provider
 

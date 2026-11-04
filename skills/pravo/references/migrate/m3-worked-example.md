@@ -478,7 +478,7 @@ What the conversion carries:
 
 What it does not carry:
 
-- `taint`. The command prints a warning for each tainted instance and records the object as healthy. Use `pravo plan --replace ADDR` to replace it.
+- `taint`. The command prints a warning for each tainted instance and records the object as tainted, so the next plan replaces it. `pravo plan --replace ADDR` replaces any other.
 - Deposed objects. The command prints a warning and skips them. pravo keeps one object per resource.
 - Records of the built-in provider, such as `terraform_remote_state`. The command prints a warning and skips them. Step 8 shows one.
 - `lineage`, `serial`, `terraform_version` and `check_results`. The converter does not read them.

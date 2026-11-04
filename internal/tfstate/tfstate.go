@@ -156,7 +156,8 @@ func Convert(data []byte) (*Result, error) {
 				res.Renamed = append(res.Renamed, Rename{From: tfAddr, To: addr})
 			}
 			if inst.Status == "tainted" {
-				res.Notes = append(res.Notes, tfAddr+": tainted in the source state; pravo has no taint, the object is recorded as healthy")
+				sr.Tainted = true
+				res.Notes = append(res.Notes, tfAddr+": tainted in the source state; recorded as tainted, the next plan replaces it")
 			}
 			p := &pending{r: sr, inst: inst, module: steps, tfAddr: tfAddr}
 			byConfig[key] = append(byConfig[key], p)

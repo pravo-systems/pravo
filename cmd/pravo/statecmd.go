@@ -178,6 +178,9 @@ func stateShowCmd(loadValues func() (*state.Store, error)) *cobra.Command {
 			if r.Gone {
 				fmt.Printf("// gone\n")
 			}
+			if r.Tainted {
+				fmt.Printf("// created halfway; the next plan replaces it\n")
+			}
 			if len(r.Dependencies) > 0 {
 				fmt.Printf("// depends on %s\n", strings.Join(r.Dependencies, ", "))
 			}

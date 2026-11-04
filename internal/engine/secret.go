@@ -36,7 +36,7 @@ func (e *Engine) checkSecrets(ctx context.Context, nodes map[string]*node) error
 	var asks []ask
 	for _, r := range asking {
 		e.cueMu.Lock()
-		name, pinned, known := secretAsked(r, e.current.LookupPath(r.Path))
+		name, pinned, known := secretAsked(r, e.at(r.Path))
 		e.cueMu.Unlock()
 		if known {
 			asks = append(asks, ask{r, name, pinned})

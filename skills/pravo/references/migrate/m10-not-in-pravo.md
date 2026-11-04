@@ -290,7 +290,7 @@ The conversion copies resources, data sources, their attributes, the provider's 
 
 | In the OpenTofu state | What happens |
 |---|---|
-| A tainted instance | It is recorded as healthy, with a warning. `tofu plan` replaces a tainted instance, so a root with an empty plan has none. Use `--replace` to replace one that remains. |
+| A tainted instance | It is recorded as tainted, with a warning, and the next plan replaces it. `tofu plan` replaces a tainted instance too, so a root with an empty plan has none. |
 | A deposed object | It is skipped, with a warning. `tofu plan` destroys a deposed object, so a root with an empty plan has none. Run `tofu apply` before you convert. |
 | `lineage`, `serial`, `terraform_version` | Not read. The pravo state has a lineage of its own. |
 | `check_results` | Not read. |

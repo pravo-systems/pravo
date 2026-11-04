@@ -249,3 +249,89 @@ func TestPartlyAppliedFileStillHasItsOutputsLeft(t *testing.T) {
 		t.Error("an apply from the file finished and the file still has something left")
 	}
 }
+
+// A create that failed after the provider returned its state is replaced by
+// the next plan, as -replace would: an update sends only the difference, and
+// what the failed create did not reach would never be made.
+func TestCreateThatFailedPartwayIsReplaced(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	s := spec{cue: "bad: " + thing("bad", "content: \"bad\"") + "\n", resources: []string{"bad"}}
+	e := h.engine(s, Options{})
+	plan, err := e.Plan(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.fake.partial = map[string]bool{"bad": true}
+	if _, err := e.Apply(ctx, plan); err == nil {
+		t.Fatal("an apply whose provider failed succeeded")
+	}
+	if rec := h.state.Get("bad"); rec == nil || !rec.Tainted {
+		t.Fatalf("record %+v: a create that failed partway is not marked", rec)
+	}
+
+	h.fake.partial = nil
+	plan, err = h.engine(s, Options{}).Plan(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := changeOf(t, plan, "bad")
+	if ch.Action != ActionReplace {
+		t.Fatalf("action = %s, want replace", ch.Action)
+	}
+	if !slices.ContainsFunc(ch.Reasons, func(r string) bool { return strings.Contains(r, "created halfway") }) {
+		t.Errorf("reasons %q do not say the create stopped halfway", ch.Reasons)
+	}
+	// A refresh of the marked node keeps the mark.
+	if _, err := h.engine(s, Options{Refresh: RefreshAll}).Plan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if rec := h.state.Get("bad"); rec == nil || !rec.Tainted {
+		t.Fatalf("record %+v: a refresh dropped the mark", rec)
+	}
+
+	e = h.engine(s, Options{})
+	plan, err = e.Plan(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.Apply(ctx, plan); err != nil {
+		t.Fatalf("replacing the node: %v", err)
+	}
+	if rec := h.state.Get("bad"); rec == nil || rec.Tainted {
+		t.Fatalf("record %+v: the replacement kept the mark", rec)
+	}
+	plan, err = h.engine(s, Options{}).Plan(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.HasChanges() {
+		t.Error("the plan after the replacement is not empty")
+	}
+}
+
+// An update that failed partway is finished by the next update, not replaced.
+func TestUpdateThatFailedPartwayIsNotReplaced(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	apply := func(content string) error {
+		s := spec{cue: "n: " + thing("n", "content: \""+content+"\"") + "\n", resources: []string{"n"}}
+		e := h.engine(s, Options{})
+		plan, err := e.Plan(ctx)
+		if err != nil {
+			return err
+		}
+		_, err = e.Apply(ctx, plan)
+		return err
+	}
+	if err := apply("one"); err != nil {
+		t.Fatal(err)
+	}
+	h.fake.partial = map[string]bool{"n": true}
+	if err := apply("two"); err == nil {
+		t.Fatal("an apply whose provider failed succeeded")
+	}
+	if rec := h.state.Get("n"); rec == nil || rec.Tainted {
+		t.Fatalf("record %+v: an update that failed partway is marked", rec)
+	}
+}

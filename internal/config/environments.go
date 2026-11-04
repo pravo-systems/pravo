@@ -1,12 +1,17 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
@@ -537,6 +542,58 @@ func readEnvironmentSettings(abs string, envs []Environment, opts LoadOptions) [
 // whose settings cannot be read here (a pravo.#Env that this job does not set) is left
 // out; "pravo validate" reports it.
 func (r *Root) checkEnvironments(opts LoadOptions) error {
+	// The answer does not depend on which environment this load is for, and
+	// reading the settings of every environment costs time in proportion to
+	// their number: a command that loads the root once per environment (pravo
+	// validate) would pay the square of it. The answer is kept for the files as
+	// they are.
+	key, cacheable := r.environmentCheckKey(opts)
+	if cacheable {
+		if err, ok := environmentChecks.Load(key); ok {
+			if err == nil {
+				return nil
+			}
+			return err.(error)
+		}
+	}
+	err := r.checkEnvironmentsUncached(opts)
+	if cacheable {
+		if err == nil {
+			environmentChecks.Store(key, nil)
+		} else {
+			environmentChecks.Store(key, err)
+		}
+	}
+	return err
+}
+
+// environmentChecks holds the results of checkEnvironments by environmentCheckKey.
+var environmentChecks sync.Map
+
+// environmentCheckKey names what checkEnvironments reads: the directory, the tags
+// other than the environment, the variables, and every source file with its size
+// and time, and the files laid over the package. It reports false when a source cannot be read.
+func (r *Root) environmentCheckKey(opts LoadOptions) (string, bool) {
+	h := sha256.New()
+	fmt.Fprintf(h, "%s\x00%v\x00%v\x00%v\x00", r.Dir, WithoutEnvironment(opts.Tags), opts.SysTags, opts.Env)
+	// The file that fills in $environment differs for each environment and is
+	// not read here; any other file laid over the package is.
+	for _, k := range slices.Sorted(maps.Keys(opts.Extra)) {
+		if k != envOverlayName {
+			fmt.Fprintf(h, "extra\x00%s\x00%s\x00", k, opts.Extra[k])
+		}
+	}
+	for _, f := range r.Sources {
+		fi, err := os.Stat(f)
+		if err != nil {
+			return "", false
+		}
+		fmt.Fprintf(h, "%s\x00%d\x00%d\x00", f, fi.Size(), fi.ModTime().UnixNano())
+	}
+	return hex.EncodeToString(h.Sum(nil)), true
+}
+
+func (r *Root) checkEnvironmentsUncached(opts LoadOptions) error {
 	all := readEnvironmentSettings(r.Dir, r.Environments, opts)
 	seen := map[string]string{}
 	for _, e := range all {
