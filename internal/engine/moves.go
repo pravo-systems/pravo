@@ -318,7 +318,14 @@ func (e *Engine) importResource(ctx context.Context, prov plugin.Provider, r *co
 	if err != nil {
 		return tftypes.Value{}, nil, err
 	}
+	// The check and the staging are one step: two nodes of a plan that import one object meet here.
+	e.importMu.Lock()
+	if holder := HeldBy(e.State, n); holder != "" {
+		e.importMu.Unlock()
+		return tftypes.Value{}, nil, ErrHeld(addr, label, holder)
+	}
 	e.State.Stage(n)
+	e.importMu.Unlock()
 	ch.Imported, ch.ImportID, ch.ImportIdentity = true, label, imp.Identity != nil
 	e.mu.Lock()
 	if e.imported == nil {

@@ -111,6 +111,8 @@ type fakeProvider struct {
 	order []string
 	// fixedID, when set, is the id of every object that is created.
 	fixedID string
+	// importNames gives the name an imported object reads with, in place of "obj-"+id.
+	importNames map[string]string
 }
 
 // canImport makes ImportResourceState find the object with this id.
@@ -621,13 +623,17 @@ func (f *fakeProvider) ImportResourceState(_ context.Context, typ string, target
 	f.mu.Lock()
 	f.importTargets = append(f.importTargets, target)
 	content, ok := f.importable[id]
+	name := "obj-" + id
+	if n, set := f.importNames[id]; set {
+		name = n
+	}
 	f.mu.Unlock()
 	if !ok {
 		return nil, nil, fmt.Errorf("not supported")
 	}
 	t := types[typ]
 	st := tftypes.NewValue(t, map[string]tftypes.Value{
-		"id": tftypes.NewValue(tftypes.String, id), "name": tftypes.NewValue(tftypes.String, "obj-"+id),
+		"id": tftypes.NewValue(tftypes.String, id), "name": tftypes.NewValue(tftypes.String, name),
 		"content": tftypes.NewValue(tftypes.String, content), "pin": tftypes.NewValue(tftypes.String, nil),
 	})
 	return []plugin.ImportedResource{{TypeName: typ, State: st}}, nil, nil

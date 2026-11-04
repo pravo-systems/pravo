@@ -206,6 +206,8 @@ type readState struct {
 	imported map[string]importMark
 	// touchedAddrs are the records that the apply of the declarations wrote (see declared.go).
 	touchedAddrs map[string]bool
+	// importMu orders the check and the staging of an $import.
+	importMu sync.Mutex
 	// stagedMoves maps the new address of a record that a plan moves in memory to its move.
 	stagedMoves map[string]*Change
 	// ages holds the refresh ages that were parsed, by their text.

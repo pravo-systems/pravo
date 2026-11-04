@@ -789,7 +789,7 @@ Read the first non-empty plan from the top. The line that differs from the objec
 | `# random_pet.server (random_pet) will be destroyed` and `# server (random_pet) will be created` | The resource has no `$from`, or `$from` names an address that is not in the state. | Add `$from` with the name from `Renamed instances`. |
 | One resource is created and one destroyed, and the rest moved. | `$from` uses the OpenTofu spelling `random_pet.region["eu"]`. The record is `random_pet.region_eu`. | Write the name that the import printed. |
 | `Error: $from local_file.hello -> server: the record is a managed local_file but server is declared as a managed random_pet; the type must stay the same` | `$from` names a record of another type. | Correct the address. |
-| `Error: $from random_integer.port_0 -> ports[0]: both addresses exist in state; remove one with "pravo state rm"` | Both records exist, for example after `pravo import` of an object that the converted state holds. | Keep the converted record. Run `pravo state rm 'ports[0]'`, then plan again. |
+| `Error: $from random_integer.port_0 -> ports[0]: both addresses exist in state; remove one with "pravo state rm"` | Both records exist. `pravo import` refuses an object that a record already holds, so this needs a record written another way, such as a restored state file. | Keep the converted record. Run `pravo state rm 'ports[0]'`, then plan again. |
 | `# server (random_pet) must be replaced` with `~ length: 2 -> 3 # forces replacement` | The translated value differs from the object. | Set the specification to the value that `pravo state show server` prints. |
 | A change on a resource that you did not touch, such as a new default. | The provider is newer than the one OpenTofu applied with. | Pin `$version` to the version in `.terraform.lock.hcl`, run `pravo init`, and plan again. |
 | A progress line says that `hello` does not exist and will be created again, and the plan has `# hello (local_file) will be created`. | The provider cannot find the object. The file is missing, the working directory is another one, or the provider reads another region, account or endpoint. | Run from the directory OpenTofu used. Give the provider the same configuration and credentials. |
@@ -876,23 +876,6 @@ pravo -C t4 plan 2>&1 | grep -E '(no longer exists|will be created)'
 ```text out
 hello: no longer exists; it will be created again
   # hello (local_file) will be created
-```
-
-Both records exist, because the object was also imported by hand:
-
-```sh run
-rm -rf t5 && mkdir t5 && cp -R cue.mod banner.txt out terraform.tfstate *.cue t5/
-pravo -C t5 state import-tfstate terraform.tfstate > /dev/null
-pravo -C t5 import 'ports[0]' 8111,8000,8999 > /dev/null
-pravo -C t5 plan 2>&1 | grep '^Error'
-pravo -C t5 state rm 'ports[0]'
-pravo -C t5 plan 2>&1 | grep '^Plan'
-```
-
-```text out
-Error: $from random_integer.port_0 -> ports[0]: both addresses exist in state; remove one with "pravo state rm"
-Removed ports[0]
-Plan: 0 to add, 0 to change, 0 to destroy, 9 to move.
 ```
 :::
 
