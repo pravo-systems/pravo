@@ -444,7 +444,11 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 			} else {
 				out.Printf("%s %d of %d resources changed outside pravo:\n", out.C(ui.Bold+ui.Yellow, "Drift."), len(report.Drifted), report.Refreshed)
 				for _, d := range report.Drifted {
-					out.Printf("  %s: %s\n", out.C(ui.Bold, d.Addr), d.Action)
+					action := d.Action
+					if d.Note != "" && d.Gone {
+						action = "rewrite" // the file exists with other content: the plan writes it again
+					}
+					out.Printf("  %s: %s\n", out.C(ui.Bold, d.Addr), action)
 					for _, r := range d.Reasons {
 						out.Printf("    - %s\n", r)
 					}

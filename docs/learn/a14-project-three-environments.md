@@ -512,6 +512,8 @@ The counts are close. The difference is where the rules sit. In CUE each rule is
 - A value that breaks a rule is refused. The error gives the path, the value, the rule and a location in each file.
 - `-t env=...` selects the environment, and a value outside the choices is refused.
 
+To carry a release from one environment to the next with approvals, see [Promote a release](../how-to/promote-a-release.md) and [Environments](../how-to/environments.md).
+
 :::check
 Why does `pravo eval -t env=prod` print `encrypted: true` for a bucket that never says so?
 ::answer
