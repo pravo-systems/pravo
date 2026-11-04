@@ -232,6 +232,10 @@ func (p *Plan) Counts() (add, change, destroy, read int) {
 			add++
 			destroy++
 		case ActionDelete:
+			if _, dep := deposedBase(c.Addr); dep && c.Prior.Type() != nil && c.Prior.IsNull() {
+				// A deposed record of the object the node holds: only the record goes.
+				continue
+			}
 			destroy++
 		case ActionRead:
 			if !c.Skipped {

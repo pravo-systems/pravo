@@ -16,10 +16,10 @@ import (
 type PendingCreate struct {
 	Addr  string `json:"addr"`
 	OldID string `json:"old_id"`
-	// OldRevision is the revision of the record when the note was written (0 when unknown).
-	// A create over a record can give the new object the id of the old one; the revision
-	// tells the two records apart.
-	OldRevision int `json:"old_revision,omitempty"`
+	// OldAppliedAt is when the record was last applied. An id is not always unique to an
+	// object (the id of a local_file is a hash of its content), so a replacement that has the
+	// old id is told from the old object by this time, which the replacement's record renews.
+	OldAppliedAt *time.Time `json:"old_applied_at,omitempty"`
 	// Recreate marks a create over the record of an object that is gone, as opposed to the
 	// replacement of one that is still there.
 	Recreate bool      `json:"recreate,omitempty"`
@@ -30,11 +30,20 @@ type PendingCreate struct {
 	Since    time.Time `json:"since"`
 }
 
+// Holds reports whether rec is still the record of the object that the note names: it has
+// the id, and, when both know when the record was applied, the same time. In doubt it holds.
+func (p *PendingCreate) Holds(rec *Resource) bool {
+	if p.OldID == "" || rec.ID() != p.OldID {
+		return false
+	}
+	return p.OldAppliedAt == nil || rec.AppliedAt == nil || p.OldAppliedAt.Equal(*rec.AppliedAt)
+}
+
 func pendingKey(addr string) string { return "locks/" + encodeAddr(addr) + ".replacing" }
 
 // NotePendingCreate writes the note for addr, in place of any that is there.
-func (s *Store) NotePendingCreate(addr, oldID string, oldRevision int, recreate bool, txn, command string) error {
-	p := PendingCreate{Addr: addr, OldID: oldID, OldRevision: oldRevision, Recreate: recreate, Txn: txn, Command: command, Since: time.Now().UTC()}
+func (s *Store) NotePendingCreate(addr, oldID string, oldAppliedAt *time.Time, recreate bool, txn, command string) error {
+	p := PendingCreate{Addr: addr, OldID: oldID, OldAppliedAt: oldAppliedAt, Recreate: recreate, Txn: txn, Command: command, Since: time.Now().UTC()}
 	p.Host, _ = os.Hostname()
 	p.PID = os.Getpid()
 	data, err := indentJSON(p)
@@ -81,12 +90,6 @@ func (r *Resource) ID() string {
 	return s
 }
 
-// Holds reports whether rec is the record the note was written over: the same id and, when
-// both revisions are known, the same revision (a record staged in memory by a plan has none).
-func (p *PendingCreate) Holds(rec *Resource) bool {
-	return p.OldID != "" && rec.ID() == p.OldID && (p.OldRevision == 0 || rec.Revision == 0 || rec.Revision == p.OldRevision)
-}
-
 // Orphaned reports whether the note belongs to a command that is gone and whose create the
 // record rec (the record of the node now) does not account for: the record is absent or still
 // holds the old object. A command that is running still holds a lock for the transaction.
@@ -114,10 +117,6 @@ func (s *Store) MovePendingCreate(from, to string) error {
 		return err
 	}
 	p.Addr = to
-	// A moved record starts a revision count of its own.
-	if rec := s.Get(to); rec != nil && p.OldRevision != 0 {
-		p.OldRevision = rec.Revision
-	}
 	data, err := indentJSON(p)
 	if err != nil {
 		return err

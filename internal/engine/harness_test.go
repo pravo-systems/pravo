@@ -107,6 +107,10 @@ type fakeProvider struct {
 	afterApply func(name string) error
 	// beforeDestroy, when set, runs when a destroy of the object called name begins.
 	beforeDestroy func(name string)
+	// order lists the creates, updates and destroys that reached the provider, as "create NAME" and so on.
+	order []string
+	// fixedID, when set, is the id of every object that is created.
+	fixedID string
 }
 
 // canImport makes ImportResourceState find the object with this id.
@@ -510,6 +514,7 @@ func (f *fakeProvider) PlanResourceChange(_ context.Context, _ string, prior, pr
 }
 func (f *fakeProvider) ApplyResourceChange(ctx context.Context, _ string, prior, planned, _ tftypes.Value, private []byte) (*plugin.ApplyResult, plugin.Diagnostics, error) {
 	f.count("ApplyResourceChange")
+	f.noteOrder(prior, planned)
 	if planned.IsNull() {
 		if f.destroy(prior) {
 			return nil, plugin.Diagnostics{{Severity: "error", Summary: "the provider could not destroy the object"}}, nil
@@ -526,6 +531,9 @@ func (f *fakeProvider) ApplyResourceChange(ctx context.Context, _ string, prior,
 		n := f.next
 		f.mu.Unlock()
 		m["id"] = tftypes.NewValue(tftypes.String, fmt.Sprintf("id-%d", n))
+		if f.fixedID != "" {
+			m["id"] = tftypes.NewValue(tftypes.String, f.fixedID)
+		}
 	}
 	var name string
 	_ = m["name"].As(&name)
@@ -556,6 +564,25 @@ func (f *fakeProvider) ApplyResourceChange(ctx context.Context, _ string, prior,
 		}
 	}
 	return &plugin.ApplyResult{NewState: tftypes.NewValue(planned.Type(), m), Private: private}, nil, nil
+}
+
+// noteOrder appends the change that reaches the provider to order.
+func (f *fakeProvider) noteOrder(prior, planned tftypes.Value) {
+	verb, v := "update", planned
+	switch {
+	case planned.IsNull():
+		verb, v = "destroy", prior
+	case prior.IsNull():
+		verb = "create"
+	}
+	var m map[string]tftypes.Value
+	var name string
+	if v.As(&m) == nil {
+		_ = m["name"].As(&name)
+	}
+	f.mu.Lock()
+	f.order = append(f.order, verb+" "+name)
+	f.mu.Unlock()
 }
 
 // destroy takes the time of a destroy of the object whose state is prior and
