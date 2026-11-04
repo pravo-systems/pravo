@@ -64,8 +64,49 @@ func (e *ErrLocked) Error() string {
 		}
 		return fmt.Sprintf("%s is reserved by %s (%s%s, since %s)", l.Addr, who, l.Command, until, l.Since.Local().Format(time.RFC3339))
 	}
-	return fmt.Sprintf("%s is locked by %s (pid %d on %s, %s, since %s)", l.Addr, l.Command, l.PID, l.Host, who, l.Since.Local().Format(time.RFC3339))
+	msg := fmt.Sprintf("%s is locked by %s (pid %d on %s, %s, since %s)", l.Addr, l.Command, l.PID, l.Host, who, l.Since.Local().Format(time.RFC3339))
+	if l.GoneHere() {
+		msg += fmt.Sprintf("; that process is not running on this host. If the command was killed, `pravo state unlock %s` releases the lock (it is reclaimed by itself ten minutes after its last renewal)", l.Addr)
+	}
+	return msg
 }
+
+// GoneHere reports whether the lock was taken on this host by a process that is not running
+// any more. A state on this machine reclaims such a lock at once; with a bucket the lock stays
+// until it has not been renewed for StaleAfter, because the process of another host cannot be
+// asked.
+func (l Lock) GoneHere() bool {
+	if l.Kind == "reservation" || l.PID <= 0 {
+		return false
+	}
+	host, _ := os.Hostname()
+	return l.Host == host && l.PID != os.Getpid() && !processAlive(l.PID)
+}
+
+// LiveAfter is how recently a lock must have been renewed to be taken for a running command
+// by "state unlock", whatever its host.
+const LiveAfter = 3 * time.Minute
+
+// Live reports whether the lock looks held by a running command: its process is alive on this
+// host, or it was renewed less than LiveAfter ago. A reservation is never live: it belongs to
+// a plan that has ended.
+func (l Lock) Live() bool {
+	if l.Kind == "reservation" {
+		return false
+	}
+	host, _ := os.Hostname()
+	if l.Host == host && l.PID > 0 && l.PID != os.Getpid() {
+		return processAlive(l.PID)
+	}
+	last := l.RenewedAt
+	if last.IsZero() {
+		last = l.Since
+	}
+	return !last.IsZero() && time.Since(last) < LiveAfter
+}
+
+// LockOf reads the lock on addr, or ErrNotFound when there is none.
+func (s *Store) LockOf(addr string) (Lock, error) { return s.readLock(addr) }
 
 // osUser returns the name of the operating system user, or "" when it cannot
 // be found.

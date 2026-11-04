@@ -264,3 +264,47 @@ func TestStateMvLocksTheDependents(t *testing.T) {
 		t.Errorf("locks left after the move:\n%s", locks)
 	}
 }
+
+// "state unlock ADDR" of a lock whose holder may be running is refused (exit 5) with the
+// holder named, unless --force says to go on; a lock left behind and a reservation go as before.
+func TestStateUnlockRefusesALiveLockWithoutForce(t *testing.T) {
+	dir := specDir(t, map[string]string{"main.cue": "package t\n"})
+	locks := filepath.Join(dir, "pravo.state", "locks")
+	if err := os.MkdirAll(locks, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	plant := func(addr, host string, renewed time.Time, kind string) {
+		l := state.Lock{Addr: addr, PID: 4242, Host: host, User: "alice", Command: "pravo apply", Txn: "T1", Nonce: "n1", Since: renewed, RenewedAt: renewed, Kind: kind}
+		if kind == "reservation" {
+			until := time.Now().Add(time.Hour)
+			l.Expires = &until
+		}
+		data, _ := json.Marshal(l)
+		if err := os.WriteFile(filepath.Join(locks, addr+".lock"), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exists := func(addr string) bool { _, err := os.Stat(filepath.Join(locks, addr+".lock")); return err == nil }
+
+	plant("live", "ci-1", time.Now(), "lock")
+	text, code := runPravo(t, dir, "state", "unlock", "live")
+	if code != 5 || !strings.Contains(text, "pid 4242 on ci-1") || !strings.Contains(text, "--force") || !exists("live") {
+		t.Fatalf("unlock of a live lock: exit %d, kept %v\n%s", code, exists("live"), text)
+	}
+	if text, code := runPravo(t, dir, "state", "unlock", "--force", "live"); code != 0 || exists("live") {
+		t.Fatalf("with --force: exit %d, kept %v\n%s", code, exists("live"), text)
+	}
+
+	plant("old", "ci-1", time.Now().Add(-10*time.Minute), "lock")
+	if text, code := runPravo(t, dir, "state", "unlock", "old"); code != 0 || exists("old") {
+		t.Fatalf("unlock of a lock left behind: exit %d, kept %v\n%s", code, exists("old"), text)
+	}
+	plant("res", "ci-1", time.Now(), "reservation")
+	if text, code := runPravo(t, dir, "state", "unlock", "res"); code != 0 || exists("res") {
+		t.Fatalf("unlock of a reservation: exit %d, kept %v\n%s", code, exists("res"), text)
+	}
+	plant("stale", "ci-1", time.Now().Add(-time.Hour), "lock")
+	if text, code := runPravo(t, dir, "state", "unlock", "--stale"); code != 0 || exists("stale") {
+		t.Fatalf("--stale: exit %d\n%s", code, text)
+	}
+}

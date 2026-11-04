@@ -597,7 +597,7 @@ func upgradeCmd(load func() (*state.Store, error)) *cobra.Command {
 // unlockCmd is "state unlock": it releases one lock, or with --stale every lock
 // that may be reclaimed.
 func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
-	var stale, allowCreate bool
+	var stale, allowCreate, force bool
 	cmd := &cobra.Command{
 		Use: "unlock [addr]", Short: "Release a resource lock left behind by a crashed command", Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -664,6 +664,12 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 				kept(args[0])
 				return engine.WithCode(engine.ExitRefused, errors.New("lock kept"))
 			}
+			if !force {
+				if l, err := st.LockOf(args[0]); err == nil && l.Live() {
+					out.Printf("%s is held by a running command: %s (pid %d on %s, %s, last renewed %s). Releasing it lets a second command change the node at the same time, and the first one stops with a lost lock. Wait for it to end, or run pravo state unlock --force %s to release the lock anyway.\n", args[0], l.Command, l.PID, l.Host, l.Holder(), l.RenewedAt.Local().Format(time.RFC3339), args[0])
+					return engine.WithCode(engine.ExitRefused, errors.New("lock kept: its holder is running"))
+				}
+			}
 			ok, err := st.ForceUnlock(args[0])
 			if err != nil {
 				return err
@@ -678,6 +684,7 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&stale, "stale", false, "release every lock and reservation that may be reclaimed: its process is gone, it was not renewed for 10 minutes, or it expired")
 	cmd.Flags().BoolVar(&allowCreate, "allow-create", false, "also release the lock of a node with no record that an apply stopped while it created: you know the create never reached the cloud, so the next apply may create the node; also clears the note of a stopped create over a record")
+	cmd.Flags().BoolVar(&force, "force", false, "release the lock of a command that may still be running: its holder is alive on this host, or renewed the lock in the last three minutes")
 	return cmd
 }
 
