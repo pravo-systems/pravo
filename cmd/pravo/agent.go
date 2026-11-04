@@ -264,7 +264,12 @@ func schemaText(ps *schema.ProviderSchema, typ string, required, discovery bool,
 	if len(body) == 0 {
 		return "", fmt.Errorf("could not render the definition of %s", typ)
 	}
-	importPath, _ := genPackage(source)
+	importPath, pkgName := genPackage(source)
+	if pkgName != source.Type {
+		// The package name differs from the last element of the path (null is
+		// package null_): the import must name it, or it does not compile.
+		importPath += ":" + pkgName
+	}
 	text = fmt.Sprintf("// %s %s, from %s\n// Use it with:\n//\n//\timport <alias> %q\n//\n//\t<provider>: <alias>.#Provider\n//\t<name>:     <provider>.%s.%s & {...}\n//\n// The definition:\n%s\n", kind, typ, source.Display(), importPath, def, typ, strings.Join(body, "\n"))
 	return text, nil
 }

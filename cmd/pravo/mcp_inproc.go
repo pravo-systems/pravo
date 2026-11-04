@@ -42,7 +42,12 @@ func runStateQuery(ctx context.Context, in map[string]any) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	res, err := pravo.QueryState(st, strArg(in, "expression"))
+	// An agent reads the state as the viewer shows it: sensitive values withheld.
+	snap, _, err := redactedSnapshot(ctx, st)
+	if err != nil {
+		return "", err
+	}
+	res, err := pravo.QuerySnapshot(snap, strArg(in, "expression"))
 	if err != nil {
 		return "", err
 	}

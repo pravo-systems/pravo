@@ -216,7 +216,7 @@ pravo -C zones plan
 Output:
 
 ```text
-Error: tagged.triggers["stage"]: value depends on env, which is not concrete (is a -t tag missing?)
+Error: tagged.triggers["stage"]: value depends on env, which is not concrete (give it a value, or pass -t if it is a tag)
 ```
 
 ```sh

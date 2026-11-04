@@ -371,7 +371,7 @@ There is no environment variable and no flag that names or skips a policy. A rul
 - **The planner's words.** `before`, the flags, `stats`, `outputs` and drift come from the plan. Apply checks the address, the action, the known values and the revisions.
 - **The digest identifies bytes, not the evaluator.** The same text judged by another version of CUE may be judged differently. `pravo version` prints the version that is inside the binary.
 - **A policy judges what a plan does.** A no-op change carries no `after`. A rule over attributes reports a resource only when a change touches it. An audit of what exists is `pravo state query`.
-- **A deleted version.** A writer of the bucket who deletes the latest version of a policy rolls an edit back, or brings a removed policy back. The next plan shows the difference.
+- **A deleted version.** A policy version is never deleted. A signed transaction lists the versions that judged it and the ones it wrote, so when an object of `policy/` that one names is gone, `plan`, `apply`, `state verify` and `protect status` refuse the state (exit 7) and name the policy and the transaction. An admin writes the versions back with `pravo protect policies --restore`. Versions that no signed transaction names, such as a policy stored by a pravo that did not sign the list, are not covered.
 
 ### The server for agents
 

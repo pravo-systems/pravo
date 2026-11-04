@@ -45,7 +45,7 @@ Every entry has the same parts: the message as pravo prints it, the cause, and t
 | `${env}` in a plan | [A string that keeps its dollar](#a-string-that-keeps-its-dollar) |
 | `Missing Configuration for Required Attribute` | [A name that refers to itself](#a-name-that-refers-to-itself) |
 | `conflicting values false and true` | [Merging with an override](#merging-with-an-override) |
-| `is not concrete (is a -t tag missing?)` | [A tag that was not given](#a-tag-that-was-not-given) |
+| `is not concrete (give it a value, or pass -t if it is a tag)` | [A tag that was not given](#a-tag-that-was-not-given) |
 | `-t` with a list | [A list given on the command line](#a-list-given-on-the-command-line) |
 | `provider notes.provider was not supplied`, `as local.notes.provider` | [A provider that was not passed](#a-provider-that-was-not-passed) |
 | `is not in state` for a key with a dash | [An address that needs quotes](#an-address-that-needs-quotes) |
@@ -843,7 +843,7 @@ pravo -C tags plan
 ```text out
 Success! 1 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 1 providers.
 
-Error: note.content: value depends on suffix, which is not concrete (is a -t tag missing?)
+Error: note.content: value depends on suffix, which is not concrete (give it a value, or pass -t if it is a tag)
 ```
 
 Cause: `suffix` has no default and no `-t suffix=...` was given. `validate` accepts a value that is still a type. Fix: pass `-t suffix=value`, or give the field a default: `*"x" | string`.

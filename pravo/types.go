@@ -18,6 +18,8 @@ type (
 	Root = config.Root
 	// Store is the state.
 	Store = state.Store
+	// Snapshot is the whole graph of a state as one document.
+	Snapshot = state.Snapshot
 	// Backend is where a state is kept.
 	Backend = state.Backend
 	// Engine plans and applies.

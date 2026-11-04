@@ -271,3 +271,92 @@ func TestPolicyHistoryListsEveryVersionOldestFirst(t *testing.T) {
 		t.Errorf("a forged version: %v", err)
 	}
 }
+
+// A policy version that a signed transaction lists cannot vanish: deleting the only
+// version, or the newer of two, makes every read of the policies refuse the state.
+func TestADeletedPolicyVersionThatATransactionListsIsRefused(t *testing.T) {
+	skipWhenSealed(t)
+	ctx := context.Background()
+	b := testBackends()[0].make(t)
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	readers := readersOf(ada)
+	at := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
+	for _, v := range []struct {
+		name string
+		seq  int
+		text string
+	}{{"careful", 1, "summary: destroy: 0"}, {"two", 1, "summary: add: 0"}, {"two", 2, "summary: add: <=1"}, {"gone", 1, "summary: add: 5"}, {"gone", 2, ""}} {
+		if err := s.PutPolicyVersion(ctx, v.name, v.seq, v.text, at.Add(time.Duration(v.seq)*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set, err := s.PolicySet(ctx, readers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx := s.Begin("apply", "pravo apply")
+	tx.SetPlan("", "d1g3st")
+	var refs []string
+	for _, v := range set.InForce() {
+		refs = append(refs, v.Ref())
+	}
+	tx.SetPolicies(refs[:1]) // only careful judged; "two" is known to the state through the writes
+	if err := tx.Start(); err != nil {
+		t.Fatal(err)
+	}
+	tx.Record("net.vpc", "update", 1, 2)
+	// The run that put the policies is another one: it wrote them, and nothing judged by them.
+	tx.SetPolicyWrites(refs[1:])
+	if err := tx.FinishError("applied", "", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.PolicySet(ctx, readers); err != nil {
+		t.Fatalf("an untouched state: %v", err)
+	}
+	// An admin's removal (a tombstone above the listed version) is no loss.
+	if err := s.PutPolicyVersion(ctx, "two", 3, "", at.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.PolicySet(ctx, readers); err != nil {
+		t.Fatalf("after a removal: %v", err)
+	}
+
+	for _, c := range []struct{ name, key string }{
+		{"the only version", "policy/careful@00000001.json"},
+		{"the newer of two", "policy/two@00000002.json"},
+	} {
+		data, err := b.Get(ctx, c.key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := b.Delete(ctx, c.key); err != nil {
+			t.Fatal(err)
+		}
+		_, err = s.PolicySet(ctx, readers)
+		if !errors.Is(err, ErrUntrusted) || err == nil {
+			t.Fatalf("%s deleted: want ErrUntrusted, got %v", c.name, err)
+		}
+		if _, err := b.Get(ctx, c.key); err == nil {
+			t.Fatal("deleted")
+		}
+		missing, err := s.MissingPolicies(ctx, readers)
+		if err != nil || len(missing) != 1 || missing[0].Txn != tx.ID() {
+			t.Fatalf("%s: missing %+v %v", c.name, missing, err)
+		}
+		// The way out: restore the text, which has to match the digest.
+		if err := s.RestorePolicyVersion(ctx, missing[0], "summary: destroy: 1", at); err == nil {
+			t.Errorf("other text restored")
+		}
+		var v PolicyVersion
+		if err := json.Unmarshal(data, &v); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.RestorePolicyVersion(ctx, missing[0], v.Text, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.PolicySet(ctx, readers); err != nil {
+			t.Fatalf("%s restored: %v", c.name, err)
+		}
+	}
+}

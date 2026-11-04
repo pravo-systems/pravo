@@ -714,9 +714,16 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		if err := e.writePolicies(ctx, policies, plan); err != nil {
 			return fail(err)
 		}
+		var written []string
 		for _, en := range plan.Policies {
 			result.Policies = append(result.Policies, PolicyWritten{Name: en.Name, Seq: en.Base + 1, Change: en.Kind()})
+			digest := en.Digest
+			if en.removal() {
+				digest = state.TextDigest("")
+			}
+			written = append(written, fmt.Sprintf("%s@%d:%s", en.Name, en.Base+1, digest))
 		}
+		e.txn.SetPolicyWrites(written)
 	}
 	result.Applied = e.completedAddrs()
 	summary := fmt.Sprintf("%d added, %d changed, %d destroyed", result.Added, result.Changed, result.Destroyed)

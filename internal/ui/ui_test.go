@@ -221,3 +221,18 @@ func TestRenderPlanWithholdsADerivedField(t *testing.T) {
 		t.Errorf("the plan does not say that a field is withheld:\n%s", got)
 	}
 }
+
+func TestSafeReplacesWhatMovesATerminal(t *testing.T) {
+	for in, want := range map[string]string{
+		"plain text":                       "plain text",
+		"clear\x1b[2Jscreen":               "clear?[2Jscreen",
+		"title\x1b]0;x\aend":               "title?]0;x?end",
+		"two\nlines\tand\rmore":            "two lines and more",
+		"bidi \u202eevil":                  "bidi ?evil",
+		"fake\nApply complete! Resources:": "fake Apply complete! Resources:",
+	} {
+		if got := Safe(in); got != want {
+			t.Errorf("Safe(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

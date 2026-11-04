@@ -88,7 +88,11 @@ func StartWith(path string, logger hclog.Logger, e env.Env, extraEnv []string) (
 		AllowedProtocols: []goplugin.Protocol{goplugin.ProtocolGRPC},
 		AutoMTLS:         true,
 		Managed:          true,
-		Logger:           logger,
+		// cmd.Env is the whole environment of the provider: without this go-plugin adds the
+		// environment of the process again, and the variables that providerEnv withholds
+		// would reach the provider after all.
+		SkipHostEnv: true,
+		Logger:      logger,
 		GRPCDialOptions: []grpc.DialOption{
 			grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMessageSize), grpc.MaxCallSendMsgSize(maxMessageSize)),
 		},
@@ -96,7 +100,7 @@ func StartWith(path string, logger hclog.Logger, e env.Env, extraEnv []string) (
 	rpc, err := client.Client()
 	if err != nil {
 		client.Kill()
-		return nil, fmt.Errorf("starting provider %s: %w", path, err)
+		return nil, fmt.Errorf("starting provider %s: %w (if the file is damaged, for instance by an interrupted install, delete it and run \"pravo init\")", path, err)
 	}
 	raw, err := rpc.Dispense("provider")
 	if err != nil {
