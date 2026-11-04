@@ -16,6 +16,10 @@ import (
 // passes is made before its failure is returned.
 const retryAttempts = 4
 
+// maxRetryWait is the longest pause before a new try, whatever Retry-After asks
+// for: a registry cannot make a command sleep for hours.
+const maxRetryWait = 60 * time.Second
+
 // retryTransport makes the requests that read from a registry again when the
 // connection is reset or dropped, or when the registry answers that it is busy
 // or unavailable. A registry that several machines query at once, as the CI of a
@@ -48,7 +52,7 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 		pause := t.pause(attempt)
 		if resp != nil {
-			pause = max(pause, retryAfter(resp.Header.Get("Retry-After"), time.Now()))
+			pause = min(max(pause, retryAfter(resp.Header.Get("Retry-After"), time.Now())), maxRetryWait)
 		}
 		select {
 		case <-time.After(pause):

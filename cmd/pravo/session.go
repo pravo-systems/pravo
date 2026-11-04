@@ -419,7 +419,7 @@ func genPackage(src registry.Source) (importPath, pkgName string) {
 	case src.OCI:
 		parts = append(parts, "oci", strings.ReplaceAll(src.Host, ":", "_"))
 	case src.Host != registry.DefaultHost:
-		parts = append(parts, src.Host)
+		parts = append(parts, strings.ReplaceAll(src.Host, ":", "_"))
 	}
 	parts = append(parts, src.Namespace, src.Type)
 	pkgName = strings.NewReplacer("-", "_", ".", "_").Replace(src.Type)

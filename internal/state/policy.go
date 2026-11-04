@@ -327,6 +327,17 @@ func (m MissingPolicy) Unwrap() error { return ErrUntrusted }
 type txnFacts struct {
 	policies []string
 	secrets  map[string]int
+	// envRecord is the newest version of the record of the environment the transaction wrote.
+	envRecord int
+	// started and nodes are the start of the transaction and, for each resource address it
+	// changed, the revision it left (0 when it removed the node), in the order of its changes.
+	started time.Time
+	nodes   []nodeChange
+}
+
+type nodeChange struct {
+	addr  string
+	after int
 }
 
 // signedFacts returns the facts of the transactions whose signatures verify against the
@@ -372,6 +383,29 @@ func (s *Store) signedFacts(ctx context.Context, readers []protect.Reader) (map[
 		if t.FinishSig != nil && t.Finished != nil {
 			if st, _ := protect.VerifySignature(t.FinishSig, readers, protect.DomainTxnFinish, s.Lineage(), txnFinishParts(&t)...); st == protect.SigVerified {
 				f.policies = append(f.policies, t.PolicyWrites...)
+				f.started = t.Started
+				for _, c := range t.Changes {
+					if strings.HasPrefix(c.Addr, secretAddrPrefix) || c.Addr == EnvironmentAddr {
+						continue
+					}
+					switch c.Action {
+					case "unsettled", "deposed", "destroy":
+						continue
+					}
+					after := c.After
+					switch c.Action {
+					case "delete", "forget", "move-from":
+						after = 0 // a removal leaves no pointer, whatever revision it names
+					}
+					f.nodes = append(f.nodes, nodeChange{c.Addr, after})
+				}
+				if t.Kind == "environment" {
+					for _, c := range t.Changes {
+						if c.Addr == EnvironmentAddr && c.Action == "set" {
+							f.envRecord = max(f.envRecord, c.After)
+						}
+					}
+				}
 				if t.Kind == "secret" {
 					for _, c := range t.Changes {
 						name, ok := strings.CutPrefix(c.Addr, secretAddrPrefix)
@@ -528,4 +562,70 @@ func (s *Store) RestorePolicyVersion(ctx context.Context, m MissingPolicy, text 
 		}
 	}
 	return s.PutPolicyVersion(ctx, m.Name, m.Seq, text, at)
+}
+
+// MissingNodes lists the resource addresses whose newest change in a verified, finished
+// transaction left a revision, and whose pointer (resources/ADDRESS.json) the state does not
+// hold: the pointer was deleted from the bucket, and the next plan would show the resource
+// as new and plan a duplicate. A removal (state rm, a destroy, a move) is the newest change
+// of its address and so explains an absent pointer.
+func (s *Store) MissingNodes(ctx context.Context, readers []protect.Reader) ([]string, error) {
+	if len(readers) == 0 || !s.sealedState() {
+		return nil, nil
+	}
+	facts, err := s.signedFacts(ctx, readers)
+	if err != nil {
+		return nil, err
+	}
+	type last struct {
+		at    time.Time
+		after int
+	}
+	newest := map[string]last{}
+	for _, f := range facts {
+		for _, c := range f.nodes {
+			if cur, ok := newest[c.addr]; !ok || !f.started.Before(cur.at) {
+				newest[c.addr] = last{f.started, c.after}
+			}
+		}
+	}
+	// The pointers the way a read finds them: from the versions of the bucket when it keeps
+	// them, else by listing.
+	var keys []string
+	if vl, _, on := s.snapshotOn(); on {
+		objs, err := vl.ListVersions(ctx, "resources")
+		if err != nil {
+			return nil, err
+		}
+		for _, o := range objs {
+			keys = append(keys, o.Key)
+		}
+	} else if keys, err = s.b.List(ctx, "resources"); err != nil {
+		return nil, err
+	}
+	held := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		held[k] = true
+	}
+	var out []string
+	for addr, l := range newest {
+		if l.after > 0 && !held[nodeKey(addr)] {
+			out = append(out, addr)
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// CheckNodes refuses a state that lacks the pointer of a resource a signed transaction left.
+func (s *Store) CheckNodes(ctx context.Context, readers []protect.Reader) error {
+	missing, err := s.MissingNodes(ctx, readers)
+	if err != nil || len(missing) == 0 {
+		return err
+	}
+	list := missing[0]
+	if len(missing) > 1 {
+		list = fmt.Sprintf("%s and %d more", missing[0], len(missing)-1)
+	}
+	return fmt.Errorf("%w: the pointer of %s is gone from the bucket (resources/), and the newest signed transaction that changed it left a record: the resource would read as new and a duplicate would be planned. Restore the object from the bucket's history (pravo protect status lists them)", ErrUntrusted, list)
 }

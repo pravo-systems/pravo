@@ -18,9 +18,11 @@ import (
 // pid and waits to be killed.
 func TestMain(m *testing.M) {
 	if mode := os.Getenv("ORPHAN_HELPER"); mode != "" {
-		child := exec.Command("sleep", "300")
+		// The child starts a child of its own, as a provider that runs a plugin does.
+		child := exec.Command("sh", "-c", "sleep 300 & wait")
 		var stop func()
 		if mode == "shell" {
+			child.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 			child.Start()
 			stop = watchWithShell(child)
 		} else {
@@ -29,6 +31,7 @@ func TestMain(m *testing.M) {
 			stop = watchChild(child)
 		}
 		_ = stop
+		time.Sleep(300 * time.Millisecond) // let sh start its sleep
 		fmt.Println(child.Process.Pid)
 		time.Sleep(time.Minute)
 		os.Exit(0)
@@ -59,18 +62,31 @@ func testOrphan(t *testing.T, mode string) {
 	if _, err := fmt.Fscan(out, &pid); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { syscall.Kill(pid, syscall.SIGKILL) })
-	if !alive(pid) {
-		t.Fatalf("child %d is not running before the kill", pid)
+	pids := []int{pid}
+	if b, err := exec.Command("pgrep", "-P", strconv.Itoa(pid)).Output(); err == nil {
+		for _, f := range strings.Fields(string(b)) {
+			n, _ := strconv.Atoi(f)
+			pids = append(pids, n)
+		}
+	}
+	t.Cleanup(func() {
+		for _, p := range pids {
+			syscall.Kill(p, syscall.SIGKILL)
+		}
+	})
+	if len(pids) != 2 || !alive(pid) {
+		t.Fatalf("expected the child and its own child before the kill, got %v", pids)
 	}
 	cmd.Process.Kill()
 	cmd.Wait()
 	deadline := time.Now().Add(5 * time.Second)
-	for alive(pid) {
-		if time.Now().After(deadline) {
-			t.Fatalf("child %d still running 5s after its parent was killed", pid)
+	for _, p := range pids {
+		for alive(p) {
+			if time.Now().After(deadline) {
+				t.Fatalf("process %d (of %v) still running 5s after its parent was killed", p, pids)
+			}
+			time.Sleep(50 * time.Millisecond)
 		}
-		time.Sleep(50 * time.Millisecond)
 	}
 }
 
@@ -80,4 +96,33 @@ func TestChildDiesWithParentShellWatcher(t *testing.T) {
 		t.Skip("needs /proc")
 	}
 	testOrphan(t, "shell")
+}
+
+// TestCloseKillsTheGroup: after the provider itself is gone, what it started
+// is killed too.
+func TestCloseKillsTheGroup(t *testing.T) {
+	cmd := exec.Command("sh", "-c", "sleep 300 & echo $!; wait")
+	guardChild(cmd)
+	out, _ := cmd.StdoutPipe()
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	var grand int
+	if _, err := fmt.Fscan(out, &grand); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { syscall.Kill(grand, syscall.SIGKILL) })
+	cmd.Process.Kill()
+	cmd.Wait()
+	if !alive(grand) {
+		t.Fatalf("grandchild %d should outlive the provider's own kill", grand)
+	}
+	killGroup(cmd)
+	deadline := time.Now().Add(5 * time.Second)
+	for alive(grand) {
+		if time.Now().After(deadline) {
+			t.Fatalf("grandchild %d still running after killGroup", grand)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }

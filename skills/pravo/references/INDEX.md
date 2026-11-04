@@ -108,11 +108,11 @@ How pravo behaves: evaluation, plans, state, providers, policies.
 | [concepts/plans.md](concepts/plans.md) | What a plan contains, how pravo decides which resources a plan reaches, what an unknown value is, how refresh age works, and how a saved plan is checked when it is applied. | 54 KB |
 | [concepts/state.md](concepts/state.md) | What pravo records for each resource, how revisions, locks and transactions work, why the cost of a run follows the change, and where the state lives. | 27 KB |
 | [concepts/what-a-plan-reaches.md](concepts/what-a-plan-reaches.md) | Change one setting, replace a root key, add a zone or run two applies on one estate, and see which resources each plan reaches and which locks each apply holds. | 2 KB |
-| [concepts/providers.md](concepts/providers.md) | How pravo finds, installs, locks, starts and talks to a provider, how a provider becomes a CUE struct, and how an instance is named. | 22 KB |
+| [concepts/providers.md](concepts/providers.md) | How pravo finds, installs, locks, starts and talks to a provider, how a provider becomes a CUE struct, and how an instance is named. | 24 KB |
 | [concepts/stored-plans-and-approvals.md](concepts/stored-plans-and-approvals.md) | How a plan lives in the state: what pravo plan --store writes, how a listing judges a stored plan, how an apply claims it and records its progress, how it is collected, and how a policy makes a plan wait for the approval of other people. | 17 KB |
 | [concepts/policies.md](concepts/policies.md) | A constraint on a provider is checked when the specification evaluates. A policy, a pravo.#Policy node, judges a plan and is kept in the state. What each binds and what neither guarantees. | 19 KB |
 | [concepts/secrets-and-ephemeral-values.md](concepts/secrets-and-ephemeral-values.md) | Which values pravo records in state, saved plans and outputs, what an ephemeral value is, where it may go, and what hiding a value does and does not do. | 15 KB |
-| [concepts/signatures-and-roles.md](concepts/signatures-and-roles.md) | What a sealed state encrypts and who can open it, what a signature binds, what a role allows, and what none of the three does. Confidentiality against a copy of the bucket, the provenance of every change, and who may change what. | 29 KB |
+| [concepts/signatures-and-roles.md](concepts/signatures-and-roles.md) | What a sealed state encrypts and who can open it, what a signature binds, what a role allows, and what none of the three does. Confidentiality against a copy of the bucket, the provenance of every change, and who may change what. | 30 KB |
 | [concepts/templates.md](concepts/templates.md) | How a template turns a definition into a form, why an instance follows its template, which checks a new instance meets before and after it is pasted, and who needs which key. | 8 KB |
 | [concepts/the-viewer.md](concepts/the-viewer.md) | How pravo serve reads an estate: what a group is, what presence means, how the first view is chosen, what the eight sections show, which values are withheld and why the viewer changes nothing. | 41 KB |
 | [concepts/traces.md](concepts/traces.md) | What a run of pravo records about itself: one trace of spans per command, the calls to the providers and the network calls under them, where the time went and where a run stopped, and what a span never contains. | 12 KB |
@@ -134,7 +134,7 @@ One task each, for a reader who knows the basics.
 
 | File | Covers | Size |
 |---|---|---|
-| [how-to/upgrading.md](how-to/upgrading.md) | Replace the pravo binary, move a provider to a newer version through the lock file, pin the archives of every platform and review the plan that follows. | 8 KB |
+| [how-to/upgrading.md](how-to/upgrading.md) | Replace the pravo binary, move a provider to a newer version through the lock file, pin the archives of every platform and review the plan that follows. | 9 KB |
 
 ### Observe
 

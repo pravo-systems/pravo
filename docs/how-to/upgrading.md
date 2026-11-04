@@ -148,10 +148,11 @@ providers: "registry.opentofu.org/hashicorp/random": {
 	version:     "3.7.2"
 	constraints: ">= 3.6, <= 3.7.2"
 	hashes: {
-		"darwin_amd64": "sha256:d5b5fc881ccc41b268f952dae303501d6ec9f9d24ee11fe2fa56eed7478e15d0"
-		"darwin_arm64": "sha256:c71f18b0cb5d55a103ea81e346fb56db15b144459123f1be1b0209cffc1deb4e"
-		"linux_amd64":  "sha256:9b0ac4c1d8e36a86b59ced94fa517ae9b015b1d044b3455465cc6f0eab70915d"
-		"linux_arm64":  "sha256:519319ed8f4312ed76519652ad6cd9f98bc75cf4ec7990a5684c072cf5dd0a5d"
+		"binary:linux_amd64": "sha256:add7d1c31d626d9769ba1773e5188657b8642579159696f6fcd2afc1262ba668"
+		"darwin_amd64":       "sha256:d5b5fc881ccc41b268f952dae303501d6ec9f9d24ee11fe2fa56eed7478e15d0"
+		"darwin_arm64":       "sha256:c71f18b0cb5d55a103ea81e346fb56db15b144459123f1be1b0209cffc1deb4e"
+		"linux_amd64":        "sha256:9b0ac4c1d8e36a86b59ced94fa517ae9b015b1d044b3455465cc6f0eab70915d"
+		"linux_arm64":        "sha256:519319ed8f4312ed76519652ad6cd9f98bc75cf4ec7990a5684c072cf5dd0a5d"
 	}
 }
 ```
@@ -184,7 +185,7 @@ Providers:
   random = hashicorp/random v3.7.2
 ```
 
-An archive that is already unpacked in the provider store is neither downloaded nor compared. Remove the hash from the lock file, and run `pravo init`, only when you expect the bytes to differ.
+An archive that is already unpacked in the provider store, or a binary in the OpenTofu plugin cache, is not downloaded. Its executable is compared with the `binary:` entry of the lock file on every run, and a different file is refused. Remove the entry, and run `pravo init`, only when you expect the bytes to differ.
 
 ## 7. Upgrade a CUE module
 

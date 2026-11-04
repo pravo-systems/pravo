@@ -118,6 +118,9 @@ type Change struct {
 	// removedRevision is the revision of a record that a replacement removed
 	// before the new one was written.
 	removedRevision int
+	// predestroyed marks a replacement whose old object the apply destroyed ahead of the walk, with
+	// the dependents that are replaced too; the walk only creates the new one.
+	predestroyed bool
 	// age is the refresh age the node set for itself, "" for the default.
 	age string
 	// removal marks the plan of a record the specification no longer declares,

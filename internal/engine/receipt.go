@@ -76,6 +76,9 @@ func (e *Engine) VerifyReceipt(ctx context.Context, t *state.Transaction, pf *Pl
 			}
 		}
 	}
+	if err := e.State.CheckNodes(ctx, readers); err != nil {
+		return nil, err
+	}
 	set, err := e.policySet(ctx)
 	if err != nil {
 		return nil, err

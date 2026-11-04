@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
@@ -72,5 +73,68 @@ func TestFieldLabelKeepsMarkupCharacters(t *testing.T) {
 		if got := FieldLabel(in); got != want {
 			t.Errorf("FieldLabel(%q) = %s, want %s", in, got, want)
 		}
+	}
+}
+
+// A provider that stores a configured block in another shape (fewer elements, other order, other
+// values) must not make the fill conflict with the configuration.
+func TestFillKeepsConfiguredListWhenProviderReshapesIt(t *testing.T) {
+	ctx := cuecontext.New()
+	elem := tftypes.Object{AttributeTypes: map[string]tftypes.Type{"enabled": tftypes.Bool, "arn": tftypes.String}}
+	lst := tftypes.List{ElementType: elem}
+	mk := func(enabled bool, arn string) tftypes.Value {
+		return tftypes.NewValue(elem, map[string]tftypes.Value{
+			"enabled": tftypes.NewValue(tftypes.Bool, enabled),
+			"arn":     tftypes.NewValue(tftypes.String, arn),
+		})
+	}
+	cases := []struct {
+		name, cfg string
+		state     tftypes.Value
+		wantOK    bool
+	}{
+		{"block normalised to empty", `[{enabled: false, arn: string}]`, tftypes.NewValue(lst, []tftypes.Value{}), false},
+		{"extra stored element", `[{enabled: true, arn: string}]`, tftypes.NewValue(lst, []tftypes.Value{mk(true, "a"), mk(true, "b")}), false},
+		{"stored value differs", `[{enabled: false, arn: string}]`, tftypes.NewValue(lst, []tftypes.Value{mk(true, "a")}), true},
+	}
+	for _, c := range cases {
+		cfg := ctx.CompileString(c.cfg)
+		got, ok := fillValue(cfg, c.state)
+		if ok != c.wantOK {
+			t.Errorf("%s: filled = %v, want %v (%v)", c.name, ok, c.wantOK, got)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		v := cfg.Unify(ctx.Encode(got))
+		if err := v.Validate(); err != nil {
+			t.Errorf("%s: fill conflicts with the configuration: %v", c.name, err)
+		}
+	}
+}
+
+// A provider may return the elements of a set in another order than the configuration lists them;
+// computed attributes still go to the element they belong to.
+func TestFillPairsSetElementsByConfiguredValues(t *testing.T) {
+	ctx := cuecontext.New()
+	elem := tftypes.Object{AttributeTypes: map[string]tftypes.Type{"name": tftypes.String, "arn": tftypes.String}}
+	mk := func(n, a string) tftypes.Value {
+		return tftypes.NewValue(elem, map[string]tftypes.Value{"name": tftypes.NewValue(tftypes.String, n), "arn": tftypes.NewValue(tftypes.String, a)})
+	}
+	st := tftypes.NewValue(tftypes.Set{ElementType: elem}, []tftypes.Value{mk("b", "arn-b"), mk("a", "arn-a")})
+	cfg := ctx.CompileString(`[{name: "a", arn: string}, {name: "b", arn: string}]`)
+	got, ok := fillValue(cfg, st)
+	if !ok {
+		t.Fatal("not filled")
+	}
+	v := cfg.Unify(ctx.Encode(got))
+	if err := v.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := v.LookupPath(cue.ParsePath("[0].arn")).String()
+	b, _ := v.LookupPath(cue.ParsePath("[1].arn")).String()
+	if a != "arn-a" || b != "arn-b" {
+		t.Errorf("arns = %q, %q", a, b)
 	}
 }

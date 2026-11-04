@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"cuelabs.dev/go/oci/ociregistry"
 	"cuelabs.dev/go/oci/ociregistry/ociauth"
@@ -53,16 +55,45 @@ func ociClient(host string) (ociregistry.Interface, error) {
 	insecure := name == "localhost" || name == "127.0.0.1" || name == "::1"
 	return ociclient.New(host, &ociclient.Options{
 		Insecure:  insecure,
-		Transport: ociauth.NewStdTransport(ociauth.StdTransportParams{Config: cfg}),
+		Transport: ociauth.NewStdTransport(ociauth.StdTransportParams{Config: cfg, Transport: ociBase()}),
 	})
 }
 
+// ociBase is the transport under the authentication of the container registry
+// client: it gives up on a registry that stops answering.
+func ociBase() http.RoundTripper {
+	base := http.DefaultTransport.(*http.Transport).Clone()
+	base.ResponseHeaderTimeout = idleTimeout
+	base.TLSHandshakeTimeout = 30 * time.Second
+	return idleTransport{base: &retryTransport{base: base}}
+}
+
+// readAll reads a manifest or an index, at most maxManifest bytes.
 func readAll(r ociregistry.BlobReader, err error) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
-	return io.ReadAll(r)
+	data, err := io.ReadAll(io.LimitReader(r, maxManifest+1))
+	if err == nil && int64(len(data)) > maxManifest {
+		return nil, fmt.Errorf("the manifest is larger than %d MB", maxManifest>>20)
+	}
+	return data, err
+}
+
+// listTags lists the tags of a repository, at most maxTags.
+func listTags(ctx context.Context, cl ociregistry.Interface, repo string) ([]string, error) {
+	var tags []string
+	for t, err := range cl.Tags(ctx, repo, "") {
+		if err != nil {
+			return nil, err
+		}
+		if len(tags) >= maxTags {
+			return nil, fmt.Errorf("the repository has more than %d tags", maxTags)
+		}
+		tags = append(tags, clean(t))
+	}
+	return tags, nil
 }
 
 // ociIndex fetches the index tagged ver.
@@ -102,7 +133,7 @@ func (c *Client) resolveOCI(ctx context.Context, src Source, constraint string) 
 	if err != nil {
 		return "", err
 	}
-	tags, err := ociregistry.All(cl.Tags(ctx, src.repo(), ""))
+	tags, err := listTags(ctx, cl, src.repo())
 	if err != nil {
 		return "", fmt.Errorf("listing versions of %s: %w", src.Display(), err)
 	}
