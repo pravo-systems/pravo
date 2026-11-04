@@ -73,7 +73,7 @@ func (e *Engine) checkInterruptedCreates(plan *Plan) error {
 func (e *Engine) orphanedReplacements(plan *Plan) map[string]*state.PendingCreate {
 	var out map[string]*state.PendingCreate
 	for _, ch := range plan.Changes {
-		if ch.Mode != "managed" || ch.Applied || !((ch.Action == ActionReplace && ch.CreateBeforeDestroy) || ch.Action == ActionDelete) {
+		if ch.Mode != "managed" || ch.Applied || (ch.Action != ActionReplace || !ch.CreateBeforeDestroy) && ch.Action != ActionDelete {
 			continue
 		}
 		p, err := e.State.PendingCreateOf(ch.Addr)

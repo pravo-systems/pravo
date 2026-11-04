@@ -339,7 +339,7 @@ func TestCreateBeforeDestroyKeepsTheNote(t *testing.T) {
 		if !strings.Contains(strings.Join(said, "\n"), "stopped while it created the replacement") {
 			t.Errorf("the plan does not warn: %v", said)
 		}
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			_, err = e.Apply(ctx, plan)
 			var coded *CodedError
 			if err == nil || !errors.As(err, &coded) || coded.Code != ExitRefused {
