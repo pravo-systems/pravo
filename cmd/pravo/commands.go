@@ -230,11 +230,11 @@ func planCmd() *cobra.Command {
 			}
 			defer s.close()
 			eng := s.engine(engine.Options{Refresh: mode, Destroy: destroy, Full: full, Reserve: reserve, Replace: replace})
+			noteUnnamed(cmd.Context(), s.root, s.state)
 			plan, err := eng.Plan(cmd.Context())
 			if err != nil {
 				return err
 			}
-			noteNoBaseline(cmd.Context(), s.root, s.state)
 			// The plan is printed before it is judged, and the document that is
 			// judged is the one that is printed. With --store and --json the document
 			// says where the plan was stored, so the plan is judged and stored first.

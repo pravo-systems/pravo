@@ -288,7 +288,7 @@ Store        s3://northwind-state/prod
 Readers      .pravo/access/readers.txt matches the store
 You          ada · reader key x25519:<key>
 Roles        off
-Signatures   0 of 1 transaction verified · 1 unsigned
+Signatures   1 of 2 transactions verified · 1 unsigned
 Unsettled    none
 ```
 
@@ -311,11 +311,12 @@ find copy-2 -type f | sort
 ```
 
 ```text out
-Copied 5 objects from s3://northwind-state/prod to copy-2
+Copied 6 objects from s3://northwind-state/prod to copy-2
 copy-2/meta.json
 copy-2/outputs.json
 copy-2/rec/<sha256>
 copy-2/resources/db_password.json
+copy-2/txn/<txn>.json
 copy-2/txn/<txn>.json
 ```
 
@@ -373,6 +374,10 @@ grep -h -E '"(name|command|user|host|status)":' copy-2/meta.json copy-2/txn/* | 
 "name": "ada",
 "name": "dan",
 "command": "pravo apply --auto-approve",
+"user": "<user>",
+"host": "<host>",
+"status": "applied",
+"command": "pravo protect init --encrypt",
 "user": "<user>",
 "host": "<host>",
 "status": "applied",

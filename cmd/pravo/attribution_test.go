@@ -278,7 +278,7 @@ func TestAStateWithoutABaselineSaysSoUntilRewrap(t *testing.T) {
 		delete(s.f.Objects, "prod/txn/"+id+".json")
 	}
 	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status")
-	if code != 0 || !strings.Contains(text, "Baseline     none") {
+	if code != 0 || !strings.Contains(text, "Baseline     ") {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}
 	if text, code = runPravo(t, s.dir, "--identity", "ada", "protect", "rewrap", "--all", "--yes"); code != 0 {

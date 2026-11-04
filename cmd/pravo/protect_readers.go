@@ -358,13 +358,17 @@ func article(r protect.Role) string {
 	return "a " + r.String()
 }
 
-// noBaselineNotice is the line printed by plan and protect status for a sealed state that
-// holds no baseline transaction.
-const noBaselineNotice = "Notice: this sealed state has no baseline transaction, so a resource pointer deleted from the bucket may go unnoticed. Run pravo protect rewrap --all to record one."
+// unnamedNotice is the line printed by plan for a sealed state that holds resources which
+// no signed transaction names.
+func unnamedNotice(n int) string {
+	return fmt.Sprintf("Notice: %s no signed transaction names, so a pointer deleted from the bucket may go unnoticed. Run pravo protect rewrap --all to record them.", plural(n, "resource whose pointer", "resources whose pointers"))
+}
 
-// noteNoBaseline prints the notice for st when it applies.
-func noteNoBaseline(ctx context.Context, root *config.Root, st *state.Store) {
-	if readers, ok := attributionReaders(readersOf(root)); ok && st.NoBaseline(ctx, readers) {
-		fmt.Fprintln(os.Stderr, noBaselineNotice)
+// noteUnnamed prints the notice for st when it applies.
+func noteUnnamed(ctx context.Context, root *config.Root, st *state.Store) {
+	if readers, ok := attributionReaders(readersOf(root)); ok {
+		if n := st.Unnamed(ctx, readers); n > 0 {
+			fmt.Fprintln(os.Stderr, unnamedNotice(n))
+		}
 	}
 }
