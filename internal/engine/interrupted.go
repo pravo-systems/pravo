@@ -69,11 +69,12 @@ func (e *Engine) importCommand(addr, id string) string {
 // allowCreateCommand is the apply that creates addrs although an apply stopped while it
 // created them.
 func (e *Engine) allowCreateCommand(addrs []string) string {
-	cmd := "pravo apply" + e.envFlag()
+	var b strings.Builder
+	b.WriteString("pravo apply" + e.envFlag())
 	for _, a := range addrs {
-		cmd += " --allow-create " + a
+		b.WriteString(" --allow-create " + a)
 	}
-	return cmd
+	return b.String()
 }
 
 // warnUntracked warns of the nodes with the lock of an apply that stopped while it created
