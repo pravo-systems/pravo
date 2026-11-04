@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
 	"cuelang.org/go/cue"
 	"github.com/spf13/cobra"
 
+	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/tfstate"
@@ -580,7 +582,7 @@ func upgradeCmd(load func() (*state.Store, error)) *cobra.Command {
 // unlockCmd is "state unlock": it releases one lock, or with --stale every lock
 // that may be reclaimed.
 func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
-	var stale bool
+	var stale, allowCreate bool
 	cmd := &cobra.Command{
 		Use: "unlock [addr]", Short: "Release a resource lock left behind by a crashed command", Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -595,31 +597,47 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 				return err
 			}
 			// The lock of an apply that stopped while it created a node is the only trace of
-			// the create: releasing it ends the refusal to create the node again.
+			// the create. Releasing it would let the next apply create the node again, so it
+			// stays unless --allow-create says that the create never reached the cloud (or the
+			// object was adopted, which gives the node a record).
 			creating := map[string]bool{}
 			if suspects, err := st.Suspects(); err == nil {
 				for a, l := range suspects {
-					creating[a] = l.Creating
+					creating[a] = l.Creating && st.Get(a) == nil
 				}
 			}
-			note := func(a string) {
-				if creating[a] && st.Get(a) == nil {
-					out.Printf("  %s has no record: an apply stopped while it was creating it. Look for the object in the cloud (pravo discover) before the next apply, or the next apply will create it again.\n", a)
-				}
+			kept := func(a string) {
+				out.Printf("%s has no record, and an apply stopped while it was creating it: the lock stays, because the object may exist in the cloud and the next apply would create it again. Adopt the object (pravo discover, or pravo import %s ID), or run pravo state unlock --allow-create %s if the create never reached the cloud.\n", a, a, a)
 			}
 			if stale {
-				released, err := st.ReleaseStale()
+				released, err := st.ReleaseStaleExcept(func(l state.Lock) bool { return !allowCreate && creating[l.Addr] })
 				for _, a := range released {
 					out.Printf("Unlocked %s\n", a)
-					note(a)
+				}
+				var held []string
+				for a, c := range creating {
+					if c && !allowCreate {
+						held = append(held, a)
+					}
+				}
+				slices.Sort(held)
+				for _, a := range held {
+					kept(a)
 				}
 				if err != nil {
 					return err
 				}
-				if len(released) == 0 {
+				if len(released) == 0 && len(held) == 0 {
 					out.Println("No stale locks.")
 				}
+				if len(held) > 0 {
+					return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s kept", plural(len(held), "lock", "locks")))
+				}
 				return nil
+			}
+			if creating[args[0]] && !allowCreate {
+				kept(args[0])
+				return engine.WithCode(engine.ExitRefused, errors.New("lock kept"))
 			}
 			ok, err := st.ForceUnlock(args[0])
 			if err != nil {
@@ -629,12 +647,12 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 				out.Printf("%s was not locked\n", args[0])
 			} else {
 				out.Printf("Unlocked %s\n", args[0])
-				note(args[0])
 			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&stale, "stale", false, "release every lock and reservation that may be reclaimed: its process is gone, it was not renewed for 10 minutes, or it expired")
+	cmd.Flags().BoolVar(&allowCreate, "allow-create", false, "also release the lock of a node with no record that an apply stopped while it created: you know the create never reached the cloud, so the next apply may create the node")
 	return cmd
 }
 

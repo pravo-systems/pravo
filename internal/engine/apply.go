@@ -83,7 +83,7 @@ func (e *Engine) writeState(ch *Change, v tftypes.Value, private []byte, action 
 func (e *Engine) recordApplied(ch *Change, what string, v tftypes.Value, private []byte, action string) error {
 	err := e.writeState(ch, v, private, action)
 	if err != nil {
-		e.unrecorded(ch.Addr, what)
+		e.unrecorded(ch.Addr, what, idOf(v))
 	}
 	return err
 }
@@ -177,7 +177,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 				ch.removedRevision = prev.Revision
 			}
 			if _, err := e.State.Remove(ch.Addr); err != nil {
-				e.unrecorded(ch.Addr, "destruction")
+				e.unrecorded(ch.Addr, "destruction", "")
 				return tftypes.Value{}, fmt.Errorf("%s: the record could not be removed: %w", ch.Addr, err)
 			}
 			e.Opts.Progress("%s: Creating replacement...", ch.Addr)

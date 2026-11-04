@@ -507,6 +507,31 @@ func (s *Store) MarkCreating(addr string) error {
 	return &ErrLocked{Lock: other}
 }
 
+// Strand ends the hold of this process on the lock for addr and leaves the lock where it is,
+// stale at once and with its note of a create (see MarkCreating). A command that ends its
+// apply on purpose and cannot say whether the provider created the object does this to the
+// lock of the node, instead of releasing it: the next plan of the node warns, and the next
+// apply refuses to create it, as after a command that was killed.
+func (s *Store) Strand(addr string) error {
+	ok, err := s.b.ReplaceIf(s.cx(), lockKey(addr), func(current []byte) ([]byte, bool) {
+		var l Lock
+		if json.Unmarshal(current, &l) != nil || l.Nonce != s.nonce {
+			return nil, false
+		}
+		l.Creating = true
+		l.RenewedAt = time.Unix(0, 0).UTC()
+		data, _ := indentJSON(l)
+		return data, true
+	})
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return &ErrLocked{Lock: Lock{Addr: addr}}
+	}
+	return nil
+}
+
 // Unlock releases the lock for addr if this process holds it. A lock that
 // another process holds, or that cannot be read, is left as it is.
 func (s *Store) Unlock(addr string) error {
@@ -557,14 +582,18 @@ func (s *Store) ForceUnlock(addr string) (bool, error) {
 // returns their addresses. A lock is deleted only if it is stale at the moment it
 // is deleted: one that its holder renewed, or that another process took, since
 // the listing is left alone.
-func (s *Store) ReleaseStale() ([]string, error) {
+func (s *Store) ReleaseStale() ([]string, error) { return s.ReleaseStaleExcept(nil) }
+
+// ReleaseStaleExcept is ReleaseStale for the stale locks that keep does not name: a lock
+// for which keep returns true stays.
+func (s *Store) ReleaseStaleExcept(keep func(Lock) bool) ([]string, error) {
 	locks, err := s.Locks()
 	if err != nil {
 		return nil, err
 	}
 	var released []string
 	for _, l := range locks {
-		if !l.Stale {
+		if !l.Stale || (keep != nil && keep(l)) {
 			continue
 		}
 		ok, err := s.b.DeleteIf(s.cx(), lockKey(l.Addr), func(current []byte) bool {

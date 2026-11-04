@@ -564,3 +564,31 @@ func TestATamperedRecoveryLockStopsAWriterAndRewrapMendsIt(t *testing.T) {
 		t.Errorf("recover: exit %d\n%s", code, text)
 	}
 }
+
+// The lock of an apply that stopped while it created a node with no record is the only
+// trace of the create: state unlock keeps it unless the person says that the create never
+// reached the cloud, and the next apply refuses to create the node while it stays.
+func TestStateUnlockKeepsTheMarkOfAnInterruptedCreate(t *testing.T) {
+	dir := specDir(t, map[string]string{"main.cue": "package t\n"})
+	locks := filepath.Join(dir, "pravo.state", "locks")
+	if err := os.MkdirAll(locks, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	plant := func() {
+		lock := `{"addr":"web","pid":4242,"host":"ci-1","user":"alice","command":"pravo apply","txn":"T1","nonce":"n1","since":"2026-01-01T00:00:00Z","kind":"lock","renewed_at":"2026-01-01T00:00:00Z","creating":true}`
+		if err := os.WriteFile(filepath.Join(locks, "web.lock"), []byte(lock), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exists := func() bool { _, err := os.Stat(filepath.Join(locks, "web.lock")); return err == nil }
+	plant()
+	for _, args := range [][]string{{"state", "unlock", "web"}, {"state", "unlock", "--stale"}} {
+		text, code := runPravo(t, dir, args...)
+		if code != 5 || !strings.Contains(text, "web has no record") || !strings.Contains(text, "--allow-create") || !exists() {
+			t.Fatalf("%v: exit %d, lock kept %v\n%s", args, code, exists(), text)
+		}
+	}
+	if text, code := runPravo(t, dir, "state", "unlock", "--allow-create", "web"); code != 0 || exists() {
+		t.Fatalf("with --allow-create: exit %d, lock kept %v\n%s", code, exists(), text)
+	}
+}

@@ -241,7 +241,7 @@ func (e *Engine) destroyOrphans(ctx context.Context, plan *Plan) (int, error) {
 		}
 		if _, err := e.State.Remove(ch.Addr); err != nil {
 			// The object is destroyed and its record is not removed.
-			e.unrecorded(ch.Addr, "destruction")
+			e.unrecorded(ch.Addr, "destruction", "")
 			return fmt.Errorf("%s: the record could not be removed: %w", ch.Addr, err)
 		}
 		e.txn.Record(ch.Addr, "delete", before, 0)

@@ -74,6 +74,8 @@ type heldLocks struct {
 	stop    chan struct{}
 	done    chan struct{}
 	once    sync.Once
+	// stranded holds the nodes whose create has an unknown result: release leaves their locks.
+	stranded map[string]bool
 }
 
 // newHeldLocks returns a set of locks that renews what it holds every interval
@@ -390,6 +392,29 @@ func (h *heldLocks) release() {
 		close(h.stop)
 		<-h.done // a renewal in flight would write a lock that is deleted below
 		addrs := h.held()
-		inParallel(len(addrs), lockWidth, func(i int) { _ = h.st.Unlock(addrs[i]) })
+		inParallel(len(addrs), lockWidth, func(i int) {
+			// The lock of a node whose create may have reached the cloud, and that has no
+			// record, stays as the trace of the create.
+			if h.isStranded(addrs[i]) && h.st.Get(addrs[i]) == nil && h.st.Strand(addrs[i]) == nil {
+				return
+			}
+			_ = h.st.Unlock(addrs[i])
+		})
 	})
+}
+
+// strand notes that the create of addr has a result that is not known.
+func (h *heldLocks) strand(addr string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.stranded == nil {
+		h.stranded = map[string]bool{}
+	}
+	h.stranded[addr] = true
+}
+
+func (h *heldLocks) isStranded(addr string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.stranded[addr]
 }

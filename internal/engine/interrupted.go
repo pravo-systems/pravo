@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -41,6 +42,54 @@ func (e *Engine) checkInterruptedCreates(plan *Plan) error {
 	for _, addr := range refused {
 		fmt.Fprintf(&b, "%s: %s, and the state has no record of it\n", addr, stoppedApply(suspects[addr]))
 	}
-	first := refused[0]
-	return WithCode(ExitRefused, fmt.Errorf("apply refused: it would create a node that an interrupted apply may already have created.\n%sIf the create reached the cloud the object exists but is not tracked, and creating it again makes a second one. Nothing was changed. Either:\n  - find the object and adopt it: pravo discover (with a #Discovery rule), or pravo import %s ID; the lock is cleared by the next apply; or\n  - if you know the create never reached the cloud, create it anyway: pravo apply --allow-create %s", b.String(), first, first))
+	return WithCode(ExitRefused, fmt.Errorf("apply refused: it would create %s that an interrupted apply may already have created.\n%sIf the create reached the cloud the object exists but is not tracked, and creating it again makes a second one. Nothing was changed. For each node above, either:\n  - find the object and adopt it: pravo discover (with a #Discovery rule), or %s; the lock is cleared by the next apply; or\n  - if you know the create never reached the cloud, create it anyway: %s", nodes(len(refused)), b.String(), e.importCommand(refused[0], "ID"), e.allowCreateCommand(refused)))
+}
+
+func nodes(n int) string {
+	if n == 1 {
+		return "a node"
+	}
+	return "nodes"
+}
+
+// envFlag is the flag that names the environment of the specification, with a space before
+// it, or "" for a specification that declares none.
+func (e *Engine) envFlag() string {
+	if e.Root != nil && e.Root.Environment != "" {
+		return " --env " + e.Root.Environment
+	}
+	return ""
+}
+
+// importCommand is the command that adopts the object with id as the node addr.
+func (e *Engine) importCommand(addr, id string) string {
+	return "pravo import " + addr + " " + id + e.envFlag()
+}
+
+// allowCreateCommand is the apply that creates addrs although an apply stopped while it
+// created them.
+func (e *Engine) allowCreateCommand(addrs []string) string {
+	cmd := "pravo apply" + e.envFlag()
+	for _, a := range addrs {
+		cmd += " --allow-create " + a
+	}
+	return cmd
+}
+
+// warnUntracked warns of the nodes with the lock of an apply that stopped while it created
+// them, that have no record, and that the plan does not import: if the create reached the
+// cloud the object exists but nothing tracks it, and an apply would create it again.
+func (e *Engine) warnUntracked(plan *Plan) {
+	imported := map[string]bool{}
+	for _, ch := range plan.Changes {
+		if ch.Imported {
+			imported[ch.Addr] = true
+		}
+	}
+	for _, addr := range slices.Sorted(maps.Keys(e.suspects)) {
+		if e.State.Get(addr) != nil || imported[addr] {
+			continue
+		}
+		e.Opts.Progress("Warning: %s: %s, and the state has no record of it: if the create reached the cloud the object exists but is not tracked, and an apply would create it again. Look for it with pravo discover, or import it (%s), before you apply", addr, stoppedApply(e.suspects[addr]), e.importCommand(addr, "ID"))
+	}
 }

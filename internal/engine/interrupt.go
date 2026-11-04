@@ -168,6 +168,7 @@ func mutation(prior, planned tftypes.Value) string {
 // refresh time, so that the next plan reads the object whatever the refresh age.
 // A creation that has no record has none to write, and the note is what is left.
 func (e *Engine) unsettle(addr, what string) {
+	e.strandCreate(addr, what)
 	e.markUnsettled(addr, fmt.Sprintf("%s of %s was in flight; its result is unknown; check the provider", what, addr))
 }
 
@@ -175,8 +176,25 @@ func (e *Engine) unsettle(addr, what string) {
 // state could not be written to say so: the object is changed and the record is
 // not. The record, if the node has one, is marked as unsettle marks it, and the
 // note names the node in the error of the apply.
-func (e *Engine) unrecorded(addr, what string) {
-	e.markUnsettled(addr, fmt.Sprintf("%s of %s finished, but the state does not record it; check the provider", what, addr))
+func (e *Engine) unrecorded(addr, what, id string) {
+	e.strandCreate(addr, what)
+	note := fmt.Sprintf("%s of %s finished, but the state does not record it; check the provider", what, addr)
+	if what == "creation" && id != "" {
+		note += fmt.Sprintf(": the object's id is %s, so \"%s\" adopts it", id, e.importCommand(addr, id))
+	}
+	e.markUnsettled(addr, note)
+}
+
+// strandCreate keeps the lock of addr, marked as one that went stale, when the apply ends
+// and the node still has no record: the creation may have reached the cloud, and the lock
+// is the only trace of it.
+func (e *Engine) strandCreate(addr, what string) {
+	if what != "creation" {
+		return
+	}
+	if e.held != nil {
+		e.held.strand(addr)
+	}
 }
 
 // markUnsettled keeps note for addr and writes its record again with no refresh

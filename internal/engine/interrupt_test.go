@@ -226,8 +226,8 @@ func TestFirstSignalWaitsSecondSignalStops(t *testing.T) {
 	if got := changedBy(tx, "unsettled"); !slices.Equal(got, []string{"a", "b"}) || tx.Status != "failed" {
 		t.Errorf("transaction %s: unsettled %v; want failed with a and b: c has no record to mark", tx.Status, got)
 	}
-	if got := locksHeld(t, h.state); len(got) != 0 {
-		t.Errorf("locks left after the apply: %v", got)
+	if got := locksHeld(t, h.state); !slices.Equal(got, []string{"c"}) {
+		t.Errorf("locks left after the apply: %v, want the lock of the creation c alone (its mark)", got)
 	}
 
 	// The marked nodes are read by the next plan, whatever the refresh age.
@@ -334,8 +334,8 @@ func TestAbandonedApplyMarksWhatWasInFlight(t *testing.T) {
 	if tx.Status != "failed" || !slices.Equal(changedBy(tx, "unsettled"), []string{"a", "b"}) || !strings.Contains(tx.Summary, "interrupted") {
 		t.Errorf("transaction %s %q: unsettled %v", tx.Status, tx.Summary, changedBy(tx, "unsettled"))
 	}
-	if got := locksHeld(t, h.state); len(got) != 0 {
-		t.Errorf("locks held after the apply was given up: %v", got)
+	if got := locksHeld(t, h.state); !slices.Equal(got, []string{"c"}) {
+		t.Errorf("locks held after the apply was given up: %v, want the lock of the creation c alone (its mark)", got)
 	}
 	for _, hd := range holds {
 		hd.let()
@@ -482,8 +482,8 @@ func TestStoppedAndAbandonedApplyWriteToARemoteState(t *testing.T) {
 		if tx.Status != "failed" || !slices.Equal(changedBy(tx, "unsettled"), []string{"a", "b"}) {
 			t.Errorf("transaction %s: unsettled %v; want failed with a and b", tx.Status, changedBy(tx, "unsettled"))
 		}
-		if got := locksHeld(t, h.state); len(got) != 0 {
-			t.Errorf("locks left after the apply: %v", got)
+		if got := locksHeld(t, h.state); !slices.Equal(got, []string{"c"}) {
+			t.Errorf("locks left after the apply: %v, want the lock of the creation c alone (its mark)", got)
 		}
 	})
 	t.Run("the third signal", func(t *testing.T) {
@@ -505,8 +505,8 @@ func TestStoppedAndAbandonedApplyWriteToARemoteState(t *testing.T) {
 		if tx.Status != "failed" || !strings.Contains(tx.Summary, "interrupted") || !slices.Equal(changedBy(tx, "unsettled"), []string{"a", "b"}) {
 			t.Errorf("transaction %s %q: unsettled %v", tx.Status, tx.Summary, changedBy(tx, "unsettled"))
 		}
-		if got := locksHeld(t, h.state); len(got) != 0 {
-			t.Errorf("locks held after the apply was given up: %v", got)
+		if got := locksHeld(t, h.state); !slices.Equal(got, []string{"c"}) {
+			t.Errorf("locks held after the apply was given up: %v, want the lock of the creation c alone (its mark)", got)
 		}
 		for _, hd := range holds {
 			hd.let()

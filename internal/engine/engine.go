@@ -509,6 +509,7 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		e.finishError("rejected", err, true)
 		return nil, err
 	}
+	e.warnUntracked(plan)
 	return plan, e.finishPhase(ctx, "planned", e.summary(plan), false)
 }
 

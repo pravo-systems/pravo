@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -18,19 +19,36 @@ import (
 type deadBackend struct {
 	state.Backend
 	dead atomic.Bool
+	// refuse, when set, fails the writes of the objects under these prefixes only, as a
+	// store that answers 403 on the records and works for the locks.
+	refuse atomic.Pointer[[]string]
+}
+
+func (b *deadBackend) refused(key string) bool {
+	if b.dead.Load() {
+		return true
+	}
+	if p := b.refuse.Load(); p != nil {
+		for _, pre := range *p {
+			if strings.HasPrefix(key, pre) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 var errKilled = errors.New("the process was killed")
 
 func (b *deadBackend) Put(ctx context.Context, key string, data []byte) error {
-	if b.dead.Load() {
+	if b.refused(key) {
 		return errKilled
 	}
 	return b.Backend.Put(ctx, key, data)
 }
 
 func (b *deadBackend) PutIfAbsent(ctx context.Context, key string, data []byte) (bool, error) {
-	if b.dead.Load() {
+	if b.refused(key) {
 		return false, errKilled
 	}
 	return b.Backend.PutIfAbsent(ctx, key, data)
@@ -44,7 +62,7 @@ func (b *deadBackend) DeleteIf(ctx context.Context, key string, match func([]byt
 }
 
 func (b *deadBackend) ReplaceIf(ctx context.Context, key string, update func([]byte) ([]byte, bool)) (bool, error) {
-	if b.dead.Load() {
+	if b.refused(key) {
 		return false, errKilled
 	}
 	return b.Backend.ReplaceIf(ctx, key, update)
@@ -69,10 +87,11 @@ func TestApplyDoesNotCreateAgainAfterAnInterruptedCreate(t *testing.T) {
 	s := spec{cue: "a: " + thing("a", "content: \"x\"") + "\nb: " + thing("b", "content: a.content") + "\n", resources: []string{"a", "b"}}
 
 	// The process dies when the provider has created a.
-	h.fake.afterApply = func(name string) {
+	h.fake.afterApply = func(name string) error {
 		if name == "a" {
 			dead.dead.Store(true)
 		}
+		return nil
 	}
 	e := h.engine(s, Options{})
 	plan, err := e.Plan(ctx)
@@ -154,4 +173,131 @@ func TestApplyDoesNotCreateAgainAfterAnInterruptedCreate(t *testing.T) {
 	if h.state.Get("a") == nil || h.state.Get("b") == nil {
 		t.Error("a and b were not recorded")
 	}
+}
+
+// refusedAfterEnding checks what every ending of an apply that cannot say whether a create
+// reached the cloud must leave: the lock of the node, marked and stale at once, and a next
+// apply that is refused with exit 5 before it reaches the provider.
+func refusedAfterEnding(t *testing.T, h *harness, s spec, addr string) {
+	t.Helper()
+	ctx := context.Background()
+	h.reopen()
+	if h.state.Get(addr) != nil {
+		t.Fatalf("%s has a record", addr)
+	}
+	var found bool
+	locks, err := h.state.Locks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range locks {
+		if l.Addr == addr {
+			found = true
+			if !l.Creating || !l.Stale {
+				t.Errorf("the lock of %s: creating %v, stale %v; want both", addr, l.Creating, l.Stale)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("the lock of %s was released (locks: %v)", addr, locksHeld(t, h.state))
+	}
+	h.fake.resetCalls()
+	e := h.engine(s, Options{})
+	plan, err := e.Plan(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = e.Apply(ctx, plan)
+	var coded *CodedError
+	if err == nil || !errors.As(err, &coded) || coded.Code != ExitRefused {
+		t.Fatalf("apply after the ending = %v, want exit code %d", err, ExitRefused)
+	}
+	if n := h.fake.called("ApplyResourceChange"); n != 0 {
+		t.Errorf("the refused apply reached the provider %d times", n)
+	}
+}
+
+// The third signal, or the end of the time the providers are given, gives the apply up and
+// says that the result of the create is unknown: the lock of the node stays.
+func TestAbandonedCreateKeepsItsMark(t *testing.T) {
+	h, in, cancel, done, holds := startFlight(t)
+	h.fake.goDeaf()
+	cancel()
+	in.Stop()
+	stillRunning(t, done, "a provider that is deaf")
+	in.Abandon()
+	if got := locksHeld(t, h.state); !slices.Equal(got, []string{"c"}) {
+		t.Errorf("locks after the apply was given up: %v, want the lock of c alone", got)
+	}
+	// The command exits here; the providers are not waited for.
+	refusedAfterEnding(t, h, flightSpec("2"), "c")
+	for _, hd := range holds {
+		hd.let()
+	}
+	returned(t, done)
+}
+
+// The provider process dies after the cloud accepted the create while pravo lives: the call
+// fails, and the node keeps its mark. A provider that fails cleanly, with no state, leaves
+// nothing: the retry goes on.
+func TestProviderDeathAndCleanFailureOfACreate(t *testing.T) {
+	ctx := context.Background()
+	s := spec{cue: "a: " + thing("a", "content: \"x\"") + "\n", resources: []string{"a"}}
+	t.Run("the provider dies", func(t *testing.T) {
+		h := newHarness(t)
+		h.fake.afterApply = func(string) error { return errors.New("rpc error: code = Unavailable") }
+		e := h.engine(s, Options{})
+		plan, _ := e.Plan(ctx)
+		if _, err := e.Apply(ctx, plan); err == nil || !strings.Contains(err.Error(), "its result is unknown") {
+			t.Fatalf("apply = %v, want the result unknown", err)
+		}
+		h.fake.afterApply = nil
+		refusedAfterEnding(t, h, s, "a")
+	})
+	t.Run("the provider fails cleanly", func(t *testing.T) {
+		h := newHarness(t)
+		hd := h.fake.hold("a")
+		e := h.engine(s, Options{})
+		plan, _ := e.Plan(ctx)
+		done := applying(e, ctx, plan)
+		waitFor(t, hd)
+		hd.refuse()
+		if err := returned(t, done); err == nil {
+			t.Fatal("the apply of a refused create succeeded")
+		}
+		if got := locksHeld(t, h.state); len(got) != 0 {
+			t.Errorf("a clean failure left locks %v", got)
+		}
+		h.fake.holds = nil
+		if _, err := h.engine(s, Options{}).Apply(ctx, mustPlan(t, h.engine(s, Options{}))); err != nil {
+			t.Fatalf("the retry after a clean failure: %v", err)
+		}
+	})
+}
+
+func mustPlan(t *testing.T, e *Engine) *Plan {
+	t.Helper()
+	p, err := e.Plan(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// The record write fails alone (a store that answers 403 on the records) while the release
+// of the lock works: the node keeps its mark, and the error names the object's id.
+func TestRecordWriteFailingAloneKeepsTheMark(t *testing.T) {
+	ctx := context.Background()
+	var b *deadBackend
+	h := newHarnessOver(t, func(x state.Backend) state.Backend { b = &deadBackend{Backend: x}; return b })
+	s := spec{cue: "a: " + thing("a", "content: \"x\"") + "\n", resources: []string{"a"}}
+	b.refuse.Store(&[]string{"resources/", "rec/"})
+	e := h.engine(s, Options{})
+	plan, _ := e.Plan(ctx)
+	_, err := e.Apply(ctx, plan)
+	if err == nil || !strings.Contains(err.Error(), "the state does not record it") || !strings.Contains(err.Error(), "pravo import a id-1") {
+		t.Fatalf("apply = %v, want the unrecorded creation with the id to import", err)
+	}
+	b.refuse.Store(nil)
+	refusedAfterEnding(t, h, s, "a")
 }
