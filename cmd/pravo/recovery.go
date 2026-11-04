@@ -606,6 +606,9 @@ func (p *protectRun) recoverRoles(b state.Backend) (*recoveredRoles, error) {
 		return nil, err
 	}
 	text := protect.FormatRolesSet(next, nextFormer, vouches)
+	if err := checkRolesText(text); err != nil {
+		return nil, err
+	}
 	if err := st.ReplaceRoles(p.ctx, text, time.Now()); err != nil {
 		return nil, err
 	}

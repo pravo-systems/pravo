@@ -55,7 +55,7 @@ dan ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK2fPq… x25519:Qm41Zt… role:writer
 eve ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB8dYw… x25519:Vb92Nc… role:reader
 ```
 
-Whoever can merge a change to this file decides the roles. A readers file in which no line has a role gives none, and every key may do everything. As soon as one line has a role, a line without one is a reader. A pravo that does not know roles refuses a line with a fifth field, so it fails closed. A promotion needs no `rewrap`: the state holds the locks, and the roles are a separate thing, which the next section describes.
+Whoever can merge a change to this file decides the roles. A readers file in which no line has a role gives none, and every key may do everything. As soon as one line has a role, a line without one is a reader. A pravo that does not know roles refuses a line with a fifth field, so it fails closed. A signing key may appear on one line only: a file that lists the same ssh key twice (a laptop and a desktop made from one `.pub` file) is refused by every command that reads it, with the line numbers. `pravo protect roles` and `pravo protect recover` also check that the roles they are about to store parse again, and store nothing when they do not. A promotion needs no `rewrap`: the state holds the locks, and the roles are a separate thing, which the next section describes.
 
 ## Pinned roles
 

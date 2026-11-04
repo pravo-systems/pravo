@@ -45,6 +45,8 @@ const (
 
 var digestRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
+const maxNameLen = 64
+
 var nameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
 // ParseReaderLine parses one line, without its newline.
@@ -116,6 +118,7 @@ func ParseReadersPin(r io.Reader) (rs []Reader, pin string, err error) {
 	var out []Reader
 	names := map[string]int{}
 	keys := map[string]int{}
+	signs := map[string]int{}
 	for n := 1; sc.Scan(); n++ {
 		line := strings.TrimRight(sc.Text(), "\r")
 		if t := strings.TrimSpace(line); t == "" || t[0] == '#' {
@@ -139,8 +142,13 @@ func ParseReadersPin(r io.Reader) (rs []Reader, pin string, err error) {
 		if p, dup := keys[rd.Key.String()]; dup {
 			return nil, "", fmt.Errorf("readers file, line %d: reader key of %q is already listed on line %d", n, rd.Name, p)
 		}
+		fp := SSHFingerprint(rd.Sign)
+		if p, dup := signs[fp]; dup {
+			return nil, "", fmt.Errorf("readers file, line %d: the signing key of %q is already listed on line %d. A signing key may appear on one line only: make one identity for each person or machine, or remove the repeated line", n, rd.Name, p)
+		}
 		names[strings.ToLower(rd.Name)] = n
 		keys[rd.Key.String()] = n
+		signs[fp] = n
 		if out = append(out, rd); len(out) > maxReaders {
 			return nil, "", fmt.Errorf("readers file, line %d: more than %d readers", n, maxReaders)
 		}
