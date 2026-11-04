@@ -219,13 +219,13 @@ func mcpTools() []mcpTool {
 				}
 				return append(append([]string{"state"}, tagArgs(in)...), "query", strArg(in, "expression")), nil
 			}},
-		{Name: "pravo_state_show", Description: "One node of the state: attributes, revision, freshness, dependencies and dependents.",
+		{Name: "pravo_state_show", Description: "One node of the state: attributes (sensitive values withheld), revision, freshness, dependencies and dependents.",
 			InputSchema: obj(map[string]any{"addr": map[string]any{"type": "string"}, "tags": tagsProp}, "addr"),
 			args: func(in map[string]any) ([]string, error) {
 				if err := positional("addr", strArg(in, "addr")); err != nil {
 					return nil, err
 				}
-				return append(append([]string{"state"}, tagArgs(in)...), "show", strArg(in, "addr")), nil
+				return append(append([]string{"state"}, tagArgs(in)...), "show", "--redact", strArg(in, "addr")), nil
 			}},
 		{Name: "pravo_dependents", Description: "Everything a change to the resource can reach: its blast radius.", run: runDependents,
 			InputSchema: obj(map[string]any{"addr": map[string]any{"type": "string"}, "tags": tagsProp}, "addr"),

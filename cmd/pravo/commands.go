@@ -410,9 +410,9 @@ func showCmd() *cobra.Command {
 				v.Reservation = pf.Reservation
 				return emitJSON(map[string]any{"planfile": args[0], "stale": stale, "plan": v})
 			}
-			out.Printf("%s created %s by %q", out.C(ui.Bold, "Saved plan"), pf.Created.Local().Format("2006-01-02 15:04:05"), pf.Command)
+			out.Printf("%s created %s by %q", out.C(ui.Bold, "Saved plan"), pf.Created.Local().Format("2006-01-02 15:04:05"), ui.Safe(pf.Command))
 			if pf.Actor != "" {
-				out.Printf(" (actor %s)", pf.Actor)
+				out.Printf(" (actor %s)", ui.Safe(pf.Actor))
 			}
 			out.Println()
 			out.RenderPlan(plan)

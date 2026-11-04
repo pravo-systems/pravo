@@ -18,7 +18,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/destroy.md](reference/destroy.md) | Destroy every resource recorded in the state, dependents first, after a plan and a confirmation. | 8 KB |
 | [reference/show.md](reference/show.md) | Print a saved plan or a plan stored in the state, with the time, the command and the actor that made it, and a warning when it cannot be applied. | 10 KB |
 | [reference/output.md](reference/output.md) | Print the output values that the last apply recorded in the state, as CUE or as JSON. | 4 KB |
-| [reference/state.md](reference/state.md) | Inspect and edit the state graph: list, show, move or forget a node, read the log and the locks, copy the state, query it, convert an OpenTofu state file. | 17 KB |
+| [reference/state.md](reference/state.md) | Inspect and edit the state graph: list, show, move or forget a node, read the log and the locks, copy the state, query it, convert an OpenTofu state file. | 18 KB |
 | [reference/import.md](reference/import.md) | Bring an existing object under management from the command line, by the address of a declared resource and the provider's import id. | 5 KB |
 | [reference/discover.md](reference/discover.md) | Run the discoveries of the specification, show what they found against the state, show the objects that are meant to stay unmanaged apart and write the resource that adopts one. | 7 KB |
 | [reference/why-and-drift.md](reference/why-and-drift.md) | Explain why a plan creates, changes, replaces or skips a resource, and read the records that a plan does not read to report what changed outside pravo. | 19 KB |
@@ -30,13 +30,13 @@ One page for each command and each part of the specification, tables first.
 | [reference/skill.md](reference/skill.md) | Install or print the skill that teaches an AI agent to use pravo. It is built from this documentation and is part of the binary, so it matches the version that installed it. | 6 KB |
 | [reference/mod.md](reference/mod.md) | Create, fetch and publish CUE modules for sharing, list the modules a root loads and verify them against the lock file. | 6 KB |
 | [reference/id.md](reference/id.md) | Make the identity that opens a sealed state and signs what you write, or show one. A name, a signing key and a reader key, under a passphrase, the ssh-agent or a file for a job. | 13 KB |
-| [reference/protect.md](reference/protect.md) | Seal the state to a list of readers, check that the seal holds, change the readers, set a recovery, take the seal off and collect old records. Commands, flags and exit codes. | 54 KB |
+| [reference/protect.md](reference/protect.md) | Seal the state to a list of readers, check that the seal holds, change the readers, set a recovery, take the seal off and collect old records. Commands, flags and exit codes. | 56 KB |
 | [reference/roles.md](reference/roles.md) | Give each identity in the readers file a role, reader, writer or admin, and pin the roles in the state, so that nobody promotes themselves by editing a copy of the file. What each role may do, and what the bucket has to enforce. | 25 KB |
 | [reference/secret.md](reference/secret.md) | Set, read, list, remove and forget the secrets of a sealed state, and run a command with them in its environment. Subcommands, flags, roles and exit codes. | 17 KB |
 | [reference/environments.md](reference/environments.md) | Show what the state of each environment runs and how the release of this directory stands there, compare two environments, and record the place of a state in the promotion flow. | 9 KB |
 | [reference/promote.md](reference/promote.md) | Bring the release that the environments before one run into it, apply it there, withdraw a promotion or waive the check. Flags, checks, roles and exit codes. | 11 KB |
 | [reference/version.md](reference/version.md) | Print the version of pravo and the version of CUE that is built into it. | 2 KB |
-| [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 16 KB |
+| [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 17 KB |
 
 ### Language
 

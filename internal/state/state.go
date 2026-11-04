@@ -194,8 +194,12 @@ type meta struct {
 type Store struct {
 	// roles is the chain of roles read last, and rolesAt when (see RolesChain).
 	rolesMu sync.Mutex
-	roles   *RolesChain
-	rolesAt time.Time
+	// listedMu guards listed: the policy versions that verified transactions listed, by
+	// transaction id (see PolicyListings).
+	listedMu sync.Mutex
+	listed   map[string][]string
+	roles    *RolesChain
+	rolesAt  time.Time
 
 	// snap is what the store remembers of the snapshot of its state (see snapshot.go).
 	snap snapshotState
