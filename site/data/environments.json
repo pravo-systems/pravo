@@ -18,7 +18,7 @@
       "expect_exit": 5,
       "line": 80,
       "ok": true,
-      "output": "Error: staging does not run this release: nothing has been applied there yet.\n\nRun these, skipping a step that is already done:\n\n    pravo apply --env dev\n    pravo promote staging\n    pravo apply --env staging\n    pravo promote prod",
+      "output": "Error: staging does not run this release: nothing has been applied there yet.\n\nRun these, skipping a step that is already done:\n\n    pravo apply --env dev\n    pravo promote staging\n    pravo promote prod",
       "stage": "main"
     },
     {

@@ -133,7 +133,7 @@ pravo plan
 ```
 
 ```text out
-Error: api.config.filename: value depends on #Service.name, which is not concrete (is a -t tag missing?)
+Error: api.config.filename: value depends on #Service.name, which is not concrete (give it a value, or pass -t if it is a tag)
 ```
 
 Name the loop variable differently from the input it fills. In `{name: n, port: port}` the right-hand `port` is the field itself, which is never concrete.

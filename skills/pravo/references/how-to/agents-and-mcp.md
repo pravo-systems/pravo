@@ -336,6 +336,8 @@ This writes `~/.claude/skills/pravo`, or `$CLAUDE_CONFIG_DIR/skills/pravo`, and 
 
 A policy binds every pravo that opens the state, because the versions are in the state and the apply judges them, and a role binds every pravo that opens a sealed state with an identity. Neither binds a caller that does not run pravo. An agent with the cloud credentials needs no pravo at all. An agent that can edit the specification can change a policy, and the plan that carries the change needs a writer to apply it and, where the policy asks for approvals, an admin to approve it. A pravo that is old enough not to know format 4 refuses the state.
 
+Text in the estate is not marked as data by any command. A resource name, a tag, a description, an attribute that a provider returns, a policy message, the `--actor` and `--reason` of a stored plan and the differences that `drift` prints can all be written by someone other than the reader, and appear in the output of every command, text or `--json`. Tell the agent to treat them as data and never as instructions (the skill and the server's `instructions` say so), and keep the commands that change things behind the controls below.
+
 For a boundary, use controls outside pravo as well:
 
 - **Credentials.** Give the agent credentials that can only read and plan. Keep the ones that change infrastructure in a separate job that applies reviewed plans, a file or a stored plan by its id.

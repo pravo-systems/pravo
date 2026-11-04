@@ -309,6 +309,19 @@ not found
 
 The provider keeps no copy of the key, so it cannot see that a key changed. Its description of `private_key_pem_wo_version` in `pravo schema tls_self_signed_cert` says to increment that number when the key is rotated. A secret that the sealed state keeps gives you the number: [Store secrets in the sealed state](store-secrets-in-the-state.md#4-hand-a-secret-to-a-provider) does this with `pravo.#SecretVersion`.
 
+### A secret in a file
+
+`local_file` has no write-only attribute, so an ephemeral value is refused there. When the secret already sits in a file outside the specification (a mounted secret, a file that CI writes), copy it with `local_sensitive_file` and its `source` attribute. The state keeps the hashes of the content and not the content:
+
+```cue
+db_password_file: $local.#Resource.local_sensitive_file & {
+	source:   "/run/secrets/db_password"
+	filename: "db.pass"
+}
+```
+
+Do not generate such a file with a command during `plan`: a command that runs on every plan writes the secret again each time and leaves no record in the state.
+
 ## What next
 
 - [Store secrets in the sealed state](store-secrets-in-the-state.md) keeps the secrets in the sealed state, with a history and roles, instead of in the environment of each job.
