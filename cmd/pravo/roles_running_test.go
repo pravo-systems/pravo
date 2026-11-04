@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -173,5 +174,58 @@ func TestAStalledApplyThatWakesAfterTheDemotionLocksNobodyOut(t *testing.T) {
 	}
 	if text, code := runPravo(t, s.dir, "--identity", "ada", "plan"); code == 7 {
 		t.Fatalf("plan exit 7 after the second demotion\n%s", text)
+	}
+}
+
+// A run that was vouched for as interrupted and then ends with no end signature (the agent would
+// not sign) must not make the record check dereference the missing signature (F65).
+func TestAVouchedRunThatEndsWithoutAnEndSignatureDoesNotPanic(t *testing.T) {
+	s := plannableBucket(t)
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer")
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+		t.Fatalf("protect roles: exit %d\n%s", code, text)
+	}
+	pin := protect.RolesGenesisKey + " " + loadReadersFile(s.dir, "").Pin
+	b := s.backend(t)
+	st, err := state.OpenBackendWith(context.Background(), b, state.Options{Identity: s.dan})
+	if err != nil {
+		t.Fatal(err)
+	}
+	txn := st.Begin("apply", "pravo apply")
+	if err := txn.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Set(&state.Resource{Addr: "n1", Mode: "data", Type: "t_data", Name: "n1", Attributes: []byte(`{"id":"n1"}`)}, txn.ID()); err != nil {
+		t.Fatal(err)
+	}
+	txn.Record("n1", "create", 0, 1)
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", pin)
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 || !strings.Contains(text, "1 of them interrupted") {
+		t.Fatalf("demotion: exit %d\n%s", code, text)
+	}
+	if err := txn.Finish("applied", "", true); err != nil {
+		t.Fatal(err)
+	}
+	// Take the end signature off the transaction, as when the signing key could not be reached.
+	key := "txn/" + txn.ID() + ".json"
+	data, err := b.Get(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc["finish_sig"] == nil {
+		t.Fatal("the transaction has no end signature to remove")
+	}
+	delete(doc, "finish_sig")
+	data, _ = json.Marshal(doc)
+	if err := b.Put(context.Background(), key, data); err != nil {
+		t.Fatal(err)
+	}
+	text, code := runPravo(t, s.dir, "--identity", "ada", "plan")
+	if code == 2 || strings.Contains(text, "nil pointer") {
+		t.Fatalf("plan panicked: exit %d\n%s", code, text)
 	}
 }
