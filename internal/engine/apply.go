@@ -546,12 +546,20 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			if err := e.preflightRecord(ctx); err != nil {
 				return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
 			}
+			if err := e.preflightPolicies(plan); err != nil {
+				return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
+			}
 		}
 		if !plan.NeedsApply() {
 			// Nothing to write and no output to record or remove: no lock, no record, no
 			// transaction. A state of an environment notes that it runs this release, unless
 			// the release was not promoted into it.
 			if !plan.Partial && note {
+				// The note writes the record with the pin of the roles, which a key that may
+				// not put meta.json cannot: that is the same refusal as for a changing apply.
+				if err := e.preflightRecord(ctx); err != nil {
+					return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
+				}
 				if err := e.noteRun(ctx, admitted, "", plan.DeferredCount()); err != nil {
 					return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
 				}

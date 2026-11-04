@@ -147,6 +147,10 @@ func (s *Store) updateMeta(fn func(m *meta) error) error {
 	return fmt.Errorf("meta.json of the state at %s changed again and again while it was written; run the command again", s.b.Name())
 }
 
+// EnsureFormat raises the state to format now, where a command would raise it later: a key that
+// may not put meta.json is refused before anything is changed. A state already at it is left alone.
+func (s *Store) EnsureFormat(format int) error { return s.setFormat(format) }
+
 // setFormat raises the format in meta.json.
 func (s *Store) setFormat(format int) error {
 	// The format only goes up, so a state already at it is left alone: meta.json is written

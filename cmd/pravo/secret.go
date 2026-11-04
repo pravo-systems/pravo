@@ -214,6 +214,9 @@ It needs an identity that is a writer when the readers file gives roles.`,
 				return err
 			}
 			defer clear(value)
+			if err := r.st.EnsureFormat(state.FormatSecret); err != nil {
+				return engine.WithCode(engine.ExitRefused, fmt.Errorf("this state does not yet hold secrets, and your key cannot write that (%v).\n\nNothing was changed. An admin sets the first secret once (pravo secret set %s), after which a writer sets the later ones.", err, args[0]))
+			}
 			info, err := r.st.SetSecret(r.ctx, args[0], value, note, secretCommandLine("set", args[0]))
 			if err != nil {
 				return secretErr(err)

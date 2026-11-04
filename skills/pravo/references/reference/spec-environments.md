@@ -171,7 +171,7 @@ An apply is refused with exit code 5 when:
 
 A plan is refused for the same reasons, and so is every other command that writes the records or the state: `import`, `state rm`, `state mv`, `state import-tfstate`, `discover`, and `secret set`, `rm` and `purge`.
 
-The refusal names the command that makes the record agree, `pravo environments record --env NAME`, which an admin of the state runs ([pravo environments](environments.md#pravo-environments-record)). Once the record pins the roles, the admins who may change it are those of the roles it pins, whatever the readers file of the run says. A writer adds the lineage of an environment before when the first promotion reads it, and the pin of the roles when an apply finds none, and nothing else.
+The refusal names the command that makes the record agree, `pravo environments record --env NAME`, which an admin of the state runs ([pravo environments](environments.md#pravo-environments-record)). Once the record pins the roles, the admins who may change it are those of the roles it pins, whatever the readers file of the run says. A writer adds the lineage of an environment before when the first promotion reads it, and the pin of the roles when an apply finds none and its key may put `meta.json`, and nothing else.
 
 A promotion checks the notes of an environment before against that environment's readers file, with the roles its state holds when the file pins them. When the record of that state pins its roles and the file does not pin those roles, the promotion is refused, so pointing the environment before at another readers file does not make anyone a writer there.
 
