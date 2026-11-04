@@ -396,10 +396,10 @@ func newVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, b
 	if err != nil {
 		return nil, err
 	}
-	done := map[string]bool{}
+	done := map[string]string{}
 	for _, v := range chain.Versions {
 		for _, vo := range v.Vouched {
-			done[vo.Txn] = true
+			done[vo.Txn] = vo.Digest
 		}
 	}
 	writer := func(rs []protect.Reader) map[string]bool {
@@ -417,7 +417,7 @@ func newVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, b
 	var found []protect.Vouch
 	skipped := 0
 	for _, v := range live {
-		if done[v.Txn] || isWriter[v.Key] {
+		if done[v.Txn] == v.Digest || isWriter[v.Key] {
 			continue
 		}
 		if v.Key == protect.UnsignedKey {

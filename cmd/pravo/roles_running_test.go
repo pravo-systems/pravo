@@ -120,3 +120,58 @@ func TestDemotionAfterAKilledApplyKeepsItsRecords(t *testing.T) {
 		t.Fatalf("protect status: exit %d\n%s", code, text)
 	}
 }
+
+// A run that was thought dead (a frozen process) is vouched for, then wakes and finishes after the
+// demotion: its records stay accepted, and a second demotion vouches for the finished run (F62).
+func TestAStalledApplyThatWakesAfterTheDemotionLocksNobodyOut(t *testing.T) {
+	s := plannableBucket(t)
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer")
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+		t.Fatalf("protect roles: exit %d\n%s", code, text)
+	}
+	pin := protect.RolesGenesisKey + " " + loadReadersFile(s.dir, "").Pin
+	st, err := state.OpenBackendWith(context.Background(), s.backend(t), state.Options{Identity: s.dan})
+	if err != nil {
+		t.Fatal(err)
+	}
+	txn := st.Begin("apply", "pravo apply")
+	if err := txn.Start(); err != nil {
+		t.Fatal(err)
+	}
+	set := func(addr string) {
+		t.Helper()
+		if err := st.Set(&state.Resource{Addr: addr, Mode: "data", Type: "t_data", Name: addr, Attributes: []byte(`{"id":"` + addr + `"}`)}, txn.ID()); err != nil {
+			t.Fatal(err)
+		}
+		txn.Record(addr, "create", 0, 1)
+	}
+	set("n1")
+
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", pin)
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 || !strings.Contains(text, "1 of them interrupted") {
+		t.Fatalf("demotion: exit %d\n%s", code, text)
+	}
+	// The process wakes, writes one more record, and finishes.
+	set("n2")
+	if err := txn.Finish("applied", "", true); err != nil {
+		t.Fatal(err)
+	}
+	for _, who := range []string{"ada", "dan"} {
+		if text, code := runPravo(t, s.dir, "--identity", who, "plan"); code == 7 {
+			t.Fatalf("%s: plan exit 7 after the stalled run finished\n%s", who, text)
+		}
+	}
+	// The toggle: dan a writer again, then a reader again, vouches for the finished run.
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer", pin)
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+		t.Fatalf("writer again: exit %d\n%s", code, text)
+	}
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", pin)
+	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes")
+	if code != 0 || !strings.Contains(text, "dan: vouched for 1 transaction") {
+		t.Fatalf("second demotion: exit %d\n%s", code, text)
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "plan"); code == 7 {
+		t.Fatalf("plan exit 7 after the second demotion\n%s", text)
+	}
+}

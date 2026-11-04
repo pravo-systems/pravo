@@ -229,6 +229,9 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 		vouched := false
 		if vo, ok := rules.Vouched[t.ID]; ok && t.FinishSig != nil && vo.Key == t.FinishSig.Key && vo.Digest == VouchDigest(lineage, t) {
 			vouched = true
+		} else if ok && t.StartSig != nil && t.StartSig.Key == t.FinishSig.Key && vo.Key == t.StartSig.Key && vo.Digest == startDigest(lineage, t) {
+			// The vouch was for the start of a run that was thought dead, and the run finished.
+			vouched = true
 		}
 		switch verdict.Finish {
 		case protect.SigUnknownKey:
