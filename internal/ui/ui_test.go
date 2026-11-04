@@ -228,7 +228,7 @@ func TestSafeReplacesWhatMovesATerminal(t *testing.T) {
 		"clear\x1b[2Jscreen":               "clear?[2Jscreen",
 		"title\x1b]0;x\aend":               "title?]0;x?end",
 		"two\nlines\tand\rmore":            "two lines and more",
-		"bidi ‮evil":                  "bidi ?evil",
+		"bidi \u202eevil":                  "bidi ?evil",
 		"fake\nApply complete! Resources:": "fake Apply complete! Resources:",
 	} {
 		if got := Safe(in); got != want {
