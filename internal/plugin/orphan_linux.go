@@ -15,6 +15,10 @@ func guardChildOS(cmd *exec.Cmd) {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
 	cmd.SysProcAttr.Pdeathsig = syscall.SIGKILL
+	// A group of its own, so that the watcher can kill what the provider started.
+	cmd.SysProcAttr.Setpgid = true
 }
 
-func watchChildOS(*exec.Cmd) func() { return func() {} }
+// Pdeathsig reaches the provider only. The watcher also kills its group, which
+// holds the processes the provider started (plugin subprocesses, helpers).
+func watchChildOS(cmd *exec.Cmd) func() { return watchWithShell(cmd) }
