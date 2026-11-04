@@ -175,7 +175,7 @@ One task each, for a reader who knows the basics.
 | [how-to/give-people-roles.md](how-to/give-people-roles.md) | Say which readers of a sealed state may change it and which may only read and plan, pin the roles in the state so that nobody promotes themselves by editing a copy of the readers file, promote a member, take a member off, and give a CI job the role its work needs. | 16 KB |
 | [how-to/store-a-plan-and-apply-it-later.md](how-to/store-a-plan-and-apply-it-later.md) | Store a plan in the state so that a team can list it, read it, see who else plans the same resources, approve it where a policy asks for that, and apply it by its id. | 15 KB |
 | [how-to/approve-a-plan.md](how-to/approve-a-plan.md) | Make a plan wait for the approval of another member before it is applied. Write the rule, store the plan, approve it with a second key, apply it by its id, and see what an admin may skip and what a change to the rule itself needs. | 12 KB |
-| [how-to/promote-a-release.md](how-to/promote-a-release.md) | Hold prod to what dev runs. Give each environment its own readers, promote a release with a signed note, withdraw a promotion, and waive the check when dev cannot be read. | 10 KB |
+| [how-to/promote-a-release.md](how-to/promote-a-release.md) | Hold prod to what dev runs. Give each environment its own readers, promote a release with a signed note, withdraw a promotion, and waive the check when dev cannot be read. | 11 KB |
 
 ### Specify
 
@@ -247,7 +247,7 @@ From OpenTofu or Terraform: a runbook with its lookups.
 | [migrate/m2-concept-map.md](migrate/m2-concept-map.md) | Each OpenTofu construct, command and function beside its pravo equivalent, with one example for each group and the rows that have none. | 24 KB |
 | [migrate/m3-worked-example.md](migrate/m3-worked-example.md) | One stack with a module, a for_each, a remote output, a sensitive value and a moved history, translated by hand, converted and planned to empty. | 28 KB |
 | [migrate/m4-translate-the-specification.md](migrate/m4-translate-the-specification.md) | Rewrite each OpenTofu construct as CUE in a fixed order, and check every step with pravo validate. | 23 KB |
-| [migrate/m5-convert-the-state.md](migrate/m5-convert-the-state.md) | Convert the OpenTofu state into pravo records, point each record at its address, and plan until nothing changes. | 26 KB |
+| [migrate/m5-convert-the-state.md](migrate/m5-convert-the-state.md) | Convert the OpenTofu state into pravo records, point each record at its address, and plan until nothing changes. | 27 KB |
 | [migrate/m6-rewrite-plan-checks.md](migrate/m6-rewrite-plan-checks.md) | Turn the CI checks that read the OpenTofu plan JSON into plan policies, and run both until they agree. | 17 KB |
 | [migrate/m7-cut-over.md](migrate/m7-cut-over.md) | Remove OpenTofu's claim on the objects, move the pipeline to pravo, order roots that share outputs, and archive the old state. | 13 KB |
 | [migrate/m8-rollback.md](migrate/m8-rollback.md) | Where the migration can be undone by deleting the pravo files, and what to do after the first apply that changes an object. | 9 KB |

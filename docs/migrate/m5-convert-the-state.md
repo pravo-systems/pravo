@@ -527,7 +527,7 @@ Renamed instances (these are the addresses now in the state; point each at its p
 
 The first line counts what was converted: eight managed resources, one data source and three outputs. Each instance is one record in the new state directory, `pravo.state`.
 
-An address in pravo is the place of a resource in the specification. The records keep the OpenTofu address until you say where each one went. Instances with a key, and resources in modules, have no plain address. The command renames them and prints every rename:
+An address in pravo is the place of a resource in the specification. The records keep the OpenTofu address until you say where each one went. A resource whose name is not the OpenTofu address needs `$from`, so write it for every converted record that you name differently. Until the first apply the plan counts these records as `to move`; that apply only moves records and touches no object. Instances with a key, and resources in modules, have no plain address. The command renames them and prints every rename:
 
 - An instance of `count` or `for_each` becomes `<name>_<key>`.
 - A resource in a module takes the module path as a prefix: `module.notes.local_file.note["alpha"]` becomes `local_file.notes_note_alpha`.
