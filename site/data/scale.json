@@ -64,7 +64,7 @@
       "command": "pravo plan -t version=1 | grep -E '^(No changes|Graph)'",
       "expect_exit": 0,
       "exit": 0,
-      "output": "No changes. The specification matches the state. 2001 records were not read; run pravo drift to compare them with the infrastructure.\nGraph: planned 0 · skipped 2001 · not read 2001",
+      "output": "No changes. The specification matches the state. 2001 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.\nGraph: planned 0 · skipped 2001 · not read 2001",
       "ok": true
     },
     {
