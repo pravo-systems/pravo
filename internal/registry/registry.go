@@ -647,6 +647,27 @@ type InstallResult struct {
 	Downloaded bool
 }
 
+// staleStage is how old an unfinished staging directory must be before a
+// later install removes it. A kill leaves one behind; a running install
+// finishes well inside this.
+const staleStage = 6 * time.Hour
+
+// sweepStale removes staging directories that a killed install left in parent.
+func sweepStale(parent string) {
+	ents, err := os.ReadDir(parent)
+	if err != nil {
+		return
+	}
+	for _, e := range ents {
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), ".install-") {
+			continue
+		}
+		if fi, err := e.Info(); err == nil && time.Since(fi.ModTime()) > staleStage {
+			os.RemoveAll(filepath.Join(parent, e.Name()))
+		}
+	}
+}
+
 // Install makes sure the provider version is on disk and returns its binary.
 func (c *Client) Install(ctx context.Context, src Source, ver string, progress func(string)) (*InstallResult, error) {
 	if p, ok := c.FindInstalled(src, ver); ok {
@@ -660,6 +681,7 @@ func (c *Client) Install(ctx context.Context, src Source, ver string, progress f
 	if err := os.MkdirAll(parent, 0o755); err != nil {
 		return nil, err
 	}
+	sweepStale(parent)
 	stage, err := os.MkdirTemp(parent, ".install-*")
 	if err != nil {
 		return nil, err
