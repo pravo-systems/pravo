@@ -616,20 +616,204 @@ func TestCreateBeforeDestroyStoppedBeforeTheReplacementIsRecorded(t *testing.T) 
 			t.Errorf("the plan destroys %s, the object of the node", c.Addr)
 		}
 	}
+	if _, _, destroy, _ := plan.Counts(); destroy != 1 {
+		t.Errorf("the plan counts %d to destroy for one object", destroy)
+	}
 	_, err := e.Apply(ctx, plan)
 	var coded *CodedError
 	if err == nil || !errors.As(err, &coded) || coded.Code != ExitRefused {
 		t.Fatalf("apply = %v, want exit code %d", err, ExitRefused)
 	}
+	if !strings.Contains(err.Error(), "the next apply then destroys the old object") || strings.Contains(err.Error(), "yours to destroy") {
+		t.Errorf("the advice does not say the deposed record destroys the old object: %v", err)
+	}
 	if n := h.fake.called("ApplyResourceChange"); n != 0 {
 		t.Fatalf("the refused apply reached the provider %d times", n)
 	}
 	e = h.engine(mk("two"), Options{AllowCreate: []string{"a"}})
-	if _, err := e.Apply(ctx, mustPlan(t, e)); err != nil {
+	res, err := e.Apply(ctx, mustPlan(t, e))
+	if err != nil {
 		t.Fatalf("apply with --allow-create: %v", err)
+	}
+	if res.Added != 1 || res.Destroyed != 1 {
+		t.Errorf("apply counts = %d added, %d destroyed, want 1 and 1", res.Added, res.Destroyed)
 	}
 	h.reopen()
 	if got := h.state.List(); len(got) != 1 || got[0].Address() != "a" {
 		t.Errorf("records after the apply: %d", len(got))
+	}
+}
+
+// A create_before_destroy replacement destroys the old object after what depends on the node
+// was updated, and a chain of them destroys the last replaced node first. When an update fails the
+// old object is not destroyed in that run: the deposed record stays for the next apply.
+func TestCreateBeforeDestroyDestroysAfterTheDependents(t *testing.T) {
+	ctx := context.Background()
+	cbd := "$lifecycle: create_before_destroy: true"
+	pair := func(name string) spec {
+		return spec{cue: "a: " + thing(name, cbd) + "\ntail: " + thing("tail", `content: "\(a.id)"`) + "\n", resources: []string{"a", "tail"}}
+	}
+	order := func(h *harness) string {
+		h.fake.mu.Lock()
+		defer h.fake.mu.Unlock()
+		return strings.Join(h.fake.order, "; ")
+	}
+	t.Run("a dependent", func(t *testing.T) {
+		h := newHarness(t)
+		h.apply(pair("one"))
+		h.fake.mu.Lock()
+		h.fake.order = nil
+		h.fake.mu.Unlock()
+		e := h.engine(pair("two"), Options{})
+		plan := mustPlan(t, e)
+		if add, change, destroy, _ := plan.Counts(); add != 1 || change != 1 || destroy != 1 {
+			t.Errorf("plan counts = %d to add, %d to change, %d to destroy", add, change, destroy)
+		}
+		res, err := e.Apply(ctx, plan)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := order(h), "create two; update tail; destroy one"; got != want {
+			t.Errorf("calls = %q, want %q", got, want)
+		}
+		if res.Added != 1 || res.Changed != 1 || res.Destroyed != 1 {
+			t.Errorf("apply counts = %d added, %d changed, %d destroyed", res.Added, res.Changed, res.Destroyed)
+		}
+		h.reopen()
+		if n := len(h.state.List()); n != 2 {
+			t.Errorf("%d records after the apply, want 2", n)
+		}
+	})
+	t.Run("the update of the dependent fails", func(t *testing.T) {
+		h := newHarness(t)
+		h.apply(pair("one"))
+		h.fake.mu.Lock()
+		h.fake.order = nil
+		h.fake.partial = map[string]bool{"tail": true}
+		h.fake.mu.Unlock()
+		e := h.engine(pair("two"), Options{})
+		if _, err := e.Apply(ctx, mustPlan(t, e)); err == nil {
+			t.Fatal("apply succeeded")
+		}
+		if got := order(h); strings.Contains(got, "destroy") {
+			t.Errorf("calls = %q: the old object was destroyed while a dependent failed", got)
+		}
+		h.reopen()
+		deposed := 0
+		for _, r := range h.state.List() {
+			if strings.Contains(r.Address(), "deposed") {
+				deposed++
+			}
+		}
+		if deposed != 1 {
+			t.Errorf("%d deposed records, want 1", deposed)
+		}
+		h.fake.mu.Lock()
+		h.fake.partial = nil
+		h.fake.order = nil
+		h.fake.mu.Unlock()
+		e = h.engine(pair("two"), Options{})
+		if _, err := e.Apply(ctx, mustPlan(t, e)); err != nil {
+			t.Fatalf("the retry: %v", err)
+		}
+		h.reopen()
+		if n := len(h.state.List()); n != 2 {
+			t.Errorf("%d records after the retry, want 2", n)
+		}
+	})
+	t.Run("a chain", func(t *testing.T) {
+		chain := func(a, b string) spec {
+			return spec{cue: "a: " + thing(a, cbd) + "\nb: " + thing(b, cbd+`
+content: "\(a.id)"`) + "\nc: " + thing("c", `content: "\(b.id)"`) + "\n", resources: []string{"a", "b", "c"}}
+		}
+		h := newHarness(t)
+		h.apply(chain("a1", "b1"))
+		h.fake.mu.Lock()
+		h.fake.order = nil
+		h.fake.mu.Unlock()
+		e := h.engine(chain("a2", "b2"), Options{})
+		res, err := e.Apply(ctx, mustPlan(t, e))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := order(h), "create a2; create b2; update c; destroy b1; destroy a1"; got != want {
+			t.Errorf("calls = %q, want %q", got, want)
+		}
+		if res.Added != 2 || res.Changed != 1 || res.Destroyed != 2 {
+			t.Errorf("apply counts = %d added, %d changed, %d destroyed", res.Added, res.Changed, res.Destroyed)
+		}
+	})
+}
+
+// An id is not always unique to an object. A replacement that has the id of the old object is not
+// the old object: when the destroy of the old one fails, the retry destroys it.
+func TestCreateBeforeDestroyDeposedRecordWithTheSameID(t *testing.T) {
+	ctx := context.Background()
+	mk := func(name string) spec {
+		return spec{cue: "a: " + thing(name, "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"a"}}
+	}
+	h := newHarness(t)
+	h.fake.fixedID = "shared-1"
+	h.apply(mk("one"))
+	h.fake.refuseDestroy("one")
+	e := h.engine(mk("two"), Options{})
+	if _, err := e.Apply(ctx, mustPlan(t, e)); err == nil {
+		t.Fatal("apply succeeded")
+	}
+	h.fake.mu.Lock()
+	delete(h.fake.undestroyable, "one")
+	h.fake.order = nil
+	h.fake.mu.Unlock()
+	h.reopen()
+	e = h.engine(mk("two"), Options{})
+	res, err := e.Apply(ctx, mustPlan(t, e))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.fake.mu.Lock()
+	got := strings.Join(h.fake.order, "; ")
+	h.fake.mu.Unlock()
+	if got != "destroy one" || res.Destroyed != 1 {
+		t.Errorf("retry calls = %q, %d destroyed; want the old object destroyed once", got, res.Destroyed)
+	}
+}
+
+// A create that fails and returns the state of the new object is recorded over the node's record:
+// the old object stays in a deposed record, and the next apply destroys it.
+func TestCreateBeforeDestroyCreateFailsWithState(t *testing.T) {
+	ctx := context.Background()
+	mk := func(name string) spec {
+		return spec{cue: "a: " + thing(name, "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"a"}}
+	}
+	h := newHarness(t)
+	h.apply(mk("one"))
+	h.fake.mu.Lock()
+	h.fake.partial = map[string]bool{"two": true}
+	h.fake.mu.Unlock()
+	e := h.engine(mk("two"), Options{})
+	if _, err := e.Apply(ctx, mustPlan(t, e)); err == nil {
+		t.Fatal("apply succeeded")
+	}
+	h.reopen()
+	if n := len(h.state.List()); n != 2 {
+		t.Fatalf("%d records after the failed create, want the node and the deposed old object", n)
+	}
+	h.fake.mu.Lock()
+	h.fake.partial = nil
+	h.fake.order = nil
+	h.fake.mu.Unlock()
+	e = h.engine(mk("two"), Options{})
+	if _, err := e.Apply(ctx, mustPlan(t, e)); err != nil {
+		t.Fatal(err)
+	}
+	h.fake.mu.Lock()
+	got := strings.Join(h.fake.order, "; ")
+	h.fake.mu.Unlock()
+	if !strings.Contains(got, "destroy one") {
+		t.Errorf("the retry made %q: the old object was not destroyed", got)
+	}
+	h.reopen()
+	if n := len(h.state.List()); n != 1 {
+		t.Errorf("%d records after the retry, want 1", n)
 	}
 }

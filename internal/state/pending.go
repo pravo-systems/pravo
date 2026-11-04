@@ -14,20 +14,33 @@ import (
 // cleanly, and left where it is by a command that stops. It names the id of the object the
 // record holds, so that a record with another id shows the replacement was recorded.
 type PendingCreate struct {
-	Addr    string    `json:"addr"`
-	OldID   string    `json:"old_id"`
-	Txn     string    `json:"txn"`
-	Host    string    `json:"host,omitempty"`
-	PID     int       `json:"pid,omitempty"`
-	Command string    `json:"command,omitempty"`
-	Since   time.Time `json:"since"`
+	Addr  string `json:"addr"`
+	OldID string `json:"old_id"`
+	// OldAppliedAt is when the record was last applied. An id is not always unique to an
+	// object (the id of a local_file is a hash of its content), so a replacement that has the
+	// old id is told from the old object by this time, which the replacement's record renews.
+	OldAppliedAt *time.Time `json:"old_applied_at,omitempty"`
+	Txn          string     `json:"txn"`
+	Host         string     `json:"host,omitempty"`
+	PID          int        `json:"pid,omitempty"`
+	Command      string     `json:"command,omitempty"`
+	Since        time.Time  `json:"since"`
+}
+
+// Holds reports whether rec is still the record of the object that the note names: it has
+// the id, and, when both know when the record was applied, the same time. In doubt it holds.
+func (p *PendingCreate) Holds(rec *Resource) bool {
+	if p.OldID == "" || rec.ID() != p.OldID {
+		return false
+	}
+	return p.OldAppliedAt == nil || rec.AppliedAt == nil || p.OldAppliedAt.Equal(*rec.AppliedAt)
 }
 
 func pendingKey(addr string) string { return "locks/" + encodeAddr(addr) + ".replacing" }
 
 // NotePendingCreate writes the note for addr, in place of any that is there.
-func (s *Store) NotePendingCreate(addr, oldID, txn, command string) error {
-	p := PendingCreate{Addr: addr, OldID: oldID, Txn: txn, Command: command, Since: time.Now().UTC()}
+func (s *Store) NotePendingCreate(addr, oldID string, oldAppliedAt *time.Time, txn, command string) error {
+	p := PendingCreate{Addr: addr, OldID: oldID, OldAppliedAt: oldAppliedAt, Txn: txn, Command: command, Since: time.Now().UTC()}
 	p.Host, _ = os.Hostname()
 	p.PID = os.Getpid()
 	data, err := indentJSON(p)
@@ -78,7 +91,7 @@ func (r *Resource) ID() string {
 // record rec (the record of the node now) does not account for: the record is absent or still
 // holds the old object. A command that is running still holds a lock for the transaction.
 func (s *Store) Orphaned(p *PendingCreate, rec *Resource) (bool, error) {
-	if rec != nil && (p.OldID == "" || rec.ID() != p.OldID) {
+	if rec != nil && !p.Holds(rec) {
 		return false, nil
 	}
 	locks, err := s.Locks()

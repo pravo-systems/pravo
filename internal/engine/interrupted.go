@@ -96,7 +96,7 @@ func (e *Engine) orphanedReplacements(plan *Plan) map[string]*state.PendingCreat
 			continue
 		}
 		if !orphan {
-			if rec := e.State.Get(ch.Addr); rec != nil && (p.OldID == "" || rec.ID() != p.OldID) {
+			if rec := e.State.Get(ch.Addr); rec != nil && !p.Holds(rec) {
 				_ = e.State.ClearPendingCreate(ch.Addr)
 			}
 			continue
@@ -122,7 +122,42 @@ func (e *Engine) refuseReplacements(replaced []string, replacing map[string]*sta
 	for _, addr := range replaced {
 		fmt.Fprintf(&b, "%s: %s\n", addr, stoppedReplacement(replacing[addr]))
 	}
-	return WithCode(ExitRefused, fmt.Errorf("apply refused: it would create %s that an interrupted apply may already have created.\n%sIf the create reached the cloud the replacement exists but is not tracked, and creating it again makes a second one. Nothing was changed. For each node above, either:\n  - adopt the replacement in place of the old object: pravo state rm %s, then %s (the old object is then yours to destroy); or\n  - if you know the create never reached the cloud, create it anyway: %s", nodes(len(replaced)), b.String(), replaced[0], e.importCommand(replaced[0], "ID"), e.allowCreateCommand(replaced)))
+	return WithCode(ExitRefused, fmt.Errorf("apply refused: it would create %s that an interrupted apply may already have created.\n%sIf the create reached the cloud the replacement exists but is not tracked, and creating it again makes a second one. Nothing was changed. For each node above, either:\n  - adopt the replacement in place of the old object: pravo state rm %s, then %s (%s); or\n  - if you know the create never reached the cloud, create it anyway: %s", nodes(len(replaced)), b.String(), replaced[0], e.importCommand(replaced[0], "ID"), e.oldObjectFate(replaced, replacing), e.allowCreateCommand(replaced)))
+}
+
+// oldObjectFate says what happens to the old objects after the replacements are adopted: a
+// node whose old object is also kept as a deposed record has it destroyed by the next apply, and
+// for a node with no such record (nothing but the stopped command knew of the old object) it is
+// the person's to destroy.
+func (e *Engine) oldObjectFate(replaced []string, replacing map[string]*state.PendingCreate) string {
+	var kept, mine []string
+	for _, addr := range replaced {
+		if p := replacing[addr]; p != nil && e.hasDeposed(addr, p.OldID) {
+			kept = append(kept, addr)
+		} else {
+			mine = append(mine, addr)
+		}
+	}
+	switch {
+	case len(mine) == 0:
+		return "the next apply then destroys the old object, which the state keeps as a deposed record"
+	case len(kept) == 0:
+		return "the old object is then yours to destroy"
+	}
+	return fmt.Sprintf("the next apply then destroys the old object of %s, which the state keeps as a deposed record; the old object of %s is yours to destroy", strings.Join(kept, ", "), strings.Join(mine, ", "))
+}
+
+// hasDeposed reports whether the state keeps the object with id as a deposed record of addr.
+func (e *Engine) hasDeposed(addr, id string) bool {
+	if id == "" {
+		return false
+	}
+	for _, r := range e.State.List() {
+		if base, ok := deposedBase(r.Addr); ok && base == addr && r.ID() == id {
+			return true
+		}
+	}
+	return false
 }
 
 func nodes(n int) string {

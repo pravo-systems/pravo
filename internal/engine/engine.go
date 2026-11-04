@@ -245,6 +245,9 @@ type applyState struct {
 	// completed holds the nodes whose change the current apply finished and
 	// recorded, by address.
 	completed map[string]bool
+	// destroyLater holds the destroys of the old instances of create_before_destroy
+	// replacements, run at the end of the walk.
+	destroyLater []func(context.Context) error
 }
 
 // testHooks are set by tests only.
@@ -679,6 +682,7 @@ func (e *Engine) resetRun(changes bool) {
 	defer e.mu.Unlock()
 	if changes {
 		e.changes = map[string]*Change{}
+		e.destroyLater = nil
 	}
 	e.targets = nil
 	e.stats = Stats{Total: e.countPlannable()}
