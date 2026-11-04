@@ -150,7 +150,11 @@ func (s *Store) putSnapshot(ctx context.Context, entries []snapshotEntry) bool {
 // from the backend otherwise. It writes a snapshot when there is none: after that the
 // command that changes the state keeps it up to date (see settleSnapshot).
 func (s *Store) loadNodes(ctx context.Context, vl VersionLister, objs []ObjectVersion) error {
-	snap := s.loadSnapshot(ctx)
+	// A state too small for a snapshot has none to read: the request would only find nothing.
+	var snap map[string]snapshotEntry
+	if len(objs) >= snapshotMin {
+		snap = s.loadSnapshot(ctx)
+	}
 	results, missed, err := s.readListed(ctx, objs, snap)
 	if err != nil {
 		return err

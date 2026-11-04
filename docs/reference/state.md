@@ -293,7 +293,7 @@ ls backup
 ```
 
 ```text out
-Copied 10 objects from ./pravo.state to backup
+Copied 7 objects from ./pravo.state to backup
 locks
 meta.json
 outputs.json
