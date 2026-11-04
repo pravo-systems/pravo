@@ -633,3 +633,102 @@ func TestCreateBeforeDestroyStoppedBeforeTheReplacementIsRecorded(t *testing.T) 
 		t.Errorf("records after the apply: %d", len(got))
 	}
 }
+
+// The object of a node that has a record is gone from the cloud, and the apply that creates it
+// again stops after the provider accepted the create: the lock cannot say so (a plan reclaims
+// the lock of a node that has a record), so a note does, and the next apply is refused before
+// it reaches the provider. A create over a record that finishes leaves no note.
+func TestRecreateOverARecordKeepsTheNote(t *testing.T) {
+	ctx := context.Background()
+	s := spec{cue: "a: " + thing("a", "content: \"x\"") + "\n", resources: []string{"a"}}
+	t.Run("the process dies after the provider accepted the create", func(t *testing.T) {
+		var dead *deadBackend
+		h := newHarnessOver(t, func(b state.Backend) state.Backend { dead = &deadBackend{Backend: b}; return dead })
+		h.apply(s)
+		h.fake.vanish("a")
+		h.fake.afterApply = func(name string) error {
+			dead.dead.Store(true)
+			return nil
+		}
+		e := h.engine(s, Options{Refresh: RefreshAll})
+		plan, err := e.Plan(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.Apply(ctx, plan); err == nil {
+			t.Fatal("the apply of a killed process succeeded")
+		}
+		h.fake.afterApply = nil
+		dead.dead.Store(false)
+		h.reopen()
+		for _, addr := range locksHeld(t, h.state) {
+			raw, err := h.state.Backend().Get(ctx, "locks/"+addr+".lock")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var l state.Lock
+			if err := json.Unmarshal(raw, &l); err != nil {
+				t.Fatal(err)
+			}
+			old := time.Now().Add(-time.Hour).UTC()
+			l.PID, l.Since, l.RenewedAt = 999999, old, old
+			data, _ := json.Marshal(l)
+			if err := h.state.Backend().Put(ctx, "locks/"+addr+".lock", data); err != nil {
+				t.Fatal(err)
+			}
+		}
+		h.fake.resetCalls()
+		// The cloud holds the new object; the fake has no second one, so the refresh is
+		// made to find the old one gone again.
+		h.fake.vanish("a")
+		var said []string
+		e = h.engine(s, Options{Refresh: RefreshAll, Progress: func(f string, a ...any) { said = append(said, fmt.Sprintf(f, a...)) }})
+		plan, err = e.Plan(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(strings.Join(said, "\n"), "stopped while it created the node again") {
+			t.Errorf("the plan does not warn: %v", said)
+		}
+		_, err = e.Apply(ctx, plan)
+		var coded *CodedError
+		if err == nil || !errors.As(err, &coded) || coded.Code != ExitRefused {
+			t.Fatalf("apply after the ending = %v, want exit code %d", err, ExitRefused)
+		}
+		if n := h.fake.called("ApplyResourceChange"); n != 0 {
+			t.Errorf("the refused apply reached the provider %d times", n)
+		}
+		// --allow-create goes on.
+		e = h.engine(s, Options{Refresh: RefreshAll, AllowCreate: []string{"a"}})
+		if plan, err = e.Plan(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.Apply(ctx, plan); err != nil {
+			t.Fatalf("apply with --allow-create: %v", err)
+		}
+	})
+	t.Run("a create that finished is not refused", func(t *testing.T) {
+		h := newHarness(t)
+		h.apply(s)
+		h.fake.vanish("a")
+		e := h.engine(s, Options{Refresh: RefreshAll})
+		plan, err := e.Plan(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.Apply(ctx, plan); err != nil {
+			t.Fatal(err)
+		}
+		if p, _ := h.state.PendingCreateOf("a"); p != nil {
+			t.Errorf("a finished create left a note: %+v", p)
+		}
+		h.fake.vanish("a")
+		e = h.engine(s, Options{Refresh: RefreshAll})
+		if plan, err = e.Plan(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.Apply(ctx, plan); err != nil {
+			t.Fatalf("a second re-create: %v", err)
+		}
+	})
+}

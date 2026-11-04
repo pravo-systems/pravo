@@ -137,8 +137,21 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 			verb, done = "Modifying", "Modifications"
 		}
 		e.step(string(ch.Action), ch.Addr, "start", idOf(ch.Prior), time.Time{}, "%s: %s... %s", ch.Addr, verb, idSuffix(ch.Prior))
+		// A create over a record (the object it records is gone) is noted like the
+		// creation of a replacement: the lock cannot carry the mark, because a plan
+		// reclaims the stale lock of a node that has a record.
+		noted := false
+		if ch.Action == ActionCreate {
+			if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
+				if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), rec.Revision, ch.Action == ActionCreate, e.txnID(), e.Opts.Command); err != nil {
+					return tftypes.Value{}, fmt.Errorf("%s: noting the create: %w", ch.Addr, err)
+				}
+				noted = true
+			}
+		}
 		res, err := e.applyChange(ctx, prov, ch, ch.Prior, ch.Planned, ch.Config, ch.PlannedPrivate)
 		if err != nil {
+			e.settleNote(ch.Addr, noted)
 			return tftypes.Value{}, err
 		}
 		final, private = res.NewState, res.Private
@@ -148,6 +161,9 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 		}
 		if err := e.recordApplied(ch, what, final, private, string(ch.Action)); err != nil {
 			return tftypes.Value{}, err
+		}
+		if noted {
+			_ = e.State.ClearPendingCreate(ch.Addr)
 		}
 		e.step(string(ch.Action), ch.Addr, "done", idOf(final), start, "%s: %s complete after %s %s", ch.Addr, done, since(start), idSuffix(final))
 	case ActionReplace:
@@ -164,7 +180,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 				oldRec = &cp
 			}
 			if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
-				if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), e.txnID(), e.Opts.Command); err != nil {
+				if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), rec.Revision, ch.Action == ActionCreate, e.txnID(), e.Opts.Command); err != nil {
 					return tftypes.Value{}, fmt.Errorf("%s: noting the replacement: %w", ch.Addr, err)
 				}
 				noted = true
@@ -172,9 +188,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 			res, err := e.applyChange(ctx, prov, ch, nullV, ch.PlannedCreate, ch.Config, ch.CreatePrivate)
 			if err != nil {
 				// A create that failed with nothing in doubt leaves no note.
-				if noted && !e.isUnsettled(ch.Addr) {
-					_ = e.State.ClearPendingCreate(ch.Addr)
-				}
+				e.settleNote(ch.Addr, noted)
 				return tftypes.Value{}, err
 			}
 			final, private = res.NewState, res.Private
@@ -927,6 +941,26 @@ func mergeOutputs(recorded, baseline, computed map[string]json.RawMessage, decla
 
 // isUnsettled reports whether the apply has noted that the result of the change to addr is
 // not known.
+// settleNote is what a create that returned an error does with its note (see
+// NotePendingCreate): a create that failed with nothing in doubt leaves none; one that is
+// unsettled keeps it, with the revision of the record as marking it unsettled has rewritten it,
+// so that the next plan still tells the record of the old object from a new one.
+func (e *Engine) settleNote(addr string, noted bool) {
+	if !noted {
+		return
+	}
+	if !e.isUnsettled(addr) {
+		_ = e.State.ClearPendingCreate(addr)
+		return
+	}
+	p, err := e.State.PendingCreateOf(addr)
+	rec := e.State.Get(addr)
+	if err != nil || p == nil || rec == nil || rec.ID() != p.OldID {
+		return
+	}
+	_ = e.State.NotePendingCreate(addr, p.OldID, rec.Revision, p.Recreate, p.Txn, p.Command)
+}
+
 func (e *Engine) isUnsettled(addr string) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()

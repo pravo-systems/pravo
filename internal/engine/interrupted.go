@@ -81,8 +81,11 @@ func (e *Engine) orphanedReplacements(plan *Plan) map[string]*state.PendingCreat
 		}
 	}
 	for _, ch := range plan.Changes {
-		if ch.Mode != "managed" || ch.Applied || (ch.Action != ActionReplace || !ch.CreateBeforeDestroy) && ch.Action != ActionDelete {
+		if ch.Mode != "managed" || ch.Applied || (ch.Action != ActionReplace || !ch.CreateBeforeDestroy) && ch.Action != ActionDelete && ch.Action != ActionCreate {
 			continue
+		}
+		if ch.Action == ActionCreate && e.State.Get(ch.Addr) == nil {
+			continue // a create over no record is marked on its lock
 		}
 		p, err := e.State.PendingCreateOf(ch.Addr)
 		if err == nil && p == nil && movedFrom[ch.Addr] != "" {
@@ -96,7 +99,7 @@ func (e *Engine) orphanedReplacements(plan *Plan) map[string]*state.PendingCreat
 			continue
 		}
 		if !orphan {
-			if rec := e.State.Get(ch.Addr); rec != nil && (p.OldID == "" || rec.ID() != p.OldID) {
+			if rec := e.State.Get(ch.Addr); rec != nil && !p.Holds(rec) {
 				_ = e.State.ClearPendingCreate(ch.Addr)
 			}
 			continue
@@ -114,6 +117,9 @@ func stoppedReplacement(p *state.PendingCreate) string {
 	if p.Host != "" {
 		who += " on host " + p.Host
 	}
+	if p.Recreate {
+		return fmt.Sprintf("an apply (%s) stopped while it created the node again, and the state still records only the object it had before (id %s, which was gone): the new object may exist in the cloud untracked", who, p.OldID)
+	}
 	return fmt.Sprintf("an apply (%s) stopped while it created the replacement, and the state still records only the object it replaces (id %s): the replacement may exist in the cloud untracked", who, p.OldID)
 }
 
@@ -122,7 +128,7 @@ func (e *Engine) refuseReplacements(replaced []string, replacing map[string]*sta
 	for _, addr := range replaced {
 		fmt.Fprintf(&b, "%s: %s\n", addr, stoppedReplacement(replacing[addr]))
 	}
-	return WithCode(ExitRefused, fmt.Errorf("apply refused: it would create %s that an interrupted apply may already have created.\n%sIf the create reached the cloud the replacement exists but is not tracked, and creating it again makes a second one. Nothing was changed. For each node above, either:\n  - adopt the replacement in place of the old object: pravo state rm %s, then %s (the old object is then yours to destroy); or\n  - if you know the create never reached the cloud, create it anyway: %s", nodes(len(replaced)), b.String(), replaced[0], e.importCommand(replaced[0], "ID"), e.allowCreateCommand(replaced)))
+	return WithCode(ExitRefused, fmt.Errorf("apply refused: it would create %s that an interrupted apply may already have created.\n%sIf the create reached the cloud the replacement exists but is not tracked, and creating it again makes a second one. Nothing was changed. For each node above, either:\n  - adopt the object in place of the recorded one: pravo state rm %s, then %s (a replaced object that still exists is then yours to destroy); or\n  - if you know the create never reached the cloud, create it anyway: %s", nodes(len(replaced)), b.String(), replaced[0], e.importCommand(replaced[0], "ID"), e.allowCreateCommand(replaced)))
 }
 
 func nodes(n int) string {
