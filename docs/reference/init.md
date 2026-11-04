@@ -210,10 +210,10 @@ head -n 9 pravo.lock.cue
 providers: "registry.opentofu.org/hashicorp/local": {
 	version: "2.9.1"
 	hashes: {
-		"<os>_<arch>": "sha256:<hash>"
+		"binary:linux_amd64": "sha256:ae9294a55eda6ff85dcbb4461d69b92412d36cdcd3bf89f8493465861e3a66e6"
+		"linux_amd64":        "sha256:5f25e3e5e58d516e3c81ef1ba712bdab3a40e45028bbb62c7ec98659a6dab65f"
 	}
 }
-providers: "registry.opentofu.org/hashicorp/random": {
 ```
 
 `pravo fmt` prints the name of each file it rewrites. Right after `init` it prints nothing for the lock file:

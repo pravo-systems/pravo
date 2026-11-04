@@ -191,10 +191,11 @@ providers: "oci://localhost:5001/acme/providers/random": {
 	version:     "3.9.1"
 	constraints: "~> 3.6"
 	hashes: {
-		"darwin_amd64": "sha256:aaa51d905b0e80a28e02f9bee2cf6c91ffade7389d77ab9198aa12809ed04955"
-		"darwin_arm64": "sha256:a2259540854d5f699c36b89244fb202ebb2c219b64669a51072687d04fb47152"
-		"linux_amd64":  "sha256:624fb6ed552abc34a5aaac41e76a373da65ac08e524b09b672f29c60e6ac896a"
-		"linux_arm64":  "sha256:09aaf19b0d22726d2378e0e89fbbefc183494d7bd585759d6c4e69ba50951a2f"
+		"binary:linux_amd64": "sha256:d8de21d2fc126adcd0bb9582755700809698594f7c9d9417aafb61996c82372d"
+		"darwin_amd64":       "sha256:aaa51d905b0e80a28e02f9bee2cf6c91ffade7389d77ab9198aa12809ed04955"
+		"darwin_arm64":       "sha256:a2259540854d5f699c36b89244fb202ebb2c219b64669a51072687d04fb47152"
+		"linux_amd64":        "sha256:624fb6ed552abc34a5aaac41e76a373da65ac08e524b09b672f29c60e6ac896a"
+		"linux_arm64":        "sha256:09aaf19b0d22726d2378e0e89fbbefc183494d7bd585759d6c4e69ba50951a2f"
 	}
 }
 ```

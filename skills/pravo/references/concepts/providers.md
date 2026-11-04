@@ -20,7 +20,7 @@ A provider reaches a run through a chain of files. `pravo init` builds the first
 4. It starts each provider once, asks for the schema, and caches the schema as JSON under `$PRAVO_HOME/schemas/`.
 5. It writes `cue.mod/module.cue` when no module exists, the generated packages, and `pravo.lock.cue`.
 
-The registry is trusted for what it states, and no more. The checksum comes from the same registry as the archive, and pravo does not check the signature of the release that OpenTofu checks. The address of the service and of the archive must be https (a loopback address may use http). A redirect from https to http is refused. A build for another platform or protocol than the one asked for is refused. A registry cannot make pravo read more than 64 MB of JSON or 2 GB of archive, unpack more than 6 GB (4 GB for one file) or 1,000 files, or wait for a silent connection for more than 60 seconds, and an archive that holds a link, a device or a name outside its directory is refused with a message. A registry that needs a login takes a token from the environment variable `TF_TOKEN_<host>`, with `.` written `_` and `-` written `__` (`TF_TOKEN_registry_example_com`), as OpenTofu reads it. The token goes to that host only, over https only, and is dropped by a redirect to another host. A source on a host with a port is written with the port after an underscore in the import path, `pravo.dev/providers/registry.example.com_8443/acme/thing`. Text that the registry sends is shown with control characters replaced by `?`. A provider that is already unpacked, in `$PRAVO_HOME` or in the OpenTofu plugin cache, is used as it is: the lock file holds the hash of the archive, which pravo cannot compare with an unpacked binary, so a cache that other jobs can write to is a place where code can be planted.
+The registry is trusted for what it states, and no more. The checksum comes from the same registry as the archive, and pravo does not check the signature of the release that OpenTofu checks. The address of the service and of the archive must be https (a loopback address may use http). A redirect from https to http is refused. A build for another platform or protocol than the one asked for is refused. A registry cannot make pravo read more than 64 MB of JSON or 2 GB of archive, unpack more than 6 GB (4 GB for one file) or 1,000 files, or wait for a silent connection for more than 60 seconds, and an archive that holds a link, a device or a name outside its directory is refused with a message. A registry that needs a login takes a token from the environment variable `TF_TOKEN_<host>`, with `.` written `_` and `-` written `__` (`TF_TOKEN_registry_example_com`), as OpenTofu reads it. The token goes to that host only, over https only, and is dropped by a redirect to another host. A source on a host with a port is written with the port after an underscore in the import path, `pravo.dev/providers/registry.example.com_8443/acme/thing`. Text that the registry sends is shown with control characters replaced by `?`. A provider that is already unpacked, in `$PRAVO_HOME` or in the OpenTofu plugin cache, is checked against the lock file on every run: the lock holds the SHA-256 of its executable (the `binary:` entry in [the lock file](#versions-and-the-lock-file)), and a file that differs is refused, so a plugin cache that other jobs can write to cannot plant code.
 
 It writes no file into the root package. `plan`, `apply` and the other commands install a missing provider and update the lock file on their own. They need the generated packages to exist, because the specification imports them.
 
@@ -367,19 +367,21 @@ Output:
 providers: "registry.opentofu.org/hashicorp/local": {
 	version: "<v>"
 	hashes: {
-		"<os>_<arch>": "sha256:<hash>"
+		"binary:<os>_<arch>": "sha256:<hash>"
+		"<os>_<arch>":        "sha256:<hash>"
 	}
 }
 providers: "registry.opentofu.org/hashicorp/random": {
 	version:     "<v>"
 	constraints: "~> 3.6"
 	hashes: {
-		"<os>_<arch>": "sha256:<hash>"
+		"binary:<os>_<arch>": "sha256:<hash>"
+		"<os>_<arch>":        "sha256:<hash>"
 	}
 }
 ```
 
-The key is the registry address of the provider, host included. A provider archive differs for each platform, so `hashes` has one entry for each `OS_ARCH`. The hash is the SHA-256 of the archive.
+The key is the registry address of the provider, host included. A provider archive differs for each platform, so `hashes` has one entry for each `OS_ARCH`. The hash is the SHA-256 of the archive. A second entry, `binary:OS_ARCH`, is the SHA-256 of the unpacked executable. `pravo init` writes it when the lock has none, and every command compares the executable that it is about to start with it, whether pravo unpacked it or the OpenTofu plugin cache holds it. An older pravo ignores the entry, and a lock file without it still loads: the next `pravo init` adds it. If a change of the executable is expected, remove the `binary:` line and run `pravo init`.
 
 A later `pravo init` installs exactly the locked versions. When it downloads an archive and the lock pins a hash for the platform, the archive must match it. A mismatch is an error and leaves nothing installed. A platform with no hash gets the hash of what was downloaded. `pravo init -upgrade` ignores the lock and chooses the newest versions that satisfy the constraints.
 

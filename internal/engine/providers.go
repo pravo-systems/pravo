@@ -2,7 +2,10 @@ package engine
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -31,6 +34,10 @@ type ResolvedProvider struct {
 	Version string
 	Path    string
 	Hash    string
+	// BinaryHash is the "sha256:<hex>" of the provider executable on disk, and
+	// recordBinary says that the lock file may take it when it holds none.
+	BinaryHash   string
+	recordBinary bool
 	// Protocol is how pravo talks to the provider (config.ProtocolTfplugin
 	// or config.ProtocolReattach); Reattach is set for the latter.
 	Protocol string
@@ -245,9 +252,58 @@ func (m *Providers) Resolve(ctx context.Context, lock *Lock, upgrade, install bo
 				}
 			}
 		}
+		if err := m.checkBinary(lock, rp, install); err != nil {
+			return err
+		}
 		m.Resolved[local] = rp
 	}
 	return nil
+}
+
+// BinaryHashKey is the key in the hashes of a lock entry that holds the digest of
+// the unpacked executable for a platform. The hash of the archive cannot be compared
+// with a provider that is already on disk, in $PRAVO_HOME or in a plugin cache,
+// and a cache that other jobs can write to is a place to plant code. An older pravo
+// reads the file and ignores the key.
+func BinaryHashKey(plat string) string { return "binary:" + plat }
+
+// checkBinary compares the executable of rp with the digest that the lock file
+// holds for it, and takes the digest for the lock when it holds none and the
+// command may write it (init).
+func (m *Providers) checkBinary(lock *Lock, rp *ResolvedProvider, install bool) error {
+	if rp.Path == "" || rp.Path == "(replay)" || rp.Req.Path != "" {
+		return nil
+	}
+	plat := registry.CurrentPlatform().String()
+	var want string
+	if e, ok := lock.Providers[rp.Req.Source.String()]; ok && e.Version == rp.Version {
+		want = e.Hashes[BinaryHashKey(plat)]
+	}
+	if want == "" && !install {
+		return nil
+	}
+	sum, err := fileSHA256(rp.Path)
+	if err != nil {
+		return fmt.Errorf("provider %s v%s: reading %s: %w", rp.Req.Source.Display(), rp.Version, rp.Path, err)
+	}
+	if want != "" && want != sum {
+		return fmt.Errorf("provider %s v%s: the executable %s has the digest %s, but %s pins %s for %s. It was changed after it was installed, or another tool put a different build in the plugin cache. Remove the file to install it again, or, if the change is expected, remove the %q line from the lock file and run \"pravo init\"", rp.Req.Source.Display(), rp.Version, rp.Path, sum, LockFileName, want, plat, BinaryHashKey(plat))
+	}
+	rp.BinaryHash, rp.recordBinary = sum, want == "" && install
+	return nil
+}
+
+func fileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return "sha256:" + hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func satisfies(ver, constraint string) bool {
@@ -275,6 +331,12 @@ func (m *Providers) UpdateLock(lock *Lock) {
 			lock.Providers[key] = e
 		}
 		e.Constraints = rp.Req.Version
+		if rp.recordBinary && rp.BinaryHash != "" {
+			if e.Hashes == nil {
+				e.Hashes = map[string]string{}
+			}
+			e.Hashes[BinaryHashKey(registry.CurrentPlatform().String())] = rp.BinaryHash
+		}
 		if rp.Hash != "" {
 			if e.Hashes == nil {
 				e.Hashes = map[string]string{}
