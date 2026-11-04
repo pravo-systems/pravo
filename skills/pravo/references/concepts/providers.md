@@ -20,6 +20,8 @@ A provider reaches a run through a chain of files. `pravo init` builds the first
 4. It starts each provider once, asks for the schema, and caches the schema as JSON under `$PRAVO_HOME/schemas/`.
 5. It writes `cue.mod/module.cue` when no module exists, the generated packages, and `pravo.lock.cue`.
 
+The registry is trusted for what it states, and no more. The checksum comes from the same registry as the archive, and pravo does not check the signature of the release that OpenTofu checks. The address of the service and of the archive must be https (a loopback address may use http). A redirect from https to http is refused. A build for another platform or protocol than the one asked for is refused. A registry cannot make pravo read more than 64 MB of JSON or 2 GB of archive, unpack more than 6 GB (4 GB for one file) or 1,000 files, or wait for a silent connection for more than 60 seconds, and an archive that holds a link, a device or a name outside its directory is refused with a message. Text that the registry sends is shown with control characters replaced by `?`. A provider that is already unpacked, in `$PRAVO_HOME` or in the OpenTofu plugin cache, is used as it is: the lock file holds the hash of the archive, which pravo cannot compare with an unpacked binary, so a cache that other jobs can write to is a place where code can be planted.
+
 It writes no file into the root package. `plan`, `apply` and the other commands install a missing provider and update the lock file on their own. They need the generated packages to exist, because the specification imports them.
 
 ## A provider is a struct
