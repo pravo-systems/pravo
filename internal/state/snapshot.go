@@ -44,9 +44,6 @@ type snapshotEntry struct {
 // snapshotOn reports whether the store reads and keeps snapshots: for a backend that lists
 // versions, unless the settings turn it off (snapshot: false).
 func (s *Store) snapshotOn() (vl VersionLister, keep bool, ok bool) {
-	if s.meta.Format < FormatImmutable {
-		return nil, false, false
-	}
 	return versionLister(s.b)
 }
 
