@@ -214,10 +214,21 @@ type idleBody struct {
 	io.ReadCloser
 	timer  *time.Timer
 	cancel context.CancelFunc
+	start  time.Time
+	read   int64
 }
+
+// minRate is the slowest average, in bytes a second, that a download may have
+// once it has run for idleTimeout: a registry that sends one byte a second keeps
+// the idle timer alive and holds a job forever.
+const minRate = 1 << 10
 
 func (b *idleBody) Read(p []byte) (int, error) {
 	n, err := b.ReadCloser.Read(p)
+	b.read += int64(n)
+	if el := time.Since(b.start); err == nil && el > idleTimeout && float64(b.read)/el.Seconds() < minRate {
+		return n, fmt.Errorf("the registry sends %d bytes a second; giving up", int64(float64(b.read)/el.Seconds()))
+	}
 	b.timer.Reset(idleTimeout)
 	if err != nil && errors.Is(err, context.Canceled) {
 		err = fmt.Errorf("the registry sent nothing for %s", idleTimeout)
@@ -244,7 +255,7 @@ func (t idleTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		cancel()
 		return nil, err
 	}
-	resp.Body = &idleBody{ReadCloser: resp.Body, timer: timer, cancel: cancel}
+	resp.Body = &idleBody{ReadCloser: resp.Body, timer: timer, cancel: cancel, start: time.Now()}
 	return resp, nil
 }
 
@@ -264,7 +275,7 @@ func (c *Client) get(ctx context.Context, u string) (*http.Response, error) {
 		cancel()
 		return nil, err
 	}
-	resp.Body = &idleBody{ReadCloser: resp.Body, timer: timer, cancel: cancel}
+	resp.Body = &idleBody{ReadCloser: resp.Body, timer: timer, cancel: cancel, start: time.Now()}
 	return resp, nil
 }
 

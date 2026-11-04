@@ -237,3 +237,22 @@ func TestRetryAfterWaitIsCapped(t *testing.T) {
 		t.Errorf("maxRetryWait = %s", maxRetryWait)
 	}
 }
+
+func TestArchiveGivesUpOnATrickle(t *testing.T) {
+	defer func(d time.Duration) { idleTimeout = d }(idleTimeout)
+	idleTimeout = 500 * time.Millisecond
+	c, src := archiveServer(t, func(dl map[string]any) {}, func(w http.ResponseWriter, r *http.Request) {
+		for i := 0; i < 100; i++ {
+			if _, err := w.Write([]byte("x")); err != nil {
+				return
+			}
+			w.(http.Flusher).Flush()
+			time.Sleep(200 * time.Millisecond)
+		}
+	})
+	start := time.Now()
+	_, _, err := c.Archive(context.Background(), src, "1.0.0", CurrentPlatform(), t.TempDir(), nil)
+	if err == nil || !strings.Contains(err.Error(), "bytes a second") || time.Since(start) > 5*time.Second {
+		t.Errorf("err = %v after %s", err, time.Since(start))
+	}
+}
