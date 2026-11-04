@@ -650,13 +650,14 @@ func TestUnreadNodesAreFilledOnlyWhenRead(t *testing.T) {
 	if got, err := outputJSON(p.Outputs["out"]); err != nil || string(got) != `"`+recordedID(t, h, "d")+`"` {
 		t.Errorf("out = %s (%v), want the id of d", got, err)
 	}
-	// Nothing reads a.
+	// Nothing reads a. b is read by the task c only, whose body gets it directly, so
+	// it is not unified either; d is read by an output and is.
 	concrete := func(addr string) bool {
 		e.cueMu.Lock()
 		defer e.cueMu.Unlock()
 		return convert.IsConcrete(e.current.LookupPath(cue.ParsePath(addr + ".id")))
 	}
-	for addr, want := range map[string]bool{"a": false, "b": true, "d": true} {
+	for addr, want := range map[string]bool{"a": false, "b": false, "d": true} {
 		if got := concrete(addr); got != want {
 			t.Errorf("the id of %s is unified into the configuration: %v, want %v", addr, got, want)
 		}
