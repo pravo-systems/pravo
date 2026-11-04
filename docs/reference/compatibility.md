@@ -4,6 +4,8 @@ description: The versions and formats that pravo reads and writes, the provider 
 order: 54
 group: Formats and interfaces
 normalize:
+  - pattern: 'pravo [0-9]+\.[0-9][^\s,]*'
+    replace: 'pravo <version>'
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
 ---
@@ -27,7 +29,7 @@ pravo version
 ```
 
 ```text out
-pravo 0.1.0-dev
+pravo <version>
 cue v0.17.1
 ```
 
@@ -153,7 +155,7 @@ pravo state show pet --json | jq -c 'keys'
 ```
 
 ```text out
-pravo 0.1.0-dev
+pravo <version>
 cue v0.17.1
 pet
 ["dependents","node"]

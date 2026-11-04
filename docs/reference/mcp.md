@@ -4,6 +4,8 @@ description: Serve pravo to an agent over the Model Context Protocol on stdio. F
 order: 15
 group: Commands
 normalize:
+  - pattern: '"version":"0\.[^"]*"'
+    replace: '"version":"<version>"'
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
 ---
@@ -113,7 +115,7 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol
 ```
 
 ```text out
-{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"tools":{}},"instructions":"pravo plans and applies infrastructure specified in CUE. Work in this order: pravo_schema to learn a type, edit the .cue files, pravo_validate until it passes, pravo_plan with out=<file> to produce a reviewable plan, then pravo_apply_plan on that file. A plan can also be stored in the state (pravo_plan with store=true), listed with pravo_plan_list and applied by its id. Never try to bypass a refusal: a policy or a reservation is a decision by the operators.","protocolVersion":"2024-11-05","serverInfo":{"name":"pravo","version":"0.1.0-dev"}}}
+{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"tools":{}},"instructions":"pravo plans and applies infrastructure specified in CUE. Work in this order: pravo_schema to learn a type, edit the .cue files, pravo_validate until it passes, pravo_plan with out=<file> to produce a reviewable plan, then pravo_apply_plan on that file. A plan can also be stored in the state (pravo_plan with store=true), listed with pravo_plan_list and applied by its id. Never try to bypass a refusal: a policy or a reservation is a decision by the operators.","protocolVersion":"2024-11-05","serverInfo":{"name":"pravo","version":"<version>"}}}
 ```
 
 The instructions contain `out=<file>`. The server writes `<`, `>` and `&` as they are and does not escape them.

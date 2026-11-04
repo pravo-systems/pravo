@@ -53,7 +53,7 @@ pravo version
 Output:
 
 ```text
-pravo 0.1.0-dev
+pravo <version>
 cue v0.17.1
 ```
 

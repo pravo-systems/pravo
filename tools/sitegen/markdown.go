@@ -375,11 +375,7 @@ func (f *fenceRenderer) render(w util.BufWriter, source []byte, node ast.Node, e
 		if fi.Hidden || (fi.Check && !renderCheckBlocks) {
 			break
 		}
-		ran := ""
-		if out != nil && f.r.p.FM.Capture {
-			ran = f.r.s.cfg.PravoVersion
-		}
-		_, _ = w.WriteString(renderTerminal(fi, code, out, ran))
+		_, _ = w.WriteString(renderTerminal(fi, code, out, ""))
 		_ = w.WriteByte('\n')
 	default:
 		if fi.Hidden {

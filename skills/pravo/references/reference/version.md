@@ -22,7 +22,7 @@ pravo version
 Output:
 
 ```text
-pravo 0.1.0-dev
+pravo <version>
 cue v0.17.1
 ```
 
@@ -31,7 +31,7 @@ cue v0.17.1
 | `pravo X` | The version of pravo. |
 | `cue vX` | The version of CUE that is built into the binary. |
 
-The footer of each page of this site names the same two versions. [Compatibility](compatibility.md) lists what each version works with.
+[Compatibility](compatibility.md) lists what each version works with.
 
 ## The CUE version and policies
 

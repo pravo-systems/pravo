@@ -7,6 +7,8 @@ env:
   PRAVO_PASSPHRASE: an example passphrase
   PRAVO_CONFIG_DIR: people/ada
 normalize:
+  - pattern: 'pravo [0-9]+\.[0-9][^\s,]*'
+    replace: 'pravo <version>'
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
   - pattern: '\[id=[a-z]+-[a-z]+\]'
@@ -488,7 +490,7 @@ pravo -C infra state verify "$TXN"
 Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 Transaction <txn>
-  signed by ada, pravo 0.1.0-dev
+  signed by ada, pravo <version>
   plan      sha256:<digest>
   judged by 2 policy versions:
     no_destroy@2:a1521d7920e4b11b9553a88cb2a7552e62d4415729c3e21a86233288ab3592ac

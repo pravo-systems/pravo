@@ -104,7 +104,7 @@
 <button class="mig-tab" role="tab" type="button" id="mig-t3" aria-selected="true" aria-controls="mig-p3">terminal</button>
 </div>
 <div class="tab-panel" role="tabpanel" id="mig-p3" aria-labelledby="mig-t3" data-title="terminal" data-active>
-<figure class="term mig-term" data-exit="0" data-status="valid" data-ran="{{data migrate.view.ran}}" data-file="terminal">
+<figure class="term mig-term" data-exit="0" data-status="valid" data-file="terminal">
 <figcaption class="code-title"><span class="code-file">terminal</span><span class="code-badge" title="Every command exits 0">valid</span></figcaption>
 <div class="term-body"><div class="mo-runs">
 <!--gen:runs--><div class="mo-run" data-run="0">
@@ -146,7 +146,7 @@
 <div class="stage-foot" id="mig-foot"><span class="anno anno-ok mig-status" id="mig-status" aria-hidden="true">{{data migrate.view.status}}</span></div>
 </div>
 </div>
-<p class="stage-caption"><span class="fig-n">fig. 5b</span> The state file in format {{data facts.state_format}} that OpenTofu {{data migrate.view.tofu}} wrote for main.tf, converted and planned. The output is a recording of pravo {{data migrate.view.ran}} run on it. The first plan lists the {{data migrate.view.moved}} moves that <code>$from</code> declares. An apply carries them out, and the second plan has nothing to do.<span class="sr-only" id="mig-live" role="status" aria-live="polite" aria-atomic="true"></span></p>
+<p class="stage-caption"><span class="fig-n">fig. 5b</span> The state file in format {{data facts.state_format}} that OpenTofu {{data migrate.view.tofu}} wrote for main.tf, converted and planned. The output is a recording of a real run. The first plan lists the {{data migrate.view.moved}} moves that <code>$from</code> declares. An apply carries them out, and the second plan has nothing to do.<span class="sr-only" id="mig-live" role="status" aria-live="polite" aria-atomic="true"></span></p>
 <script type="application/json" id="mig-beats">[
 {"label":"Convert","say":"pravo state import-tfstate converts the state file into {{data migrate.view.imported}} records and prints the instances it renamed."},
 {"label":"Plan","say":"The first plan lists {{data migrate.view.moved}} records to move to the addresses that stack.cue names with $from. It writes nothing, and no object changes."},

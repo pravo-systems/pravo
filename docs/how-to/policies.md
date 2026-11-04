@@ -10,6 +10,8 @@ env:
   PRAVO_PASSPHRASE: an example passphrase
   PRAVO_CONFIG_DIR: people/ada
 normalize:
+  - pattern: 'pravo [0-9]+\.[0-9][^\s,]*'
+    replace: 'pravo <version>'
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
   - pattern: '\[txn [0-9TZ]+-[0-9a-f]{6}\]'
@@ -142,7 +144,7 @@ cue version | head -n 1
 ```
 
 ```text out
-pravo 0.1.0-dev
+pravo <version>
 cue v0.17.1
 cue version v0.17.1
 ```
@@ -479,7 +481,7 @@ pravo -C root state verify "$(pravo -C root state log --json | jq -r '.[0].id')"
 Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed. [txn <id>]
 Transaction <txn>
-  signed by ada, pravo 0.1.0-dev
+  signed by ada, pravo <version>
   plan      sha256:<digest>
   judged by 1 policy versions:
     guard@3:<digest>

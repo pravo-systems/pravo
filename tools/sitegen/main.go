@@ -88,10 +88,10 @@ func run(o options) error {
 		if err != nil {
 			return err
 		}
-		if pv != "" {
+		if pv != "" && cfg.PravoVersion != "" {
 			cfg.PravoVersion = pv
 		}
-		if cv != "" {
+		if cv != "" && cfg.CUEVersion != "" {
 			cfg.CUEVersion = cv
 		}
 		fmt.Printf("versions from %s: %s\n", o.pravoBin, cfg.applies())
