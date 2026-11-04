@@ -570,6 +570,12 @@ func (s *Store) RestorePolicyVersion(ctx context.Context, m MissingPolicy, text 
 // as new and plan a duplicate. A removal (state rm, a destroy, a move) is the newest change
 // of its address and so explains an absent pointer.
 func (s *Store) MissingNodes(ctx context.Context, readers []protect.Reader) ([]string, error) {
+	return s.missingNodes(ctx, readers, false)
+}
+
+// missingNodes is MissingNodes; loaded takes the pointers the store read when it opened,
+// without listing the bucket again.
+func (s *Store) missingNodes(ctx context.Context, readers []protect.Reader, loaded bool) ([]string, error) {
 	if len(readers) == 0 || !s.sealedState() {
 		return nil, nil
 	}
@@ -592,7 +598,13 @@ func (s *Store) MissingNodes(ctx context.Context, readers []protect.Reader) ([]s
 	// The pointers the way a read finds them: from the versions of the bucket when it keeps
 	// them, else by listing.
 	var keys []string
-	if vl, _, on := s.snapshotOn(); on {
+	if loaded {
+		s.mu.Lock()
+		for addr := range s.nodes {
+			keys = append(keys, nodeKey(addr))
+		}
+		s.mu.Unlock()
+	} else if vl, _, on := s.snapshotOn(); on {
 		objs, err := vl.ListVersions(ctx, "resources")
 		if err != nil {
 			return nil, err
@@ -619,7 +631,17 @@ func (s *Store) MissingNodes(ctx context.Context, readers []protect.Reader) ([]s
 
 // CheckNodes refuses a state that lacks the pointer of a resource a signed transaction left.
 func (s *Store) CheckNodes(ctx context.Context, readers []protect.Reader) error {
-	missing, err := s.MissingNodes(ctx, readers)
+	return s.checkNodes(ctx, readers, false)
+}
+
+// CheckLoadedNodes is CheckNodes against the pointers the store read when it opened, for a
+// command that only reads them: it asks the bucket for nothing more.
+func (s *Store) CheckLoadedNodes(ctx context.Context, readers []protect.Reader) error {
+	return s.checkNodes(ctx, readers, true)
+}
+
+func (s *Store) checkNodes(ctx context.Context, readers []protect.Reader, loaded bool) error {
+	missing, err := s.missingNodes(ctx, readers, loaded)
 	if err != nil || len(missing) == 0 {
 		return err
 	}

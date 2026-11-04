@@ -92,7 +92,7 @@ func TestSealedStateKeepsTheDiffSealed(t *testing.T) {
 			assertNoSecret(t, b, diffPlanted)
 			read := func(st *Store) (map[string]Diff, bool, Transaction) {
 				t.Helper()
-				txns, err := st.Transactions()
+				txns, err := workTxns(st)
 				if err != nil || len(txns) != 1 {
 					t.Fatalf("%v %v", txns, err)
 				}

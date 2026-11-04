@@ -326,7 +326,7 @@ func TestACopyOfATransactionIsNotListedTwice(t *testing.T) {
 	if err := s.b.Put(context.Background(), "txn/zzzz.json", data); err != nil {
 		t.Fatal(err)
 	}
-	txns, err := s.Transactions()
+	txns, err := workTxns(s)
 	if err != nil || len(txns) != 1 {
 		t.Errorf("%d transactions, %v", len(txns), err)
 	}
@@ -417,4 +417,48 @@ func TestADeletedNodePointerIsFound(t *testing.T) {
 	if err := s.CheckNodes(ctx, readers); err != nil {
 		t.Fatalf("after a removal: %v", err)
 	}
+}
+
+// A state that holds pointers when it is sealed gets a transaction that names them, so a
+// pointer written before the seal is found when it is deleted.
+func TestSealingNamesThePointersThatExist(t *testing.T) {
+	skipWhenSealed(t)
+	ctx := context.Background()
+	b := testBackends()[0].make(t)
+	ada := testIdentity(t, "ada")
+	plain, err := OpenBackendWith(ctx, b, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Resource{Addr: "web.a", Mode: "managed", Type: "t", Name: "a", Attributes: []byte(`{}`)}
+	if err := plain.Set(r, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := plain.Upgrade(ctx, UpgradeOptions{To: FormatSealed, Readers: []protect.Reader{ada.AsReader()}, Identity: ada}); err != nil {
+		t.Fatal(err)
+	}
+	s := openIdentity(t, b, ada)
+	readers := readersOf(ada)
+	if err := s.CheckNodes(ctx, readers); err != nil {
+		t.Fatalf("untouched: %v", err)
+	}
+	if err := b.Delete(ctx, nodeKey("web.a")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CheckNodes(ctx, readers); !errors.Is(err, ErrUntrusted) {
+		t.Fatalf("a pointer from before the seal, deleted: %v", err)
+	}
+}
+
+// workTxns lists the transactions of the work a test did, without the "baseline" transaction
+// that names the records a state held when it was sealed.
+func workTxns(s *Store) ([]Transaction, error) {
+	all, err := s.Transactions()
+	var out []Transaction
+	for _, t := range all {
+		if t.Kind != "baseline" {
+			out = append(out, t)
+		}
+	}
+	return out, err
 }
