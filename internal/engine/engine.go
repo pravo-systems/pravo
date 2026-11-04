@@ -252,6 +252,8 @@ type applyState struct {
 	// destroyLater holds the destroys of the old instances of create_before_destroy
 	// replacements, run at the end of the walk.
 	destroyLater []deferredDestroy
+	// predestroyed holds the old objects that an apply destroyed ahead of the walk, by address.
+	predestroyed map[string]*goneObject
 }
 
 // testHooks are set by tests only.
@@ -687,6 +689,7 @@ func (e *Engine) resetRun(changes bool) {
 	if changes {
 		e.changes = map[string]*Change{}
 		e.destroyLater = nil
+		e.predestroyed = nil
 	}
 	e.targets = nil
 	e.stats = Stats{Total: e.countPlannable()}
