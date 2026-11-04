@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -162,7 +163,7 @@ type cueState struct {
 	// they were made: see fill and settle.
 	cueMu        sync.Mutex
 	current      cue.Value
-	pending      map[string]pendingFill
+	pending      map[string]*pendingFill
 	pendingOrder []string
 	// seeded reports that the first batch of fills of the run carried the seed
 	// fills; see seedFills. iterated holds the containers of tasks that something
@@ -172,6 +173,18 @@ type cueState struct {
 	iterated map[string]bool
 	// settles counts the times pending fills were unified into current.
 	settles int
+	// fastFills counts the task bodies that were made from pending fills leaf by
+	// leaf; see fromPending.
+	fastFills int
+	// fieldSrc holds the declaration of each task as the specification wrote it,
+	// before any fill was unified; externalReads, readersOf and nameTasks are
+	// worked out from the specification once. See fastfill.go.
+	fieldSrc      map[string]*ast.Field
+	externalReads map[string]bool
+	externalAll   bool
+	externalDone  bool
+	readerIdx     map[string][]string
+	nameTasks     map[string]map[string]bool
 }
 
 // graphState is the dependency graph.
@@ -732,7 +745,7 @@ func (e *Engine) runTaskInner(ctx context.Context, r *config.Resource, apply boo
 		if err != nil || fill == nil {
 			return err
 		}
-		return e.fill(r, fill)
+		return e.fillFrom(r, fill, v)
 	}
 	if r.Mode == "ephemeral" {
 		final, err = e.ephemeralTask(ctx, r, v, apply)
@@ -743,7 +756,7 @@ func (e *Engine) runTaskInner(ctx context.Context, r *config.Resource, apply boo
 		e.cueMu.Lock()
 		fill := convert.Fill(v, ch.Schema.Block, final)
 		e.cueMu.Unlock()
-		return e.fill(r, fill)
+		return e.fillFrom(r, fill, v)
 	}
 	if apply {
 		final, err = e.applyTask(ctx, r, v)
@@ -762,7 +775,7 @@ func (e *Engine) runTaskInner(ctx context.Context, r *config.Resource, apply boo
 	e.cueMu.Lock()
 	fill := convert.Fill(v, ch.Schema.Block, final)
 	e.cueMu.Unlock()
-	return e.fill(r, fill)
+	return e.fillFrom(r, fill, v)
 }
 
 func (e *Engine) planTask(ctx context.Context, r *config.Resource, v cue.Value) (tftypes.Value, error) {

@@ -93,11 +93,12 @@ func TestUnreachedRecordsAreNeverRead(t *testing.T) {
 	if got := h.fake.readNames(); !reflect.DeepEqual(got, []string{"r123"}) {
 		t.Errorf("read %v, want r123", got)
 	}
-	if got := h.backend.Count("Put", "resources"); got != 1 {
-		t.Errorf("%d records written, want the one that was read", got)
+	// The read found the record as it is, and with no refresh age the time of the read is not written.
+	if got := h.backend.Count("Put", "resources"); got != 0 {
+		t.Errorf("%d records written, want none: the read found nothing new", got)
 	}
-	if got := h.backend.Count("PutIfAbsent", "locks"); got != 1 {
-		t.Errorf("%d locks taken, want the one for the record that was written", got)
+	if got := h.backend.Count("PutIfAbsent", "locks"); got != 0 {
+		t.Errorf("%d locks taken, want none", got)
 	}
 	unread := 0
 	for _, ch := range p.Changes {
@@ -649,15 +650,39 @@ func TestUnreadNodesAreFilledOnlyWhenRead(t *testing.T) {
 	if got, err := outputJSON(p.Outputs["out"]); err != nil || string(got) != `"`+recordedID(t, h, "d")+`"` {
 		t.Errorf("out = %s (%v), want the id of d", got, err)
 	}
-	// Nothing reads a.
+	// Nothing reads a. b is read by the task c only, whose body gets it directly, so
+	// it is not unified either; d is read by an output and is.
 	concrete := func(addr string) bool {
 		e.cueMu.Lock()
 		defer e.cueMu.Unlock()
 		return convert.IsConcrete(e.current.LookupPath(cue.ParsePath(addr + ".id")))
 	}
-	for addr, want := range map[string]bool{"a": false, "b": true, "d": true} {
+	for addr, want := range map[string]bool{"a": false, "b": false, "d": true} {
 		if got := concrete(addr); got != want {
 			t.Errorf("the id of %s is unified into the configuration: %v, want %v", addr, got, want)
+		}
+	}
+}
+
+// A refresh that finds a record as it is writes its time only when the time the
+// record has is more than half the refresh age old (L4): an estate that was read
+// within that time costs no lock and no write.
+func TestRefreshOfUnchangedRecordsWritesNothingWithinHalfTheAge(t *testing.T) {
+	const n = 20
+	v1 := func(int) string { return "v1" }
+	h := newHarness(t)
+	h.apply(manySpec(n, v1))
+	for _, c := range []struct {
+		name, age string
+		want      int
+	}{{"recent time", "6h", 0}, {"time past half the age", "2ns", n}, {"always", "always", 0}, {"never", "never", 0}} {
+		h.backend.Reset()
+		plan(t, h.engine(manySpec(n, v1), Options{Refresh: RefreshAll, DefaultRefresh: c.age}))
+		if got := h.backend.Count("Put", "resources"); got != c.want {
+			t.Errorf("%s: %d records written, want %d", c.name, got, c.want)
+		}
+		if got := h.backend.Count("PutIfAbsent", "locks"); got != c.want {
+			t.Errorf("%s: %d locks taken, want %d", c.name, got, c.want)
 		}
 	}
 }

@@ -55,8 +55,25 @@ func ociClient(host string) (ociregistry.Interface, error) {
 	insecure := name == "localhost" || name == "127.0.0.1" || name == "::1"
 	return ociclient.New(host, &ociclient.Options{
 		Insecure:  insecure,
-		Transport: ociauth.NewStdTransport(ociauth.StdTransportParams{Config: cfg, Transport: ociBase()}),
+		Transport: ociauth.NewStdTransport(ociauth.StdTransportParams{Config: cfg, Transport: hostGuard{host: host, base: ociBase()}}),
 	})
+}
+
+// hostGuard refuses a request to another host than the registry's unless it is
+// https. The token address (realm) in a challenge, and a redirect, are chosen by
+// the registry; the credentials of the docker configuration are sent to the realm,
+// so a realm over plain http would send them in the clear, and so would one on
+// another loopback address that a test or a proxy listens on.
+type hostGuard struct {
+	host string
+	base http.RoundTripper
+}
+
+func (g hostGuard) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.URL.Host != g.host && req.URL.Scheme != "https" {
+		return nil, fmt.Errorf("the container registry %s sent the client to %s, which is on another host and not https; credentials are not sent there", clean(g.host), clean(req.URL.Redacted()))
+	}
+	return g.base.RoundTrip(req)
 }
 
 // ociBase is the transport under the authentication of the container registry

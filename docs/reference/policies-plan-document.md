@@ -118,7 +118,7 @@ A rule that reads a field which may be absent declares it optional and tests it 
 
 ## The document is not masked
 
-The text of a plan hides sensitive attributes. The document does not. Sensitive attributes, and the outputs marked sensitive, appear in it as they are. Apply the root, then change the length of the password from 8 to 9:
+The text of a plan hides sensitive attributes. The document does not, unless `--withhold-sensitive` is given, which replaces them in what is printed and leaves the plan file and the document that the policies judge as they are. Sensitive attributes, and the outputs marked sensitive, appear in it as they are. Apply the root, then change the length of the password from 8 to 9:
 
 ```sh run
 pravo -C infra apply --auto-approve | tail -n 1

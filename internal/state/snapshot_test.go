@@ -186,3 +186,47 @@ func TestAnOverlayReadsTheSnapshotAndKeepsNone(t *testing.T) {
 		t.Fatalf("an overlay open with a snapshot read %d objects", g)
 	}
 }
+
+// A state of format 1 keeps a snapshot as well (L5): its nodes are whole records,
+// rewritten in place, so a node that changed since the snapshot is read afresh
+// and a node that did not is not read.
+func TestASnapshotServesAnUnsealedStateAndNeverAChangedNode(t *testing.T) {
+	dir := t.TempDir()
+	seed, err := OpenWith(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const n = 120
+	for i := range n {
+		mustSet(t, seed, node(fmt.Sprintf("r%03d", i)))
+	}
+	open := func() (*Store, *taggedBackend) {
+		lb, err := NewLocalBackend(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b := &taggedBackend{Backend: lb}
+		s, err := OpenBackend(context.Background(), b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s, b
+	}
+	if s1, _ := open(); s1.Format() != Format || s1.Len() != n {
+		t.Fatalf("format %d, %d nodes", s1.Format(), s1.Len())
+	}
+	if _, err := seed.b.Get(context.Background(), snapshotKey); err != nil {
+		t.Fatalf("the first open kept no snapshot: %v", err)
+	}
+	s2, b2 := open()
+	if s2.Len() != n || b2.gets.Load() > 8 {
+		t.Fatalf("%d nodes after %d reads, want %d after a few", s2.Len(), b2.gets.Load(), n)
+	}
+	changed := node("r003")
+	changed.Attributes = []byte(`{"changed":true}`)
+	mustSet(t, s2, changed)
+	s3, _ := open()
+	if got := string(s3.Get(changed.Address()).Attributes); !strings.Contains(got, "changed") {
+		t.Fatalf("a changed node came from the snapshot: %s", got)
+	}
+}

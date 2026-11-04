@@ -133,7 +133,7 @@ pravo plan --refresh=all
 
 ```text out
 ...
-motd: no longer exists; it will be created again
+motd: the provider no longer finds it (deleted, or changed into another object); it will be created again
 ...
   # motd (local_file) will be created
   + motd: {
@@ -287,7 +287,7 @@ cat banner.txt
 
 ```text out
 ...
-banner: no longer exists; it will be created again
+banner: the provider no longer finds it (deleted, or changed into another object); it will be created again
 ...
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 release 2
