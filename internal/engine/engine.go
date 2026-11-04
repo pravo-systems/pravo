@@ -172,6 +172,9 @@ type cueState struct {
 	iterated map[string]bool
 	// settles counts the times pending fills were unified into current.
 	settles int
+	// fastFills counts the task bodies that were made from pending fills leaf by
+	// leaf; see fromPending.
+	fastFills int
 }
 
 // graphState is the dependency graph.

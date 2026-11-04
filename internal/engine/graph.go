@@ -493,10 +493,103 @@ func (e *Engine) snapshot(r *config.Resource) (cue.Value, error) {
 		// filled by the nodes of the scope that it waited for.
 		deps = e.scope.reads[r.Address()]
 	}
+	if v, ok := e.fromPending(r, deps); ok {
+		return v, nil
+	}
 	if err := e.settleLocked(deps); err != nil {
 		return cue.Value{}, err
 	}
 	return e.current.LookupPath(r.Path), nil
+}
+
+// fromPending returns the body of r with the values of the tasks it depends on
+// put in, without unifying them into the configuration. Unifying evaluates the
+// whole configuration, and a chain of tasks where each reads the one before has
+// one such step for every link, so a chain of n grew with the square of n. A body
+// that reads the attributes of the tasks it waited for in plain references
+// (subnet_id: net.id) gets the values leaf by leaf, which costs the size of the
+// body; the fills stay pending until a task needs them in another form, or the
+// run ends. ok is false when the body reads them in any other way, or when a value
+// does not fit: the caller then unifies, which is exact and names what conflicts.
+// The caller holds cueMu.
+func (e *Engine) fromPending(r *config.Resource, deps []string) (cue.Value, bool) {
+	if len(e.pending) == 0 {
+		return cue.Value{}, false
+	}
+	waiting := false
+	for _, a := range deps {
+		if _, ok := e.pending[a]; ok {
+			waiting = true
+			break
+		}
+	}
+	body := e.current.LookupPath(r.Path)
+	if !waiting {
+		return body, true
+	}
+	if !body.Exists() {
+		return cue.Value{}, false
+	}
+	isPending := func(task cue.Path) bool {
+		t, ok := e.byPath[task.String()]
+		if !ok {
+			return false
+		}
+		_, ok = e.pending[t.Address()]
+		return ok
+	}
+	refs, ok := convert.PureRefs(body, r.Path, e.resolver(), isPending)
+	if !ok {
+		return cue.Value{}, false
+	}
+	checked := map[string]bool{}
+	for _, ref := range refs {
+		pf := e.pending[e.byPath[ref.Task.String()].Address()]
+		if !checked[pf.res.Address()] {
+			// The values must fit the task they came from, as unifying them would
+			// check; what else they touch is checked when they are unified.
+			if e.current.LookupPath(pf.res.Path).FillPath(cue.Path{}, pf.fill).Validate() != nil {
+				return cue.Value{}, false
+			}
+			checked[pf.res.Address()] = true
+		}
+		val, found, usable := fillAt(pf.fill, ref.Attr)
+		if !usable {
+			return cue.Value{}, false
+		}
+		if !found {
+			// The task did not compute this attribute: the configuration holds it.
+			continue
+		}
+		body = body.FillPath(ref.Path, val)
+		if body.Validate() != nil {
+			return cue.Value{}, false
+		}
+	}
+	e.fastFills++
+	return body, true
+}
+
+// fillAt reads the attribute at sels from a fill. found is false when the fill
+// does not hold it; usable is false when the fill holds something along the way
+// that is not a struct.
+func fillAt(fill map[string]any, sels []cue.Selector) (val any, found, usable bool) {
+	var cur any = fill
+	for _, s := range sels {
+		if s.LabelType() != cue.StringLabel {
+			return nil, false, false
+		}
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return nil, false, false
+		}
+		next, ok := m[s.Unquoted()]
+		if !ok {
+			return nil, false, true
+		}
+		cur = next
+	}
+	return cur, true, true
 }
 
 // fill records the values a task computed, to be unified into the
