@@ -332,7 +332,7 @@ Output:
 
 ```text
 Drift. 1 of 2 resources changed outside pravo:
-  note: create
+  note: rewrite
     - refresh found the real state differs from the state (drift)
     - note.txt exists, so it was changed, not deleted
 ```

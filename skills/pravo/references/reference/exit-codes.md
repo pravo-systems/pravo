@@ -55,7 +55,7 @@ plan, one resource to create: 2
 plan, nothing to do: 0
 drift, none found: 0
 Drift. 1 of 1 resources changed outside pravo:
-  hello: create
+  hello: rewrite
     - refresh found the real state differs from the state (drift)
     - hello.txt exists, so it was changed, not deleted
 drift, found: 2
