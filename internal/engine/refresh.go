@@ -176,7 +176,11 @@ func (e *Engine) recordRefresh(addr, action string, before int, n *state.Resourc
 			return false
 		}
 	}
+	staged := e.State.Staged(addr)
 	err := e.State.Refresh(n, e.txnID())
+	if err == nil && staged {
+		e.markMovedOrigin(addr, action, n)
+	}
 	switch {
 	case errors.Is(err, state.ErrChanged):
 		e.Opts.Progress("Warning: %s changed in the state since this command read it; what the refresh read is not recorded", addr)

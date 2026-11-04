@@ -64,5 +64,5 @@ func (e *Engine) rememberData(addr, hash string, st tftypes.Value) {
 func (e *Engine) forgetReads() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.reads, e.dataReads, e.imported = nil, nil, nil
+	e.reads, e.dataReads, e.imported, e.stagedMoves = nil, nil, nil, nil
 }
