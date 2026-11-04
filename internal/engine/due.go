@@ -99,7 +99,7 @@ func (e *Engine) ageOf(sr *state.Resource) string {
 	if !ok || !r.RefreshPinned {
 		return ""
 	}
-	_, _, _, age := lifecycle(e.Value.LookupPath(r.Path))
+	_, _, _, age := lifecycle(e.atRoot(r.Path))
 	return age
 }
 
@@ -260,7 +260,7 @@ func (e *Engine) fillInputsOf(ctx context.Context, keys map[string]bool) error {
 			// Only what the configuration of the record reads is needed. The record is
 			// not sent to its provider, so the tasks its provider is set up from are not.
 			e.cueMu.Lock()
-			deps, _ := convert.Dependencies(e.Value.LookupPath(r.Path), r.Path, e.resolver())
+			deps, _ := convert.Dependencies(e.atRoot(r.Path), r.Path, e.resolver())
 			e.cueMu.Unlock()
 			for _, d := range deps {
 				if dr := e.byPath[d.String()]; dr != nil && dr != r {
