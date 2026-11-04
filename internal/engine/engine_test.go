@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -128,5 +129,21 @@ func TestLockModules(t *testing.T) {
 	_ = l2.UpdateModules(nil, false)
 	if len(l2.Modules) != 0 {
 		t.Errorf("unused modules should be dropped: %v", l2.Modules)
+	}
+}
+
+// A deposed record holds an old object of its node: what depends on the node is destroyed first.
+func TestInReverseOrdersDependentsBeforeADeposedRecord(t *testing.T) {
+	changes := []*Change{
+		{Addr: `a."deposed id-1"`, Action: ActionDelete},
+		{Addr: "b", Action: ActionDelete, Deps: []string{"a"}},
+		{Addr: "c", Action: ActionDelete, Deps: []string{"b"}},
+	}
+	var got []string
+	if err := inReverse(changes, 1, func(c *Change) error { got = append(got, c.Addr); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if want := `c b a."deposed id-1"`; strings.Join(got, " ") != want {
+		t.Errorf("order = %v, want %s", got, want)
 	}
 }

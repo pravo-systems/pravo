@@ -293,6 +293,14 @@ func inReverse(changes []*Change, width int, do func(*Change) error) error {
 	for i, c := range changes {
 		index[c.Addr] = i
 	}
+	// A deposed record holds an old object of its node: whatever depends on the node depends on
+	// the old object too, and goes before it.
+	deposedOf := map[string][]int{}
+	for i, c := range changes {
+		if base, ok := deposedBase(c.Addr); ok {
+			deposedOf[base] = append(deposedOf[base], i)
+		}
+	}
 	// below[i] lists the changes that change i depends on; waiting[j] counts the
 	// changes that depend on j and have not run.
 	below := make([][]int, len(changes))
@@ -300,10 +308,16 @@ func inReverse(changes []*Change, width int, do func(*Change) error) error {
 	for i, c := range changes {
 		listed := map[int]bool{}
 		for _, d := range c.Deps {
-			if j, ok := index[d]; ok && j != i && !listed[j] {
-				listed[j] = true
-				below[i] = append(below[i], j)
-				waiting[j]++
+			js := deposedOf[d]
+			if j, ok := index[d]; ok {
+				js = append([]int{j}, js...)
+			}
+			for _, j := range js {
+				if j != i && !listed[j] {
+					listed[j] = true
+					below[i] = append(below[i], j)
+					waiting[j]++
+				}
 			}
 		}
 	}

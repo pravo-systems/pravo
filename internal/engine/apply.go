@@ -220,7 +220,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 			// The destroy waits for the end of the walk: what depends on this node is updated
 			// first, so that nothing points at the old object when it goes. The closures run
 			// in reverse order of registration, which puts dependents before what they use.
-			e.deferDestroy(func(ctx context.Context) error {
+			e.deferDestroy(ch, func(ctx context.Context) error {
 				e.Opts.Progress("%s: Destroying previous instance... %s", ch.Addr, idSuffix(ch.Prior))
 				if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
 					if deposed != "" {
@@ -352,33 +352,77 @@ type PolicyWritten struct {
 	Change string `json:"change"`
 }
 
+// deferDestroy keeps the destroy of the old instance of a create_before_destroy replacement
+// for the end of the apply.
+func (e *Engine) deferDestroy(ch *Change, f func(context.Context) error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.destroyLater = append(e.destroyLater, deferredDestroy{ch: ch, run: f})
+}
+
 // sameApplied reports whether two records were applied at the same time, or one does not say.
 func sameApplied(a, b *state.Resource) bool {
 	return a.AppliedAt == nil || b.AppliedAt == nil || a.AppliedAt.Equal(*b.AppliedAt)
 }
 
-// deferDestroy keeps the destroy of the old instance of a create_before_destroy replacement
-// for the end of the walk.
-func (e *Engine) deferDestroy(f func(context.Context) error) {
+// holdDeferredDestroys drops the destroys that wait for the end of the apply, and returns how many
+// there were: the old instances stay as deposed records.
+func (e *Engine) holdDeferredDestroys() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.destroyLater = append(e.destroyLater, f)
+	n := len(e.destroyLater)
+	e.destroyLater = nil
+	return n
 }
 
-// runDeferredDestroys destroys the old instances that replacements left, the last
-// replaced node first. It stops at the first failure: the instances not yet destroyed stay as
-// deposed records for the next apply.
+// runDeferredDestroys destroys the old instances that replacements left, with the parallelism
+// of the apply. The old instance of a node goes after the old instances of the nodes that
+// depend on it, directly or through nodes that are not replaced that way. After a failure no
+// further destroy starts, the ones that run finish, and the old instances that did not run stay
+// as deposed records for the next apply.
 func (e *Engine) runDeferredDestroys(ctx context.Context) error {
 	e.mu.Lock()
 	fs := e.destroyLater
 	e.destroyLater = nil
-	e.mu.Unlock()
-	for i := len(fs) - 1; i >= 0; i-- {
-		if err := fs[i](ctx); err != nil {
-			return err
-		}
+	byAddr := make(map[string]*Change, len(e.changes))
+	for addr, ch := range e.changes {
+		byAddr[addr] = ch
 	}
-	return nil
+	e.mu.Unlock()
+	if len(fs) == 0 {
+		return nil
+	}
+	runs := make(map[string]func(context.Context) error, len(fs))
+	for _, d := range fs {
+		runs[d.ch.Addr] = d.run
+	}
+	// Every node of the walk that these depend on, through whatever chain of nodes, is an
+	// edge: the pseudo changes list the replaced nodes that each one reads.
+	pseudo := make([]*Change, 0, len(fs))
+	for _, d := range fs {
+		var deps []string
+		seen := map[string]bool{d.ch.Addr: true}
+		var walk func(addr string)
+		walk = func(addr string) {
+			c := byAddr[addr]
+			if c == nil {
+				return
+			}
+			for _, dep := range c.Deps {
+				if seen[dep] {
+					continue
+				}
+				seen[dep] = true
+				if runs[dep] != nil {
+					deps = append(deps, dep)
+				}
+				walk(dep)
+			}
+		}
+		walk(d.ch.Addr)
+		pseudo = append(pseudo, &Change{Addr: d.ch.Addr, Deps: deps})
+	}
+	return inReverse(pseudo, Parallelism, func(c *Change) error { return runs[c.Addr](ctx) })
 }
 
 // complete notes that the apply finished and recorded the change at addr.
@@ -608,8 +652,11 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 			return fail(err)
 		}
 		e.tally(result)
-		if err := e.runDeferredDestroys(ctx); err != nil {
-			return fail(err)
+		if plan.DeferredCount() > 0 {
+			// A change that waits for a value of this apply still points at the old
+			// instances: they stay as deposed records, and the plan that follows destroys them
+			// after the deferred changes were applied.
+			result.Destroyed -= e.holdDeferredDestroys()
 		}
 		if err := e.evalOutputs(final, plan, result); err != nil {
 			return fail(err)
@@ -621,6 +668,11 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	done(err)
 	result.Destroyed += destroyed
 	if err != nil {
+		return fail(err)
+	}
+	// The old instances of create_before_destroy replacements go last: the nodes that were
+	// updated in the walk and the ones that were removed are not pointing at them any more.
+	if err := e.runDeferredDestroys(ctx); err != nil {
 		return fail(err)
 	}
 	if !e.Opts.Destroy {
