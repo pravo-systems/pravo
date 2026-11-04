@@ -100,3 +100,42 @@ func (s *Store) writeStaged(r *Resource, addr string, remove bool) bool {
 	s.index = nil
 	return true
 }
+
+// RefreshStagedOrigin writes to the backend the record that addr held before it was
+// staged away (the old address of a record that $from moves), with what a read found
+// at the staged copy: its attributes, private data, refresh time and mark. The apply
+// that carries the move out copies the record of the backend, so the finding has to
+// be there. The staged view is not changed, except that the origin now has the new
+// revision. It returns the revision and generation written, and false when addr is
+// not staged away, the record changed in the backend since it was read, or the write
+// failed.
+func (s *Store) RefreshStagedOrigin(addr string, found *Resource, txn string) (rev int, gen string, ok bool) {
+	mu := s.stripe(addr)
+	mu.Lock()
+	defer mu.Unlock()
+	s.mu.Lock()
+	st, staged := s.staged[addr]
+	_, live := s.nodes[addr]
+	s.mu.Unlock()
+	if !staged || st.orig == nil || live {
+		return 0, "", false
+	}
+	cur, present, err := s.head(addr)
+	if err != nil || !present || cur != (Version{Revision: st.orig.Revision, Generation: st.orig.Generation}) {
+		return 0, "", false
+	}
+	n := *st.orig
+	n.Attributes, n.Private = found.Attributes, found.Private
+	n.RefreshedAt, n.DriftedAt, n.Gone = found.RefreshedAt, found.DriftedAt, found.Gone
+	n.ProviderConfig = found.ProviderConfig
+	if err := s.set(&n, txn); err != nil {
+		return 0, "", false
+	}
+	// put made n the live node of the address; the staged view has none.
+	s.mu.Lock()
+	delete(s.nodes, addr)
+	s.staged[addr] = stagedNode{orig: &n}
+	s.index = nil
+	s.mu.Unlock()
+	return n.Revision, n.Generation, true
+}
