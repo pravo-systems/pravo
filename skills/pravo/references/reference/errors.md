@@ -327,6 +327,7 @@ exit=6
 | Message | Cause | Fix |
 |---|---|---|
 | `size: conflicting values 11 and 3:` | Two declarations of one field disagree. | Read the positions: both declarations are listed. Remove one, or make the values agree. See [Reading a CUE error](../learn/reading-a-cue-error.md). |
+| `port.$kind: conflicting values "output" and "resource":` | An output and a resource have the same name: they share one namespace. | Rename the output. See [Outputs](spec-outputs.md). |
 | `y: reference "z" not found:` | A name that no declaration defines. | Declare it, or fix the spelling. |
 | `imported and not used: "math":` | An import that no expression uses. | Remove the import. |
 | `pet.lenght: field not allowed:` | The attribute is not in the definition of the resource, and a definition is closed. | Fix the spelling. `pravo schema <type>` prints the attributes of a type. See [Closed or open?](../learn/closed-or-open.md). |

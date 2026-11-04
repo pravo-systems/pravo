@@ -834,19 +834,16 @@ note: $local.#Resource.local_file & {
 }
 ```
 
-```sh run exit=1
+```sh run exit=6
 pravo -C tags init > /dev/null
 pravo -C tags validate
-pravo -C tags plan
 ```
 
 ```text out
-Success! 1 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 1 providers.
-
 Error: note.content: value depends on suffix, which is not concrete (give it a value, or pass -t if it is a tag)
 ```
 
-Cause: `suffix` has no default and no `-t suffix=...` was given. `validate` accepts a value that is still a type. Fix: pass `-t suffix=value`, or give the field a default: `*"x" | string`.
+Cause: `suffix` has no default and no `-t suffix=...` was given. `validate` and `plan` both stop at a value that is still a type. Fix: pass `-t suffix=value`, or give the field a default: `*"x" | string`.
 
 ### A list given on the command line
 
