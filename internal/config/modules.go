@@ -319,6 +319,9 @@ func ModuleNotFoundHint(err error) error {
 	if h := providerImportHint(err.Error()); h != "" {
 		return fmt.Errorf("%w\n\n%s", err, h)
 	}
+	if m := kindClashRe.FindStringSubmatch(err.Error()); m != nil {
+		return fmt.Errorf("%w\n\nhint: %s is declared twice, once as an output and once as a resource (or data source): an output and a resource share one namespace, the paths of the specification. Rename one of them, for example the output to %s_value", err, m[1], m[1])
+	}
 	if m := keywordPackageRe.FindStringSubmatch(err.Error()); m != nil {
 		return fmt.Errorf("%w\n\nhint: %s is a CUE keyword, so the package of this provider is named %s_: import it as \"%s:%s_\"", err, m[2], m[2], m[1], m[2])
 	}
@@ -404,6 +407,9 @@ var cueStdlibRoots = map[string]bool{"bytes": true, "crypto": true, "encoding": 
 // pravo.dev/providers, below the address.
 // keywordPackageRe matches the error for a provider package that is imported
 // without the underscore its name carries: null, true, false, package, import, for, in, if, let.
+// kindClashRe matches the error for a name that an output and a resource both declare.
+var kindClashRe = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_-]*)\.\$kind: conflicting values "(?:output|resource|data)" and "(?:output|resource|data)"`)
+
 var keywordPackageRe = regexp.MustCompile(`cannot find package "(pravo\.dev/providers/[^"]*/([a-z]+))": no files in package directory with package name "(?:null|true|false|package|import|for|in|if|let)"`)
 
 func providerImportHint(text string) string {

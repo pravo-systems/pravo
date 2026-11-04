@@ -132,6 +132,47 @@ jobs:
 | `version`, `install` | both, `install` only on `pravo-action` | Pin a release, or skip the install step. |
 | `verify-attestation` | `setup-pravo` | `true` checks the signed provenance of the archive. |
 
+A workflow that plans on every pull request and applies on a push to `main` has the same pieces in one file. The apply job makes the plan itself, because the plan of a pull request describes the branch and not the merged commit; the plan step sets `plan-id`, and the apply step applies exactly that stored plan.
+
+```yaml
+name: pravo
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions: {}
+jobs:
+  plan:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions: {contents: read, pull-requests: write, id-token: write}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: {role-to-assume: "arn:aws:iam::123456789012:role/plan", aws-region: eu-west-1}
+      - uses: pravo-systems/pravo-action@v1
+        with: {command: plan, working-directory: app}
+  apply:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions: {contents: read, id-token: write}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: {role-to-assume: "arn:aws:iam::123456789012:role/apply", aws-region: eu-west-1}
+      - id: plan
+        uses: pravo-systems/pravo-action@v1
+        with: {command: plan, working-directory: app}
+      - uses: pravo-systems/pravo-action@v1
+        if: steps.plan.outputs.has-changes == 'true'
+        with: {command: apply, plan-id: "${{ steps.plan.outputs.plan-id }}", working-directory: app}
+```
+
+The `production` environment is where GitHub asks a reviewer before the job starts. The two roles are the ones from the paragraph below: the plan role reads, the apply role writes. The action does not run `pravo init`; commit the generated packages, or add a step that runs it.
+
 A pipeline that must be safe against pull requests from forks has three rules. Trigger on `pull_request`, never on `pull_request_target`, because a fork's workflow then runs with no secrets and no OIDC token. Give the workflow `permissions: {}` at the top and `id-token: write` only to the jobs that need a role. Run the plan job only when `github.event.pull_request.head.repo.full_name == github.repository`, and the apply job only on `push` to `main`, in a GitHub environment that asks for a review. A plan reads the cloud, and a plan job needs credentials that read it and no more; an apply job needs the role that writes. The `validate` job needs no credentials at all, so it can run for every pull request.
 
 A review on GitHub is not an approval that pravo counts: an approval is a signature by a key in the readers file. Either approve with `pravo plan approve ID` on a machine that holds a key, or gate the `apply` job with a GitHub environment and give the job an identity that the policy accepts.

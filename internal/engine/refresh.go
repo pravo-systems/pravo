@@ -3,8 +3,11 @@ package engine
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -112,7 +115,7 @@ func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state
 		if ch.removal {
 			e.Opts.Progress("%s: the provider no longer finds it; its record will be removed", addr)
 		} else {
-			e.Opts.Progress("%s: the provider no longer finds it (deleted, or changed into another object); it will be created again", addr)
+			e.Opts.Progress("%s: the provider no longer finds it (deleted, or changed into another object)%s; it will be created again", addr, e.existingFileNote(sr))
 		}
 		e.persistGone(addr, sr)
 		return newState, newPrivate, nil
@@ -449,4 +452,24 @@ func (e *Engine) unreadReason(sr *state.Resource, age string) string {
 		return "not read: the plan did not reach it; the record was never read, its refresh age is " + age
 	}
 	return fmt.Sprintf("not read: the plan did not reach it; the record is %s old, its refresh age is %s", shortAge(time.Since(*sr.RefreshedAt)), age)
+}
+
+// existingFileNote says so when the record names a file (a filename attribute) and a
+// file exists there: a read that no longer finds such an object means the file was
+// changed by hand, not deleted.
+func (e *Engine) existingFileNote(sr *state.Resource) string {
+	var attrs struct {
+		Filename string `json:"filename"`
+	}
+	if json.Unmarshal(sr.Attributes, &attrs) != nil || attrs.Filename == "" {
+		return ""
+	}
+	p := attrs.Filename
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(e.Root.Dir, p)
+	}
+	if fi, err := os.Stat(p); err != nil || fi.IsDir() {
+		return ""
+	}
+	return ": " + attrs.Filename + " exists, so it was changed, not deleted"
 }
