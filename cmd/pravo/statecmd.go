@@ -270,6 +270,9 @@ func stateMvCmd(load func() (*state.Store, error)) *cobra.Command {
 			if err := st.Set(&moved, txn.ID()); err != nil {
 				return err
 			}
+			if err := st.MovePendingCreate(args[0], args[1]); err != nil {
+				return err
+			}
 			txn.Record(args[0], "move-from", before, 0)
 			txn.Record(args[1], "move-to", 0, moved.Revision)
 			for _, d := range deps {

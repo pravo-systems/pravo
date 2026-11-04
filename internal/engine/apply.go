@@ -154,13 +154,30 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 		nullV := tftypes.NewValue(ch.Schema.Block.Type(), nil)
 		if ch.CreateBeforeDestroy {
 			e.Opts.Progress("%s: Creating replacement...", ch.Addr)
+			// The record keeps the old object until the replacement is recorded. A note that
+			// outlives a command that stops is what keeps the next apply from creating the
+			// replacement again (the lock does not: a plan reclaims it).
+			noted := false
+			if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
+				if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), e.txnID(), e.Opts.Command); err != nil {
+					return tftypes.Value{}, fmt.Errorf("%s: noting the replacement: %w", ch.Addr, err)
+				}
+				noted = true
+			}
 			res, err := e.applyChange(ctx, prov, ch, nullV, ch.PlannedCreate, ch.Config, ch.CreatePrivate)
 			if err != nil {
+				// A create that failed with nothing in doubt leaves no note.
+				if noted && !e.isUnsettled(ch.Addr) {
+					_ = e.State.ClearPendingCreate(ch.Addr)
+				}
 				return tftypes.Value{}, err
 			}
 			final, private = res.NewState, res.Private
 			if err := e.recordApplied(ch, "creation", final, private, "replace"); err != nil {
 				return tftypes.Value{}, err
+			}
+			if noted {
+				_ = e.State.ClearPendingCreate(ch.Addr)
 			}
 			e.Opts.Progress("%s: Destroying previous instance... %s", ch.Addr, idSuffix(ch.Prior))
 			if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
@@ -889,4 +906,13 @@ func mergeOutputs(recorded, baseline, computed map[string]json.RawMessage, decla
 		}
 	}
 	return out
+}
+
+// isUnsettled reports whether the apply has noted that the result of the change to addr is
+// not known.
+func (e *Engine) isUnsettled(addr string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	_, ok := e.unsettled[addr]
+	return ok
 }

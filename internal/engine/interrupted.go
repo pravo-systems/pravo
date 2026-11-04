@@ -5,6 +5,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // checkInterruptedCreates refuses an apply that would create a node whose last
@@ -17,11 +19,23 @@ import (
 // never reached the cloud.
 func (e *Engine) checkInterruptedCreates(plan *Plan) error {
 	suspects, err := e.State.Suspects()
-	if err != nil || len(suspects) == 0 {
+	if err != nil {
 		return nil
 	}
-	var refused []string
+	replacing := e.orphanedReplacements(plan)
+	if len(suspects) == 0 && len(replacing) == 0 {
+		return nil
+	}
+	var refused, replaced []string
 	for _, ch := range plan.Changes {
+		if p, ok := replacing[ch.Addr]; ok && !ch.Applied && ch.Action != ActionDelete && ch.Action != ActionMove {
+			if slices.Contains(e.Opts.AllowCreate, ch.Addr) {
+				e.Opts.Progress("Warning: %s: creating the replacement although %s, as --allow-create said", ch.Addr, stoppedReplacement(p))
+				continue
+			}
+			replaced = append(replaced, ch.Addr)
+			continue
+		}
 		if ch.Action != ActionCreate || ch.Mode != "managed" || ch.Applied {
 			continue
 		}
@@ -34,15 +48,81 @@ func (e *Engine) checkInterruptedCreates(plan *Plan) error {
 		}
 		refused = append(refused, ch.Addr)
 	}
-	if len(refused) == 0 {
+	if len(refused) == 0 && len(replaced) == 0 {
 		return nil
 	}
 	slices.Sort(refused)
+	slices.Sort(replaced)
+	if len(refused) == 0 {
+		return e.refuseReplacements(replaced, replacing)
+	}
 	var b strings.Builder
 	for _, addr := range refused {
 		fmt.Fprintf(&b, "%s: %s, and the state has no record of it\n", addr, stoppedApply(suspects[addr]))
 	}
-	return WithCode(ExitRefused, fmt.Errorf("apply refused: it would create %s that an interrupted apply may already have created.\n%sIf the create reached the cloud the object exists but is not tracked, and creating it again makes a second one. Nothing was changed. For each node above, either:\n  - find the object and adopt it: pravo discover (with a #Discovery rule), or %s; the lock is cleared by the next apply; or\n  - if you know the create never reached the cloud, create it anyway: %s", nodes(len(refused)), b.String(), e.importCommand(refused[0], "ID"), e.allowCreateCommand(refused)))
+	for _, addr := range replaced {
+		fmt.Fprintf(&b, "%s: %s\n", addr, stoppedReplacement(replacing[addr]))
+	}
+	all := append(slices.Clone(refused), replaced...)
+	return WithCode(ExitRefused, fmt.Errorf("apply refused: it would create %s that an interrupted apply may already have created.\n%sIf the create reached the cloud the object exists but is not tracked, and creating it again makes a second one. Nothing was changed. For each node above, either:\n  - find the object and adopt it: pravo discover (with a #Discovery rule), or %s; the lock is cleared by the next apply; or\n  - if you know the create never reached the cloud, create it anyway: %s", nodes(len(all)), b.String(), e.importCommand(all[0], "ID"), e.allowCreateCommand(all)))
+}
+
+// orphanedReplacements returns, by address, the notes of replacements that create before
+// they destroy, that a command left when it stopped, for the nodes the plan replaces that way.
+// A note the record has outgrown is deleted.
+func (e *Engine) orphanedReplacements(plan *Plan) map[string]*state.PendingCreate {
+	var out map[string]*state.PendingCreate
+	// A node that the plan moves has its note under the address it comes from, until the
+	// apply carries it along.
+	movedFrom := map[string]string{}
+	for _, ch := range plan.Changes {
+		if ch.Action == ActionMove && ch.MovedFrom != "" {
+			movedFrom[ch.Addr] = ch.MovedFrom
+		}
+	}
+	for _, ch := range plan.Changes {
+		if ch.Mode != "managed" || ch.Applied || (ch.Action != ActionReplace || !ch.CreateBeforeDestroy) && ch.Action != ActionDelete {
+			continue
+		}
+		p, err := e.State.PendingCreateOf(ch.Addr)
+		if err == nil && p == nil && movedFrom[ch.Addr] != "" {
+			p, err = e.State.PendingCreateOf(movedFrom[ch.Addr])
+		}
+		if err != nil || p == nil {
+			continue
+		}
+		orphan, err := e.State.Orphaned(p, e.State.Get(ch.Addr))
+		if err != nil {
+			continue
+		}
+		if !orphan {
+			if rec := e.State.Get(ch.Addr); rec != nil && (p.OldID == "" || rec.ID() != p.OldID) {
+				_ = e.State.ClearPendingCreate(ch.Addr)
+			}
+			continue
+		}
+		if out == nil {
+			out = map[string]*state.PendingCreate{}
+		}
+		out[ch.Addr] = p
+	}
+	return out
+}
+
+func stoppedReplacement(p *state.PendingCreate) string {
+	who := "txn " + p.Txn
+	if p.Host != "" {
+		who += " on host " + p.Host
+	}
+	return fmt.Sprintf("an apply (%s) stopped while it created the replacement, and the state still records only the object it replaces (id %s): the replacement may exist in the cloud untracked", who, p.OldID)
+}
+
+func (e *Engine) refuseReplacements(replaced []string, replacing map[string]*state.PendingCreate) error {
+	var b strings.Builder
+	for _, addr := range replaced {
+		fmt.Fprintf(&b, "%s: %s\n", addr, stoppedReplacement(replacing[addr]))
+	}
+	return WithCode(ExitRefused, fmt.Errorf("apply refused: it would create %s that an interrupted apply may already have created.\n%sIf the create reached the cloud the replacement exists but is not tracked, and creating it again makes a second one. Nothing was changed. For each node above, either:\n  - adopt the replacement in place of the old object: pravo state rm %s, then %s (the old object is then yours to destroy); or\n  - if you know the create never reached the cloud, create it anyway: %s", nodes(len(replaced)), b.String(), replaced[0], e.importCommand(replaced[0], "ID"), e.allowCreateCommand(replaced)))
 }
 
 func nodes(n int) string {
@@ -86,6 +166,10 @@ func (e *Engine) warnUntracked(plan *Plan) {
 		if ch.Imported {
 			imported[ch.Addr] = true
 		}
+	}
+	replacing := e.orphanedReplacements(plan)
+	for _, addr := range slices.Sorted(maps.Keys(replacing)) {
+		e.Opts.Progress("Warning: %s: %s. Adopt it (pravo state rm %s, then %s) or delete it in the cloud, before you apply", addr, stoppedReplacement(replacing[addr]), addr, e.importCommand(addr, "ID"))
 	}
 	for _, addr := range slices.Sorted(maps.Keys(e.suspects)) {
 		// Only a node whose create began can have an object nothing tracks; a node the stopped

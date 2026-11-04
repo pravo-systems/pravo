@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -300,4 +302,207 @@ func TestRecordWriteFailingAloneKeepsTheMark(t *testing.T) {
 	}
 	b.refuse.Store(nil)
 	refusedAfterEnding(t, h, s, "a")
+}
+
+// A replacement that creates before it destroys runs while the record still holds the old
+// object. Every ending that cannot say whether the create reached the cloud leaves a note,
+// and the next apply is refused before it reaches the provider; a plan in between does not
+// lose the note. A create that is recorded, or that failed cleanly, leaves none.
+func TestCreateBeforeDestroyKeepsTheNote(t *testing.T) {
+	ctx := context.Background()
+	mk := func(name string) spec {
+		return spec{cue: "a: " + thing(name, "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"a"}}
+	}
+	setup := func(t *testing.T) (*harness, *deadBackend) {
+		var b *deadBackend
+		h := newHarnessOver(t, func(x state.Backend) state.Backend { b = &deadBackend{Backend: x}; return b })
+		h.apply(mk("one"))
+		return h, b
+	}
+	refused := func(t *testing.T, h *harness, b *deadBackend) {
+		t.Helper()
+		b.dead.Store(false)
+		b.refuse.Store(nil)
+		h.fake.afterApply = nil
+		h.reopen()
+		old := h.state.Get("a")
+		if old == nil || old.Revision < 1 {
+			t.Fatalf("record after the ending: %+v", old)
+		}
+		calls := h.fake.called("ApplyResourceChange")
+		// A plan in between, as a person looks at it, then the apply.
+		var said []string
+		e := h.engine(mk("two"), Options{Progress: func(f string, a ...any) { said = append(said, fmt.Sprintf(f, a...)) }})
+		plan, err := e.Plan(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(strings.Join(said, "\n"), "stopped while it created the replacement") {
+			t.Errorf("the plan does not warn: %v", said)
+		}
+		for i := range 2 {
+			_, err = e.Apply(ctx, plan)
+			var coded *CodedError
+			if err == nil || !errors.As(err, &coded) || coded.Code != ExitRefused {
+				t.Fatalf("apply %d after the ending = %v, want exit code %d", i+1, err, ExitRefused)
+			}
+			for _, want := range []string{"a: an apply (txn ", "pravo state rm a", "--allow-create a", "Nothing was changed"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("the refusal lacks %q: %v", want, err)
+				}
+			}
+			if n := h.fake.called("ApplyResourceChange"); n != calls {
+				t.Fatalf("the refused apply reached the provider: %d calls, was %d", n, calls)
+			}
+			// A second plan after the lock was reclaimed.
+			e = h.engine(mk("two"), Options{})
+			if plan, err = e.Plan(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+		e = h.engine(mk("two"), Options{AllowCreate: []string{"a"}})
+		if _, err := e.Apply(ctx, mustPlan(t, e)); err != nil {
+			t.Fatalf("apply with --allow-create: %v", err)
+		}
+		if p, _ := h.state.PendingCreateOf("a"); p != nil {
+			t.Error("the note stays after the replacement was recorded")
+		}
+	}
+	t.Run("killed", func(t *testing.T) {
+		h, b := setup(t)
+		h.fake.afterApply = func(string) error { b.dead.Store(true); return nil }
+		e := h.engine(mk("two"), Options{})
+		if _, err := e.Apply(ctx, mustPlan(t, e)); err == nil {
+			t.Fatal("the apply of a killed process succeeded")
+		}
+		// The process is gone: its locks go stale as time does it.
+		b.dead.Store(false)
+		for _, addr := range locksHeld(t, h.state) {
+			raw, err := h.state.Backend().Get(ctx, "locks/"+addr+".lock")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var l state.Lock
+			if err := json.Unmarshal(raw, &l); err != nil {
+				t.Fatal(err)
+			}
+			old := time.Now().Add(-time.Hour).UTC()
+			l.PID, l.Since, l.RenewedAt = 999999, old, old
+			data, _ := json.Marshal(l)
+			if err := h.state.Backend().Put(ctx, "locks/"+addr+".lock", data); err != nil {
+				t.Fatal(err)
+			}
+		}
+		refused(t, h, b)
+	})
+	t.Run("the provider dies", func(t *testing.T) {
+		h, b := setup(t)
+		h.fake.afterApply = func(string) error { return errors.New("rpc error: code = Unavailable") }
+		e := h.engine(mk("two"), Options{})
+		if _, err := e.Apply(ctx, mustPlan(t, e)); err == nil {
+			t.Fatal("apply succeeded")
+		}
+		refused(t, h, b)
+	})
+	t.Run("the record write fails alone", func(t *testing.T) {
+		h, b := setup(t)
+		h.fake.afterApply = func(string) error { b.refuse.Store(&[]string{"resources/", "rec/"}); return nil }
+		e := h.engine(mk("two"), Options{})
+		if _, err := e.Apply(ctx, mustPlan(t, e)); err == nil {
+			t.Fatal("apply succeeded")
+		}
+		refused(t, h, b)
+	})
+	t.Run("a recorded replacement leaves nothing", func(t *testing.T) {
+		h, _ := setup(t)
+		h.apply(mk("two"))
+		if p, _ := h.state.PendingCreateOf("a"); p != nil {
+			t.Error("a note stays")
+		}
+		h.apply(mk("three"))
+	})
+	t.Run("a clean failure leaves nothing", func(t *testing.T) {
+		h, _ := setup(t)
+		hd := h.fake.hold("two")
+		e := h.engine(mk("two"), Options{})
+		done := applying(e, ctx, mustPlan(t, e))
+		waitFor(t, hd)
+		hd.refuse()
+		if err := returned(t, done); err == nil {
+			t.Fatal("apply succeeded")
+		}
+		if p, _ := h.state.PendingCreateOf("a"); p != nil {
+			t.Error("a clean failure left a note")
+		}
+		h.fake.holds = nil
+		h.apply(mk("two"))
+	})
+}
+
+// The note follows the record when the node is renamed: by a $from in the plan and the
+// apply, and by the move of the record in the state.
+func TestCreateBeforeDestroyNoteFollowsAMove(t *testing.T) {
+	ctx := context.Background()
+	old := spec{cue: "a: " + thing("one", "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"a"}}
+	moved := func(name string) spec {
+		return spec{cue: "b: " + thing(name, "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"b"}}
+	}
+	interrupted := func(t *testing.T) *harness {
+		h := newHarness(t)
+		h.apply(old)
+		h.fake.afterApply = func(string) error { return errors.New("rpc error: code = Unavailable") }
+		e := h.engine(spec{cue: "a: " + thing("two", "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"a"}}, Options{})
+		if _, err := e.Apply(ctx, mustPlan(t, e)); err == nil {
+			t.Fatal("apply succeeded")
+		}
+		h.fake.afterApply = nil
+		h.reopen()
+		return h
+	}
+	refused := func(t *testing.T, h *harness, s spec, from bool) {
+		t.Helper()
+		calls := h.fake.called("ApplyResourceChange")
+		e := h.engine(s, Options{})
+		if from {
+			e.Root.Moves = []config.Move{{From: "a", To: "b"}}
+		}
+		_, err := e.Apply(ctx, mustPlan(t, e))
+		var coded *CodedError
+		if err == nil || !errors.As(err, &coded) || coded.Code != ExitRefused || !strings.Contains(err.Error(), "pravo state rm b") {
+			t.Fatalf("apply after the move = %v, want a refusal that names b", err)
+		}
+		if n := h.fake.called("ApplyResourceChange"); n != calls {
+			t.Fatalf("the refused apply reached the provider: %d calls, was %d", n, calls)
+		}
+	}
+	t.Run("$from in the specification", func(t *testing.T) {
+		h := interrupted(t)
+		refused(t, h, moved("two"), true)
+	})
+	t.Run("a move of the record", func(t *testing.T) {
+		h := interrupted(t)
+		rec := h.state.Get("a")
+		txn := h.state.Begin("edit", "mv")
+		if err := txn.Start(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.state.Remove("a"); err != nil {
+			t.Fatal(err)
+		}
+		mv := *rec
+		mv.Addr, mv.Name, mv.Revision = "b", "b", 0
+		if err := h.state.Set(&mv, txn.ID()); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.state.MovePendingCreate("a", "b"); err != nil {
+			t.Fatal(err)
+		}
+		if err := txn.Finish("applied", "mv", true); err != nil {
+			t.Fatal(err)
+		}
+		if p, _ := h.state.PendingCreateOf("a"); p != nil {
+			t.Error("the note stays under the old address")
+		}
+		refused(t, h, spec{cue: "b: " + thing("two", "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"b"}}, false)
+	})
 }
