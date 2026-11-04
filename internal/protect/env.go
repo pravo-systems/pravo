@@ -15,8 +15,8 @@ var SecretEnv = []string{"PRAVO_IDENTITY", "PRAVO_IDENTITY_PASSPHRASE", "PRAVO_P
 // list), for a provider that really does talk to the agent.
 var PrivateEnv = []string{"PRAVO_CHAT_API_KEY", "PRAVO_CONFIG_DIR", "OTEL_EXPORTER_OTLP_HEADERS", "OTEL_EXPORTER_OTLP_TRACES_HEADERS", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "SSH_AUTH_SOCK", "PRAVO_SSH_AUTH_SOCK"}
 
-// PassEnv is the variable that lists the PrivateEnv names a provider may receive.
-const PassEnv = "PRAVO_PROVIDER_ENV"
+// AllowEnv is the variable that lists the PrivateEnv names a provider may receive.
+const AllowEnv = "PRAVO_PROVIDER_ENV"
 
 // ScrubEnv returns env without the variables in SecretEnv. Names are compared
 // without regard to case, as Windows does. Apply it in plugin.Start, and call
@@ -24,7 +24,7 @@ const PassEnv = "PRAVO_PROVIDER_ENV"
 func ScrubEnv(env []string) []string {
 	pass := map[string]bool{}
 	for _, kv := range env {
-		if name, v, _ := strings.Cut(kv, "="); strings.EqualFold(name, PassEnv) {
+		if name, v, _ := strings.Cut(kv, "="); strings.EqualFold(name, AllowEnv) {
 			for _, n := range strings.Split(v, ",") {
 				pass[strings.ToUpper(strings.TrimSpace(n))] = true
 			}
