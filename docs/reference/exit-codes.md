@@ -66,6 +66,7 @@ drift, none found: 0
 Drift. 1 of 1 resources changed outside pravo:
   hello: create
     - refresh found the real state differs from the state (drift)
+    - hello.txt exists, so it was changed, not deleted
 drift, found: 2
 ```
 

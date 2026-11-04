@@ -98,7 +98,7 @@ func mcpTools() []mcpTool {
 			InputSchema: obj(map[string]any{"tags": tagsProp}),
 			args:        func(in map[string]any) ([]string, error) { return append([]string{"validate"}, tagArgs(in)...), nil }},
 		{Name: "pravo_plan", Description: "Compute the plan: every change the plan ran, with before/after values, reasons, blast radius and statistics. The nodes it left alone are not listed unless include_skipped is true. Optionally save it to a plan file, or store it in the state, for review and later apply, and reserve the nodes for a duration. To rename a resource without destroying it, put $from: \"old\" in the new declaration; the plan then shows a move.",
-			InputSchema: obj(map[string]any{"tags": tagsProp, "out": map[string]any{"type": "string", "description": "save the plan to this file"},
+			InputSchema: obj(map[string]any{"tags": tagsProp, "out": map[string]any{"type": "string", "description": "save the plan to this file: a relative path below the project directory"},
 				"refresh":         map[string]any{"type": "string", "enum": []string{"age", "expired", "false", "all"}, "description": "when to read records from their providers: age (the records the plan looks at, once past their refresh age), expired (every record past its refresh age), false (none) or all"},
 				"full":            map[string]any{"type": "boolean"},
 				"include_skipped": map[string]any{"type": "boolean", "description": "also list the nodes the plan left alone, each with its address, mode, type and name"},
@@ -183,7 +183,7 @@ func mcpTools() []mcpTool {
 				}
 				return a, nil
 			}},
-		{Name: "pravo_schema", Description: "The CUE definition of resource, data source, ephemeral or function types, with the provider's documentation. required=true keeps only what must be set and hides optional attributes (content of a file, tags): leave it out to see all.",
+		{Name: "pravo_schema", Description: "The CUE definition of resource, data source, ephemeral or function types, with the provider's documentation. required=true keeps only what the schema marks as required and hides the optional attributes, which a resource often still needs (the content of a local_file, the length of a random_pet, tags): leave it out to see all.",
 			InputSchema: obj(map[string]any{"types": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "type names such as aws_s3_bucket, or provider/type"}, "required": map[string]any{"type": "boolean"}}, "types"),
 			args: func(in map[string]any) ([]string, error) {
 				types := listArg(in, "types")
@@ -245,7 +245,7 @@ func mcpTools() []mcpTool {
 			args: func(in map[string]any) ([]string, error) {
 				return append(append([]string{"state"}, tagArgs(in)...), "locks"), nil
 			}},
-		{Name: "pravo_drift", Description: "Refresh every resource and report drift: resources changed or removed outside pravo. With due, read only the records that are older than their refresh age, the oldest first, at most limit of them; nothing is planned.",
+		{Name: "pravo_drift", Description: "Refresh every resource and report drift: resources changed or removed outside pravo. It is not read-only: it records what it finds as marks in the state, so that the next plan acts on it, and an error result only means that drift was found. With due, read only the records that are older than their refresh age, the oldest first, at most limit of them; nothing is planned.",
 			InputSchema: obj(map[string]any{"tags": tagsProp, "due": map[string]any{"type": "boolean", "description": "read only the records past their refresh age"},
 				"limit": map[string]any{"type": "integer", "minimum": 1, "description": "with due: read at most this many records"}}),
 			args: func(in map[string]any) ([]string, error) {

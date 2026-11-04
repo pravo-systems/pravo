@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -172,7 +173,11 @@ func stateShowCmd(loadValues func() (*state.Store, error)) *cobra.Command {
 			}
 			r := st.Get(args[0])
 			if r == nil {
-				return fmt.Errorf("%s is not in state", args[0])
+				// "state list" prints an address that is not a plain identifier in quotes.
+				r = st.Get(strconv.Quote(args[0]))
+			}
+			if r == nil {
+				return notInState(args[0])
 			}
 			if redact {
 				snap, n, err := redactedSnapshot(cmd.Context(), st)
@@ -197,7 +202,7 @@ func stateShowCmd(loadValues func() (*state.Store, error)) *cobra.Command {
 				fmt.Printf("// drifted %s\n", ago(r.DriftedAt))
 			}
 			if r.Gone {
-				fmt.Printf("// gone\n")
+				fmt.Printf("// gone: the provider no longer finds the object as recorded (deleted, or changed into another object)\n")
 			}
 			if r.Tainted {
 				fmt.Printf("// created halfway; the next plan replaces it\n")
@@ -231,7 +236,7 @@ func stateRmCmd(load func() (*state.Store, error)) *cobra.Command {
 			defer func() { _ = st.Unlock(args[0]) }()
 			r := st.Get(args[0])
 			if r == nil {
-				return fmt.Errorf("%s is not in state", args[0])
+				return notInState(args[0])
 			}
 			txn := st.Begin("edit", "pravo state rm "+args[0])
 			if err := txn.Start(); err != nil {
@@ -258,7 +263,7 @@ func stateMvCmd(load func() (*state.Store, error)) *cobra.Command {
 			}
 			r := st.Get(args[0])
 			if r == nil {
-				return fmt.Errorf("%s is not in state", args[0])
+				return notInState(args[0])
 			}
 			if p := cue.ParsePath(args[1]); p.Err() != nil {
 				return fmt.Errorf("%q is not a resource address: %w", args[1], p.Err())
@@ -873,4 +878,9 @@ func orNone(s string) string {
 		return "none"
 	}
 	return s
+}
+
+// notInState is the error of a command that names an address the state does not hold.
+func notInState(addr string) error {
+	return fmt.Errorf("%s is not in state", addr)
 }

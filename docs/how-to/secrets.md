@@ -295,6 +295,8 @@ db_password_file: $local.#Resource.local_sensitive_file & {
 }
 ```
 
+A `pravo.#Secret` cannot be the source of such a file: a secret stored with `pravo secret set` reaches provider arguments that take a value, and a file resource reads its `source` from disk, so the file has to exist before the plan. The provider writes the copy with the permissions `0700`; set `file_permission` (for example `"0600"`) to change that.
+
 Do not generate such a file with a command during `plan`: a command that runs on every plan writes the secret again each time and leaves no record in the state.
 
 ## What next
