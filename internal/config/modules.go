@@ -372,7 +372,7 @@ func sourceOfPackage(tail string) (registry.Source, bool) {
 	case 2:
 		return registry.Source{Host: registry.DefaultHost, Namespace: parts[0], Type: parts[1]}, true
 	case 3:
-		return registry.Source{Host: strings.ToLower(parts[0]), Namespace: parts[1], Type: parts[2]}, true
+		return registry.Source{Host: hostOfPackage(parts[0]), Namespace: parts[1], Type: parts[2]}, true
 	}
 	return registry.Source{}, false
 }

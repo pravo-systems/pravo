@@ -181,6 +181,9 @@ func newHTTPClient() *http.Client {
 			if len(via) >= 10 {
 				return errors.New("stopped after 10 redirects")
 			}
+			if req.URL.Host != via[0].URL.Host {
+				req.Header.Del("Authorization")
+			}
 			if req.URL.Scheme != "https" && via[len(via)-1].URL.Scheme == "https" && !loopback(req.URL.Hostname()) {
 				return fmt.Errorf("refusing a redirect from https to %s", clean(req.URL.Redacted()))
 			}
@@ -268,6 +271,18 @@ func (t idleTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
+// token is the credential for a registry host, read like OpenTofu reads it from
+// TF_TOKEN_<host>, with "." written "_" and "-" written "__". It goes only to that
+// exact host and only over https (or to the local machine): a redirect to another
+// host drops it.
+func (c *Client) token(u *url.URL) string {
+	if !secureURL(u.String()) {
+		return ""
+	}
+	name := "TF_TOKEN_" + strings.NewReplacer(".", "_", "-", "__", ":", "_").Replace(strings.ToLower(u.Host))
+	return strings.TrimSpace(c.Env.Get(name))
+}
+
 // get starts a GET request whose body is read under the idle timeout. The caller closes the body.
 func (c *Client) get(ctx context.Context, u string) (*http.Response, error) {
 	ctx, cancel := context.WithCancel(ctx)
@@ -277,6 +292,9 @@ func (c *Client) get(ctx context.Context, u string) (*http.Response, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "pravo")
+	if tok := c.token(req.URL); tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
+	}
 	timer := time.AfterFunc(idleTimeout, cancel)
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
