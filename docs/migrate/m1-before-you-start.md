@@ -472,8 +472,8 @@ pravo has been initialised. Run "pravo plan" to see what it would do.
 Imported 5 resources and 0 outputs from ../backup/platform.tfstate into ./preview/pravo.state
 Warning: data.terraform_remote_state.net: skipped, provider terraform.io/builtin/terraform is built into OpenTofu and pravo cannot install it (read the outputs of another root with pravo.#RemoteOutputs)
 Warning: local_file.web[1]: deposed object 6d47a1a2 skipped (pravo keeps one object per resource; destroy it with tofu first)
-Warning: null_resource.gate: tainted in the source state; pravo has no taint, the object is recorded as healthy
-Warning: random_pet.logs: tainted in the source state; pravo has no taint, the object is recorded as healthy
+Warning: null_resource.gate: tainted in the source state; recorded as tainted, the next plan replaces it
+Warning: random_pet.logs: tainted in the source state; recorded as tainted, the next plan replaces it
 
 Renamed instances (these are the addresses now in the state; point each at its place in the specification with $from):
   local_file.web[0] -> local_file.web_0

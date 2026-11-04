@@ -77,14 +77,14 @@ Use the matrix to read your preflight list from [M1](m1-before-you-start.md). Th
 
 | Construct | Status | In pravo |
 |---|---|---|
-| State format 4 | Supported | `pravo state import-tfstate`. Taint, deposed objects, check results and records of the built-in provider are not carried over. |
+| State format 4 | Supported | `pravo state import-tfstate`. Deposed objects, check results and records of the built-in provider are not carried over. |
 | State locking | Supported | A lock for each resource, on every apply. |
 | `terraform_remote_state` | Partial | `pravo.#RemoteOutputs` reads the `outputs.json` of another pravo root. It does not read an OpenTofu state. |
 | `terraform_data` | Not supported | `null_resource` of `hashicorp/null`. |
 | Workspaces | Not supported | A tag and a state path that depends on it. |
 | `-target` | Not supported | Scoped plans, and `apply <planfile> -only addr`. |
 | `-refresh-only` | Not supported | `pravo drift`. |
-| Taint | Not supported | `-replace addr`. |
+| Taint | Carried over as a mark | The next plan replaces the instance; `-replace addr` does the same by hand. |
 | Saved plan | Supported | `pravo plan -out f`, `pravo apply f`. |
 | JSON plan | Partial | `pravo plan --json` prints pravo's plan document. It is not the OpenTofu JSON. See [M6](m6-rewrite-plan-checks.md). |
 | Providers on the OpenTofu registry | Supported | Plugin protocol 5 and 6. |
