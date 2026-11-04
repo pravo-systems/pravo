@@ -15,6 +15,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 // Parallelism bounds how many resources are planned or applied at once. The
@@ -251,13 +252,43 @@ func (e *Engine) outputReadsLocked() map[string][]string {
 
 // CheckGraph builds the dependency graph of the root and reports a cycle in
 // it. It needs neither state nor providers, so "pravo validate" can use it.
-func CheckGraph(root *config.Root, value cue.Value) error {
-	e := &Engine{Root: root, Value: value, cueState: cueState{current: value}, deps: map[string][]string{}, byPath: map[string]*config.Resource{}}
+//
+// With the schemas of the providers it also reports a value that is not concrete: an
+// attribute that needs a value and has none, which a plan would stop at. A value that
+// depends on another resource is not one, since it is known when that resource is.
+func CheckGraph(root *config.Root, value cue.Value, schemas map[string]*schema.ProviderSchema) error {
+	e := &Engine{Root: root, Value: value, cueState: cueState{current: value}, deps: map[string][]string{}, byPath: map[string]*config.Resource{}, Schemas: schemas}
 	for _, r := range root.Resources {
 		e.byPath[r.Path.String()] = r
+		if r.Mode == "ephemeral" {
+			e.hasEphemeral = true
+		}
 	}
-	_, err := e.buildGraph()
-	return err
+	if _, err := e.buildGraph(); err != nil {
+		return err
+	}
+	if schemas == nil {
+		return nil
+	}
+	var errs []string
+	for _, r := range root.Resources {
+		if r.Mode == "ephemeral" || r.Mode == "call" {
+			continue
+		}
+		s, err := e.resourceSchema(r)
+		if err != nil {
+			continue
+		}
+		conv := &convert.Converter{Self: r.Path, Resolve: e.resolver(), IsEphemeral: e.ephemeralCheck(), AllowEphemeral: true}
+		conv.Block(r.Address(), s.Block, value.LookupPath(r.Path))
+		if err := conv.Err(); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "\n"))
+	}
+	return nil
 }
 
 // checkCycles reports the tasks that wait for each other. Tasks that merely

@@ -12,6 +12,8 @@ An output is a struct built from `pravo.#Output`. It sits wherever you put it, a
 | `description` | string, optional | What the value is for. |
 | `sensitive` | bool, optional | `true` hides the value where outputs are listed. |
 
+An output and a resource share one namespace, the paths of the specification. An output cannot have the name of a resource, nor a resource the name of an output: the two declarations unify, and the check stops with `port.$kind: conflicting values "output" and "resource"`. Give the output another name, such as `port_number`.
+
 Work in an empty directory.
 
 File `main.cue`:

@@ -72,7 +72,7 @@ pravo init > /dev/null
 
 ### pravo validate
 
-`validate` evaluates the specification and checks every resource against the definitions that `pravo init` generated. It catches a misspelt attribute, a wrong type, a missing reference and a violated constraint, with the file and the line. It also reports resources that depend on each other in a circle (see [Errors](errors.md#resources-and-values)). It does not run the validation of the providers themselves, which `plan` and `apply` do.
+`validate` evaluates the specification and checks every resource against the definitions that `pravo init` generated. It catches a misspelt attribute, a wrong type, a missing reference and a violated constraint, with the file and the line. It also reports resources that depend on each other in a circle (see [Errors](errors.md#resources-and-values)). It reports an attribute whose value is not concrete and does not come from another resource, such as a `size: int` that no one gave a value, with the message that `plan` prints. It does not run the validation of the providers themselves, which `plan` and `apply` do.
 
 ```sh
 pravo validate

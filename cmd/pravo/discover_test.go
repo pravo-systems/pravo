@@ -402,3 +402,18 @@ func TestDiscoverAdoptsAnObjectByItsIdentity(t *testing.T) {
 	contains(t, text, "1 managed", "1 unmanaged", "0 adopting")
 	lacks(t, text, "shadow-assets")
 }
+
+// validate stops at an attribute that has no value, as a plan does, and lets a value pass
+// that depends on another resource.
+func TestValidateRejectsAValueThatIsNotConcrete(t *testing.T) {
+	newDemoProvider(t)
+	dir := demoEstate(t, "size: string\nknown: $demo.#Resource.demo_server & {name: size}")
+	text, code := runPravo(t, dir, "validate")
+	if code != 6 || !strings.Contains(text, "not concrete") {
+		t.Errorf("validate exited %d:\n%s", code, text)
+	}
+	dir = demoEstate(t, "a: $demo.#Resource.demo_server & {name: \"a\"}\nb: $demo.#Resource.demo_server & {name: a.name}")
+	if text, code := runPravo(t, dir, "validate"); code != 0 {
+		t.Errorf("a reference to another resource is not an error: %d\n%s", code, text)
+	}
+}

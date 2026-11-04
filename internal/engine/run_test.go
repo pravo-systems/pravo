@@ -75,13 +75,13 @@ func TestCheckGraphNeedsNoStateOrProviders(t *testing.T) {
 	}
 	v := ctx.CompileString(s.cue)
 	within(t, func() {
-		if err := CheckGraph(root, v); err == nil || err.Error() != "dependency cycle between a, b, c" {
+		if err := CheckGraph(root, v, nil); err == nil || err.Error() != "dependency cycle between a, b, c" {
 			t.Errorf("CheckGraph = %v", err)
 		}
 	})
 	ok := ctx.CompileString("a: " + thing("a", "") + "\nb: " + thing("b", "content: a.id"))
 	root.Resources = root.Resources[:2]
-	if err := CheckGraph(root, ok); err != nil {
+	if err := CheckGraph(root, ok, nil); err != nil {
 		t.Errorf("CheckGraph of an acyclic specification = %v", err)
 	}
 }

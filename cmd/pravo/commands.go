@@ -1230,7 +1230,7 @@ func validateCmd() *cobra.Command {
 				return engine.WithCode(engine.ExitInvalid, err)
 			}
 			defer s.close()
-			if err := engine.CheckGraph(s.root, s.value); err != nil {
+			if err := engine.CheckGraph(s.root, s.value, s.schemas); err != nil {
 				return engine.WithCode(engine.ExitInvalid, err)
 			}
 			if flags.JSON {
@@ -1330,11 +1330,13 @@ func validateEnvironments(cmd *cobra.Command, list []config.EnvironmentSettings)
 				return err
 			}
 			defer s.close()
-			if err := engine.CheckGraph(s.root, s.value); err != nil {
-				return err
-			}
+			// A row that misses a field is the cause of the values that are not
+			// concrete because of it, so it is reported first.
 			if p := rowProblem(s.value, s.root.Environments, es.Name); p != "" {
 				return errors.New(p)
+			}
+			if err := engine.CheckGraph(s.root, s.value, s.schemas); err != nil {
+				return err
 			}
 			r.Resources, r.DataSources, r.Outputs = countMode(s.root, "managed"), countMode(s.root, "data"), len(s.root.Outputs)
 			return nil
