@@ -294,7 +294,7 @@ func openBackend(ctx context.Context, b Backend, o Options) (*Store, error) {
 			return nil, fmt.Errorf("reading %s/meta.json: %w", b.Name(), err)
 		}
 		if s.meta.Format > MaxFormat {
-			return nil, fmt.Errorf("state at %s was written by a newer pravo (format %d)", b.Name(), s.meta.Format)
+			return nil, fmt.Errorf("state at %s was written by a newer pravo (format %d); use the pravo that wrote it, or a newer one: docs/how-to/upgrading.md", b.Name(), s.meta.Format)
 		}
 	case errors.Is(err, ErrNotFound):
 		format := o.NewFormat

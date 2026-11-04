@@ -42,3 +42,16 @@ func TestConfigDiffReasonWithoutADifferenceIsThePlainReason(t *testing.T) {
 		t.Errorf("%s", got)
 	}
 }
+
+func TestConfigDiffReasonSaysWhenOnlyGeneratedSchemasDiffer(t *testing.T) {
+	saved := map[string]string{"main.cue": "aaaaaaaaaaaa", "cue.mod/gen/pravo.dev/pravo/settings_gen.cue": "bbbbbbbbbbbb"}
+	now := map[string]string{"main.cue": "aaaaaaaaaaaa", "cue.mod/gen/pravo.dev/pravo/settings_gen.cue": "000000000000"}
+	got := configDiffReason(saved, now)
+	if !strings.Contains(got, "Make the plan again") || !strings.Contains(got, "settings_gen.cue changed") {
+		t.Errorf("reason = %q", got)
+	}
+	now["main.cue"] = "111111111111"
+	if got := configDiffReason(saved, now); strings.Contains(got, "Make the plan again") {
+		t.Errorf("a changed main.cue must not get the upgrade hint: %q", got)
+	}
+}

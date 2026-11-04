@@ -8,7 +8,7 @@ The versions and formats that pravo reads and writes, the provider protocol it s
 |---|---|---|
 | Provider plugin protocol | 5 and 6 | pravo starts and talks to providers that speak either. |
 | Provider registry | `registry.opentofu.org` by default | pravo downloads provider archives from any registry that implements the provider registry protocol, and from OCI registries. |
-| State store | `format: 1` to `6` in `meta.json` | A new store is `1`. A store with a higher number than the running pravo reads is refused. See [State format](state-format.md#formats). |
+| State store | `format: 1` to `7` in `meta.json` | A new store is `1`. A store with a higher number than the running pravo reads is refused. See [State format](state-format.md#formats). |
 | Saved plan file | `format: 1` | A file with a higher number is refused. |
 | Plan document | `format: 1` | The layout of [the plan document](plan-document.md). |
 | JSON output | `--json` | One document on standard output, or one event per line for `apply` and `destroy`. |
@@ -63,7 +63,7 @@ The versions of the providers a root uses are in `pravo.lock.cue`, with the hash
 
 ## State and plan files
 
-A store with a format number above the highest the running pravo reads, which is 6, and a plan file with a number above the one it writes, are refused with a message. Nothing is read from it or changed in it.
+A store with a format number above the highest the running pravo reads, which is 7, and a plan file with a number above the one it writes, are refused with a message. Nothing is read from it or changed in it.
 
 File `main.cue`:
 
@@ -103,7 +103,7 @@ pravo show change.plan
 Output:
 
 ```text
-Error: change.plan was written by a newer pravo (plan format 2)
+Error: change.plan was written by a newer pravo (plan format 2); use the pravo that wrote it, or a newer one
 ```
 
 ```sh
@@ -114,7 +114,7 @@ pravo plan
 Output:
 
 ```text
-Error: state at ./pravo.state was written by a newer pravo (format 8)
+Error: state at ./pravo.state was written by a newer pravo (format 8); use the pravo that wrote it, or a newer one: docs/how-to/upgrading.md
 ```
 
 Restore the store, and try a file that is not a plan file:
