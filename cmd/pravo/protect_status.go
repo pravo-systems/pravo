@@ -170,7 +170,13 @@ func (p *protectRun) status() error {
 	}
 	var envProblem error
 	if prot.Sealed != nil && !st.Locked() {
-		if _, err := st.EnvironmentRecord(p.ctx, erf.Readers); errors.Is(err, state.ErrUntrusted) {
+		if err := st.CheckNodes(p.ctx, erf.Readers); errors.Is(err, state.ErrUntrusted) {
+			envProblem = err
+			add("Resources", "a pointer is gone")
+		}
+	}
+	if prot.Sealed != nil && !st.Locked() {
+		if _, err := st.EnvironmentRecord(p.ctx, erf.Readers); errors.Is(err, state.ErrUntrusted) && envProblem == nil {
 			envProblem = err
 			add("Environment", "the record does not verify")
 		}

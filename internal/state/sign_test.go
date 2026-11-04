@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
 )
@@ -367,5 +368,53 @@ func TestTheActorOfAnUnsealedStateIsTheLabel(t *testing.T) {
 	st.SetActor("ci", "", "")
 	if st.Actor() != "ci" || st.ActorLabelIgnored() != "" {
 		t.Errorf("actor %q ignored %q", st.Actor(), st.ActorLabelIgnored())
+	}
+}
+
+// A pointer that a signed transaction left, deleted from the bucket, is found; a later
+// signed removal explains an absent pointer.
+func TestADeletedNodePointerIsFound(t *testing.T) {
+	skipWhenSealed(t)
+	ctx := context.Background()
+	b := testBackends()[0].make(t)
+	ada := testIdentity(t, "ada")
+	s := sealedStore(t, b, ada)
+	readers := readersOf(ada)
+	if err := s.CheckNodes(ctx, readers); err != nil {
+		t.Fatalf("empty state: %v", err)
+	}
+	tx := s.Begin("apply", "pravo apply")
+	if err := tx.Start(); err != nil {
+		t.Fatal(err)
+	}
+	r := &Resource{Addr: "web.a", Mode: "managed", Type: "t", Name: "a", Attributes: []byte(`{}`)}
+	if err := s.Set(r, tx.ID()); err != nil {
+		t.Fatal(err)
+	}
+	tx.Record("web.a", "create", 0, r.Revision)
+	if err := tx.FinishError("applied", "", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CheckNodes(ctx, readers); err != nil {
+		t.Fatalf("untouched: %v", err)
+	}
+	if err := b.Delete(ctx, nodeKey("web.a")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CheckNodes(ctx, readers); !errors.Is(err, ErrUntrusted) {
+		t.Fatalf("pointer deleted: %v", err)
+	}
+	// A later signed removal explains it.
+	time.Sleep(10 * time.Millisecond)
+	tx2 := s.Begin("apply", "pravo state rm")
+	if err := tx2.Start(); err != nil {
+		t.Fatal(err)
+	}
+	tx2.Record("web.a", "forget", r.Revision, 0)
+	if err := tx2.FinishError("applied", "", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CheckNodes(ctx, readers); err != nil {
+		t.Fatalf("after a removal: %v", err)
 	}
 }

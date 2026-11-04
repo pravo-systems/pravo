@@ -67,6 +67,10 @@ func (e *Engine) Plan(ctx context.Context) (*Plan, error) {
 	e.traceID = telemetry.TraceID(ctx)
 	e.State.SetTrace(e.traceID)
 	e.State.SetContext(ctx)
+	if err := e.State.CheckNodes(ctx, e.Opts.Readers); err != nil {
+		span.End()
+		return nil, err
+	}
 	plog.Debug(ctx, "plan", "refresh", [...]string{"age", "none", "all", "expired"}[e.Opts.Refresh], "full", e.Opts.Full, "destroy", e.Opts.Destroy, "tasks", len(e.Root.Resources))
 	plan, err := e.planRun(ctx)
 	if plan != nil {
@@ -100,6 +104,10 @@ func (e *Engine) Apply(ctx context.Context, plan *Plan) (*ApplyResult, error) {
 	e.traceID = telemetry.TraceID(ctx)
 	e.State.SetTrace(e.traceID)
 	e.State.SetContext(ctx)
+	if err := e.State.CheckNodes(ctx, e.Opts.Readers); err != nil {
+		span.End()
+		return nil, err
+	}
 	plog.Debug(ctx, "apply", "changes", len(plan.Changes), "destroy", e.Opts.Destroy)
 	res, err := e.applyRun(ctx, plan)
 	if res != nil {
