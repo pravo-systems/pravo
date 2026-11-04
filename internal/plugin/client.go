@@ -53,7 +53,7 @@ func Logger(levelName string) hclog.Logger {
 	if level == hclog.NoLevel {
 		level = hclog.Off
 	}
-	return hclog.New(&hclog.LoggerOptions{Name: "plugin", Level: level, Output: os.Stderr, Color: hclog.AutoColor})
+	return hclog.New(&hclog.LoggerOptions{Name: "plugin", Level: level, Output: maskWriter{os.Stderr}, Color: hclog.AutoColor})
 }
 
 // providerEnv is the environment of a provider: the one of the process, without
