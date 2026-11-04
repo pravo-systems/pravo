@@ -366,9 +366,38 @@ func VouchDigest(lineage string, t *Transaction) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// StartVouchDigest is what an admin vouches for when an interrupted transaction t stays valid:
+// the SHA-256 of the lineage, the key and the signature of its start, and what the start
+// signature covers. An interrupted transaction was started and never finished, so there is no
+// finish signature to name its records; the vouch covers the records that name it. It is empty
+// for a transaction that has finished, has no signed start, or carries an outcome.
+func StartVouchDigest(lineage string, t *Transaction) string {
+	if t.StartSig == nil || t.FinishSig != nil || t.Finished != nil || len(t.Changes) > 0 {
+		return ""
+	}
+	h := sha256.New()
+	put := func(b []byte) {
+		var n [8]byte
+		binary.BigEndian.PutUint64(n[:], uint64(len(b)))
+		h.Write(n[:])
+		h.Write(b)
+	}
+	put([]byte("interrupted"))
+	put([]byte(lineage))
+	put([]byte(t.StartSig.Key))
+	put(t.StartSig.Sig)
+	for _, p := range txnStartParts(t) {
+		put(p)
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
 // LiveSigners lists, for each finished transaction (an unsigned one has the key protect.UnsignedKey) that is the latest writer of a
 // record in the state, the key that signed it and its VouchDigest. It reads each such
-// transaction once. A transaction that is gone, or has no finish signature, is left out.
+// transaction once. A transaction that is gone, or has no finish signature, is left out, except an
+// interrupted one: a signed start, no finish and no live lock (it was killed). It is listed with
+// the key of its start and its StartVouchDigest. A transaction whose lock is live may still write,
+// so it is not listed.
 func (s *Store) LiveSigners(ctx context.Context) ([]protect.Vouch, error) {
 	s.mu.Lock()
 	ids := map[string]bool{}
@@ -392,6 +421,16 @@ func (s *Store) LiveSigners(ctx context.Context) ([]protect.Vouch, error) {
 		list = append(list, id)
 	}
 	sort.Strings(list)
+	locks, err := s.Locks()
+	if err != nil {
+		return nil, err
+	}
+	live := map[string]bool{}
+	for _, l := range locks {
+		if !l.Stale && l.Txn != "" {
+			live[l.Txn] = true
+		}
+	}
 	out := make([]protect.Vouch, len(list))
 	var mu sync.Mutex
 	var firstErr error
@@ -410,7 +449,13 @@ func (s *Store) LiveSigners(ctx context.Context) ([]protect.Vouch, error) {
 			mu.Unlock()
 			return
 		}
-		if t.ID != list[i] || t.Finished == nil {
+		if t.ID != list[i] {
+			return
+		}
+		if t.Finished == nil {
+			if d := StartVouchDigest(s.Lineage(), &t); d != "" && t.Status == "running" && !live[t.ID] {
+				out[i] = protect.Vouch{Key: t.StartSig.Key, Txn: t.ID, Digest: d}
+			}
 			return
 		}
 		if t.FinishSig == nil {

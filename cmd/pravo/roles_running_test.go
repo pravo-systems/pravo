@@ -83,3 +83,40 @@ func TestDemotionAfterTheApplyEndedIsNotRefused(t *testing.T) {
 		t.Fatalf("demoting after the apply: exit %d\n%s", code, text)
 	}
 }
+
+// A killed apply (a signed start, a record, no finish, its lock gone) is vouched for when its key
+// leaves the writers, so no command exits 7 afterwards (F60).
+func TestDemotionAfterAKilledApplyKeepsItsRecords(t *testing.T) {
+	s := plannableBucket(t)
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer")
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+		t.Fatalf("protect roles: exit %d\n%s", code, text)
+	}
+	pin := protect.RolesGenesisKey + " " + loadReadersFile(s.dir, "").Pin
+	st, err := state.OpenBackendWith(context.Background(), s.backend(t), state.Options{Identity: s.dan})
+	if err != nil {
+		t.Fatal(err)
+	}
+	txn := st.Begin("apply", "pravo apply")
+	if err := txn.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Set(&state.Resource{Addr: "n1", Mode: "data", Type: "t_data", Name: "n1", Attributes: []byte(`{"id":"n1"}`)}, txn.ID()); err != nil {
+		t.Fatal(err)
+	}
+	// The process is gone: no finish, no lock.
+
+	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", pin)
+	text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "roles", "--yes")
+	if code != 0 || !strings.Contains(text, "dan: vouched for 1 transaction, 1 of them interrupted") {
+		t.Fatalf("demoting after a killed apply: exit %d\n%s", code, text)
+	}
+	for _, who := range []string{"ada", "dan"} {
+		if text, code := runPravo(t, s.dir, "--identity", who, "plan"); code == 7 {
+			t.Fatalf("%s: plan exit 7 after the demotion\n%s", who, text)
+		}
+	}
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "protect", "status"); code == 7 || !strings.Contains(text, "vouched for by an admin") {
+		t.Fatalf("protect status: exit %d\n%s", code, text)
+	}
+}
