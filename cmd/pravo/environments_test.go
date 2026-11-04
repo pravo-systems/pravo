@@ -855,6 +855,29 @@ func TestPromoteWithoutARecordTellsTheWriterWhatAnAdminRuns(t *testing.T) {
 	}
 }
 
+// A writer's apply that finds nothing to change is refused like one that changes something
+// when the state's record lacks the pin of the roles and the key cannot write meta.json: exit
+// 5 with the command for an admin, not the error of the write, and the words say the pin is
+// missing, not the record.
+func TestAWritersApplyWithNothingToChangeNamesTheMissingPin(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("file permissions do not stop root")
+	}
+	l := newLadder(t, "ada:admin", "bob:writer")
+	l.must(t, "ada", "apply", "-t", "env=dev", "--auto-approve")
+	// The roles are pinned after the record was written, as by an upgrade.
+	l.must(t, "ada", "protect", "roles", "--yes", "-t", "env=dev")
+	dir := filepath.Join(l.dir, "state", "dev")
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+	text, code := l.as(t, "bob", "apply", "-t", "env=dev", "--auto-approve")
+	if code != 5 || !strings.Contains(text, "does not yet pin its roles") || !strings.Contains(text, "pravo environments record --env dev") {
+		t.Fatalf("writer's apply with nothing to change: exit %d\n%s", code, text)
+	}
+}
+
 // editReaders rewrites the line of who in the readers file of env: f returns the new line, or ""
 // to drop it.
 func (l *ladder) editReaders(t *testing.T, env, who string, f func(line string) string) {

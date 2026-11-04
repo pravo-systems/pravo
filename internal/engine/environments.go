@@ -563,7 +563,25 @@ func (e *Engine) preflightRecord(ctx context.Context) error {
 		return nil
 	}
 	if err := e.State.EnsureEnvironmentFormat(pin != ""); err != nil {
-		return refused("this state does not yet record that it serves %s, and your key cannot write that (%v).\n\nNothing was changed. An admin records it once:\n\n    %s", e.Root.Environment, err, RecordCommand(e.Root))
+		what := "record that it serves " + e.Root.Environment
+		if rec != nil && rec.Name != "" {
+			what = "pin its roles"
+		}
+		return refused("this state does not yet %s, and your key cannot write that (%v).\n\nNothing was changed. An admin records it once:\n\n    %s", what, err, RecordCommand(e.Root))
+	}
+	return nil
+}
+
+// preflightPolicies runs before an apply that records policies: the first policy of a state
+// raises the format of meta.json, which only an admin may put in a bucket with a policy by
+// role. Raising it first means a writer is refused before anything is created, and not
+// after the resources are changed and the policy is not recorded.
+func (e *Engine) preflightPolicies(plan *Plan) error {
+	if e.State == nil || len(plan.Policies) == 0 || plan.Partial || e.State.Sealer() == nil {
+		return nil
+	}
+	if err := e.State.EnsureFormat(state.FormatPolicy); err != nil {
+		return refused("this state does not yet hold policies, and your key cannot write that (%v).\n\nNothing was changed. An admin applies this change once (pravo apply), or the policy is left out of the writer's change until then.", err)
 	}
 	return nil
 }
