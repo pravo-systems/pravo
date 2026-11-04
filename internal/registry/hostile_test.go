@@ -133,7 +133,7 @@ func TestArchiveStopsAtTheSizeCap(t *testing.T) {
 	defer func(a int64) { maxArchive = a }(maxArchive)
 	maxArchive = 1 << 20
 	c, src := archiveServer(t, func(dl map[string]any) {}, func(w http.ResponseWriter, r *http.Request) {
-		for i := 0; i < 64; i++ {
+		for range 64 {
 			if _, err := w.Write(make([]byte, 1<<20)); err != nil {
 				return
 			}
@@ -222,7 +222,7 @@ func TestJSONAnswerIsBounded(t *testing.T) {
 	maxJSON = 1 << 10
 	c, src := registryServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"versions":[`))
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			w.Write([]byte(`{"version":"1.0.0"},`))
 		}
 	})
@@ -242,7 +242,7 @@ func TestArchiveGivesUpOnATrickle(t *testing.T) {
 	defer func(d time.Duration) { idleTimeout = d }(idleTimeout)
 	idleTimeout = 500 * time.Millisecond
 	c, src := archiveServer(t, func(dl map[string]any) {}, func(w http.ResponseWriter, r *http.Request) {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			if _, err := w.Write([]byte("x")); err != nil {
 				return
 			}

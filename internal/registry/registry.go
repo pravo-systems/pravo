@@ -198,6 +198,15 @@ func loopback(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+// secureURL reports whether u is https, or http to the local machine.
+func secureURL(u string) bool {
+	pu, err := url.Parse(u)
+	if err != nil {
+		return false
+	}
+	return pu.Scheme == "https" || (pu.Scheme == "http" && loopback(pu.Hostname()))
+}
+
 // clean makes text that a registry sent safe to print: control characters,
 // which could rewrite a terminal or add lines to a CI log, become "?".
 func clean(s string) string {
@@ -333,7 +342,7 @@ func (c *Client) providersBase(ctx context.Context, host string) (string, error)
 	if !strings.HasPrefix(p, "http") {
 		base = "https://" + host + p
 	}
-	if bu, err := url.Parse(base); err != nil || (bu.Scheme != "https" && !(bu.Scheme == "http" && loopback(bu.Hostname()))) {
+	if !secureURL(base) {
 		return "", fmt.Errorf("registry %s names the providers.v1 service at %s; the address must be https", host, clean(base))
 	}
 	if !strings.HasSuffix(base, "/") {
@@ -724,7 +733,7 @@ func (c *Client) Archive(ctx context.Context, src Source, ver string, plat Platf
 	if progress != nil {
 		progress(fmt.Sprintf("Downloading %s v%s (%s)", src.Display(), ver, clean(dl.Filename)))
 	}
-	if du, err := url.Parse(dl.DownloadURL); err != nil || (du.Scheme != "https" && !(du.Scheme == "http" && loopback(du.Hostname()))) {
+	if !secureURL(dl.DownloadURL) {
 		return "", "", fmt.Errorf("the registry gave the download address %s for %s %s; it must be https", clean(dl.DownloadURL), src.Display(), ver)
 	}
 	resp, err := c.get(ctx, dl.DownloadURL)
