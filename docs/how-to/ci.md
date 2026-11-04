@@ -125,7 +125,7 @@ jobs:
 | Input | Of | What it does |
 |---|---|---|
 | `command` | `pravo-action` | `plan`, `apply`, `drift` or `discover`. |
-| `working-directory` | `pravo-action` | The root, as `pravo -C` takes it. |
+| `working-directory` | `pravo-action` | The root, as `pravo -C` takes it. The default `.` is the root of the repository. |
 | `plan-id` | `pravo-action` | With `apply`: the stored plan to apply. |
 | `due-limit` | `pravo-action` | With `drift`: how many records one run may read. |
 | `fail-on-findings` | `pravo-action` | `true` makes `drift` and `discover` fail the job when they find something. |
@@ -145,7 +145,7 @@ jobs:
   plan:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    permissions: {contents: read, pull-requests: write, id-token: write}
+    permissions: {contents: read, pull-requests: write, issues: write, id-token: write}
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -171,7 +171,7 @@ jobs:
         with: {command: apply, plan-id: "${{ steps.plan.outputs.plan-id }}", working-directory: app}
 ```
 
-The `production` environment is where GitHub asks a reviewer before the job starts. The two roles are the ones from the paragraph below: the plan role reads, the apply role writes. The action does not run `pravo init`; commit the generated packages, or add a step that runs it.
+The `production` environment is where GitHub asks a reviewer before the job starts. Use two cloud roles: the plan role reads, the apply role writes, and the job that plans a pull request must not be able to assume the apply role. With one role for both, anyone who can open a pull request can plan with write access. The action does not run `pravo init`; commit the generated packages, or add a step that runs it.
 
 A pipeline that must be safe against pull requests from forks has three rules. Trigger on `pull_request`, never on `pull_request_target`, because a fork's workflow then runs with no secrets and no OIDC token. Give the workflow `permissions: {}` at the top and `id-token: write` only to the jobs that need a role. Run the plan job only when `github.event.pull_request.head.repo.full_name == github.repository`, and the apply job only on `push` to `main`, in a GitHub environment that asks for a review. A plan reads the cloud, and a plan job needs credentials that read it and no more; an apply job needs the role that writes. The `validate` job needs no credentials at all, so it can run for every pull request.
 

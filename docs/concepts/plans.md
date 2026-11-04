@@ -863,7 +863,7 @@ pravo -C reads state show files.f7 | grep '^// gone'
 ```
 
 ```text out
-// gone
+// gone: the provider no longer finds the object as recorded (deleted, or changed into another object)
 ```
 
 The next plan acts on the mark. It reaches `files.f7` and reads it again, and the other twenty are still not read. The apply that follows creates the file again, writes the record and ends the mark.

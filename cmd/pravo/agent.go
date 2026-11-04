@@ -446,6 +446,9 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 					for _, r := range d.Reasons {
 						out.Printf("    - %s\n", r)
 					}
+					if d.Note != "" {
+						out.Printf("    - %s\n", d.Note)
+					}
 				}
 			}
 			if proposal != nil && !flags.JSON && !flags.Markdown {
