@@ -365,7 +365,22 @@ func (s *Store) rereadMeta(ctx context.Context, first []byte) bool {
 	return true
 }
 
+// load lists and reads the nodes of the state. A node that another process deleted between the
+// listing and the read is a state that changed while it was read, not a damaged one: the nodes are
+// listed again, a bounded number of times, and the state is taken as it is then. A pointer that
+// is missing and was not deleted by anyone stays an error after the last attempt.
 func (s *Store) load() error {
+	for attempt := 0; ; attempt++ {
+		err := s.loadOnce()
+		if err != nil && errors.Is(err, ErrNotFound) && attempt+1 < readAttempts {
+			time.Sleep(readPause(attempt))
+			continue
+		}
+		return err
+	}
+}
+
+func (s *Store) loadOnce() error {
 	if vl, _, ok := s.snapshotOn(); ok {
 		objs, err := vl.ListVersions(s.cx(), "resources")
 		if err != nil {
