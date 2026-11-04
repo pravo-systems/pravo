@@ -202,7 +202,7 @@ func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin bool, re
 		if who == "" {
 			who = v.Key
 		}
-		changes = append(changes, fmt.Sprintf("%s: a withdrawal stays in force (it only restricts, so it is kept with no flag)", who))
+		changes = append(changes, who+": a withdrawal stays in force (it only restricts, so it is kept with no flag)")
 	}
 	var envKeys []string
 	for k := range envVouched {
