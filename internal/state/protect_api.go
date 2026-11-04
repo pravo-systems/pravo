@@ -308,7 +308,11 @@ type RewrapOptions struct {
 	RecoveryWas   *protect.Recovery
 	// All seals every record, the outputs and the stored plans again under the
 	// current group, instead of leaving them to be sealed when next written.
-	All      bool
+	All bool
+	// Rebind, with All, seals the records at these addresses again even when they are in
+	// the current group, so that the rewrap signs them: it repairs a state that an earlier
+	// rewrap --all left with records no transaction names.
+	Rebind   []string
 	By       string
 	Progress func(done, total int)
 	// Plans, if set and All is set, seals the stored plans again under the

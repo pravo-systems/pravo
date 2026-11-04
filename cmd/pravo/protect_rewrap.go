@@ -65,6 +65,30 @@ It needs an identity that is a reader of the state, and the readers file.
 	return cmd
 }
 
+// resealedAway lists the records that a transaction of a writer signed and that an earlier
+// rewrap --all sealed again without signing: the state refuses them (exit 7). Sealing them again
+// as this admin makes the rewrap sign them, which repairs the state. A record that fails
+// for another reason is left alone.
+func (p *protectRun) resealedAway(st *state.Store) []string {
+	rf, rs, err := p.rf.withRoles(st)
+	if err != nil || !protect.RolesOn(rf.Readers) {
+		return nil
+	}
+	// The rewrap signs the keys of the records it seals again, as every writer does.
+	st.BindRecords(true)
+	var addrs []string
+	for _, r := range st.List() {
+		addrs = append(addrs, r.Address())
+	}
+	var out []string
+	for _, pr := range st.CheckRecordsWith(recordRules(rf.Readers, rs), addrs...).Problems {
+		if strings.Contains(pr.Why, "signed another record for revision") {
+			out = append(out, pr.Addr)
+		}
+	}
+	return out
+}
+
 func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes, allowNoAdmin bool, readd []string) error {
 	if recoverySpec != "" && removeRecovery {
 		return errors.New("set the recovery or remove it, not both")
@@ -165,9 +189,13 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes, 
 			return err
 		}
 	}
+	var rebind []string
+	if all {
+		rebind = p.resealedAway(st)
+	}
 	began := time.Now()
 	res, err := st.Rewrap(p.ctx, state.RewrapOptions{
-		Readers: p.rf.Readers, All: all, By: id.Name, Recovery: setRec, RemoveRecovery: removing,
+		Readers: p.rf.Readers, All: all, Rebind: rebind, By: id.Name, Recovery: setRec, RemoveRecovery: removing,
 		GuardRecovery: setRec != nil || removing, RecoveryWas: prot.Sealed.Recovery,
 		Plans: engine.NewPlanStoreFor(st).ResealAll,
 	})

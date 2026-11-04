@@ -288,7 +288,7 @@ New data keys for 1 reader group. Records are sealed again as they are next writ
 Removal has four parts, and the last is yours.
 
 - The line stops **future** records from being sealed to Eve. It cannot make Eve forget what Eve read, and a copy of the bucket that was made before is still readable with Eve's key.
-- `pravo protect rewrap --all` seals every record, the outputs and the stored plans again under the new key now, instead of when each is next written. It refuses, with exit code 4, while a command is running or a lock is held, as `pravo protect init` does. It leaves the old group in `meta.json`.
+- `pravo protect rewrap --all` seals every record, the outputs and the stored plans again under the new key now, instead of when each is next written. It refuses, with exit code 4, while a command is running or a lock is held, as `pravo protect init` does. It leaves the old group in `meta.json`. In a state with [pinned roles](../reference/roles.md) the rewrap signs the records it seals again, so plans and applies go on working for everyone; run it as an admin or a writer.
 - `pravo protect gc` drops the old group from `meta.json` once nothing is sealed in it, and deletes the records that no pointer names, among them the last record of a resource that was destroyed. Eve's key then opens nothing that is left in the bucket.
 - Replace the secrets Eve could read where they live: in the cloud, in the application, in a secret manager.
 

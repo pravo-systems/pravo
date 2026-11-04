@@ -414,6 +414,9 @@ func (s *Store) LiveSigners(ctx context.Context) ([]protect.Vouch, error) {
 	for addr, r := range s.nodes {
 		if s.held[addr].Record != "" && r.Txn != "" {
 			ids[r.Txn] = true
+			if r.Resealed != "" {
+				ids[r.Resealed] = true
+			}
 		}
 	}
 	s.mu.Unlock()

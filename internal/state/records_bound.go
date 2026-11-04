@@ -119,9 +119,13 @@ func (s *Store) CheckRecordsWith(rules RecordRules, addrs ...string) RecordVerdi
 	var ids []string
 	s.mu.Lock()
 	for _, a := range addrs {
-		if r := s.nodes[a]; r != nil && r.Txn != "" && !seen[r.Txn] {
-			seen[r.Txn] = true
-			ids = append(ids, r.Txn)
+		if r := s.nodes[a]; r != nil {
+			for _, id := range []string{r.Txn, r.Resealed} {
+				if id != "" && !seen[id] {
+					seen[id] = true
+					ids = append(ids, id)
+				}
+			}
 		}
 	}
 	s.mu.Unlock()
@@ -144,8 +148,8 @@ func (s *Store) CheckRecordsWith(rules RecordRules, addrs ...string) RecordVerdi
 func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordRules, addrs []string) RecordVerdict {
 	readers := rules.Readers
 	type node struct {
-		addr, rec, txn string
-		revision       int
+		addr, rec, txn, resealed string
+		revision                 int
 	}
 	var nodes []node
 	s.mu.Lock()
@@ -158,13 +162,42 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 			continue
 		}
 		if ref := s.held[addr]; ref.Record != "" {
-			nodes = append(nodes, node{addr, ref.Record, r.Txn, r.Revision})
+			nodes = append(nodes, node{addr, ref.Record, r.Txn, r.Resealed, r.Revision})
 		}
 	}
 	s.mu.Unlock()
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].addr < nodes[j].addr })
 
 	var v RecordVerdict
+	// resealedTo says whether a rewrap that a writer signed sealed the record again.
+	resealedTo := func(id, addr string, revision int, rec string) bool {
+		if id == "" {
+			return false
+		}
+		t := lookup(id)
+		if t == nil || t.Kind != "rewrap" || t.Finished == nil || t.FinishSig == nil {
+			return false
+		}
+		verdict := VerifyTransaction(s.Lineage(), t, readers)
+		if verdict.Altered {
+			return false
+		}
+		switch verdict.Finish {
+		case protect.SigVerified:
+			if role, _ := protect.RoleOf(readers, t.FinishSig.Key); !role.Allows(protect.RoleWriter) {
+				return false
+			}
+		case protect.SigUnknownKey:
+			vo, ok := rules.Vouched[t.ID]
+			if !ok || vo.Key != t.FinishSig.Key || vo.Digest != VouchDigest(s.Lineage(), t) {
+				return false
+			}
+		default:
+			return false
+		}
+		c := changeOf(t, addr, revision)
+		return c != nil && c.Action == "reseal" && c.Record == rec
+	}
 	problem := func(addr, why string) { v.Problems = append(v.Problems, RecordProblem{addr, why}) }
 	lineage := s.Lineage()
 	// A key the signature names that is not in the roles is a problem when the rules are strict.
@@ -231,7 +264,7 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 			switch c := changeOf(t, n.addr, n.revision); {
 			case c == nil:
 				problem(n.addr, "the transaction "+t.ID+" does not name revision "+strconv.Itoa(n.revision))
-			case c.Record != "" && c.Record != n.rec:
+			case c.Record != "" && c.Record != n.rec && !resealedTo(n.resealed, n.addr, n.revision, n.rec):
 				problem(n.addr, "the transaction "+t.ID+" signed another record for revision "+strconv.Itoa(n.revision))
 			default:
 				v.Vouched++
@@ -272,7 +305,7 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 			problem(n.addr, "the transaction "+t.ID+" does not name revision "+strconv.Itoa(n.revision))
 		case c.Record == "":
 			v.Earlier++
-		case c.Record != n.rec:
+		case c.Record != n.rec && !resealedTo(n.resealed, n.addr, n.revision, n.rec):
 			problem(n.addr, "the transaction "+t.ID+" signed another record for revision "+strconv.Itoa(n.revision))
 		case vouched:
 			v.Vouched++
