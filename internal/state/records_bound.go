@@ -190,7 +190,14 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 			// A run that is still going, or was killed. Its start is signed by a writer, or
 			// it is not a run of a writer.
 			sv := VerifyTransaction(lineage, t, readers)
-			switch role, _ := protect.RoleOf(readers, startKey(t)); {
+			role, _ := protect.RoleOf(readers, startKey(t))
+			if vo, ok := rules.Vouched[t.ID]; ok && t.StartSig != nil && t.Status == "running" && !role.Allows(protect.RoleWriter) &&
+				vo.Key == t.StartSig.Key && vo.Digest == StartVouchDigest(lineage, t) && sv.Start != protect.SigInvalid {
+				// An admin vouched for the start of a run that was killed: its records stay.
+				v.Vouched++
+				continue
+			}
+			switch {
 			case sv.Start == protect.SigUnknownKey:
 				unknown(n.addr, t.ID)
 			case sv.Start != protect.SigVerified || !role.Allows(protect.RoleWriter):

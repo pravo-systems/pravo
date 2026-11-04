@@ -181,8 +181,20 @@ func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRu
 		changes = append(changes, fmt.Sprintf("%s: signed %s and is in no list: recorded as former", fp, plural(counts[fp], "transaction", "transactions")))
 	}
 	vouchedFor, envVouched := map[string]int{}, map[string]int{}
+	interruptedFor := map[string]int{}
+	killed := map[string]bool{}
+	if all, err := st.Transactions(); err == nil {
+		for _, t := range all {
+			if t.Finished == nil && t.Status == "running" {
+				killed[t.ID] = true
+			}
+		}
+	}
 	for _, v := range txnVouches {
 		vouchedFor[v.Key]++
+		if killed[v.Txn] {
+			interruptedFor[v.Key]++
+		}
 	}
 	for _, v := range envVouches {
 		envVouched[v.Key]++
@@ -206,7 +218,11 @@ func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRu
 		if who == "" {
 			who = k
 		}
-		changes = append(changes, fmt.Sprintf("%s: vouched for %s (records they wrote stay valid)", who, plural(vouchedFor[k], "transaction", "transactions")))
+		what := plural(vouchedFor[k], "transaction", "transactions")
+		if n := interruptedFor[k]; n > 0 {
+			what = plural(vouchedFor[k], "transaction", "transactions") + ", " + plural(n, "of them interrupted", "of them interrupted")
+		}
+		changes = append(changes, fmt.Sprintf("%s: vouched for %s (records they wrote stay valid)", who, what))
 	}
 	for _, v := range withdrawn {
 		who := names[v.Key]
@@ -609,5 +625,5 @@ func describeRunning(rs []runningTxn) string {
 }
 
 func runningLeaversError(rs []runningTxn) error {
-	return fmt.Errorf("%s. Wait for it to end, or release its locks with pravo state unlock if it is dead (the lock of a node it was creating stays until the object is adopted; unlock says how to go on), and run this again. If the key must be cut off now (it may be compromised), run this with --allow-running: what that transaction writes afterwards will not be trusted.", describeRunning(rs))
+	return fmt.Errorf("%s. Wait for it to end. If its process is dead, its locks go stale (pravo state locks shows when) and this command then vouches for what it wrote. Run this again after that. If the key must be cut off now (it may be compromised), run this with --allow-running: what that transaction writes afterwards will not be trusted.", describeRunning(rs))
 }
