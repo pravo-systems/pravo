@@ -359,7 +359,7 @@ func (s *Store) signedFactsOf(ctx context.Context, readers []protect.Reader, kin
 	}
 	var hints map[string]string
 	if len(kinds) > 0 {
-		if hints, err = s.kindHints(); err != nil {
+		if hints, err = s.kindHints(readers); err != nil {
 			return nil, err
 		}
 	}
