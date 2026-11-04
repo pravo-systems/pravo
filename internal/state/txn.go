@@ -145,6 +145,7 @@ func (t *Txn) start() error {
 	if err := t.store.putJSON("txn/"+t.t.ID+".json", t.t); err != nil {
 		return err
 	}
+	t.store.markKind(t.t.ID, t.t.Kind)
 	t.started = true
 	return nil
 }
@@ -209,6 +210,10 @@ func (t *Txn) FinishError(status, summary, full string, record bool) error {
 	signErr := t.signFinish()
 	if err := t.store.putJSON("txn/"+t.t.ID+".json", t.t); err != nil {
 		return err
+	}
+	if !t.started {
+		// A run that never started is written once, here, and gets its hint now.
+		t.store.markKind(t.t.ID, t.t.Kind)
 	}
 	if signErr != nil {
 		// The command has done its work. It reports the signature that is missing and does not
@@ -404,11 +409,50 @@ func (t *Txn) Len() int {
 	return len(t.t.Changes)
 }
 
+// KindDir holds one small object per transaction, kinds/<id>.<kind>, written when the
+// transaction starts. It is only a hint of what the transaction object says, so that a reader
+// that looks for the newest apply or destroy skips a plan, an edit or a secret set without
+// reading it. A transaction of an earlier pravo has no hint and is read, and so is one whose
+// hint names a kind that is wanted. A hint is never the answer: the answer is always taken from
+// a transaction object, and a hint only decides which objects are not read.
+const KindDir = "kinds"
+
+// markKind writes the hint of a transaction. A hint that cannot be written is not an error:
+// the transaction is then read when it is looked for.
+func (s *Store) markKind(id, kind string) {
+	if kind == "" || strings.ContainsAny(kind, "./") {
+		return
+	}
+	_ = s.b.Put(s.cx(), KindDir+"/"+id+"."+kind, []byte("{}\n"))
+}
+
+// kindHints returns the kind that each hint names, per transaction id.
+func (s *Store) kindHints() (map[string]string, error) {
+	keys, err := s.b.List(s.cx(), KindDir)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(keys))
+	for _, k := range keys {
+		name := strings.TrimPrefix(k, KindDir+"/")
+		if id, kind, ok := strings.Cut(name, "."); ok && id != "" && kind != "" {
+			out[id] = kind
+		}
+	}
+	return out, nil
+}
+
 // LatestOfKinds reads the newest recorded transaction of one of the kinds (such as "apply"
 // and "destroy"), nil when there is none. It goes back from the newest object and stops at
-// the first match, so a plan, an edit or a secret that came after does not hide it.
+// the first match, so a plan, an edit or a secret that came after does not hide it. A
+// transaction whose hint (see KindDir) names another kind is not read, so the cost does not
+// grow with the plans, edits and secrets that came after the match.
 func (s *Store) LatestOfKinds(kinds ...string) (*Transaction, error) {
 	keys, err := s.b.List(s.cx(), "txn")
+	if err != nil {
+		return nil, err
+	}
+	hints, err := s.kindHints()
 	if err != nil {
 		return nil, err
 	}
@@ -427,6 +471,9 @@ func (s *Store) LatestOfKinds(kinds ...string) (*Transaction, error) {
 			if bat, _, _ := strings.Cut(best.ID, "-"); at != bat {
 				break
 			}
+		}
+		if k, ok := hints[strings.TrimSuffix(strings.TrimPrefix(ids[i], "txn/"), ".json")]; ok && !slices.Contains(kinds, k) {
+			continue
 		}
 		data, err := s.b.Get(s.cx(), ids[i])
 		if err != nil {

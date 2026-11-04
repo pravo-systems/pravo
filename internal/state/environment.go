@@ -200,7 +200,8 @@ func (s *Store) EnvironmentRecord(ctx context.Context, readers []protect.Reader)
 				return nil, fmt.Errorf("%w: the note %s was written under version %d of the record of the environment, and the bucket holds %d: newer versions were deleted", ErrUntrusted, n.ID, n.EnvRecord, head.Seq)
 			}
 		}
-		facts, err := s.signedFacts(ctx, readers)
+		// Only a transaction of the kind "environment" signs a version of the record.
+		facts, err := s.signedFactsOf(ctx, readers, "environment")
 		if err != nil {
 			return nil, err
 		}

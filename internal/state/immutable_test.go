@@ -737,7 +737,7 @@ func TestCopyCarriesTheImmutableRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := s.Len()*2 + 3; n != want { // records, pointers, a transaction, outputs and meta
+	if want := s.Len()*2 + 4; n != want { // records, pointers, a transaction and its kind hint, outputs and meta
 		t.Errorf("copied %d objects, want %d", n, want)
 	}
 	if order.keys[0] != "meta.json" {
