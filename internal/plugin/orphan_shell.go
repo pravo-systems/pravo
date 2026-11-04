@@ -10,7 +10,8 @@ import (
 )
 
 // watchWithShell starts a shell that reads standard input to its end and then
-// kills the provider. Its standard input is a pipe whose write end only pravo
+// kills the provider's process group (the provider has a group of its own, with
+// the processes it started). Its standard input is a pipe whose write end only pravo
 // holds (and never passes on), so the end comes when pravo dies. The watcher is
 // stopped on a normal close, before the provider's pid can be reused.
 func watchWithShell(cmd *exec.Cmd) func() {
@@ -22,7 +23,7 @@ func watchWithShell(cmd *exec.Cmd) func() {
 		return func() {}
 	}
 	pid := strconv.Itoa(cmd.Process.Pid)
-	w2 := exec.Command("/bin/sh", "-c", `cat >/dev/null; kill -KILL "$1" 2>/dev/null`, "sh", pid)
+	w2 := exec.Command("/bin/sh", "-c", `cat >/dev/null; kill -s KILL -- "-$1" 2>/dev/null`, "sh", pid)
 	w2.Stdin = r
 	w2.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	err = w2.Start()
