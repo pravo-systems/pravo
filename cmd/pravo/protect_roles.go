@@ -19,7 +19,7 @@ import (
 // ---------- protect roles ----------
 
 func protectRolesCmd() *cobra.Command {
-	var yes, adoptUnsigned, allowNoAdmin bool
+	var yes, adoptUnsigned, vouchNotes, allowNoAdmin bool
 	var readd []string
 	cmd := &cobra.Command{
 		Use:   "roles",
@@ -39,24 +39,32 @@ that decide now (the readers file for the first version). The readers file must 
 Transactions that no identity signed, such as a history written before the state was
 sealed, are vouched for by id when the first version is stored, and listed before you
 confirm. A later version does it only with --adopt-unsigned: the admin has seen the
-count, and a transaction written after the roles began is not adopted by accident.`,
+count, and a transaction written after the roles began is not adopted by accident.
+
+In an environment that others follow, the newest note of what the state runs and the
+promotions into it are signed too, and a key that leaves takes their standing with it: the
+environments after this one then refuse its release until a current writer applies it again.
+--vouch-notes carries them over instead, by id and digest, as for transactions; it covers those
+objects only, and a new note by the key that left is still refused. The command prints how
+many would stop counting. Do not use it for a key that may be compromised.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := newProtectRun(cmd)
 			if err != nil {
 				return err
 			}
-			return p.roles(yes, adoptUnsigned, allowNoAdmin, readd)
+			return p.roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, readd)
 		},
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask before the roles are stored")
 	cmd.Flags().BoolVar(&adoptUnsigned, "adopt-unsigned", false, "also vouch for the unsigned transactions that wrote records now in the state (the first version always does)")
+	cmd.Flags().BoolVar(&vouchNotes, "vouch-notes", false, "also vouch for the run note and the promotions that keys leaving the writers signed, so that the environments after this one keep taking its release (not for a key that may be compromised)")
 	cmd.Flags().StringArrayVar(&readd, "readd", nil, "NAME of a former key that the readers file lists again, and that you mean to add back")
 	cmd.Flags().BoolVar(&allowNoAdmin, "allow-no-admin", false, "store roles that leave no admin")
 	return cmd
 }
 
-func (p *protectRun) roles(yes, adoptUnsigned, allowNoAdmin bool, readd []string) error {
+func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin bool, readd []string) error {
 	if err := p.rf.require(); err != nil {
 		return err
 	}
@@ -137,14 +145,36 @@ func (p *protectRun) roles(yes, adoptUnsigned, allowNoAdmin bool, readd []string
 	if err != nil {
 		return err
 	}
+	// A withdrawal only restricts, so those that an admin signed stay in force when that key is
+	// demoted or leaves, with no flag.
+	withdrawn, err := withdrawalVouches(p.ctx, st, chain, before, next)
+	if err != nil {
+		return err
+	}
+	isWithdrawal := map[string]bool{}
+	for _, v := range withdrawn {
+		isWithdrawal[v.Txn] = true
+	}
+	envVouches, left, err := environmentVouches(p.ctx, st, chain, before, beforeFormer, next, seen, vouchNotes, isWithdrawal)
+	if err != nil {
+		return err
+	}
+	txnVouches := vouches
+	vouches = append(append(append([]protect.Vouch(nil), vouches...), envVouches...), withdrawn...)
+	if left > 0 && !flags.JSON {
+		out.Printf("Warning: %s of keys that leave the writers will stop counting, so the environments after this one refuse this release until a current writer applies it again. If the keys are safe, run this with --vouch-notes to carry them over. Do not, if a key may be compromised. A withdrawal by an admin who is demoted or leaves keeps holding either way.\n", plural(left, "run note or promotion", "run notes and promotions"))
+	}
 	text := protect.FormatRolesSet(next, nextFormer, vouches)
 	changes := roleChanges(before, next)
 	for _, fp := range seen {
 		changes = append(changes, fmt.Sprintf("%s: signed %s and is in no list: recorded as former", fp, plural(counts[fp], "transaction", "transactions")))
 	}
-	vouchedFor := map[string]int{}
-	for _, v := range vouches {
+	vouchedFor, envVouched := map[string]int{}, map[string]int{}
+	for _, v := range txnVouches {
 		vouchedFor[v.Key]++
+	}
+	for _, v := range envVouches {
+		envVouched[v.Key]++
 	}
 	names := map[string]string{}
 	for _, rs := range [][]protect.Reader{before, p.rf.Readers} {
@@ -166,6 +196,25 @@ func (p *protectRun) roles(yes, adoptUnsigned, allowNoAdmin bool, readd []string
 			who = k
 		}
 		changes = append(changes, fmt.Sprintf("%s: vouched for %s (records they wrote stay valid)", who, plural(vouchedFor[k], "transaction", "transactions")))
+	}
+	for _, v := range withdrawn {
+		who := names[v.Key]
+		if who == "" {
+			who = v.Key
+		}
+		changes = append(changes, who+": a withdrawal stays in force (it only restricts, so it is kept with no flag)")
+	}
+	var envKeys []string
+	for k := range envVouched {
+		envKeys = append(envKeys, k)
+	}
+	sort.Strings(envKeys)
+	for _, k := range envKeys {
+		who := names[k]
+		if who == "" {
+			who = k
+		}
+		changes = append(changes, fmt.Sprintf("%s: vouched for %s (what the environments after this one read from them stays valid)", who, plural(envVouched[k], "run note or promotion", "run notes and promotions")))
 	}
 	seq := 1
 	if head != nil {
@@ -363,6 +412,93 @@ func newVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, b
 	}
 	if len(found) > maxVouches {
 		return nil, fmt.Errorf("%d transactions would be vouched for, and one version of the roles holds %d. Remove the records of the keys that leave with pravo state rm, or have a writer apply them again, and run this again.", len(found), maxVouches)
+	}
+	return found, nil
+}
+
+// environmentVouches are the vouches for the newest run note and the promotions of the state
+// that a key signed which leaves the writers: it was a writer in before, is one of seen or a
+// former key, or there are no roles yet. They are returned only when vouch is set; left counts those that are
+// not vouched for and stop counting, since the key is not a writer in next.
+func environmentVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, before []protect.Reader, former []protect.FormerKey, next []protect.Reader, seen []string, vouch bool, skip map[string]bool) ([]protect.Vouch, int, error) {
+	all, err := st.EnvironmentVouches(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	isWriter := map[string]bool{}
+	for _, r := range next {
+		isWriter[protect.SSHFingerprint(r.Sign)] = r.Role >= protect.RoleWriter
+	}
+	wasWriter := map[string]bool{}
+	for _, r := range before {
+		wasWriter[protect.SSHFingerprint(r.Sign)] = r.Role >= protect.RoleWriter
+	}
+	unlisted := map[string]bool{}
+	for _, fp := range seen {
+		unlisted[fp] = true
+	}
+	// A key recorded as former is vouched for on a later run too, when the admin gives the flag.
+	for _, f := range former {
+		unlisted[f.Key] = true
+	}
+	done := map[string]bool{}
+	for _, v := range chain.Versions {
+		for _, vo := range v.Vouched {
+			done[vo.Txn] = true
+		}
+	}
+	var found []protect.Vouch
+	left := 0
+	for _, v := range all {
+		if done[v.Txn] || skip[v.Txn] || isWriter[v.Key] || (chain.Head() != nil && !wasWriter[v.Key] && !unlisted[v.Key]) {
+			continue
+		}
+		if vouch {
+			found = append(found, v)
+		} else {
+			left++
+		}
+	}
+	if len(found) > maxVouches {
+		return nil, 0, fmt.Errorf("%d run notes and promotions would be vouched for, and one version of the roles holds %d", len(found), maxVouches)
+	}
+	return found, left, nil
+}
+
+// withdrawalVouches are the vouches for the withdrawals (promote --revoke) in the state that a
+// key signed while it was an admin in before and is not an admin in next: the key was demoted or
+// left. The signature is checked against before, since a key that left has no key in next.
+func withdrawalVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, before, next []protect.Reader) ([]protect.Vouch, error) {
+	if len(before) == 0 {
+		return nil, nil
+	}
+	all, err := st.Promotions(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	done := map[string]bool{}
+	for _, v := range chain.Versions {
+		for _, vo := range v.Vouched {
+			done[vo.Txn] = true
+		}
+	}
+	var found []protect.Vouch
+	for _, o := range all {
+		p := o.Promotion
+		if p == nil || p.Kind != state.PromotionRevoked || done[p.VouchID()] {
+			continue
+		}
+		if sst, _ := p.Verify(st.Lineage(), before); sst != protect.SigVerified {
+			continue
+		}
+		was, _ := protect.RoleOf(before, p.Signature.Key)
+		now, _ := protect.RoleOf(next, p.Signature.Key)
+		if !was.Allows(protect.RoleAdmin) || now.Allows(protect.RoleAdmin) {
+			continue
+		}
+		if v, ok := p.Vouch(st.Lineage()); ok {
+			found = append(found, v)
+		}
 	}
 	return found, nil
 }

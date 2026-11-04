@@ -225,16 +225,16 @@ func (e *Engine) EnvironmentStatus(ctx context.Context) (*EnvironmentNote, error
 }
 
 // upstreamReaders are the readers that the note of the environment env is checked against.
-func (e *Engine) upstreamReaders(env string) ([]protect.Reader, error) {
+func (e *Engine) upstreamReaders(env string) (Judges, error) {
 	if e.Opts.UpstreamReaders == nil {
-		return e.Opts.Readers, nil
+		return Judges{Readers: e.Opts.Readers, Vouched: e.Opts.Vouched}, nil
 	}
 	return e.Opts.UpstreamReaders(env)
 }
 
 // gateReader judges the promotions of the state of the run.
 func (e *Engine) gateReader() GateReader {
-	return GateReader{State: e.State, Environment: e.Root.Environment, Readers: e.Opts.Readers, Upstream: e.upstreamReaders, Now: e.clock()}
+	return GateReader{State: e.State, Environment: e.Root.Environment, Readers: e.Opts.Readers, Vouched: e.Opts.Vouched, Upstream: e.upstreamReaders, Now: e.clock()}
 }
 
 // CheckGate reads the promotions of the release in this state and says whether one counts.
@@ -250,15 +250,26 @@ type GateReader struct {
 	// there.
 	Environment string
 	Readers     []protect.Reader
+	// Vouched are the notes and promotions that the roles of this state carry over from keys
+	// that left (see Judges).
+	Vouched map[string]protect.Vouch
 	// Upstream gives the readers of an environment this one follows, which its notes are
-	// checked against. Nil uses Readers.
-	Upstream func(env string) ([]protect.Reader, error)
+	// checked against. Nil uses Readers and Vouched.
+	Upstream func(env string) (Judges, error)
 	Now      time.Time
 }
 
-func (g GateReader) upstream(env string) ([]protect.Reader, error) {
+// Judges are what decides whether a signature on a note or a promotion counts: the readers of
+// the state it was written in, and the notes and promotions that an admin of that state
+// vouched for after the key that signed them left (by id and digest, as for transactions).
+type Judges struct {
+	Readers []protect.Reader
+	Vouched map[string]protect.Vouch
+}
+
+func (g GateReader) upstream(env string) (Judges, error) {
 	if g.Upstream == nil {
-		return g.Readers, nil
+		return Judges{Readers: g.Readers, Vouched: g.Vouched}, nil
 	}
 	return g.Upstream(env)
 }
@@ -270,8 +281,31 @@ func (g GateReader) now() time.Time {
 	return g.Now
 }
 
-// Withdrawal reads the newest withdrawal of the release by an admin of the state, and says
-// who made it, how long ago and why. ok is false where there is none.
+// standing says what a promotion is worth here: whether its signature counts, who signed it
+// and the role it had. A key that left has none, unless an admin vouched for the promotion: it
+// then has the standing of its kind, a writer's for a promotion and an admin's for a waiver
+// or a withdrawal.
+func (g GateReader) standing(p *state.Promotion) (protect.SigStatus, string, protect.Role) {
+	st, who := p.Verify(g.State.Lineage(), g.Readers)
+	if st == protect.SigUnknownKey && p.Vouched(g.State.Lineage(), g.Vouched) {
+		role := protect.RoleWriter
+		if p.Kind != state.PromotionPromoted {
+			role = protect.RoleAdmin
+		}
+		return protect.SigVerified, p.Signature.Signer, role
+	}
+	role, _ := protect.RoleOf(g.Readers, p.Signature.Key)
+	// A withdrawal only restricts, so `protect roles` vouches for the ones that an admin
+	// signed when that key is demoted or leaves: it keeps its standing as an admin's.
+	if st == protect.SigVerified && p.Kind == state.PromotionRevoked && !role.Allows(protect.RoleAdmin) && p.Vouched(g.State.Lineage(), g.Vouched) {
+		role = protect.RoleAdmin
+	}
+	return st, who, role
+}
+
+// Withdrawal reads the newest withdrawal of the release by an admin of the state that no
+// admin's promotion lifted since, and says who made it, how long ago and why. ok is false where
+// there is none. Check and the promote command both go by it, so that they cannot disagree.
 func (g GateReader) Withdrawal(ctx context.Context, rel Release) (by string, ago time.Duration, why string, ok bool) {
 	all, err := g.State.Promotions(ctx, rel.Fingerprint)
 	if err != nil {
@@ -283,14 +317,23 @@ func (g GateReader) Withdrawal(ctx context.Context, rel Release) (by string, ago
 		if p == nil || p.Kind != state.PromotionRevoked || p.Fingerprint != rel.Fingerprint || !maps.Equal(p.Tags, rel.Tags) || p.Environment != g.Environment {
 			continue
 		}
-		if st, who := p.Verify(g.State.Lineage(), g.Readers); st == protect.SigVerified {
-			if role, _ := protect.RoleOf(g.Readers, p.Signature.Key); role.Allows(protect.RoleAdmin) && p.At.After(at) {
+		if st, who, role := g.standing(p); st == protect.SigVerified {
+			if role.Allows(protect.RoleAdmin) && p.At.After(at) {
 				at, by, why = p.At, who, p.Note
 			}
 		}
 	}
 	if at.IsZero() {
 		return "", 0, "", false
+	}
+	for _, o := range all {
+		p := o.Promotion
+		if p == nil || p.Kind == state.PromotionRevoked || p.Fingerprint != rel.Fingerprint || !maps.Equal(p.Tags, rel.Tags) || p.Environment != g.Environment || !p.At.After(at) {
+			continue
+		}
+		if st, _, role := g.standing(p); st == protect.SigVerified && role.Allows(protect.RoleAdmin) {
+			return "", 0, "", false
+		}
 	}
 	return PlainText(by), g.now().Sub(at), PlainText(why), true
 }
@@ -305,8 +348,7 @@ func (g GateReader) Check(ctx context.Context, after []string, rec *state.Enviro
 		c.Reason = "the promotions of this state cannot be read: " + err.Error()
 		return c
 	}
-	lineage := g.State.Lineage()
-	// A withdrawal by an admin ends every promotion of the release signed before it.
+	// A withdrawal by an admin blocks the release until an admin promotes it again.
 	var revokedAt time.Time
 	var revokedBy, revokedWhy string
 	var mine []*state.Promotion
@@ -316,8 +358,8 @@ func (g GateReader) Check(ctx context.Context, after []string, rec *state.Enviro
 			continue
 		}
 		if p.Kind == state.PromotionRevoked {
-			if st, who := p.Verify(lineage, g.Readers); st == protect.SigVerified {
-				if role, _ := protect.RoleOf(g.Readers, p.Signature.Key); role.Allows(protect.RoleAdmin) && p.At.After(revokedAt) {
+			if st, who, role := g.standing(p); st == protect.SigVerified {
+				if role.Allows(protect.RoleAdmin) && p.At.After(revokedAt) {
 					revokedAt, revokedBy, revokedWhy = p.At, who, p.Note
 				}
 			}
@@ -339,12 +381,16 @@ func (g GateReader) Check(ctx context.Context, after []string, rec *state.Enviro
 	best := -1
 	for _, p := range mine {
 		reason, level := g.judge(after, rec, p, rel)
-		if reason == "" && !revokedAt.IsZero() && !p.At.After(revokedAt) {
-			reason, level = withdrawn(), 9
+		// A withdrawal blocks the release: only an admin's promotion lifts it, so a
+		// writer's promotion does not count, whether it was signed before or after.
+		if reason == "" && !revokedAt.IsZero() {
+			if _, _, role := g.standing(p); !p.At.After(revokedAt) || !role.Allows(protect.RoleAdmin) {
+				reason, level = withdrawn(), 9
+			}
 		}
 		if reason == "" {
 			who := p.Signature.Signer
-			if _, name := p.Verify(lineage, g.Readers); name != "" {
+			if _, name, _ := g.standing(p); name != "" {
 				who = name
 			}
 			c.Met, c.Reason = true, ""
@@ -360,7 +406,7 @@ func (g GateReader) Check(ctx context.Context, after []string, rec *state.Enviro
 
 // judge says why a promotion does not count, or "" when it does, with how far it got.
 func (g GateReader) judge(after []string, rec *state.EnvironmentRecord, p *state.Promotion, rel Release) (string, int) {
-	st, who := p.Verify(g.State.Lineage(), g.Readers)
+	st, who, role := g.standing(p)
 	if who == "" {
 		who = p.Signature.Signer
 	}
@@ -372,7 +418,6 @@ func (g GateReader) judge(after []string, rec *state.EnvironmentRecord, p *state
 	default:
 		return fmt.Sprintf("the promotion by %s does not verify in this state", who), 0
 	}
-	role, _ := protect.RoleOf(g.Readers, p.Signature.Key)
 	switch {
 	case p.Kind == state.PromotionWaived && !role.Allows(protect.RoleAdmin):
 		return fmt.Sprintf("the waiver by %s does not count: %s is %s here, and an admin is needed", who, who, article(role)), 2
@@ -397,11 +442,11 @@ func (g GateReader) judge(after []string, rec *state.EnvironmentRecord, p *state
 				return fmt.Sprintf("the promotion by %s read %s from another state than the one this environment follows", who, up), 3
 			}
 		}
-		readers, err := g.upstream(up)
+		judges, err := g.upstream(up)
 		if err != nil {
 			return fmt.Sprintf("the readers of %s cannot be read here: %v", up, err), 4 + i
 		}
-		if why := NoteProblem(src.Run, up, src.Lineage, readers, g.now()); why != "" {
+		if why := NoteProblem(src.Run, up, src.Lineage, judges, g.now()); why != "" {
 			return why, 4
 		}
 		if why := rel.Differs(src.Run); why != "" {
@@ -414,8 +459,17 @@ func (g GateReader) judge(after []string, rec *state.EnvironmentRecord, p *state
 // NoteProblem says why the note n does not show what the state of the environment env, with
 // the lineage, runs, or "" when it does: it is signed there by a writer and is not dated
 // ahead of now.
-func NoteProblem(n *state.RunNote, env, lineage string, readers []protect.Reader, now time.Time) string {
+func NoteProblem(n *state.RunNote, env, lineage string, j Judges, now time.Time) string {
+	readers := j.Readers
 	nst, nwho := n.Verify(lineage, readers)
+	// A note that an admin vouched for after its key left is a writer's note.
+	vouched := nst == protect.SigUnknownKey && n.Vouched(lineage, j.Vouched)
+	if vouched {
+		nst = protect.SigVerified
+		if nwho == "" {
+			nwho = n.Signature.Signer
+		}
+	}
 	switch nst {
 	case protect.SigVerified:
 	case protect.SigUnknownKey:
@@ -428,7 +482,7 @@ func NoteProblem(n *state.RunNote, env, lineage string, readers []protect.Reader
 	default:
 		return fmt.Sprintf("the note of %s does not verify against the readers file of %s", env, env)
 	}
-	if r, _ := protect.RoleOf(readers, n.Signature.Key); !r.Allows(protect.RoleWriter) {
+	if r, _ := protect.RoleOf(readers, n.Signature.Key); !vouched && !r.Allows(protect.RoleWriter) {
 		return fmt.Sprintf("the note of %s was signed by %s, who is %s there, and a writer is needed", env, PlainText(nwho), article(r))
 	}
 	if n.Environment != env {

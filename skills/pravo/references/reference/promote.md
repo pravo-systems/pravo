@@ -34,7 +34,7 @@ pravo promote prod -t image=1.4
 | `--ttl D` | 7d | With `--store`: keep the plan this long if it is not applied. |
 | `--auto-approve` | off | Apply without asking. |
 | `--waive REASON` | none | Promote without the notes of the environments before. An admin gives the reason. |
-| `--revoke REASON` | none | Withdraw the promotions of this release that were signed before. An admin gives the reason. Nothing is applied. |
+| `--revoke REASON` | none | Withdraw this release from ENVIRONMENT: only an admin of ENVIRONMENT promotes it again. An admin gives the reason. Nothing is applied. |
 | `-t`, `--tag key=value` | none | The tags of the release. Repeatable. |
 | `--env NAME` | none | Names ENVIRONMENT again, as `-t env=NAME` does. Another name is refused. |
 | `-T`, `--inject-vars` | off | Inject the system variables of CUE. |
@@ -45,7 +45,7 @@ pravo promote prod -t image=1.4
 
 ## When it already runs the release
 
-When the newest note of ENVIRONMENT names the release of this directory, its apply deferred nothing, and a promotion of that release still counts there, `promote` says so, signs nothing, applies nothing and exits 0. To bring ENVIRONMENT back in line with the release, apply it again with `pravo apply --env ENVIRONMENT`. A promotion withdrawn by `--revoke` does not count, so after it `promote` signs a new one, which any writer may do, and prints who withdrew the release and why. If the note of an environment before it was signed by a key that has left the readers file, `promote` names that key and lists the commands that apply the release there again with a current writer. `--refresh` has no effect when `promote` finds nothing to promote, and says so.
+When the newest note of ENVIRONMENT names the release of this directory, its apply deferred nothing, and a promotion of that release still counts there, `promote` says so, signs nothing, applies nothing and exits 0. To bring ENVIRONMENT back in line with the release, apply it again with `pravo apply --env ENVIRONMENT`. After a withdrawal by `--revoke`, `promote` refuses the release with exit 5 for anybody who is not an admin of ENVIRONMENT, and names who withdrew it, when and why; an admin's `promote` signs a new promotion, which lifts the withdrawal, and says so. If the note of an environment before it was signed by a key that has left the readers file, `promote` names that key and lists the commands that apply the release there again with a current writer, or tells an admin of that environment to run `pravo protect roles --vouch-notes` to carry the note over ([Roles](roles.md)). `--refresh` has no effect when `promote` finds nothing to promote, and says so.
 
 ## What is checked
 
@@ -55,10 +55,10 @@ Before it signs, `promote` checks:
 |---|---|
 | The environment | ENVIRONMENT is not declared, has no `$after`, has no state yet or a state that is not sealed, or `--env` names another one. |
 | The record | The record in the state of ENVIRONMENT says that it serves another environment, or follows others ([Environments](spec-environments.md#the-record-of-an-environment)). |
-| The role | The identity is not a writer of the state of ENVIRONMENT, or not an admin for `--waive` and `--revoke`. |
+| The role | The identity is not a writer of the state of ENVIRONMENT, or not an admin for `--waive` and `--revoke`, or for a release that an admin withdrew. |
 | Each environment before | Its state cannot be read, is not sealed, has no note, or its newest note is for another release, says that its apply [deferred changes to the next plan](../concepts/plans.md#changes-deferred-to-the-next-plan), is signed by a key that its readers file does not make a writer, or is dated more than five minutes ahead. |
 
-An apply of ENVIRONMENT, by `promote` or by `pravo apply`, checks again, under the lock of the state: the promotion against the readers file of ENVIRONMENT, and each note it carries against the readers file of the environment it comes from, with the lineage of that state that the record holds. A promotion signed before the newest withdrawal of the release does not count. A refusal lists the commands that move the release along:
+An apply of ENVIRONMENT, by `promote` or by `pravo apply`, checks again, under the lock of the state: the promotion against the readers file of ENVIRONMENT, and each note it carries against the readers file of the environment it comes from, with the lineage of that state that the record holds. A promotion signed before the newest withdrawal of the release does not count, and after it only an admin's promotion does. A refusal lists the commands that move the release along:
 
 ```text
 Error: prod only takes what was promoted from dev, and nobody has promoted this release yet.
@@ -77,7 +77,7 @@ When the state of an environment before cannot be read, an admin of ENVIRONMENT 
 
 ## A withdrawal
 
-`--revoke "reason"` writes a withdrawal of the release into the state of ENVIRONMENT. Every promotion of the release signed before it stops counting, and an apply is refused with the reason until a new promotion. A release that ENVIRONMENT already runs stays applied: a withdrawal stops the next apply, and a fix is a new release.
+`--revoke "reason"` writes a withdrawal of the release into the state of ENVIRONMENT. The release is blocked: promotions of it signed before the withdrawal stop counting, and one signed after it counts only when an admin signed it. An apply is refused with the reason until an admin promotes the release again; a writer's `promote` is refused too (exit 5). Another release is not affected. A withdrawal counts when it was signed by an admin of ENVIRONMENT: if that admin is demoted or removed, `pravo protect roles` keeps the withdrawal in force with no flag, since it only restricts, and says so. Once an admin has promoted the release again, a writer's `promote` of it behaves as for any release that is promoted: it signs nothing and exits 0 when the environment already runs it. A lifting promotion by an admin who has left stops counting, which keeps the release blocked. A release that ENVIRONMENT already runs stays applied: a withdrawal stops the next apply, and a fix is a new release.
 
 ## Example
 

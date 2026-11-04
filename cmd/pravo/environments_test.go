@@ -41,7 +41,8 @@ app: $local.#Resource.local_file & {
 // ladder is a root with the three environments, each state sealed to the people of one readers
 // file.
 type ladder struct {
-	dir string
+	dir    string
+	perEnv bool
 }
 
 func newLadder(t *testing.T, people ...string) *ladder {
@@ -68,6 +69,37 @@ func newLadder(t *testing.T, people ...string) *ladder {
 		if text, code := runPravo(t, l.dir, "--identity", "ada", "protect", "init", "--encrypt", "--yes", "--allow-local", "-t", "env="+env); code != 0 {
 			t.Fatalf("protect init %s: exit %d\n%s", env, code, text)
 		}
+	}
+	return l
+}
+
+// newLadderPerEnv is a ladder with a readers file for each environment, through
+// $settings.access.dir, as a team with roles in every state has.
+func newLadderPerEnv(t *testing.T, people ...string) *ladder {
+	t.Helper()
+	requireLocalProvider(t)
+	requireSealing(t)
+	ids := isolateIdentities(t)
+	var lines []string
+	for _, p := range people {
+		name, role, _ := strings.Cut(p, ":")
+		_, line := person(t, ids, name)
+		lines = append(lines, line+" role:"+role)
+	}
+	l := &ladder{dir: specDir(t, map[string]string{}), perEnv: true}
+	spec := strings.Replace(fmt.Sprintf(ladderSpec, `"staging"`), `state: path: "state/\($environment.$name)"`,
+		`state: path: "state/\($environment.$name)"
+	access: dir: ".pravo/access/\($environment.$name)"`, 1)
+	if err := os.WriteFile(filepath.Join(l.dir, "main.cue"), []byte(spec), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if text, code := runPravo(t, l.dir, "init", "-t", "env=dev"); code != 0 {
+		t.Skipf("init exited %d:\n%s", code, text)
+	}
+	for _, env := range []string{"dev", "staging", "prod"} {
+		writeReaders(t, filepath.Join(l.dir, ".pravo", "access", env), lines...)
+		l.must(t, "ada", "protect", "init", "--encrypt", "--yes", "--allow-local", "-t", "env="+env)
+		l.must(t, "ada", "protect", "roles", "--yes", "-t", "env="+env)
 	}
 	return l
 }
@@ -653,6 +685,69 @@ func TestPromoteAfterAnOffboardingNamesTheDepartedKey(t *testing.T) {
 		!strings.Contains(text, "    pravo apply --env dev\n    pravo promote staging") {
 		t.Fatalf("promote after the offboarding: exit %d\n%s", code, text)
 	}
+	if !strings.Contains(text, "pravo protect roles --vouch-notes --env dev") {
+		t.Fatalf("the refusal does not mention the flag:\n%s", text)
+	}
+}
+
+// offboard removes who from the readers file of every environment and rewraps the states.
+func (l *ladder) offboard(t *testing.T, who string) {
+	t.Helper()
+	for _, env := range []string{"dev", "staging", "prod"} {
+		readers := filepath.Join(l.dir, ".pravo", "access", env, "readers.txt")
+		data, err := os.ReadFile(readers)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var kept []string
+		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+			if !strings.HasPrefix(line, who+" ") {
+				kept = append(kept, line)
+			}
+		}
+		if err := os.WriteFile(readers, []byte(strings.Join(kept, "\n")+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		l.must(t, "ada", "protect", "rewrap", "--yes", "-t", "env="+env)
+	}
+}
+
+// An admin carries over what a key that left signed, with an explicit flag: the next promotion
+// works without a new apply in the environments before. Without the flag the roles say how many
+// objects stop counting, and nothing is vouched for.
+func TestRolesVouchForTheNotesAndPromotionsOfAKeyThatLeft(t *testing.T) {
+	l := newLadderPerEnv(t, "ada:admin", "dan:writer")
+	l.must(t, "dan", "apply", "-t", "env=dev", "--auto-approve")
+	l.must(t, "dan", "promote", "staging", "--auto-approve")
+	l.offboard(t, "dan")
+
+	// Not vouched: roles count what stops counting, the note of dev does not count.
+	text := l.must(t, "ada", "protect", "roles", "--yes", "-t", "env=dev")
+	if !strings.Contains(text, "will stop counting") || !strings.Contains(text, "--vouch-notes") || strings.Contains(text, "run note or promotion)") {
+		t.Fatalf("protect roles without the flag:\n%s", text)
+	}
+	text, code := l.as(t, "ada", "promote", "staging", "--sign-only")
+	if code != 5 || !strings.Contains(text, "signed by dan, whose key is not in the readers file of dev") {
+		t.Fatalf("promote without the vouch: exit %d\n%s", code, text)
+	}
+
+	// Vouched in dev: the note of dev counts again, and promoting staging needs no new apply.
+	text = l.must(t, "ada", "protect", "roles", "--yes", "--vouch-notes", "-t", "env=dev")
+	if !strings.Contains(text, "vouched for 1 run note or promotion (what the environments after") {
+		t.Fatalf("protect roles with the flag:\n%s", text)
+	}
+	l.must(t, "ada", "promote", "staging", "--sign-only")
+	// Staging holds dan's promotion and dan's note: vouch there as well.
+	l.must(t, "ada", "protect", "roles", "--yes", "--vouch-notes", "-t", "env=staging")
+	l.must(t, "ada", "promote", "prod", "--sign-only")
+	text = l.must(t, "ada", "environments")
+	if strings.Contains(text, "whose key is not in the readers file") {
+		t.Fatalf("environments after the vouch:\n%s", text)
+	}
+	// The vouch covers those objects only: a new note by dan is not covered, and dan is refused.
+	if _, code := l.as(t, "dan", "apply", "-t", "env=dev", "--auto-approve"); code == 0 {
+		t.Fatal("dan, who left, applied")
+	}
 }
 
 // After a destroy, "pravo environments" shows the environment as destroyed, not as running the
@@ -675,16 +770,34 @@ func TestEnvironmentsShowsADestroyedEnvironment(t *testing.T) {
 	}
 }
 
-// A writer's promotion after a withdrawal counts, and says who withdrew the release and why.
-func TestPromotionAfterAWithdrawalSaysWhoWithdrewIt(t *testing.T) {
+// A withdrawal blocks the release: a writer's promotion is refused, naming who withdrew it, when
+// and why; an admin's promotion lifts it; another release is not affected.
+func TestAWithdrawnReleaseIsPromotedAgainByAnAdminOnly(t *testing.T) {
 	l := newLadder(t, "ada:admin", "bob:writer")
 	l.must(t, "ada", "apply", "-t", "env=dev", "--auto-approve")
 	l.must(t, "ada", "promote", "staging", "--auto-approve")
 	l.must(t, "ada", "promote", "prod", "--revoke", "corrupts uploads")
-	text := l.must(t, "bob", "promote", "prod", "--sign-only")
-	if !strings.Contains(text, "Note: ada withdrew this release from prod") || !strings.Contains(text, "(corrupts uploads)") {
-		t.Fatalf("promote after the withdrawal:\n%s", text)
+	text, code := l.as(t, "bob", "promote", "prod", "--sign-only")
+	if code != 5 || !strings.Contains(text, "ada withdrew this release from prod") || !strings.Contains(text, "corrupts uploads") || !strings.Contains(text, "until an admin of prod promotes it again") {
+		t.Fatalf("writer's promote after the withdrawal: exit %d\n%s", code, text)
 	}
+	// Nothing was signed, so the writer's apply is refused too.
+	text, code = l.as(t, "bob", "apply", "-t", "env=prod", "--auto-approve")
+	if code != 5 || !strings.Contains(text, "withdrawn by ada") {
+		t.Fatalf("writer's apply after the withdrawal: exit %d\n%s", code, text)
+	}
+	// An admin lifts the withdrawal, and says so.
+	text = l.must(t, "ada", "promote", "prod", "--sign-only")
+	if !strings.Contains(text, "Promoted to prod") || !strings.Contains(text, "lifts that") {
+		t.Fatalf("admin's promote after the withdrawal:\n%s", text)
+	}
+	// Another release is not affected.
+	l.must(t, "ada", "apply", "-t", "env=dev", "-t", "image=1.1", "--auto-approve")
+	l.must(t, "ada", "promote", "staging", "-t", "image=1.1", "--auto-approve")
+	if text = l.must(t, "bob", "promote", "prod", "-t", "image=1.1", "--sign-only"); !strings.Contains(text, "Promoted to prod") {
+		t.Fatalf("another release:\n%s", text)
+	}
+	l.must(t, "bob", "apply", "-t", "env=prod", "--auto-approve")
 }
 
 // A secret set in a destroyed environment is a transaction after the destroy, and it does not
@@ -740,4 +853,90 @@ func TestPromoteWithoutARecordTellsTheWriterWhatAnAdminRuns(t *testing.T) {
 	if code != 5 || !strings.Contains(text, "Nothing was changed. An admin records it once:") || !strings.Contains(text, "pravo environments record --env staging") {
 		t.Fatalf("promote by a writer without a record: exit %d\n%s", code, text)
 	}
+}
+
+// editReaders rewrites the line of who in the readers file of env: f returns the new line, or ""
+// to drop it.
+func (l *ladder) editReaders(t *testing.T, env, who string, f func(line string) string) {
+	t.Helper()
+	path := filepath.Join(l.dir, ".pravo", "access", env, "readers.txt")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kept []string
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if strings.HasPrefix(line, who+" ") {
+			if line = f(line); line == "" {
+				continue
+			}
+		}
+		kept = append(kept, line)
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(kept, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// withdrawnLadder has ada withdraw the release from prod, with zoe as the second admin and cia a writer.
+func withdrawnLadder(t *testing.T) *ladder {
+	l := newLadderPerEnv(t, "ada:admin", "zoe:admin", "cia:writer")
+	l.must(t, "ada", "apply", "-t", "env=dev", "--auto-approve")
+	l.must(t, "ada", "promote", "staging", "--auto-approve")
+	l.must(t, "ada", "promote", "prod", "--revoke", "corrupts uploads")
+	if text, code := l.as(t, "cia", "promote", "prod", "--sign-only"); code != 5 || !strings.Contains(text, "ada withdrew this release") {
+		t.Fatalf("cia before the change: exit %d\n%s", code, text)
+	}
+	return l
+}
+
+func (l *ladder) stillWithdrawn(t *testing.T, when string) {
+	t.Helper()
+	text, code := l.as(t, "cia", "promote", "prod", "--sign-only")
+	if code != 5 || !strings.Contains(text, "ada withdrew this release") {
+		t.Fatalf("promote %s: exit %d\n%s", when, code, text)
+	}
+	text, code = l.as(t, "cia", "apply", "-t", "env=prod", "--auto-approve")
+	if code != 5 || !strings.Contains(text, "withdrawn by ada") {
+		t.Fatalf("apply %s: exit %d\n%s", when, code, text)
+	}
+}
+
+// A withdrawal keeps holding when the admin who made it is demoted, or leaves, with or without
+// --vouch-notes: it only restricts, so roles carry it over with no flag.
+func TestAWithdrawalHoldsWhenItsAdminIsDemoted(t *testing.T) {
+	l := withdrawnLadder(t)
+	l.editReaders(t, "prod", "ada", func(s string) string { return strings.Replace(s, "role:admin", "role:writer", 1) })
+	text := l.must(t, "zoe", "protect", "roles", "--yes", "-t", "env=prod")
+	if !strings.Contains(text, "a withdrawal stays in force") {
+		t.Fatalf("protect roles:\n%s", text)
+	}
+	l.stillWithdrawn(t, "after the demotion")
+}
+
+func TestAWithdrawalHoldsWhenItsAdminLeaves(t *testing.T) {
+	for _, flag := range []string{"", "--vouch-notes"} {
+		l := withdrawnLadder(t)
+		l.editReaders(t, "prod", "ada", func(string) string { return "" })
+		l.must(t, "zoe", "protect", "rewrap", "--yes", "-t", "env=prod")
+		args := []string{"protect", "roles", "--yes", "-t", "env=prod"}
+		if flag != "" {
+			args = append(args, flag)
+		}
+		text := l.must(t, "zoe", args...)
+		if strings.Contains(text, "will stop counting") && strings.Contains(text, "withdrawal") && !strings.Contains(text, "keeps holding") {
+			t.Fatalf("the warning:\n%s", text)
+		}
+		l.stillWithdrawn(t, "after the offboarding "+flag)
+	}
+}
+
+// After an admin lifted the withdrawal, a writer's promote and apply of the release work.
+func TestAWriterPromotesAfterAnAdminLiftedTheWithdrawal(t *testing.T) {
+	l := withdrawnLadder(t)
+	l.must(t, "zoe", "promote", "prod", "--auto-approve")
+	if text, code := l.as(t, "cia", "promote", "prod", "--sign-only"); code != 0 || !strings.Contains(text, "already runs this release") {
+		t.Fatalf("writer's promote after the lift: exit %d\n%s", code, text)
+	}
+	l.must(t, "cia", "apply", "-t", "env=prod", "--auto-approve")
 }

@@ -26,7 +26,7 @@ normalize:
 keywords: "promotion promote release gate staging prod pipeline approval waive revoke ladder environments"
 ---
 
-An environment whose row names another in `$after` takes only a release that was promoted into it, once its state is sealed. A promotion is signed by a writer of that environment, and it carries the signed note that the environment before runs the release. `pravo apply` checks both: the promotion against the readers of the state it writes, and the note against the readers of the environment it comes from.
+An environment whose row names another in `$after` takes only a release that was promoted into it, once its state is sealed. A promotion is signed by a writer of that environment, and it carries the signed note that the environment before runs the release. `pravo apply` checks both: the promotion against the readers of the state it writes, and the note against the readers of the environment it comes from. When a writer leaves, the notes and promotions that the key signed stop counting; an admin carries them over with `pravo protect roles --vouch-notes` in that environment, or a current writer applies the release again.
 
 Each environment has a readers file of its own, so a writer of dev is not a writer of prod.
 
@@ -217,7 +217,7 @@ Promotion: dev ran this release, and ada promoted it less than a minute ago.
 
 ## 7. Withdraw a promotion
 
-The smoke tests of 1.1 fail before prod is applied. An admin of prod withdraws the promotion, with the reason. Every promotion of the release signed before it stops counting.
+The smoke tests of 1.1 fail before prod is applied. An admin of prod withdraws the release, with the reason. The release is blocked in prod: no promotion of it counts, whoever signed it, until an admin of prod promotes it again.
 
 ```sh run
 pravo promote prod --revoke "1.1 fails its smoke test"
@@ -226,12 +226,12 @@ grep '^Error' apply.txt
 ```
 
 ```text out
-Withdrawn: prod takes this release again only after a new promotion. The reason is kept in its state.
+Withdrawn: prod takes this release again only after an admin promotes it again. The reason is kept in its state.
 exit=5
 Error: prod only takes what was promoted from dev, and its promotion was withdrawn by ada less than a minute ago: 1.1 fails its smoke test.
 ```
 
-A new promotion of the same release lifts it, and any writer of prod may sign one. The promotion says who withdrew the release and why (`Note: ada withdrew this release from prod ...`), so that the writer sees it. Only an admin's `--revoke` holds the release again.
+A writer who promotes the release is refused with exit 5, and the message says who withdrew it, when and why. An admin of prod lifts the withdrawal by promoting the release again; that promotion says so (`Note: ada withdrew this release from prod ...`). A different release is not affected, and an admin's `--revoke` blocks the release again.
 
 ## 8. Waive the check when dev cannot be read
 
