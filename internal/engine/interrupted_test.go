@@ -584,3 +584,52 @@ func TestCreateBeforeDestroyKeepsTheOldInstanceUntilDestroyed(t *testing.T) {
 		retried(t, h)
 	})
 }
+
+// A command that stops after the old object was kept and before the replacement was recorded
+// leaves one object under two records. The plan does not destroy it as a leftover: the
+// apply is refused as after any interrupted create, and once the create is allowed the
+// replacement goes on and the old object is destroyed once.
+func TestCreateBeforeDestroyStoppedBeforeTheReplacementIsRecorded(t *testing.T) {
+	ctx := context.Background()
+	mk := func(name string) spec {
+		return spec{cue: "a: " + thing(name, "$lifecycle: create_before_destroy: true") + "\n", resources: []string{"a"}}
+	}
+	var b *deadBackend
+	h := newHarnessOver(t, func(x state.Backend) state.Backend { b = &deadBackend{Backend: x}; return b })
+	h.apply(mk("one"))
+	h.fake.afterApply = func(string) error { b.refuse.Store(&[]string{"resources/a.json"}); return nil }
+	e := h.engine(mk("two"), Options{})
+	if _, err := e.Apply(ctx, mustPlan(t, e)); err == nil {
+		t.Fatal("apply succeeded")
+	}
+	h.fake.afterApply = nil
+	b.refuse.Store(nil)
+	h.reopen()
+	if n := len(h.state.List()); n != 2 {
+		t.Fatalf("%d records after the ending, want the node and the deposed old object", n)
+	}
+	h.fake.resetCalls()
+	e = h.engine(mk("two"), Options{})
+	plan := mustPlan(t, e)
+	for _, c := range plan.Changes {
+		if c.Action == ActionDelete && !c.Prior.IsNull() {
+			t.Errorf("the plan destroys %s, the object of the node", c.Addr)
+		}
+	}
+	_, err := e.Apply(ctx, plan)
+	var coded *CodedError
+	if err == nil || !errors.As(err, &coded) || coded.Code != ExitRefused {
+		t.Fatalf("apply = %v, want exit code %d", err, ExitRefused)
+	}
+	if n := h.fake.called("ApplyResourceChange"); n != 0 {
+		t.Fatalf("the refused apply reached the provider %d times", n)
+	}
+	e = h.engine(mk("two"), Options{AllowCreate: []string{"a"}})
+	if _, err := e.Apply(ctx, mustPlan(t, e)); err != nil {
+		t.Fatalf("apply with --allow-create: %v", err)
+	}
+	h.reopen()
+	if got := h.state.List(); len(got) != 1 || got[0].Address() != "a" {
+		t.Errorf("records after the apply: %d", len(got))
+	}
+}

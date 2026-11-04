@@ -75,6 +75,10 @@ func (e *Engine) planOrphans(ctx context.Context, present map[string]bool) ([]*C
 			mu.Unlock()
 			return
 		}
+		if e.redundantDeposed(ch.Addr) && ch.Schema != nil {
+			// The same object as the node's: only the record goes.
+			ch.Prior = tftypes.NewValue(ch.Schema.Block.Type(), nil)
+		}
 		if ch.PreventDestroy && e.Root.Resource(ch.Addr) == nil {
 			ch.Warnings = append(ch.Warnings, plugin.Diagnostic{Severity: "warning", Summary: "$lifecycle.prevent_destroy guarded this resource, and its block is gone from the specification, so the guard is gone with it; the plan destroys it"})
 		}
