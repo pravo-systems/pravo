@@ -204,3 +204,23 @@ func TestRolesAreReadBackBeforeTheyAreReportedStored(t *testing.T) {
 		t.Fatalf("a version that does not parse was reported stored: %v", err)
 	}
 }
+
+// Roles that would not parse again are refused before they are stored.
+func TestUnreadableRolesAreRefusedBeforeTheyAreStored(t *testing.T) {
+	s := plannableBucket(t)
+	ctx := context.Background()
+	st, err := state.OpenBackendWith(ctx, s.backend(t), state.Options{Identity: s.ada})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkRolesText("this is not a roles set\n"); err == nil || !strings.Contains(err.Error(), "nothing was stored") {
+		t.Fatalf("unreadable roles passed the check: %v", err)
+	}
+	if err := checkRolesText(""); err == nil {
+		t.Fatal("empty roles passed the check")
+	}
+	chain, err := st.RolesChain(ctx)
+	if err != nil || chain.Head() != nil {
+		t.Fatalf("the state holds roles after a refusal: %v", err)
+	}
+}
