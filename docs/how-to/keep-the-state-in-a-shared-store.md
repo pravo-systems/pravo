@@ -275,7 +275,7 @@ pravo -C moved plan | grep -E '^(Plan|No changes)'
 
 ```text out
 Plan: 2 to add, 0 to change, 0 to destroy.
-Copied 5 objects from pravo.state to s3://pravo-state/demo/moved
+Copied 6 objects from pravo.state to s3://pravo-state/demo/moved
 No changes. The specification matches the state. 2 records were not read; run pravo drift to compare them with the infrastructure.
 ```
 

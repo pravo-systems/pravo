@@ -132,7 +132,8 @@ find copy-1 -type f | sort
 ```
 
 ```text out
-Copied 4 objects from s3://northwind-state/prod to copy-1
+Copied 5 objects from s3://northwind-state/prod to copy-1
+copy-1/kinds/<txn>.apply
 copy-1/meta.json
 copy-1/outputs.json
 copy-1/resources/db_password.json
@@ -311,7 +312,8 @@ find copy-2 -type f | sort
 ```
 
 ```text out
-Copied 5 objects from s3://northwind-state/prod to copy-2
+Copied 6 objects from s3://northwind-state/prod to copy-2
+copy-2/kinds/<txn>.apply
 copy-2/meta.json
 copy-2/outputs.json
 copy-2/rec/<sha256>
