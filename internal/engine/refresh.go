@@ -21,6 +21,10 @@ import (
 
 // upgrade asks the provider to bring the recorded state to the current schema.
 func (e *Engine) upgrade(ctx context.Context, prov plugin.Provider, sr *state.Resource, s *schema.Schema, addr string) (tftypes.Value, error) {
+	if sr.SchemaVersion > s.Version {
+		// A provider cannot read what a newer one wrote: asking it anyway makes it drop what it does not know.
+		return tftypes.Value{}, fmt.Errorf("%s: the state was written by a newer provider version (schema version %d, this provider has %d); use the provider version that wrote it or a newer one", addr, sr.SchemaVersion, s.Version)
+	}
 	prior, diags, err := prov.UpgradeResourceState(ctx, sr.Type, sr.SchemaVersion, sr.Attributes, s.Block.Type())
 	if err != nil {
 		return tftypes.Value{}, fmt.Errorf("%s: upgrading state: %w", addr, err)
@@ -86,7 +90,7 @@ func (e *Engine) priorState(ctx context.Context, prov plugin.Provider, sr *state
 func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state.Resource, ch *Change, prior tftypes.Value, private []byte) (tftypes.Value, []byte, error) {
 	addr := ch.Addr
 	announce(ctx, func() {
-		e.step("refresh", addr, "start", idOf(prior), time.Time{}, "%s: Refreshing state... %s", addr, idSuffix(prior))
+		e.step("refresh", addr, "start", idOf(ch, prior), time.Time{}, "%s: Refreshing state... %s", addr, idSuffix(ch, prior))
 	})
 	newState, newPrivate, diags, err := prov.ReadResource(ctx, sr.Type, prior, private)
 	if err != nil {

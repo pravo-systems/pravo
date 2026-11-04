@@ -295,6 +295,17 @@ func TestTemplateTryDeclaresASecret(t *testing.T) {
 		t.Errorf("state: %+v", st)
 	}
 
+	// A value sent for a secret input is a problem of the field, and neither the code nor the answer holds it.
+	q = vals()
+	q.Set("v.key", `"CANARY-secret-value"`)
+	val := p.tryPool("a", q)
+	if val.State != "invalid" || len(val.Problems) == 0 || val.Problems[0].Field != "key" {
+		t.Errorf("a value for a secret input: %+v", val)
+	}
+	if raw, _ := json.Marshal(val); strings.Contains(string(raw), "CANARY-secret-value") {
+		t.Errorf("the answer echoes the value of a secret input: %s", raw)
+	}
+
 	// Nothing that is not a secret input takes a secret, and a value for a secret input is never read from the request.
 	for name, bad := range map[string]url.Values{"not a secret input": {"s.zone": {"X"}}, "a name that is not one": {"s.key": {"a b"}, "sk.key": {"env"}}} {
 		q := vals()

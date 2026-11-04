@@ -341,6 +341,7 @@ jq -r '.Name' trace.jsonl | grep -E '^(pravo|engine|resource|provider)' | sort -
 engine plan
 pravo plan
 provider ConfigureProvider
+provider GetSchema
 provider PlanResourceChange
 provider UpgradeResourceState
 provider ValidateProviderConfig
