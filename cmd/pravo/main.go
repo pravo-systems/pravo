@@ -26,6 +26,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/progress"
+	"github.com/pravo-systems/pravo/internal/serve"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 	"github.com/pravo-systems/pravo/internal/ui"
 )
@@ -188,14 +189,15 @@ func startCommand(cmd *cobra.Command) {
 		attribute.String("pravo.actor", flags.Actor),
 		attribute.String("pravo.reason", flags.Reason),
 		attribute.Bool("pravo.json", flags.JSON),
-		attribute.String("pravo.command_line", commandLine(os.Args)),
+		attribute.String("pravo.command_line", serve.ScrubCommand(commandLine(os.Args))),
 	))
 	cmdSpan = span
 	cmd.SetContext(ctx)
 }
 
 // commandLine is the command as it was typed, for the record of the run: the name of the program as "pravo", and the
-// arguments quoted where a shell would need it. The viewer masks the values of tags and of secrets before it shows it.
+// arguments quoted where a shell would need it. The values of tags and of secrets are masked before it is recorded, so
+// that neither a trace file nor a collector gets them.
 func commandLine(argv []string) string {
 	out := []string{"pravo"}
 	for _, a := range argv[1:] {
