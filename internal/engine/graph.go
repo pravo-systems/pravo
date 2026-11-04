@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
@@ -165,6 +166,12 @@ func (e *Engine) buildGraph() (map[string]*node, error) {
 	defer e.cueMu.Unlock()
 	for _, r := range e.Root.Resources {
 		v := e.current.LookupPath(r.Path)
+		if f, ok := v.Source().(*ast.Field); ok {
+			if e.fieldSrc == nil {
+				e.fieldSrc = map[string]*ast.Field{}
+			}
+			e.fieldSrc[r.Address()] = f
+		}
 		deps, _ := convert.Dependencies(v, r.Path, e.resolver())
 		n := nodes[r.Address()]
 		for _, d := range deps {
@@ -510,6 +517,15 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 type pendingFill struct {
 	res  *config.Resource
 	fill map[string]any
+	// body is the value of the task body the task ran from; with the fill it is
+	// everything that is known of the task (see fromPending). It does not exist
+	// for a task that fills without one.
+	body  cue.Value
+	eff   cue.Value
+	older []map[string]any
+	// checked is 0 before the fill is checked against what reads it, 1 when it
+	// may be used without unifying, 2 when it may not.
+	checked int
 }
 
 // snapshot returns the current value of a task body. The fills of the tasks it
@@ -523,6 +539,17 @@ func (e *Engine) snapshot(r *config.Resource) (cue.Value, error) {
 		// The walk of an apply leaves nodes out. What a task reads through them is
 		// filled by the nodes of the scope that it waited for.
 		deps = e.scope.reads[r.Address()]
+	}
+	// A task that finished and left no fill (its values are unknown, or already in
+	// its configuration) is read from the configuration, where it is built from
+	// the tasks it read; if their fills wait, it is not yet what it will be.
+	if e.hiddenPending(deps) {
+		if err := e.settleAllLocked(); err != nil {
+			return cue.Value{}, err
+		}
+	}
+	if v, ok := e.fromPending(r, deps); ok {
+		return v, nil
 	}
 	if err := e.settleLocked(deps); err != nil {
 		return cue.Value{}, err
@@ -538,6 +565,11 @@ func (e *Engine) snapshot(r *config.Resource) (cue.Value, error) {
 // it starts, or until the run ends, and then every fill that waits is unified
 // in one step.
 func (e *Engine) fill(r *config.Resource, fill map[string]any) error {
+	return e.fillFrom(r, fill, cue.Value{})
+}
+
+// fillFrom is fill for a task that ran from the body v.
+func (e *Engine) fillFrom(r *config.Resource, fill map[string]any, v cue.Value) error {
 	if len(fill) == 0 {
 		return nil
 	}
@@ -548,12 +580,18 @@ func (e *Engine) fill(r *config.Resource, fill map[string]any) error {
 		e.onFill(addr)
 	}
 	if e.pending == nil {
-		e.pending = map[string]pendingFill{}
+		e.pending = map[string]*pendingFill{}
 	}
 	if _, ok := e.pending[addr]; !ok {
 		e.pendingOrder = append(e.pendingOrder, addr)
 	}
-	e.pending[addr] = pendingFill{res: r, fill: fill}
+	next := &pendingFill{res: r, fill: fill, body: v}
+	if old, ok := e.pending[addr]; ok {
+		// A task that fills again before its fill was unified: what it filled
+		// before is not lost, as it would not be had that been unified first.
+		next.older = append(append([]map[string]any(nil), old.older...), old.fill)
+	}
+	e.pending[addr] = next
 	return nil
 }
 
@@ -587,6 +625,9 @@ func (e *Engine) settleAllLocked() error {
 		fills = e.seedFills()
 	}
 	for _, addr := range order {
+		for _, older := range pending[addr].older {
+			fills = append(fills, convert.PathFill{Path: pending[addr].res.Path, Value: older})
+		}
 		fills = append(fills, convert.PathFill{Path: pending[addr].res.Path, Value: pending[addr].fill})
 	}
 	v := convert.FillAll(e.current, fills)
@@ -597,7 +638,11 @@ func (e *Engine) settleAllLocked() error {
 	var first error
 	for _, addr := range order {
 		p := pending[addr]
-		v := e.current.FillPath(p.res.Path, p.fill)
+		v := e.current
+		for _, older := range p.older {
+			v = v.FillPath(p.res.Path, older)
+		}
+		v = v.FillPath(p.res.Path, p.fill)
 		if err := v.Validate(); err != nil {
 			if first == nil {
 				first = fmt.Errorf("%s: filling values into the configuration: %w", addr, fillError(p.res, err))

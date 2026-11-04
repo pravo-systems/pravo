@@ -58,6 +58,7 @@ jq -r .Name trace.jsonl | grep -E '^(pravo|engine|resource|provider)'
 ```
 
 ```text out
+provider GetSchema
 provider ValidateProviderConfig
 provider ConfigureProvider
 provider ValidateResourceConfig
@@ -78,7 +79,7 @@ jq -r .Name trace.jsonl | grep -v '^wait ' | cut -d' ' -f1 | sort | uniq -c
       1 engine
       9 phase
       1 pravo
-      4 provider
+      5 provider
       1 resource
      10 setup
       9 state

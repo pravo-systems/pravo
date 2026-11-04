@@ -29,7 +29,7 @@ func installedProvider(t *testing.T, body string) (*Providers, *registry.Client,
 	}
 	name := "terraform-provider-dev_v1.0.0"
 	if runtime.GOOS == "windows" {
-		name += ".exe" // only a file named for a program counts there
+		name += ".exe"
 	}
 	bin := filepath.Join(dir, name)
 	if err := os.WriteFile(bin, []byte(body), 0o755); err != nil {

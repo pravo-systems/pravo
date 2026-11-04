@@ -206,7 +206,7 @@ func TestRefreshKilledAtEveryWriteLeavesNoUnaccountedRecord(t *testing.T) {
 	probe.apply(spec{cue: cue, resources: res})
 	writes := func() int64 {
 		start := probe.crash.seen.Load()
-		e := probe.engine(spec{cue: cue, resources: res}, Options{Command: "pravo plan --refresh", Refresh: RefreshAll})
+		e := probe.engine(spec{cue: cue, resources: res}, Options{Command: "pravo plan --refresh", Refresh: RefreshAll, DefaultRefresh: "2ns"})
 		plan(t, e)
 		return probe.crash.seen.Load() - start
 	}()
@@ -216,7 +216,7 @@ func TestRefreshKilledAtEveryWriteLeavesNoUnaccountedRecord(t *testing.T) {
 	for k := int64(0); k <= writes; k++ {
 		b := newBoundHarness(t)
 		b.apply(spec{cue: cue, resources: res})
-		e := b.engine(spec{cue: cue, resources: res}, Options{Command: "pravo plan --refresh", Refresh: RefreshAll})
+		e := b.engine(spec{cue: cue, resources: res}, Options{Command: "pravo plan --refresh", Refresh: RefreshAll, DefaultRefresh: "2ns"})
 		b.crash.left.Store(k)
 		_, _ = e.Plan(context.Background())
 		b.verify(fmt.Sprintf("killed after write %d", k))

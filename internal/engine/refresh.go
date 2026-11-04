@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -20,6 +21,10 @@ import (
 
 // upgrade asks the provider to bring the recorded state to the current schema.
 func (e *Engine) upgrade(ctx context.Context, prov plugin.Provider, sr *state.Resource, s *schema.Schema, addr string) (tftypes.Value, error) {
+	if sr.SchemaVersion > s.Version {
+		// A provider cannot read what a newer one wrote: asking it anyway makes it drop what it does not know.
+		return tftypes.Value{}, fmt.Errorf("%s: the state was written by a newer provider version (schema version %d, this provider has %d); use the provider version that wrote it or a newer one", addr, sr.SchemaVersion, s.Version)
+	}
 	prior, diags, err := prov.UpgradeResourceState(ctx, sr.Type, sr.SchemaVersion, sr.Attributes, s.Block.Type())
 	if err != nil {
 		return tftypes.Value{}, fmt.Errorf("%s: upgrading state: %w", addr, err)
@@ -85,7 +90,7 @@ func (e *Engine) priorState(ctx context.Context, prov plugin.Provider, sr *state
 func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state.Resource, ch *Change, prior tftypes.Value, private []byte) (tftypes.Value, []byte, error) {
 	addr := ch.Addr
 	announce(ctx, func() {
-		e.step("refresh", addr, "start", idOf(prior), time.Time{}, "%s: Refreshing state... %s", addr, idSuffix(prior))
+		e.step("refresh", addr, "start", idOf(ch, prior), time.Time{}, "%s: Refreshing state... %s", addr, idSuffix(ch, prior))
 	})
 	newState, newPrivate, diags, err := prov.ReadResource(ctx, sr.Type, prior, private)
 	if err != nil {
@@ -122,7 +127,10 @@ func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state
 		if rd.drifted {
 			e.count(func(st *Stats) { st.Drifted++ })
 		}
-		e.persistRefreshed(addr, sr, ch.Schema, attrs, newPrivate)
+		// A read that a stale lock forced is written whatever it found: the write ends the lock.
+		if ch.forced != "" || !e.timeNotWorthWriting(addr, sr, attrs, newPrivate) {
+			e.persistRefreshed(addr, sr, ch.Schema, attrs, newPrivate)
+		}
 	}
 	return newState, newPrivate, nil
 }
@@ -162,6 +170,36 @@ func (e *Engine) persistRead(addr string, sr *state.Resource, sch *schema.Schema
 		// What the provider found differs from what the record said: keep how.
 		e.recordDiff(addr, sch, sr.Attributes, attrs, nil)
 	}
+}
+
+// timeNotWorthWriting reports whether a read that found the record as it is
+// would change nothing but the time of the record, and that time is not worth a
+// write: a lock, a read of the pointer, a new record and a new pointer for each
+// resource, which for an estate of thousands on a remote store is most of the
+// cost of a refresh that finds nothing. Only a refresh age that is a duration
+// looks at the time, and a time within the first half of that age is as good as
+// a new one: a plan that reads a little earlier than it had to is the worst that
+// comes of it. So the time is written when the record has none or the one it
+// has is more than half the age old, and so a refresh of an estate that was read
+// within that time writes nothing. A record that is staged for a move takes the
+// write as it did.
+func (e *Engine) timeNotWorthWriting(addr string, sr *state.Resource, attrs, private []byte) bool {
+	if sr.Gone || !sameAttributes(attrs, sr.Attributes) || !bytes.Equal(private, sr.Private) ||
+		e.stamp(sr.ProviderKey, sr.ProviderConfig) != sr.ProviderConfig || e.State.Staged(addr) {
+		return false
+	}
+	age := e.ageOf(sr)
+	if age == "" {
+		age = e.Opts.DefaultRefresh
+	}
+	maxAge, never, err := e.parseAge(age)
+	if err != nil {
+		return false
+	}
+	if never || maxAge == 0 {
+		return true
+	}
+	return sr.RefreshedAt != nil && e.clock().Sub(*sr.RefreshedAt) <= maxAge/2
 }
 
 // recordRefresh writes the record of a refresh and notes it in the transaction. A

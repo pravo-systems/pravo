@@ -619,6 +619,12 @@ func (s *Server) templateTryHandler(w http.ResponseWriter, r *http.Request, m *m
 			writeError(w, http.StatusBadRequest, "the template has no input "+strconv.Quote(clip(field, 60)))
 			return
 		}
+		if in := tpl.input(field); in != nil && in.Secret {
+			// A secret input never takes a value: the form sends where it is read from (s.FIELD), and the value
+			// is neither read nor echoed, so that it cannot reach the code that the answer offers.
+			problems = append(problems, TemplateProblem{Field: field, Message: "a secret input takes no value: say where it is read from (s." + field + ")"})
+			continue
+		}
 		if len(vs[0]) > maxTemplateExpr {
 			writeError(w, http.StatusBadRequest, "the value of "+field+" is too long")
 			return
