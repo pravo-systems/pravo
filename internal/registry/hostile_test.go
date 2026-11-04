@@ -320,7 +320,7 @@ type okTransport struct{ n int }
 
 func (o *okTransport) RoundTrip(*http.Request) (*http.Response, error) {
 	o.n++
-	return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 }
 
 func TestHostGuardRefusesAnotherHostOverHTTP(t *testing.T) {
@@ -334,7 +334,7 @@ func TestHostGuardRefusesAnotherHostOverHTTP(t *testing.T) {
 		"http://127.0.0.2:5002/token":       false,
 		"http://reg.example.com:8080/token": false,
 	} {
-		req, _ := http.NewRequest("GET", u, nil)
+		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		_, err := g.RoundTrip(req)
 		if (err == nil) != want {
 			t.Errorf("%s: err = %v, want allowed=%v", u, err, want)
