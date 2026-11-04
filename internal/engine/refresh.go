@@ -117,6 +117,9 @@ func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state
 		} else {
 			e.Opts.Progress("%s: the provider no longer finds it (deleted, or changed into another object)%s; it will be created again", addr, e.existingFileNote(sr))
 		}
+		if !ch.removal {
+			ch.GoneNote = e.FileNote(sr)
+		}
 		e.persistGone(addr, sr)
 		return newState, newPrivate, nil
 	}

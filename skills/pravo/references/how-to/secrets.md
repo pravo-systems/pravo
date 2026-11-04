@@ -311,7 +311,7 @@ The provider keeps no copy of the key, so it cannot see that a key changed. Its 
 
 ### A secret in a file
 
-`local_file` has no write-only attribute, so an ephemeral value is refused there. When the secret already sits in a file outside the specification (a mounted secret, a file that CI writes), copy it with `local_sensitive_file` and its `source` attribute. The state keeps the hashes of the content and not the content. A short secret can be recovered from an unsalted hash, so pravo marks the hashes and the `id` of a resource whose type name says `sensitive` as sensitive, as the provider does for `content`: plans, the viewer, the tools and the logs withhold them. Seal the state as well, because the state file holds them:
+`local_file` has no write-only attribute, so an ephemeral value is refused there. When the secret already sits in a file outside the specification (a mounted secret, a file that CI writes), copy it with `local_sensitive_file` and its `source` attribute. The state keeps the hashes of the content and not the content. A short secret can be recovered from an unsalted hash, so pravo marks the hashes and the `id` of a resource whose type name says `sensitive` as sensitive, as the provider does for `content`: plans, the viewer, the tools and the logs withhold them. `pravo state show` prints a record as it is stored, so add `--redact` to withhold them there too. Seal the state as well, because the state file holds them:
 
 ```cue
 db_password_file: $local.#Resource.local_sensitive_file & {
