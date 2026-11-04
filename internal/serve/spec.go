@@ -68,6 +68,8 @@ type specState struct {
 	typeDefs map[string]*Ref
 	// taint lists, by address and field, the attributes that the field reads: see taint.go.
 	taint map[string]map[string][]taintRef
+	// taintOnce guards the work of ensureTaint.
+	taintOnce sync.Once
 	// cueMu orders every use of the CUE values of root: the evaluation is not
 	// safe for concurrent use.
 	cueMu sync.Mutex
@@ -295,7 +297,6 @@ func (ss *specState) computeEdges() {
 	for _, r := range root.Resources {
 		v := root.At(r.Path)
 		ds, _ := convert.Dependencies(v, r.Path, res)
-		ss.recordTaint(r.Address(), taintOf(v, r.Path, res, ""))
 		set := deps[r.Address()]
 		if set == nil {
 			set = map[string]bool{}
@@ -345,7 +346,6 @@ func (ss *specState) computeEdges() {
 		p := o.ValuePath()
 		v := root.At(p)
 		ds, _ := convert.Dependencies(v, p, outRes)
-		ss.recordTaint(o.Name, taintOf(v, p, outRes, "value"))
 		for _, d := range ds {
 			if dr, ok := outRes.byPath[d.String()]; ok {
 				set[dr.Address()] = true
