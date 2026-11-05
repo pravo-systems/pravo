@@ -85,7 +85,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/compatibility.md](reference/compatibility.md) | The versions and formats that pravo reads and writes, the provider protocol it speaks, and what it does with a version it does not know. | 8 KB |
 | [reference/s3-stores.md](reference/s3-stores.md) | The three conditional requests that the S3 backend needs, how pravo checks that a store honours them, and how to test a store before it holds a state. | 8 KB |
 | [reference/http-stores.md](reference/http-stores.md) | The object protocol that the http backend speaks, the conditional requests that the locks need, and how pravo retries and checks a server. | 5 KB |
-| [reference/library.md](reference/library.md) | Package pravo: what the command line does, as a Go library. Open a workspace, plan, judge, store, apply, drift, discover and query, with nothing read from flags or the environment of the process. | 13 KB |
+| [reference/library.md](reference/library.md) | Package pravo: what the command line does, as a Go library. Open a workspace, plan, judge, store, apply, drift, discover and query, with nothing read from flags or the environment of the process. | 14 KB |
 
 ### Lookup
 

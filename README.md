@@ -128,7 +128,7 @@ pravo replaces the OpenTofu language (HCL), the OpenTofu evaluator and the OpenT
 
 - **GitHub Actions.** `pravo-systems/setup-pravo@v1` installs a pinned version and checks its checksum. `pravo-systems/pravo-action@v1` runs a plan, an apply, a drift check or a discovery and reports it on GitHub. [Run pravo in a pipeline](docs/how-to/ci.md)
 - **Agents.** `pravo skill install` writes a skill to `~/.claude/skills/pravo`, built from these docs and embedded in the binary, so that an agent writes CUE and not HCL. `pravo mcp` serves the commands over the Model Context Protocol. [Let an agent plan and apply](docs/how-to/agents-and-mcp.md)
-- **Programs.** With `--json`, a command prints a JSON document. The documents and the exit codes are the stable surface. `github.com/pravo-systems/pravo/pravo` is a Go package that opens a workspace, plans, applies, stores plans and checks drift; it is v0 and unstable, and `examples/embed` uses it. [The library and the machine interface](docs/concepts/the-library-and-the-machine-interface.md)
+- **Programs.** With `--json`, a command prints a JSON document. The documents and the exit codes are the stable surface. `github.com/pravo-systems/pravo/pravo` is a Go package that opens a workspace, plans, applies, stores plans and checks drift; it is v0 and unstable, the state can live in a `pravo.Backend` that your program implements, and `examples/embed` uses it. [The library and the machine interface](docs/concepts/the-library-and-the-machine-interface.md)
 
 ## Build from source
 

@@ -50,7 +50,7 @@ On Windows, in PowerShell:
 irm https://pravo.systems/install.ps1 | iex
 ```
 
-Both take a version from `PRAVO_VERSION`, such as `v0.1.0`, and a directory from `PRAVO_INSTALL_DIR`. Each build is also on the [releases page](https://github.com/pravo-systems/pravo/releases) as an archive, with a `SHA256SUMS` file and a signed provenance attestation. A browser download on macOS carries the quarantine flag that blocks an unsigned program; `xattr -d com.apple.quarantine pravo` clears it. The install script does not set the flag.
+Both take a version from `PRAVO_VERSION`, such as a release tag, and a directory from `PRAVO_INSTALL_DIR`. Each build is also on the [releases page](https://github.com/pravo-systems/pravo/releases) as an archive, with a `SHA256SUMS` file and a signed provenance attestation. A browser download on macOS carries the quarantine flag that blocks an unsigned program; `xattr -d com.apple.quarantine pravo` clears it. The install script does not set the flag.
 
 If `pravo` is not found after the install, add the directory that the script names to `PATH`.
 
@@ -77,7 +77,7 @@ pravo <version>
 cue v0.17.1
 ```
 
-The first line is the version of pravo that you installed, which a release build prints as `pravo 0.1.0`. The second is the CUE evaluator built into it. You do not install `cue` separately.
+The first line is the version of pravo that you installed, which a release build prints after the name `pravo`. The second is the CUE evaluator built into it. You do not install `cue` separately.
 
 If the shell answers `command not found: pravo`, the directory that holds the binary is not on `PATH`. Add it, as the install script or the `export` line above says.
 
