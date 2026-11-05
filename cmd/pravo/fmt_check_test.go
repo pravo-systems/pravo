@@ -8,11 +8,7 @@ import (
 
 func TestFmtCheckWritesNothing(t *testing.T) {
 	dir := t.TempDir()
-	old, _ := os.Getwd()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Chdir(old)
+	t.Chdir(dir)
 	src := "package demo\n\nx:   1\n"
 	if err := os.WriteFile(filepath.Join(dir, "a.cue"), []byte(src), 0o644); err != nil {
 		t.Fatal(err)
