@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pravo-systems/pravo/internal/protect"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 func idCmd(rt *runContext) *cobra.Command {
@@ -319,7 +320,7 @@ type idSummary struct {
 }
 
 func identitySummary(name string, sign []byte, via string, reader protect.ReaderPublic) idSummary {
-	r := protect.Reader{Name: name, Sign: sign, Key: reader}
+	r := pravo.Reader{Name: name, Sign: sign, Key: reader}
 	s := idSummary{Name: name, Fingerprint: protect.SSHFingerprint(sign), Reader: reader.String(), Line: r.String()}
 	if via == "ssh-agent" {
 		s.Source = "through ssh-agent"

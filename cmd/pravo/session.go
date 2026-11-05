@@ -277,7 +277,7 @@ func openStateAs(ctx context.Context, rt *runContext, root *config.Root, write, 
 	id := chosen
 	if choseID && idErr == nil && !st.Locked() {
 		// A reader who plans works on the state in memory.
-		if msg, _ := roleProblem(readersOf(rt, root), st, protect.RoleWriter, ""); write && planning && msg != "" {
+		if msg, _ := roleProblem(readersOf(rt, root), st, pravo.RoleWriter, ""); write && planning && msg != "" {
 			st.Close()
 			if st, err = open(id, true); err != nil {
 				return nil, nil, err
@@ -305,7 +305,7 @@ func openStateAs(ctx context.Context, rt *runContext, root *config.Root, write, 
 // takes them for records from before the roles.
 func bindRecordsOf(rt *runContext, root *config.Root, st *state.Store) {
 	if eff, _, err := readersOf(rt, root).withRoles(st); err == nil {
-		st.BindRecords(protect.RolesOn(eff.Readers))
+		st.BindRecords(pravo.RolesOn(eff.Readers))
 	}
 }
 
@@ -530,7 +530,7 @@ func checkBoundRecords(rt *runContext, root *config.Root, st *state.Store) error
 	if err != nil {
 		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%s", printable(err.Error())))
 	}
-	if !protect.RolesOn(rf.Readers) {
+	if !pravo.RolesOn(rf.Readers) {
 		return nil
 	}
 	var addrs []string
@@ -558,6 +558,6 @@ func checkBoundRecords(rt *runContext, root *config.Root, st *state.Store) error
 // recordRules are the rules for the signers of the transactions that wrote records: the keys
 // of the roles, the keys that left, and, when the roles are pinned in the state, a refusal of
 // any other key.
-func recordRules(readers []protect.Reader, rs state.RolesStatus) state.RecordRules {
+func recordRules(readers []pravo.Reader, rs pravo.RolesStatus) state.RecordRules {
 	return state.RecordRules{Readers: readers, Vouched: rs.Vouched, Strict: rs.Source == "state"}
 }

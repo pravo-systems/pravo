@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pravo-systems/pravo/internal/engine"
-	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
 	"github.com/pravo-systems/pravo/pravo"
@@ -381,7 +380,7 @@ a plan.approved event is POSTed to that URL.`,
 			}
 			// An approval of a reader never counts, so it is not signed.
 			if root, err := loadRoot(rt); err == nil {
-				if msg, code := roleProblem(readersOf(rt, root), st, protect.RoleWriter, "approve a plan"); msg != "" {
+				if msg, code := roleProblem(readersOf(rt, root), st, pravo.RoleWriter, "approve a plan"); msg != "" {
 					return engine.WithCode(code, errors.New(msg))
 				}
 			}

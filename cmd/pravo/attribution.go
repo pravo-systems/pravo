@@ -9,6 +9,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 // Attribution is shown where transactions and plans are: a signature is checked against
@@ -17,7 +18,7 @@ import (
 
 // attributionReaders returns the readers a signature is checked against, and whether
 // there are any to check against.
-func attributionReaders(rf readersFile) ([]protect.Reader, bool) {
+func attributionReaders(rf readersFile) ([]pravo.Reader, bool) {
 	// (see notChecked for what to say when this is false)
 	if !rf.Found || rf.Err != nil {
 		return nil, false
@@ -34,7 +35,7 @@ type sigCounts struct {
 	Bad        []string `json:"invalid_transactions,omitempty"`
 }
 
-func countSignatures(lineage string, txns []state.Transaction, readers []protect.Reader) sigCounts {
+func countSignatures(lineage string, txns []state.Transaction, readers []pravo.Reader) sigCounts {
 	var c sigCounts
 	for i := range txns {
 		switch v := state.VerifyTransaction(lineage, &txns[i], readers); v.Overall() {

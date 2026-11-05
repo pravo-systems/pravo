@@ -82,7 +82,7 @@ func (p *protectRun) needAdmin(st *state.Store, what string) error {
 	if st.Locked() {
 		return nil
 	}
-	if msg, code := roleProblem(p.rf, st, protect.RoleAdmin, what); msg != "" {
+	if msg, code := roleProblem(p.rf, st, pravo.RoleAdmin, what); msg != "" {
 		return engine.WithCode(code, errors.New(msg))
 	}
 	return nil

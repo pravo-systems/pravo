@@ -138,7 +138,7 @@ func (r *secretRun) close() { r.st.Close() }
 
 // need refuses an identity whose role is lower than the role that the command needs. A readers
 // file without roles lets every key do everything.
-func (r *secretRun) need(role protect.Role, what string) error {
+func (r *secretRun) need(role pravo.Role, what string) error {
 	if r.st.Locked() {
 		return nil
 	}
@@ -401,7 +401,7 @@ It needs an identity that is an admin when the readers file gives roles.`,
 				return err
 			}
 			defer r.close()
-			if err := r.need(protect.RoleAdmin, "remove a secret"); err != nil {
+			if err := r.need(pravo.RoleAdmin, "remove a secret"); err != nil {
 				return err
 			}
 			hist, err := r.st.SecretHistory(r.ctx, name, r.rules)
@@ -464,7 +464,7 @@ It needs an identity that is an admin when the readers file gives roles.`,
 				return err
 			}
 			defer r.close()
-			if err := r.need(protect.RoleAdmin, "forget the values of a secret"); err != nil {
+			if err := r.need(pravo.RoleAdmin, "forget the values of a secret"); err != nil {
 				return err
 			}
 			hist, err := r.st.SecretHistory(r.ctx, name, r.rules)

@@ -14,6 +14,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 func protectRewrapCmd(rt *runContext) *cobra.Command {
@@ -71,7 +72,7 @@ It needs an identity that is a reader of the state, and the readers file.
 // for another reason is left alone.
 func (p *protectRun) resealedAway(st *state.Store) []string {
 	rf, rs, err := p.rf.withRoles(st)
-	if err != nil || !protect.RolesOn(rf.Readers) {
+	if err != nil || !pravo.RolesOn(rf.Readers) {
 		return nil
 	}
 	// The rewrap signs the keys of the records it seals again, as every writer does.
@@ -144,7 +145,7 @@ func (p *protectRun) rewrap(rt *runContext, all bool, recoverySpec string, remov
 	if len(removed) > 0 && !allowNoAdmin {
 		// The roles that decide are those in the state when they are pinned, and the readers
 		// of the file are who remains after the rewrap.
-		if eff, _, err := p.rf.withRoles(st); err == nil && protect.RolesOn(eff.Readers) && !hasAdmin(eff.Readers, p.rf.Readers) {
+		if eff, _, err := p.rf.withRoles(st); err == nil && pravo.RolesOn(eff.Readers) && !hasAdmin(eff.Readers, p.rf.Readers) {
 			return engine.WithCode(engine.ExitRefused, noAdminError(removed, "removes"))
 		}
 	}
@@ -185,7 +186,7 @@ func (p *protectRun) rewrap(rt *runContext, all bool, recoverySpec string, remov
 		rebind = p.resealedAway(st)
 	}
 	began := time.Now()
-	res, err := st.Rewrap(p.ctx, state.RewrapOptions{
+	res, err := st.Rewrap(p.ctx, pravo.RewrapOptions{
 		Readers: p.rf.Readers, All: all, Rebind: rebind, By: id.Name, Recovery: pl.setRec, RemoveRecovery: pl.removing,
 		GuardRecovery: pl.setRec != nil || pl.removing, RecoveryWas: prot.Sealed.Recovery,
 		Plans: engine.NewPlanStoreFor(st).ResealAll,
@@ -298,7 +299,7 @@ func settleRecoveryFiles(rt *runContext, pl *rewrapPlan) (note func(), j map[str
 }
 
 // reportRewrap says what a rewrap did.
-func (p *protectRun) reportRewrap(rt *runContext, st *state.Store, prot state.Protection, res state.RewrapResult, all bool, began time.Time) {
+func (p *protectRun) reportRewrap(rt *runContext, st *state.Store, prot state.Protection, res pravo.RewrapResult, all bool, began time.Time) {
 	line := "Readers in " + p.rf.shown() + ": " + nameList(readerNames(p.rf.Readers))
 	if len(res.Change.Removed) > 0 {
 		line += "  (" + nameList(safeNames(res.Change.Removed)) + " removed)"
@@ -347,9 +348,9 @@ func plansInUseLine(n int, again bool) string {
 
 // hasAdmin tells whether one of the keys of the readers file is an admin in roles. A key that
 // the file dropped keeps its role in the roles of the state, and can no longer read it.
-func hasAdmin(roles, file []protect.Reader) bool {
+func hasAdmin(roles, file []pravo.Reader) bool {
 	for _, r := range roles {
-		if r.Role != protect.RoleAdmin {
+		if r.Role != pravo.RoleAdmin {
 			continue
 		}
 		for _, f := range file {
@@ -363,9 +364,9 @@ func hasAdmin(roles, file []protect.Reader) bool {
 
 // adminReadsState tells whether an admin of roles is listed in the readers file and already has a
 // lock in the state (is not among missing, the names the file lists and the state does not wrap for).
-func adminReadsState(roles, file []protect.Reader, missing []string) bool {
+func adminReadsState(roles, file []pravo.Reader, missing []string) bool {
 	for _, r := range roles {
-		if r.Role != protect.RoleAdmin {
+		if r.Role != pravo.RoleAdmin {
 			continue
 		}
 		for _, f := range file {
@@ -395,7 +396,7 @@ func (p *protectRun) refuseFormer(st *state.Store, names, readd []string) error 
 
 // formerListed refuses the readers among names (all of them when names is nil) that are
 // former keys of the roles, unless their name is in readd.
-func formerListed(former []protect.FormerKey, file []protect.Reader, names, readd []string) error {
+func formerListed(former []protect.FormerKey, file []pravo.Reader, names, readd []string) error {
 	if len(former) == 0 {
 		return nil
 	}

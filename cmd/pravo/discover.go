@@ -11,7 +11,6 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/plugin"
-	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
 	"github.com/pravo-systems/pravo/pravo"
@@ -94,7 +93,7 @@ discover adopt" to write the resource that adopts an object.`,
 					}
 				}
 			}
-			if msg, _ := roleProblem(readersOf(rt, s.root), s.state, protect.RoleWriter, ""); msg != "" && !rt.flags.JSON {
+			if msg, _ := roleProblem(readersOf(rt, s.root), s.state, pravo.RoleWriter, ""); msg != "" && !rt.flags.JSON {
 				rt.out.Printf("Not kept: your identity is a reader, so this run is shown and not stored.\n")
 			}
 			if failed > 0 {

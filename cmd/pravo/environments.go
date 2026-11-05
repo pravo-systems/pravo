@@ -155,7 +155,7 @@ func (e *environmentsOf) open(ctx context.Context, rt *runContext, name string) 
 	pin := ""
 	if s.Sealed {
 		rf, err := e.readersFile(rt, name)
-		var rs state.RolesStatus
+		var rs pravo.RolesStatus
 		if err == nil {
 			rf, rs, err = rf.withRoles(st)
 		}
@@ -378,7 +378,7 @@ type promotionRun struct {
 	o       promoteOpts
 	st      *state.Store
 	rf      readersFile
-	readers []protect.Reader
+	readers []pravo.Reader
 	vouched map[string]protect.Vouch
 	rec     *state.EnvironmentRecord
 	rel     engine.Release
@@ -442,12 +442,12 @@ func (pr *promotionRun) prepare(rt *runContext) error {
 	if len(pr.gate) == 0 {
 		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s follows no environment, so it takes any release and there is nothing to promote into it. Apply it:\n\n    %s", env, engine.ApplyCommand(root, env)))
 	}
-	need, what := protect.RoleWriter, "promote into "+env
+	need, what := pravo.RoleWriter, "promote into "+env
 	switch {
 	case o.waive != "":
-		need, what = protect.RoleAdmin, "waive the check of "+joinAnd(pr.gate)+" for "+env
+		need, what = pravo.RoleAdmin, "waive the check of "+joinAnd(pr.gate)+" for "+env
 	case o.revoke != "":
-		need, what = protect.RoleAdmin, "withdraw a promotion into "+env
+		need, what = pravo.RoleAdmin, "withdraw a promotion into "+env
 	}
 	if msg, code := roleProblem(pr.rf, pr.st, need, what); msg != "" {
 		return engine.WithCode(code, errors.New(msg))
@@ -468,7 +468,7 @@ func (pr *promotionRun) refuseWithdrawn() error {
 	if !ok {
 		return nil
 	}
-	if msg, _ := roleProblem(pr.rf, pr.st, protect.RoleAdmin, "promote a withdrawn release into "+pr.env); msg != "" {
+	if msg, _ := roleProblem(pr.rf, pr.st, pravo.RoleAdmin, "promote a withdrawn release into "+pr.env); msg != "" {
 		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s withdrew this release from %s %s ago: %s.\n\nA withdrawn release is blocked until an admin of %s promotes it again (%s)", by, pr.env, engine.RoundAge(ago), why, pr.env, msg))
 	}
 	return nil
@@ -574,7 +574,7 @@ func storePromotedPlan(rt *runContext, cmd *cobra.Command, o promoteOpts) error 
 // alreadyRuns says that env already runs the release, or "" when it does not: its newest
 // note, signed there by a writer, names the release, and a promotion of the release still
 // counts. Promoting again would sign a second promotion and apply nothing new.
-func alreadyRuns(ctx context.Context, rt *runContext, st *state.Store, envs *environmentsOf, env string, gate []string, rec *state.EnvironmentRecord, rel engine.Release, readers []protect.Reader, vouched map[string]protect.Vouch) string {
+func alreadyRuns(ctx context.Context, rt *runContext, st *state.Store, envs *environmentsOf, env string, gate []string, rec *state.EnvironmentRecord, rel engine.Release, readers []pravo.Reader, vouched map[string]protect.Vouch) string {
 	now := time.Now()
 	note, _, err := st.LatestRun(ctx, now)
 	if err != nil || note == nil || !rel.Same(note) || note.Deferred > 0 || engine.NoteProblem(note, env, st.Lineage(), engine.Judges{Readers: readers, Vouched: vouched}, now) != "" {
@@ -670,7 +670,7 @@ func refuseOtherEnvironment(ctx context.Context, rt *runContext, root *config.Ro
 }
 
 // refuseOtherEnvironmentFor is refuseOtherEnvironment with the readers already resolved.
-func refuseOtherEnvironmentFor(ctx context.Context, root *config.Root, st *state.Store, readers []protect.Reader) error {
+func refuseOtherEnvironmentFor(ctx context.Context, root *config.Root, st *state.Store, readers []pravo.Reader) error {
 	rec, err := st.EnvironmentRecord(ctx, readers)
 	if err != nil {
 		return secretErr(err)
