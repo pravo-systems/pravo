@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -85,20 +86,28 @@ func tagArgs(in map[string]any) []string {
 
 var tagsProp = map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "tag values for @tag() fields, as key=value"}
 
-func mcpTools() []mcpTool {
-	obj := func(props map[string]any, required ...string) map[string]any {
-		s := map[string]any{"type": "object", "properties": props}
-		if len(required) > 0 {
-			s["required"] = required
-		}
-		return s
+// mcpObject is the JSON schema of the arguments of a tool: an object with these properties.
+func mcpObject(props map[string]any, required ...string) map[string]any {
+	s := map[string]any{"type": "object", "properties": props}
+	if len(required) > 0 {
+		s["required"] = required
 	}
+	return s
+}
+
+// mcpTools are the tools the server offers: the plans, then the state and the explanations,
+// then the checks against the real objects.
+func mcpTools() []mcpTool {
+	return slices.Concat(mcpPlanTools(), mcpStateTools(), mcpCheckTools())
+}
+
+func mcpPlanTools() []mcpTool {
 	return []mcpTool{
 		{Name: "pravo_validate", Description: "Evaluate the specification in the root this server was started in and check it against provider schemas. Returns counts, or the evaluation errors. One server serves one root and the tools take no directory argument; another directory needs another server, started with `pravo mcp -C <dir>`. An error that no packages matched means the root holds no .cue files: it is the directory the server was started in.",
-			InputSchema: obj(map[string]any{"tags": tagsProp}),
+			InputSchema: mcpObject(map[string]any{"tags": tagsProp}),
 			args:        func(in map[string]any) ([]string, error) { return append([]string{"validate"}, tagArgs(in)...), nil }},
 		{Name: "pravo_plan", Description: "Compute the plan: every change the plan ran, with before/after values, reasons, blast radius and statistics. The nodes it left alone are not listed unless include_skipped is true. Save it to a plan file (out) or store it in the state (store) when it is to be applied: pravo_apply_plan takes only a saved plan, and a plan made without either cannot be applied. Saving also lets it be reviewed, and reserve the nodes for a duration. A plan reads only the records that are due for a refresh, so a change made outside pravo may not show: pass refresh=all, or run pravo_drift, to compare with the real objects. To rename a resource without destroying it, put $from: \"old\" in the new declaration; the plan then shows a move: it counts as 0 to add, change and destroy, and it takes effect only when the plan is applied, after which $from can be deleted.",
-			InputSchema: obj(map[string]any{"tags": tagsProp, "out": map[string]any{"type": "string", "description": "save the plan to this file: a relative path below the project directory"},
+			InputSchema: mcpObject(map[string]any{"tags": tagsProp, "out": map[string]any{"type": "string", "description": "save the plan to this file: a relative path below the project directory"},
 				"refresh":         map[string]any{"type": "string", "enum": []string{"age", "expired", "false", "all"}, "description": "when to read records from their providers: age (the records the plan looks at, once past their refresh age), expired (every record past its refresh age), false (none) or all"},
 				"full":            map[string]any{"type": "boolean"},
 				"include_skipped": map[string]any{"type": "boolean", "description": "also list the nodes the plan left alone, each with its address, mode, type and name"},
@@ -145,7 +154,7 @@ func mcpTools() []mcpTool {
 				return a, nil
 			}},
 		{Name: "pravo_plan_list", Description: "List the plans stored in the state with pravo_plan (store=true): who made each, how long ago, where it stands (pending, partial, partly-stale, stale, applied or expired; a partly stale plan can be applied in part, with the only list that the result gives) and what it changes. By default the plans that can still be applied; all=true lists the others that are not collected yet. A plan is judged by the state alone.",
-			InputSchema: obj(map[string]any{"tags": tagsProp, "all": map[string]any{"type": "boolean", "description": "also list the stale, applied and expired plans"},
+			InputSchema: mcpObject(map[string]any{"tags": tagsProp, "all": map[string]any{"type": "boolean", "description": "also list the stale, applied and expired plans"},
 				"touching": map[string]any{"type": "string", "description": "only the plans that change this resource address"}}),
 			args: func(in map[string]any) ([]string, error) {
 				a := append([]string{"plan", "list"}, tagArgs(in)...)
@@ -161,7 +170,7 @@ func mcpTools() []mcpTool {
 				return a, nil
 			}},
 		{Name: "pravo_show_plan", Description: "Show a saved plan as data, and whether it is still applicable: a plan file, or the id of a plan stored in the state (with the tags it was made with).",
-			InputSchema: obj(map[string]any{"planfile": map[string]any{"type": "string", "description": "a plan file, or the id of a stored plan such as plan-2f9c1a4e"}, "tags": tagsProp}, "planfile"),
+			InputSchema: mcpObject(map[string]any{"planfile": map[string]any{"type": "string", "description": "a plan file, or the id of a stored plan such as plan-2f9c1a4e"}, "tags": tagsProp}, "planfile"),
 			args: func(in map[string]any) ([]string, error) {
 				ref, err := planRefArg(in)
 				if err != nil {
@@ -170,7 +179,7 @@ func mcpTools() []mcpTool {
 				return append([]string{"show", ref}, tagArgs(in)...), nil
 			}},
 		{Name: "pravo_apply_plan", Description: "Apply a saved plan exactly as reviewed (there is no apply without a plan: make one with pravo_plan and out or store set), optionally only a dependency-closed subset of its changes: a plan file, or the id of a plan stored in the state (with the tags it was made with). Refused when the plan is stale or expired, when a node is locked or reserved by another actor, or when a policy named by the server forbids it. Streams progress events and ends with a summary.",
-			InputSchema: obj(map[string]any{"planfile": map[string]any{"type": "string", "description": "a plan file, or the id of a stored plan such as plan-2f9c1a4e"}, "tags": tagsProp,
+			InputSchema: mcpObject(map[string]any{"planfile": map[string]any{"type": "string", "description": "a plan file, or the id of a stored plan such as plan-2f9c1a4e"}, "tags": tagsProp,
 				"only": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "addresses to apply now"}}, "planfile"),
 			args: func(in map[string]any) ([]string, error) {
 				ref, err := planRefArg(in)
@@ -183,8 +192,13 @@ func mcpTools() []mcpTool {
 				}
 				return a, nil
 			}},
+	}
+}
+
+func mcpStateTools() []mcpTool {
+	return []mcpTool{
 		{Name: "pravo_schema", Description: "The CUE definition of resource, data source, ephemeral or function types, with the provider's documentation. In the specification a resource is declared as name: $provider.#Resource.type & {...} and read as name.attribute, such as pet.id; inside a string use CUE interpolation, such as content: \"Hello, \\(pet.id)!\". required=true keeps only what the schema marks as required and hides the optional attributes, which a resource often still needs (the content of a local_file, the length of a random_pet, tags): leave it out to see all.",
-			InputSchema: obj(map[string]any{"types": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "type names such as aws_s3_bucket, or provider/type"}, "required": map[string]any{"type": "boolean"}}, "types"),
+			InputSchema: mcpObject(map[string]any{"types": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "type names such as aws_s3_bucket, or provider/type"}, "required": map[string]any{"type": "boolean"}}, "types"),
 			args: func(in map[string]any) ([]string, error) {
 				types := listArg(in, "types")
 				if len(types) == 0 {
@@ -200,7 +214,7 @@ func mcpTools() []mcpTool {
 				return a, nil
 			}},
 		{Name: "pravo_why", Description: "Explain why a plan would create, change, replace or skip the given resources, and what each change reaches.",
-			InputSchema: obj(map[string]any{"addrs": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "tags": tagsProp}, "addrs"),
+			InputSchema: mcpObject(map[string]any{"addrs": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "tags": tagsProp}, "addrs"),
 			args: func(in map[string]any) ([]string, error) {
 				addrs := listArg(in, "addrs")
 				if len(addrs) == 0 {
@@ -212,7 +226,7 @@ func mcpTools() []mcpTool {
 				return append(append([]string{"why"}, addrs...), tagArgs(in)...), nil
 			}},
 		{Name: "pravo_state_query", Description: "Evaluate a CUE expression over the state: resources (by address), edges and outputs.", run: runStateQuery,
-			InputSchema: obj(map[string]any{"expression": map[string]any{"type": "string"}, "tags": tagsProp}, "expression"),
+			InputSchema: mcpObject(map[string]any{"expression": map[string]any{"type": "string"}, "tags": tagsProp}, "expression"),
 			args: func(in map[string]any) ([]string, error) {
 				if err := positional("expression", strArg(in, "expression")); err != nil {
 					return nil, err
@@ -220,7 +234,7 @@ func mcpTools() []mcpTool {
 				return append(append([]string{"state"}, tagArgs(in)...), "query", strArg(in, "expression")), nil
 			}},
 		{Name: "pravo_state_show", Description: "One node of the state: attributes (sensitive values withheld), revision, freshness, dependencies and dependents.",
-			InputSchema: obj(map[string]any{"addr": map[string]any{"type": "string"}, "tags": tagsProp}, "addr"),
+			InputSchema: mcpObject(map[string]any{"addr": map[string]any{"type": "string"}, "tags": tagsProp}, "addr"),
 			args: func(in map[string]any) ([]string, error) {
 				if err := positional("addr", strArg(in, "addr")); err != nil {
 					return nil, err
@@ -228,7 +242,7 @@ func mcpTools() []mcpTool {
 				return append(append([]string{"state"}, tagArgs(in)...), "show", "--redact", strArg(in, "addr")), nil
 			}},
 		{Name: "pravo_dependents", Description: "Everything a change to the resource can reach: its blast radius.", run: runDependents,
-			InputSchema: obj(map[string]any{"addr": map[string]any{"type": "string"}, "tags": tagsProp}, "addr"),
+			InputSchema: mcpObject(map[string]any{"addr": map[string]any{"type": "string"}, "tags": tagsProp}, "addr"),
 			args: func(in map[string]any) ([]string, error) {
 				if err := positional("addr", strArg(in, "addr")); err != nil {
 					return nil, err
@@ -236,17 +250,22 @@ func mcpTools() []mcpTool {
 				return append(append([]string{"state"}, tagArgs(in)...), "dependents", strArg(in, "addr")), nil
 			}},
 		{Name: "pravo_state_log", Description: "Recorded transactions, newest first: who did what, when, with which outcome and revisions.",
-			InputSchema: obj(map[string]any{"tags": tagsProp}),
+			InputSchema: mcpObject(map[string]any{"tags": tagsProp}),
 			args: func(in map[string]any) ([]string, error) {
 				return append(append([]string{"state"}, tagArgs(in)...), "log"), nil
 			}},
 		{Name: "pravo_locks", Description: "Locks and reservations currently held on the state.",
-			InputSchema: obj(map[string]any{"tags": tagsProp}),
+			InputSchema: mcpObject(map[string]any{"tags": tagsProp}),
 			args: func(in map[string]any) ([]string, error) {
 				return append(append([]string{"state"}, tagArgs(in)...), "locks"), nil
 			}},
+	}
+}
+
+func mcpCheckTools() []mcpTool {
+	return []mcpTool{
 		{Name: "pravo_drift", Description: "Refresh every resource and report drift: resources changed or removed outside pravo. It records what it finds as marks in the state, so that the next plan acts on it, unless no_write is set: then the report is made and the state is left as it was. An error result only means that drift was found. An item with gone: true is an object that is missing or was changed into another object (a file edited by hand): its note says which, and the plan puts it back. With due, read only the records that are older than their refresh age, the oldest first, at most limit of them; nothing is planned.",
-			InputSchema: obj(map[string]any{"tags": tagsProp, "due": map[string]any{"type": "boolean", "description": "read only the records past their refresh age"},
+			InputSchema: mcpObject(map[string]any{"tags": tagsProp, "due": map[string]any{"type": "boolean", "description": "read only the records past their refresh age"},
 				"no_write": map[string]any{"type": "boolean", "description": "report drift and leave the state as it is: no refreshed value is written and no mark is set"},
 				"limit":    map[string]any{"type": "integer", "minimum": 1, "description": "with due: read at most this many records"}}),
 			args: func(in map[string]any) ([]string, error) {
@@ -267,7 +286,7 @@ func mcpTools() []mcpTool {
 				return a, nil
 			}},
 		{Name: "pravo_providers", Description: "The providers the specification requires, with resolved versions.",
-			InputSchema: obj(map[string]any{}),
+			InputSchema: mcpObject(map[string]any{}),
 			args:        func(in map[string]any) ([]string, error) { return []string{"providers"}, nil }},
 	}
 }

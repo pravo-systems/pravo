@@ -298,17 +298,8 @@ type promotionSourceJSON struct {
 
 func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 	ctx := cmd.Context()
-	if o.waive != "" && o.revoke != "" {
-		return engine.WithCode(engine.ExitInvalid, errors.New("--waive and --revoke do not go together"))
-	}
-	if o.store && (o.signOnly || o.revoke != "") {
-		return engine.WithCode(engine.ExitInvalid, errors.New("--store goes with neither --sign-only nor --revoke"))
-	}
-	if o.ttl != "" && !o.store {
-		return engine.WithCode(engine.ExitInvalid, errors.New("--ttl goes with --store"))
-	}
-	if given, ok := config.EnvironmentOf(flags.Tags); ok && given != env {
-		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the environment is the argument of promote: pravo promote %s, without --env %s", env, given))
+	if err := checkPromoteFlags(env, o); err != nil {
+		return err
 	}
 	flags.Tags = config.WithEnvironment(flags.Tags, env)
 	if _, err := parseRefresh(o.refresh); err != nil {
@@ -324,129 +315,7 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 	if stateMissing(ctx, root) {
 		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s has no state yet, and a promotion is kept in it, signed. Seal one first: pravo protect init --encrypt --env %s", env, env))
 	}
-	envs := &environmentsOf{root: root}
-	var line, already string
-	err = func() error {
-		st, err := openStateStore(ctx, root)
-		if err != nil {
-			return err
-		}
-		defer st.Close()
-		st.SetActor(flags.Actor, flags.Reason, pravo.GitRevision(root.Dir))
-		if st.Sealer() == nil {
-			return engine.WithCode(engine.ExitRefused, fmt.Errorf("the state of %s is not sealed, and a promotion is a signature. Seal it: pravo protect init --encrypt --env %s", env, env))
-		}
-		rf := readersOf(root)
-		eff, effRoles, err := rf.withRoles(st)
-		if err != nil {
-			return engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
-		}
-		rec, err := st.EnvironmentRecord(ctx, eff.Readers)
-		if err != nil {
-			return secretErr(err)
-		}
-		if p := engine.RecordProblem(root, rec); p != "" {
-			return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s.\n\nIf the specification is right, an admin makes the record say so:\n\n    %s", p, engine.RecordCommand(root)))
-		}
-		gate := (&envState{es: config.EnvironmentSettings{Environment: mustCurrent(root)}, Record: rec}).after()
-		if len(gate) == 0 {
-			return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s follows no environment, so it takes any release and there is nothing to promote into it. Apply it:\n\n    %s", env, engine.ApplyCommand(root, env)))
-		}
-		need, what := protect.RoleWriter, "promote into "+env
-		switch {
-		case o.waive != "":
-			need, what = protect.RoleAdmin, "waive the check of "+joinAnd(gate)+" for "+env
-		case o.revoke != "":
-			need, what = protect.RoleAdmin, "withdraw a promotion into "+env
-		}
-		if msg, code := roleProblem(rf, st, need, what); msg != "" {
-			return engine.WithCode(code, errors.New(msg))
-		}
-		rel, err := engine.ReleaseOf(root)
-		if err != nil {
-			return err
-		}
-		if o.revoke == "" && o.waive == "" {
-			// A withdrawn release is promoted again by an admin only.
-			wg := engine.GateReader{State: st, Environment: env, Readers: eff.Readers, Vouched: effRoles.Vouched, Now: time.Now()}
-			if by, ago, why, ok := wg.Withdrawal(ctx, rel); ok {
-				if msg, _ := roleProblem(rf, st, protect.RoleAdmin, "promote a withdrawn release into "+env); msg != "" {
-					return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s withdrew this release from %s %s ago: %s.\n\nA withdrawn release is blocked until an admin of %s promotes it again (%s)", by, env, engine.RoundAge(ago), why, env, msg))
-				}
-			}
-			if msg := alreadyRuns(ctx, st, envs, env, gate, rec, rel, eff.Readers, effRoles.Vouched); msg != "" {
-				already = msg
-				return nil
-			}
-		}
-		p := &state.Promotion{Kind: state.PromotionPromoted, Environment: env, Fingerprint: rel.Fingerprint, Tags: rel.Tags, Note: o.note}
-		switch {
-		case o.revoke != "":
-			p.Kind, p.Note = state.PromotionRevoked, o.revoke
-			line = fmt.Sprintf("Withdrawn: %s takes this release again only after an admin promotes it again. The reason is kept in its state.", env)
-		case o.waive != "":
-			p.Kind, p.Note = state.PromotionWaived, o.waive
-			line = fmt.Sprintf("Waived: %s may take this release although %s was not checked. The reason is kept with the promotion and with the note of the apply.", env, joinAnd(gate))
-		default:
-			var ran []string
-			next := state.EnvironmentRecord{Name: env}
-			if rec != nil {
-				next.RolesPin = rec.RolesPin
-			}
-			fills := false
-			for _, up := range gate {
-				src, by, err := readUpstream(ctx, envs, root, up, env, rel, rec)
-				if err != nil {
-					return err
-				}
-				p.From = append(p.From, *src)
-				u := state.Upstream{Name: up, Lineage: src.Lineage}
-				if rec == nil || rec.Lineage(up) == "" {
-					fills = true
-				}
-				next.After = append(next.After, u)
-				ran = append(ran, fmt.Sprintf("%s runs this release, applied by %s %s ago", up, engine.PlainText(by), engine.RoundAge(time.Since(src.Run.At))))
-			}
-			// The first promotion records the state of each environment before, so that a
-			// promotion that read another one is refused.
-			if fills {
-				seq := 1
-				if rec != nil {
-					seq = rec.Seq + 1
-				}
-				// Raising the format of the state is the put of an admin in a bucket with a
-				// policy by role: a writer is told so, with the command, before anything changes.
-				if err := st.EnsureEnvironmentFormat(next.RolesPin != ""); err != nil {
-					return engine.WithCode(engine.ExitRefused, fmt.Errorf("this state does not yet record that it serves %s, and your key cannot write that (%v).\n\nNothing was changed. An admin records it once:\n\n    %s", env, err, engine.RecordCommand(root)))
-				}
-				if err := st.PutEnvironmentRecord(ctx, seq, next); err != nil {
-					return secretErr(fmt.Errorf("recording the state %s follows: %w", env, err))
-				}
-			}
-			line = fmt.Sprintf("Promoted to %s: %s.", env, strings.Join(ran, "; "))
-			// A withdrawal ends the promotions signed before it, and any writer's new
-			// promotion counts again. Say so, with who withdrew it and why.
-			g := engine.GateReader{State: st, Environment: env, Readers: eff.Readers, Vouched: effRoles.Vouched, Now: time.Now()}
-			if by, ago, why, ok := g.Withdrawal(ctx, rel); ok {
-				line += fmt.Sprintf("\nNote: %s withdrew this release from %s %s ago (%s). Your promotion, as an admin, lifts that; an admin withdraws it again with --revoke.", by, env, engine.RoundAge(ago), why)
-			}
-			if shared := sharedReaders(envs, env, gate); shared != "" {
-				line += "\n" + out.C(ui.Dim, shared)
-			}
-		}
-		if err := st.PutPromotion(ctx, p); err != nil {
-			return secretErr(err)
-		}
-		if flags.JSON {
-			j := promotionJSON{Kind: p.Kind, Environment: env, Fingerprint: p.Fingerprint, At: p.At, Signer: p.Signature.Signer, Key: p.Signature.Key, Note: p.Note, Tags: p.Tags}
-			for _, src := range p.From {
-				j.From = append(j.From, promotionSourceJSON{Environment: src.Environment, Lineage: src.Lineage, Fingerprint: src.Run.Fingerprint,
-					GitRevision: src.Run.GitRevision, Txn: src.Run.Txn, At: src.Run.At})
-			}
-			emitLine(map[string]any{"kind": "promotion", "promotion": j})
-		}
-		return nil
-	}()
+	line, already, err := signPromotion(ctx, root, &environmentsOf{root: root}, env, o)
 	if err != nil {
 		return err
 	}
@@ -481,6 +350,202 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 	// The apply is the one "pravo apply" makes. Where the policies of the environment ask for
 	// approvals it is refused, and says how to store the plan.
 	return runApply(cmd, o.refresh, o.full, o.autoApprove, false, nil, nil, nil)
+}
+
+// checkPromoteFlags refuses the flags of promote that do not go together.
+func checkPromoteFlags(env string, o promoteOpts) error {
+	if o.waive != "" && o.revoke != "" {
+		return engine.WithCode(engine.ExitInvalid, errors.New("--waive and --revoke do not go together"))
+	}
+	if o.store && (o.signOnly || o.revoke != "") {
+		return engine.WithCode(engine.ExitInvalid, errors.New("--store goes with neither --sign-only nor --revoke"))
+	}
+	if o.ttl != "" && !o.store {
+		return engine.WithCode(engine.ExitInvalid, errors.New("--ttl goes with --store"))
+	}
+	if given, ok := config.EnvironmentOf(flags.Tags); ok && given != env {
+		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the environment is the argument of promote: pravo promote %s, without --env %s", env, given))
+	}
+	return nil
+}
+
+// promotionRun is what one promotion works with once the state is open.
+type promotionRun struct {
+	ctx     context.Context
+	root    *config.Root
+	envs    *environmentsOf
+	env     string
+	o       promoteOpts
+	st      *state.Store
+	rf      readersFile
+	readers []protect.Reader
+	vouched map[string]protect.Vouch
+	rec     *state.EnvironmentRecord
+	rel     engine.Release
+	gate    []string // the environments this one follows
+}
+
+// signPromotion signs the promotion in the state of the environment. It returns the line that
+// says what was signed, or the answer that the release already runs there.
+func signPromotion(ctx context.Context, root *config.Root, envs *environmentsOf, env string, o promoteOpts) (line, already string, err error) {
+	st, err := openStateStore(ctx, root)
+	if err != nil {
+		return "", "", err
+	}
+	defer st.Close()
+	st.SetActor(flags.Actor, flags.Reason, pravo.GitRevision(root.Dir))
+	if st.Sealer() == nil {
+		return "", "", engine.WithCode(engine.ExitRefused, fmt.Errorf("the state of %s is not sealed, and a promotion is a signature. Seal it: pravo protect init --encrypt --env %s", env, env))
+	}
+	pr := &promotionRun{ctx: ctx, root: root, envs: envs, env: env, o: o, st: st}
+	if err := pr.prepare(); err != nil {
+		return "", "", err
+	}
+	if o.revoke == "" && o.waive == "" {
+		if err := pr.refuseWithdrawn(); err != nil {
+			return "", "", err
+		}
+		if msg := alreadyRuns(ctx, st, envs, env, pr.gate, pr.rec, pr.rel, pr.readers, pr.vouched); msg != "" {
+			return "", msg, nil
+		}
+	}
+	p := &state.Promotion{Kind: state.PromotionPromoted, Environment: env, Fingerprint: pr.rel.Fingerprint, Tags: pr.rel.Tags, Note: o.note}
+	if line, err = pr.fill(p); err != nil {
+		return "", "", err
+	}
+	if err := st.PutPromotion(ctx, p); err != nil {
+		return "", "", secretErr(err)
+	}
+	if flags.JSON {
+		emitPromotion(p, env)
+	}
+	return line, "", nil
+}
+
+// prepare reads the roles, the record of the environment and the release, and checks that the
+// key may make this promotion.
+func (pr *promotionRun) prepare() error {
+	pr.rf = readersOf(pr.root)
+	eff, effRoles, err := pr.rf.withRoles(pr.st)
+	if err != nil {
+		return engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
+	}
+	pr.readers, pr.vouched = eff.Readers, effRoles.Vouched
+	if pr.rec, err = pr.st.EnvironmentRecord(pr.ctx, pr.readers); err != nil {
+		return secretErr(err)
+	}
+	env, root, o := pr.env, pr.root, pr.o
+	if p := engine.RecordProblem(root, pr.rec); p != "" {
+		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s.\n\nIf the specification is right, an admin makes the record say so:\n\n    %s", p, engine.RecordCommand(root)))
+	}
+	pr.gate = (&envState{es: config.EnvironmentSettings{Environment: mustCurrent(root)}, Record: pr.rec}).after()
+	if len(pr.gate) == 0 {
+		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s follows no environment, so it takes any release and there is nothing to promote into it. Apply it:\n\n    %s", env, engine.ApplyCommand(root, env)))
+	}
+	need, what := protect.RoleWriter, "promote into "+env
+	switch {
+	case o.waive != "":
+		need, what = protect.RoleAdmin, "waive the check of "+joinAnd(pr.gate)+" for "+env
+	case o.revoke != "":
+		need, what = protect.RoleAdmin, "withdraw a promotion into "+env
+	}
+	if msg, code := roleProblem(pr.rf, pr.st, need, what); msg != "" {
+		return engine.WithCode(code, errors.New(msg))
+	}
+	pr.rel, err = engine.ReleaseOf(root)
+	return err
+}
+
+// gateReader reads the promotions and withdrawals of the environment.
+func (pr *promotionRun) gateReader() engine.GateReader {
+	return engine.GateReader{State: pr.st, Environment: pr.env, Readers: pr.readers, Vouched: pr.vouched, Now: time.Now()}
+}
+
+// refuseWithdrawn refuses a release that was withdrawn, unless an admin promotes it again.
+func (pr *promotionRun) refuseWithdrawn() error {
+	wg := pr.gateReader()
+	by, ago, why, ok := wg.Withdrawal(pr.ctx, pr.rel)
+	if !ok {
+		return nil
+	}
+	if msg, _ := roleProblem(pr.rf, pr.st, protect.RoleAdmin, "promote a withdrawn release into "+pr.env); msg != "" {
+		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s withdrew this release from %s %s ago: %s.\n\nA withdrawn release is blocked until an admin of %s promotes it again (%s)", by, pr.env, engine.RoundAge(ago), why, pr.env, msg))
+	}
+	return nil
+}
+
+// fill completes the promotion for what was asked, and returns the line that says what it is.
+func (pr *promotionRun) fill(p *state.Promotion) (string, error) {
+	switch {
+	case pr.o.revoke != "":
+		p.Kind, p.Note = state.PromotionRevoked, pr.o.revoke
+		return fmt.Sprintf("Withdrawn: %s takes this release again only after an admin promotes it again. The reason is kept in its state.", pr.env), nil
+	case pr.o.waive != "":
+		p.Kind, p.Note = state.PromotionWaived, pr.o.waive
+		return fmt.Sprintf("Waived: %s may take this release although %s was not checked. The reason is kept with the promotion and with the note of the apply.", pr.env, joinAnd(pr.gate)), nil
+	}
+	return pr.fillFromUpstream(p)
+}
+
+// fillFromUpstream reads the environments that this one follows into the promotion.
+func (pr *promotionRun) fillFromUpstream(p *state.Promotion) (string, error) {
+	env := pr.env
+	var ran []string
+	next := state.EnvironmentRecord{Name: env}
+	if pr.rec != nil {
+		next.RolesPin = pr.rec.RolesPin
+	}
+	fills := false
+	for _, up := range pr.gate {
+		src, by, err := readUpstream(pr.ctx, pr.envs, pr.root, up, env, pr.rel, pr.rec)
+		if err != nil {
+			return "", err
+		}
+		p.From = append(p.From, *src)
+		u := state.Upstream{Name: up, Lineage: src.Lineage}
+		if pr.rec == nil || pr.rec.Lineage(up) == "" {
+			fills = true
+		}
+		next.After = append(next.After, u)
+		ran = append(ran, fmt.Sprintf("%s runs this release, applied by %s %s ago", up, engine.PlainText(by), engine.RoundAge(time.Since(src.Run.At))))
+	}
+	// The first promotion records the state of each environment before, so that a
+	// promotion that read another one is refused.
+	if fills {
+		seq := 1
+		if pr.rec != nil {
+			seq = pr.rec.Seq + 1
+		}
+		// Raising the format of the state is the put of an admin in a bucket with a
+		// policy by role: a writer is told so, with the command, before anything changes.
+		if err := pr.st.EnsureEnvironmentFormat(next.RolesPin != ""); err != nil {
+			return "", engine.WithCode(engine.ExitRefused, fmt.Errorf("this state does not yet record that it serves %s, and your key cannot write that (%v).\n\nNothing was changed. An admin records it once:\n\n    %s", env, err, engine.RecordCommand(pr.root)))
+		}
+		if err := pr.st.PutEnvironmentRecord(pr.ctx, seq, next); err != nil {
+			return "", secretErr(fmt.Errorf("recording the state %s follows: %w", env, err))
+		}
+	}
+	line := fmt.Sprintf("Promoted to %s: %s.", env, strings.Join(ran, "; "))
+	// A withdrawal ends the promotions signed before it, and any writer's new
+	// promotion counts again. Say so, with who withdrew it and why.
+	g := pr.gateReader()
+	if by, ago, why, ok := g.Withdrawal(pr.ctx, pr.rel); ok {
+		line += fmt.Sprintf("\nNote: %s withdrew this release from %s %s ago (%s). Your promotion, as an admin, lifts that; an admin withdraws it again with --revoke.", by, env, engine.RoundAge(ago), why)
+	}
+	if shared := sharedReaders(pr.envs, env, pr.gate); shared != "" {
+		line += "\n" + out.C(ui.Dim, shared)
+	}
+	return line, nil
+}
+
+// emitPromotion writes the signed promotion as a line of JSON.
+func emitPromotion(p *state.Promotion, env string) {
+	j := promotionJSON{Kind: p.Kind, Environment: env, Fingerprint: p.Fingerprint, At: p.At, Signer: p.Signature.Signer, Key: p.Signature.Key, Note: p.Note, Tags: p.Tags}
+	for _, src := range p.From {
+		j.From = append(j.From, promotionSourceJSON{Environment: src.Environment, Lineage: src.Lineage, Fingerprint: src.Run.Fingerprint,
+			GitRevision: src.Run.GitRevision, Txn: src.Run.Txn, At: src.Run.At})
+	}
+	emitLine(map[string]any{"kind": "promotion", "promotion": j})
 }
 
 // storePromotedPlan stores the plan of the apply in the state, as "pravo plan --store" does.

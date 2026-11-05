@@ -6,10 +6,8 @@ cmd/pravo/commands.go evalCmd 104
 cmd/pravo/commands.go planCmd 166
 cmd/pravo/commands.go providersCmd 155
 cmd/pravo/commands.go runApply 102
-cmd/pravo/environments.go promoteInto 186
 cmd/pravo/environments_cmd.go diffEnvironments 112
 cmd/pravo/id.go runIDNew 143
-cmd/pravo/mcp.go mcpTools 186
 cmd/pravo/planstore.go showStored 106
 cmd/pravo/protect_init.go protectRun.init 145
 cmd/pravo/protect_rewrap.go protectRun.rewrap 117
