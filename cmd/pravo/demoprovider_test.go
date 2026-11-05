@@ -129,11 +129,11 @@ func (p *demoProvider) failWith(text string) {
 
 // demoEstate writes a specification that uses the provider, followed by body, and
 // initialises it.
-func demoEstate(t *testing.T, body string) string {
+func demoEstate(t *testing.T, rt *runContext, body string) string {
 	t.Helper()
 	spec := "package estate\n\nimport demo \"pravo.dev/providers/demo/demo\"\n\n$demo: demo.#Provider & {$path: " + fmt.Sprintf("%q", demoBinary) + "}\n" + body
 	dir := specDir(t, map[string]string{"main.cue": spec})
-	if text, code := runPravo(t, dir, "init"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "init"); code != 0 {
 		t.Fatalf("init exited %d:\n%s", code, text)
 	}
 	return dir

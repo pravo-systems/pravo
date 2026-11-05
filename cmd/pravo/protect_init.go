@@ -16,7 +16,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/ui"
 )
 
-func protectInitCmd() *cobra.Command {
+func protectInitCmd(rt *runContext) *cobra.Command {
 	var encrypt, yes, allowLocal, force bool
 	var recovery string
 	cmd := &cobra.Command{
@@ -49,11 +49,11 @@ is not on the readers file, 6 when the readers file is missing or invalid.`,
 			if !encrypt {
 				return errors.New("protect init needs --encrypt: it is the only protection there is")
 			}
-			p, err := newProtectRun(cmd)
+			p, err := newProtectRun(rt, cmd)
 			if err != nil {
 				return err
 			}
-			return p.init(yes, allowLocal, force, recovery)
+			return p.init(rt, yes, allowLocal, force, recovery)
 		},
 	}
 	f := cmd.Flags()
@@ -90,7 +90,7 @@ func atRest(st *state.Store) error {
 	return nil
 }
 
-func (p *protectRun) init(yes, allowLocal, force bool, recoverySpec string) error {
+func (p *protectRun) init(rt *runContext, yes, allowLocal, force bool, recoverySpec string) error {
 	if err := p.refuseLocal(allowLocal); err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func (p *protectRun) init(yes, allowLocal, force bool, recoverySpec string) erro
 	for _, r := range p.rf.Readers {
 		listed = append(listed, r.Key)
 	}
-	id, err := resolveIdentity(identityOptions{Name: flags.Identity, Prompt: identityPrompt, Readers: listed})
+	id, err := resolveIdentity(identityOptions{Name: rt.flags.Identity, Prompt: identityPrompt, Readers: listed})
 	if err != nil {
 		if errors.Is(err, errNoIdentity) {
 			return engine.WithCode(engine.ExitRefused, fmt.Errorf("%w; sealing to a list you are not on would lock you out", err))
@@ -128,15 +128,15 @@ func (p *protectRun) init(yes, allowLocal, force bool, recoverySpec string) erro
 	if !force && stateLost(p.ctx, b) {
 		return engine.WithCode(engine.ExitRefused, errors.New(lostStateProblem(p.rf)+" To seal anyway, knowing that the old records stay unreadable, pass --force."))
 	}
-	st, _, _, err := p.open(b, false, false)
+	st, _, _, err := p.open(rt, b, false, false)
 	if err != nil {
 		return err
 	}
 	prot := st.Protection()
 	if prot.State == "sealed" {
-		out.Printf("Already sealed (format %d). Use pravo protect rewrap to change the readers.\n", prot.Format)
+		rt.out.Printf("Already sealed (format %d). Use pravo protect rewrap to change the readers.\n", prot.Format)
 		if rec != nil {
-			out.Println(out.C(ui.Yellow, "--recovery was not applied. To set a recovery recipient on a sealed state: pravo protect rewrap --recovery "+fmt.Sprintf("%d/%d", rec.K, rec.N)))
+			rt.out.Println(rt.out.C(ui.Yellow, "--recovery was not applied. To set a recovery recipient on a sealed state: pravo protect rewrap --recovery "+fmt.Sprintf("%d/%d", rec.K, rec.N)))
 		}
 		return nil
 	}
@@ -150,21 +150,21 @@ func (p *protectRun) init(yes, allowLocal, force bool, recoverySpec string) erro
 		return err
 	}
 	names := nameList(readerNames(p.rf.Readers))
-	out.Printf("%-8s %s  (%s)\n", "Readers", p.rf.shown(), names)
+	rt.out.Printf("%-8s %s  (%s)\n", "Readers", p.rf.shown(), names)
 	if m := prot.Migration; prot.State == "migrating" && m != nil {
-		out.Printf("A seal was started by %s and did not finish: %s of %s records are done.\n", safeName(m.By), commas(m.Done), commas(m.Total))
+		rt.out.Printf("A seal was started by %s and did not finish: %s of %s records are done.\n", safeName(m.By), commas(m.Done), commas(m.Total))
 	}
-	out.Println("This will:")
-	out.Printf("  1  write %s as immutable objects  rec/<sha256>\n", counted(prot.Records, "record", "records"))
-	out.Printf("  2  encrypt their attributes and private data to %s (%s)\n", plural(len(p.rf.Readers), "reader", "readers"), names)
-	out.Println("  3  seal outputs.json, stored-plan values and the values in transaction command lines the same way")
+	rt.out.Println("This will:")
+	rt.out.Printf("  1  write %s as immutable objects  rec/<sha256>\n", counted(prot.Records, "record", "records"))
+	rt.out.Printf("  2  encrypt their attributes and private data to %s (%s)\n", plural(len(p.rf.Readers), "reader", "readers"), names)
+	rt.out.Println("  3  seal outputs.json, stored-plan values and the values in transaction command lines the same way")
 	step := 4
 	if rec != nil {
-		out.Printf("  %d  add a recovery recipient: %d shares, any %d rebuild the key\n", step, rec.N, rec.K)
+		rt.out.Printf("  %d  add a recovery recipient: %d shares, any %d rebuild the key\n", step, rec.N, rec.K)
 		step++
 	}
-	out.Printf("  %d  set the state to format %d. Earlier versions of pravo will refuse it\n", step, state.FormatSealed)
-	if ok, err := confirm("Proceed?", yes); err != nil {
+	rt.out.Printf("  %d  set the state to format %d. Earlier versions of pravo will refuse it\n", step, state.FormatSealed)
+	if ok, err := confirm(rt, "Proceed?", yes); err != nil {
 		return err
 	} else if !ok {
 		return errors.New("protect init cancelled; nothing was written")
@@ -177,11 +177,11 @@ func (p *protectRun) init(yes, allowLocal, force bool, recoverySpec string) erro
 			return err
 		}
 	}
-	out.Println(out.C(ui.Green, "store check passed"))
+	rt.out.Println(rt.out.C(ui.Green, "store check passed"))
 	if b, err = p.backend(true); err != nil {
 		return err
 	}
-	if st, _, _, err = p.open(b, true, true); err != nil {
+	if st, _, _, err = p.open(rt, b, true, true); err != nil {
 		return err
 	}
 	// The shares are written before the state is touched: a seal that lost them would
@@ -199,20 +199,20 @@ func (p *protectRun) init(yes, allowLocal, force bool, recoverySpec string) erro
 	})
 	if err != nil {
 		if rec != nil {
-			p.afterFailure(rec, removeShares, loadRecoveryFile(p.rf))
+			p.afterFailure(rt, rec, removeShares, loadRecoveryFile(p.rf))
 		}
 		return err
 	}
-	out.Println(out.C(ui.Green, fmt.Sprintf("%s sealed in %s", counted(res.Records, "record", "records"), elapsed(time.Since(began)))))
-	out.Println(out.C(ui.Green, "outputs sealed · recipients written to meta.json"))
+	rt.out.Println(rt.out.C(ui.Green, fmt.Sprintf("%s sealed in %s", counted(res.Records, "record", "records"), elapsed(time.Since(began)))))
+	rt.out.Println(rt.out.C(ui.Green, "outputs sealed · recipients written to meta.json"))
 	if res.PlansSkipped > 0 {
-		out.Println(plansInUseLine(res.PlansSkipped, false))
+		rt.out.Println(plansInUseLine(res.PlansSkipped, false))
 	}
-	out.Println()
-	out.Printf("The state is sealed to %s.\n", names)
-	out.Println()
-	out.Println("Commit the readers file. Writers read the list from git:")
-	out.Printf("  %s\n", p.rf.shown())
+	rt.out.Println()
+	rt.out.Printf("The state is sealed to %s.\n", names)
+	rt.out.Println()
+	rt.out.Println("Commit the readers file. Writers read the list from git:")
+	rt.out.Printf("  %s\n", p.rf.shown())
 	rcf := loadRecoveryFile(p.rf)
 	if rec == nil {
 		// A run that was cut short after it set a recovery leaves it in the state.
@@ -222,17 +222,17 @@ func (p *protectRun) init(yes, allowLocal, force bool, recoverySpec string) erro
 					return fmt.Errorf("the state has a recovery recipient, but %s could not be written: %w. Write this line to it:\n%s", rcf.shown(), err, stored.Line())
 				}
 			}
-			out.Printf("The state has a recovery recipient from an earlier run: any %d of %d shares rebuild its key. Commit %s.\n", stored.K, stored.N, rcf.shown())
+			rt.out.Printf("The state has a recovery recipient from an earlier run: any %d of %d shares rebuild its key. Commit %s.\n", stored.K, stored.N, rcf.shown())
 			return nil
 		}
-		out.Println(out.C(ui.Yellow, "No recovery recipient. If every reader loses their key, the state cannot be read."))
-		out.Println("Add one with: pravo protect rewrap --recovery 3/5")
+		rt.out.Println(rt.out.C(ui.Yellow, "No recovery recipient. If every reader loses their key, the state cannot be read."))
+		rt.out.Println("Add one with: pravo protect rewrap --recovery 3/5")
 		return nil
 	}
 	if err := writeRecoveryFile(rcf, rec); err != nil {
 		return fmt.Errorf("the recovery is in the state, but %s could not be written: %w. Write this line to it:\n%s", rcf.shown(), err, rec.Line())
 	}
-	printShares(rec, shares, rcf)
+	printShares(rt, rec, shares, rcf)
 	return nil
 }
 
@@ -247,17 +247,17 @@ func elapsed(d time.Duration) string {
 // confirm asks a question that is answered with y or yes. With assume set it
 // asks nothing. It refuses to ask when stdin is not a terminal, or when the
 // output is JSON, because then nobody sees the question.
-func confirm(prompt string, assume bool) (bool, error) {
+func confirm(rt *runContext, prompt string, assume bool) (bool, error) {
 	if assume {
 		return true, nil
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		return false, errors.New("refusing to ask with --json; pass --yes")
 	}
 	if !stdinIsTerminal() {
 		return false, errors.New("refusing to ask, stdin is not a terminal; pass --yes")
 	}
-	out.Printf("%s [y/N] ", prompt)
+	rt.out.Printf("%s [y/N] ", prompt)
 	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 	switch strings.ToLower(strings.TrimSpace(line)) {
 	case "y", "yes":

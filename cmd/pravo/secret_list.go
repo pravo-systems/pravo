@@ -15,7 +15,7 @@ import (
 
 // ---------- secret list ----------
 
-func secretListCmd() *cobra.Command {
+func secretListCmd(rt *runContext) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List the secrets of the state: names, versions and who set them last",
@@ -24,7 +24,7 @@ shows no value and needs no key. A version that no transaction of a key allowed 
 shown under the table and ends the command with exit code 7.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			r, err := openSecrets(cmd, secretLook)
+			r, err := openSecrets(rt, cmd, secretLook)
 			if err != nil {
 				return err
 			}
@@ -39,7 +39,7 @@ shown under the table and ends the command with exit code 7.`,
 					bad = append(bad, s)
 				}
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				if list == nil {
 					list = []state.SecretSummary{}
 				}
@@ -49,7 +49,7 @@ shown under the table and ends the command with exit code 7.`,
 				return secretsUntrusted(len(bad))
 			}
 			if len(list) == 0 {
-				out.Println("No secrets. Set one with: pravo secret set NAME")
+				rt.out.Println("No secrets. Set one with: pravo secret set NAME")
 				return nil
 			}
 			rows := make([][]string, 0, len(list)+1)
@@ -67,9 +67,9 @@ shown under the table and ends the command with exit code 7.`,
 				}
 				rows = append(rows, []string{printable(s.Name), strconv.Itoa(h.Seq), agoAt(h), safeName(h.Signer()), note})
 			}
-			printTable(rows, 1)
+			printTable(rt, rows, 1)
 			for _, s := range bad {
-				out.Println(out.C(ui.Red, fmt.Sprintf("Untrusted: %s version %d: %s", printable(s.Name), s.Head.Seq, printable(s.Head.Problem))))
+				rt.out.Println(rt.out.C(ui.Red, fmt.Sprintf("Untrusted: %s version %d: %s", printable(s.Name), s.Head.Seq, printable(s.Head.Problem))))
 			}
 			return secretsUntrusted(len(bad))
 		},
@@ -92,7 +92,7 @@ func agoAt(i state.SecretInfo) string {
 
 // printTable writes rows with their columns aligned; the columns from right on are right-aligned.
 // The last column is not padded.
-func printTable(rows [][]string, right int) {
+func printTable(rt *runContext, rows [][]string, right int) {
 	widths := make([]int, len(rows[0]))
 	for _, row := range rows {
 		for i, cell := range row {
@@ -116,9 +116,9 @@ func printTable(rows [][]string, right int) {
 		}
 		line := strings.TrimRight(b.String(), " ")
 		if n == 0 {
-			line = out.C(ui.Dim, line)
+			line = rt.out.C(ui.Dim, line)
 		}
-		out.Println(line)
+		rt.out.Println(line)
 	}
 }
 
@@ -130,7 +130,7 @@ type secretHistoryJSON struct {
 	Note string `json:"note,omitempty"`
 }
 
-func secretHistoryCmd() *cobra.Command {
+func secretHistoryCmd(rt *runContext) *cobra.Command {
 	return &cobra.Command{
 		Use:   "history <name>",
 		Short: "Show every version of a secret: when, by whom, and the note",
@@ -144,7 +144,7 @@ no value. The notes are sealed with the values, so they are shown to an identity
 			if err := state.ValidSecretName(name); err != nil {
 				return err
 			}
-			r, err := openSecrets(cmd, secretLook)
+			r, err := openSecrets(rt, cmd, secretLook)
 			if err != nil {
 				return err
 			}
@@ -157,7 +157,7 @@ no value. The notes are sealed with the values, so they are shown to an identity
 			if !r.st.Locked() {
 				var nerr error
 				if notes, nerr = r.st.SecretNotes(r.ctx, name); nerr != nil && !errors.Is(nerr, state.ErrNotReader) {
-					out.Warning("the notes cannot be shown: " + printable(nerr.Error()))
+					rt.out.Warning("the notes cannot be shown: " + printable(nerr.Error()))
 				}
 			}
 			bad := 0
@@ -166,7 +166,7 @@ no value. The notes are sealed with the values, so they are shown to an identity
 					bad++
 				}
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				docs := make([]secretHistoryJSON, 0, len(hist))
 				for i := len(hist) - 1; i >= 0; i-- {
 					docs = append(docs, secretHistoryJSON{SecretInfo: hist[i], Note: notes[hist[i].Seq]})
@@ -176,7 +176,7 @@ no value. The notes are sealed with the values, so they are shown to an identity
 				}
 				return secretsUntrusted(bad)
 			}
-			out.Println(out.C(ui.Bold, printable(name)))
+			rt.out.Println(rt.out.C(ui.Bold, printable(name)))
 			for i := len(hist) - 1; i >= 0; i-- {
 				h := hist[i]
 				what := h.Kind
@@ -188,12 +188,12 @@ no value. The notes are sealed with the values, so they are shown to an identity
 				case h.Trust == state.TrustUnconfirmed:
 					what += ", not finished"
 				}
-				out.Printf("  v%-4d %s  %-12s %s\n", h.Seq, h.At.Local().Format("2006-01-02 15:04:05"), safeName(h.Signer()), what)
+				rt.out.Printf("  v%-4d %s  %-12s %s\n", h.Seq, h.At.Local().Format("2006-01-02 15:04:05"), safeName(h.Signer()), what)
 				if n := notes[h.Seq]; n != "" {
-					out.Printf("        %s\n", out.C(ui.Dim, printable(n)))
+					rt.out.Printf("        %s\n", rt.out.C(ui.Dim, printable(n)))
 				}
 				if h.Trust == state.TrustProblem {
-					out.Println(out.C(ui.Red, "        Untrusted: "+printable(h.Problem)))
+					rt.out.Println(rt.out.C(ui.Red, "        Untrusted: "+printable(h.Problem)))
 				}
 			}
 			return secretsUntrusted(bad)

@@ -50,13 +50,13 @@ func storedEventPlan(m *engine.PlanMeta) *planEventPlan {
 
 // sendPlanEvent POSTs the event to the webhook, if there is one. The event is
 // stamped here.
-func sendPlanEvent(ctx context.Context, webhook, root string, ev planEvent) error {
+func sendPlanEvent(ctx context.Context, rt *runContext, webhook, root string, ev planEvent) error {
 	if webhook == "" {
 		return nil
 	}
 	ev.Time, ev.Root = time.Now().UTC(), root
 	if ev.Actor == "" {
-		ev.Actor = flags.Actor
+		ev.Actor = rt.flags.Actor
 	}
 	return postJSON(ctx, webhook, ev)
 }
@@ -77,7 +77,7 @@ type driftProposal struct {
 
 // proposeFix makes the proposal for a drift run: it judges the plan with the
 // policies, stores it if asked, and sends the one event that says what became of it.
-func proposeFix(ctx context.Context, s *session, rep *pravo.DriftReport, planned *pravo.Planned, store bool, ttl time.Duration, webhook string) (*driftProposal, error) {
+func proposeFix(ctx context.Context, rt *runContext, s *session, rep *pravo.DriftReport, planned *pravo.Planned, store bool, ttl time.Duration, webhook string) (*driftProposal, error) {
 	p := &driftProposal{DriftReport: rep, event: eventDrifted}
 	plan := planned.Plan()
 	if len(rep.Drifted) == 0 || !planWorth(plan) {
@@ -88,7 +88,7 @@ func proposeFix(ctx context.Context, s *session, rep *pravo.DriftReport, planned
 	if err := planned.CheckPolicy(ctx); err != nil {
 		p.Refused, p.event = err.Error(), eventRefused
 		ev.Event, ev.Reason = eventRefused, err.Error()
-		return p, sendPlanEvent(ctx, webhook, rep.Root, ev)
+		return p, sendPlanEvent(ctx, rt, webhook, rep.Root, ev)
 	}
 	if store {
 		sp, err := planned.Store(ctx, pravo.StorePlanOptions{TTL: ttl})
@@ -100,21 +100,21 @@ func proposeFix(ctx context.Context, s *session, rep *pravo.DriftReport, planned
 		ev.Plan = storedEventPlan(sp.Meta)
 	}
 	ev.Event = p.event
-	return p, sendPlanEvent(ctx, webhook, rep.Root, ev)
+	return p, sendPlanEvent(ctx, rt, webhook, rep.Root, ev)
 }
 
 // print says what became of the plan, after the drift itself is listed.
-func (p *driftProposal) print() {
+func (p *driftProposal) print(rt *runContext) {
 	switch {
 	case p.Plan == nil:
 	case p.Refused != "":
-		out.Println()
-		out.Printf("A policy refused the plan that puts this right, so it was not stored: %s\n", p.Refused)
+		rt.out.Println()
+		rt.out.Printf("A policy refused the plan that puts this right, so it was not stored: %s\n", p.Refused)
 	case p.stored != nil:
-		printStored(p.stored)
+		printStored(rt, p.stored)
 	default:
-		out.Println()
+		rt.out.Println()
 		sum := p.Plan.Summary
-		out.Printf("Putting it right adds %d, changes %d and destroys %d. Run \"pravo drift --plan --store\" to keep that plan for review.\n", sum.Add, sum.Change, sum.Destroy)
+		rt.out.Printf("Putting it right adds %d, changes %d and destroys %d. Run \"pravo drift --plan --store\" to keep that plan for review.\n", sum.Add, sum.Change, sum.Destroy)
 	}
 }

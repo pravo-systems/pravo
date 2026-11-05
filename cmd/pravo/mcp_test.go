@@ -13,6 +13,8 @@ import (
 // that a plan file named -auto-approve cannot turn an apply of a saved plan
 // into a plain apply, and an address cannot carry -C=/other.
 func TestToolsRefuseArgumentsThatLookLikeFlags(t *testing.T) {
+	rt := &runContext{}
+
 	cases := map[string]map[string]any{
 		"pravo_apply_plan":  {"planfile": "-auto-approve"},
 		"pravo_show_plan":   {"planfile": "--json"},
@@ -23,7 +25,7 @@ func TestToolsRefuseArgumentsThatLookLikeFlags(t *testing.T) {
 		"pravo_state_query": {"expression": "--json"},
 	}
 	byName := map[string]mcpTool{}
-	for _, tool := range mcpTools() {
+	for _, tool := range mcpTools(rt) {
 		byName[tool.Name] = tool
 	}
 	for name, in := range cases {
@@ -44,8 +46,10 @@ func TestToolsRefuseArgumentsThatLookLikeFlags(t *testing.T) {
 // The tools take a plan file or the id of a stored plan, with the tags that the
 // stored plan was made with; a plan file carries its own tags.
 func TestToolsTakePlanFilesAndStoredPlanIDs(t *testing.T) {
+	rt := &runContext{}
+
 	byName := map[string]mcpTool{}
-	for _, tool := range mcpTools() {
+	for _, tool := range mcpTools(rt) {
 		byName[tool.Name] = tool
 	}
 	in := map[string]any{"planfile": "plan-2f9c1a4e", "tags": []any{"env=prod"}}
@@ -71,8 +75,10 @@ func TestToolsTakePlanFilesAndStoredPlanIDs(t *testing.T) {
 
 // The tools that store and list plans offer what the commands do.
 func TestToolsStoreAndListPlans(t *testing.T) {
+	rt := &runContext{}
+
 	byName := map[string]mcpTool{}
-	for _, tool := range mcpTools() {
+	for _, tool := range mcpTools(rt) {
 		byName[tool.Name] = tool
 	}
 	got, err := byName["pravo_plan"].args(map[string]any{"store": true, "ttl": "36h", "out": "x.plan"})
@@ -93,8 +99,10 @@ func TestToolsStoreAndListPlans(t *testing.T) {
 // be asked to list the nodes it left alone, and the scheduled sweep of
 // "drift --due --limit N" can be made through the tool.
 func TestPlanAndDriftToolsOfferWhatTheCommandsDo(t *testing.T) {
+	rt := &runContext{}
+
 	byName := map[string]mcpTool{}
-	for _, tool := range mcpTools() {
+	for _, tool := range mcpTools(rt) {
 		byName[tool.Name] = tool
 	}
 	props := func(name string) map[string]any {
@@ -145,7 +153,7 @@ func TestPlanAndDriftToolsOfferWhatTheCommandsDo(t *testing.T) {
 		}
 	}
 	// The arguments reach the command: it takes them as flags.
-	root := newRootCmd()
+	root := newRootCmd(rt)
 	for _, c := range cases {
 		args, err := byName[c.tool].args(c.in)
 		if err != nil {
@@ -164,6 +172,8 @@ func TestPlanAndDriftToolsOfferWhatTheCommandsDo(t *testing.T) {
 // The tools that read the state take tags, so that an agent reaches the state
 // of the environment the tags select.
 func TestStateToolsTakeTags(t *testing.T) {
+	rt := &runContext{}
+
 	tags := map[string]any{"tags": []any{"env=prod", "region=eu"}}
 	with := func(in map[string]any) map[string]any {
 		out := map[string]any{"tags": tags["tags"]}
@@ -183,7 +193,7 @@ func TestStateToolsTakeTags(t *testing.T) {
 		"pravo_locks":       {nil, []string{"state", "-t", "env=prod", "-t", "region=eu", "locks"}},
 	}
 	byName := map[string]mcpTool{}
-	for _, tool := range mcpTools() {
+	for _, tool := range mcpTools(rt) {
 		byName[tool.Name] = tool
 	}
 	for name, c := range cases {
@@ -205,8 +215,10 @@ func TestStateToolsTakeTags(t *testing.T) {
 
 // A tool call writes a plan file only below the project directory.
 func TestPlanToolWritesOnlyBelowTheProject(t *testing.T) {
+	rt := &runContext{}
+
 	var plan mcpTool
-	for _, tool := range mcpTools() {
+	for _, tool := range mcpTools(rt) {
 		if tool.Name == "pravo_plan" {
 			plan = tool
 		}
@@ -242,6 +254,8 @@ func TestPravoParallelismComesFromTheEnvironment(t *testing.T) {
 // The tools that print a plan document run with --withhold-sensitive, so that an agent
 // does not read the values of sensitive attributes.
 func TestPlanDocumentToolsWithholdSensitiveValues(t *testing.T) {
+	rt := &runContext{}
+
 	for _, name := range []string{"pravo_plan", "pravo_show_plan", "pravo_apply_plan"} {
 		if !withholdsSensitive[name] {
 			t.Errorf("%s runs without --withhold-sensitive", name)
@@ -249,7 +263,7 @@ func TestPlanDocumentToolsWithholdSensitiveValues(t *testing.T) {
 	}
 	for _, name := range []string{"pravo_plan", "pravo_show_plan", "pravo_apply_plan"} {
 		found := false
-		for _, tool := range mcpTools() {
+		for _, tool := range mcpTools(rt) {
 			found = found || tool.Name == name
 		}
 		if !found {

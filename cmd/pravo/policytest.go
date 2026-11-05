@@ -16,13 +16,13 @@ import (
 	"github.com/pravo-systems/pravo/internal/ui"
 )
 
-func policyCmd() *cobra.Command {
+func policyCmd(rt *runContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "policy",
 		Short: "Work with the policies that judge plans",
 		Args:  noArgs,
 	}
-	cmd.AddCommand(policyTestCmd())
+	cmd.AddCommand(policyTestCmd(rt))
 	return cmd
 }
 
@@ -64,7 +64,7 @@ type trialReport struct {
 	Plans   []trialOutcome      `json:"plans"`
 }
 
-func policyTestCmd() *cobra.Command {
+func policyTestCmd(rt *runContext) *cobra.Command {
 	var plans []string
 	var all, inForce bool
 	cmd := &cobra.Command{
@@ -90,27 +90,27 @@ resource is not judged by any policy.
 The command exits 5 when a rule would refuse a plan, 6 when a rule cannot be used, and
 0 otherwise.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPolicyTest(cmd.Context(), args, plans, all, inForce)
+			return runPolicyTest(cmd.Context(), rt, args, plans, all, inForce)
 		},
 	}
 	cmd.Flags().StringArrayVar(&plans, "plan", nil, "a stored plan id or a plan file to try the rules on (repeatable); without it the stored plans that can be applied")
 	cmd.Flags().BoolVar(&all, "all", false, "try every stored plan, including applied, stale and expired ones")
 	cmd.Flags().BoolVar(&inForce, "in-force", false, "try the versions in force in the state, not the specification's text")
-	addTagFlags(cmd)
+	addTagFlags(rt, cmd)
 	return cmd
 }
 
-func runPolicyTest(ctx context.Context, args, planRefs []string, all, inForce bool) error {
-	s, err := newSession(ctx, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
+func runPolicyTest(ctx context.Context, rt *runContext, args, planRefs []string, all, inForce bool) error {
+	s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
 	if err != nil {
 		return err
 	}
 	defer s.close()
-	rules, err := trialRules(ctx, s, args, inForce)
+	rules, err := trialRules(ctx, rt, s, args, inForce)
 	if err != nil {
 		return engine.WithCode(engine.ExitInvalid, err)
 	}
-	eng := s.engine(engine.Options{})
+	eng := s.engine(rt, engine.Options{})
 	trials, err := trialPlans(ctx, s, eng, planRefs, all)
 	if err != nil {
 		return err
@@ -177,12 +177,12 @@ func runPolicyTest(ctx context.Context, args, planRefs []string, all, inForce bo
 		}
 		reports = append(reports, rep)
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		if err := emitJSON(map[string]any{"rules": reports, "refused": refused, "invalid": invalid}); err != nil {
 			return err
 		}
 	} else {
-		printTrials(reports, len(trials))
+		printTrials(rt, reports, len(trials))
 	}
 	switch {
 	case invalid > 0:
@@ -195,10 +195,10 @@ func runPolicyTest(ctx context.Context, args, planRefs []string, all, inForce bo
 
 // trialRules finds the rules to try: the files and policy names given, else every
 // policy of the specification, or of the state with inForce.
-func trialRules(ctx context.Context, s *session, args []string, inForce bool) ([]trialRule, error) {
+func trialRules(ctx context.Context, rt *runContext, s *session, args []string, inForce bool) ([]trialRule, error) {
 	var declared, held map[string]trialRule
 	if inForce {
-		set, err := s.state.PolicySet(ctx, readersOf(s.root).Readers)
+		set, err := s.state.PolicySet(ctx, readersOf(rt, s.root).Readers)
 		if err != nil {
 			return nil, err
 		}
@@ -321,39 +321,39 @@ func trialPlans(ctx context.Context, s *session, eng *engine.Engine, refs []stri
 	return out, nil
 }
 
-func printTrials(reports []trialReport, plans int) {
+func printTrials(rt *runContext, reports []trialReport, plans int) {
 	if plans == 0 {
-		out.Println("No stored plan can be applied. Name one with --plan, or use --all.")
+		rt.out.Println("No stored plan can be applied. Name one with --plan, or use --all.")
 	}
 	for i, r := range reports {
 		if i > 0 {
-			out.Println()
+			rt.out.Println()
 		}
-		out.Printf("%s %s %s\n", out.C(ui.Bold, "Policy"), out.C(ui.Bold, r.Policy), out.C(ui.Dim, "("+r.Origin+")"))
+		rt.out.Printf("%s %s %s\n", rt.out.C(ui.Bold, "Policy"), rt.out.C(ui.Bold, r.Policy), rt.out.C(ui.Dim, "("+r.Origin+")"))
 		if r.Problem != nil {
-			out.Printf("  %s %s\n", out.C(ui.Red, "cannot be used:"), indent(r.Problem.Message, "  "))
+			rt.out.Printf("  %s %s\n", rt.out.C(ui.Red, "cannot be used:"), indent(r.Problem.Message, "  "))
 			continue
 		}
 		holds, judged := 0, 0
 		for _, o := range r.Plans {
-			mark, text := out.C(ui.Green, "✓"), "holds"
+			mark, text := rt.out.C(ui.Green, "✓"), "holds"
 			switch o.Outcome {
 			case engine.RuleRefused:
 				judged++
-				mark, text = out.C(ui.Red, "✗"), out.C(ui.Red, "would be refused")
+				mark, text = rt.out.C(ui.Red, "✗"), rt.out.C(ui.Red, "would be refused")
 			case engine.RuleInvalid:
 				judged++
-				mark, text = out.C(ui.Red, "✗"), out.C(ui.Red, "cannot be judged")
+				mark, text = rt.out.C(ui.Red, "✗"), rt.out.C(ui.Red, "cannot be judged")
 			case "not-judged", "unreadable":
-				mark, text = out.C(ui.Dim, "–"), out.C(ui.Dim, o.Note)
+				mark, text = rt.out.C(ui.Dim, "–"), rt.out.C(ui.Dim, o.Note)
 			default:
 				holds, judged = holds+1, judged+1
 			}
 			status := ""
 			if o.Status != "" {
-				status = "  " + out.C(ui.Dim, o.Status)
+				status = "  " + rt.out.C(ui.Dim, o.Status)
 			}
-			out.Printf("  %s %s%s  %s\n", mark, o.Plan, status, text)
+			rt.out.Printf("  %s %s%s  %s\n", mark, o.Plan, status, text)
 			for _, is := range o.Issues {
 				line := is.Message
 				if is.Path != "" {
@@ -362,7 +362,7 @@ func printTrials(reports []trialReport, plans int) {
 				if is.Policy != "" {
 					line = is.Policy + ": " + line
 				}
-				out.Printf("      %s\n", line)
+				rt.out.Printf("      %s\n", line)
 				if is.Change != "" || is.Got != "" {
 					var bits []string
 					if is.Change != "" {
@@ -371,14 +371,14 @@ func printTrials(reports []trialReport, plans int) {
 					if is.Got != "" {
 						bits = append(bits, "the plan has "+is.Got)
 					}
-					out.Printf("      %s\n", out.C(ui.Dim, strings.Join(bits, "; ")))
+					rt.out.Printf("      %s\n", rt.out.C(ui.Dim, strings.Join(bits, "; ")))
 				}
 			}
 			if o.More > 0 {
-				out.Printf("      %s\n", out.C(ui.Dim, fmt.Sprintf("and %d more", o.More)))
+				rt.out.Printf("      %s\n", rt.out.C(ui.Dim, fmt.Sprintf("and %d more", o.More)))
 			}
 		}
-		out.Printf("  %s\n", out.C(ui.Dim, fmt.Sprintf("%d of %s hold.", holds, plural(judged, "judged plan", "judged plans"))))
+		rt.out.Printf("  %s\n", rt.out.C(ui.Dim, fmt.Sprintf("%d of %s hold.", holds, plural(judged, "judged plan", "judged plans"))))
 	}
 }
 

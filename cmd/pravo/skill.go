@@ -16,7 +16,7 @@ import (
 	"github.com/pravo-systems/pravo/skills"
 )
 
-func skillCmd() *cobra.Command {
+func skillCmd(rt *runContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "skill",
 		Short: "Install or print the skill that teaches an agent to use pravo",
@@ -25,11 +25,11 @@ references/, the pages of the pravo documentation as Markdown. It is part of the
 binary, so the skill always matches the version that installed it.`,
 		Args: noArgs,
 	}
-	cmd.AddCommand(skillInstallCmd(), skillPrintCmd(), skillListCmd())
+	cmd.AddCommand(skillInstallCmd(rt), skillPrintCmd(), skillListCmd(rt))
 	return cmd
 }
 
-func skillInstallCmd() *cobra.Command {
+func skillInstallCmd(rt *runContext) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install [dir]",
 		Short: "Write the skill to a directory of skills",
@@ -47,10 +47,10 @@ not touched.`,
 			if err != nil {
 				return err
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				return emitJSON(map[string]any{"path": target, "files": n, "version": Version})
 			}
-			out.Printf("Installed the pravo skill for pravo %s: %d files in %s\n", Version, n, target)
+			rt.out.Printf("Installed the pravo skill for pravo %s: %d files in %s\n", Version, n, target)
 			return nil
 		},
 	}
@@ -81,7 +81,7 @@ references/reference/plan.md. "pravo skill list" lists the files.`,
 	}
 }
 
-func skillListCmd() *cobra.Command {
+func skillListCmd(rt *runContext) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List the files of the skill",
@@ -91,7 +91,7 @@ func skillListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				return emitJSON(map[string]any{"version": Version, "files": files})
 			}
 			for _, f := range files {

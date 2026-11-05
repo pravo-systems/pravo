@@ -116,15 +116,15 @@ func invalidTxns(n int) error {
 
 // storedPlanSignatures checks the signatures of a stored plan. The note is set instead
 // when they cannot be checked, or when the state is not sealed and has none.
-func storedPlanSignatures(ctx context.Context, s *session, id string) ([]engine.PlanVerdict, string) {
+func storedPlanSignatures(ctx context.Context, rt *runContext, s *session, id string) ([]engine.PlanVerdict, string) {
 	if s.state.Protection().Sealed == nil {
 		return nil, ""
 	}
-	root, err := loadRoot()
+	root, err := loadRoot(rt)
 	if err != nil {
 		return nil, ""
 	}
-	rf := readersOf(root)
+	rf := readersOf(rt, root)
 	readers, ok := attributionReaders(rf)
 	if !ok {
 		return nil, notChecked(rf)
@@ -143,15 +143,15 @@ func storedPlanSignatures(ctx context.Context, s *session, id string) ([]engine.
 
 // storedPlanApprovals says who approved a stored plan, empty when nobody did or the
 // readers file cannot say.
-func storedPlanApprovals(ctx context.Context, s *session, id string) string {
+func storedPlanApprovals(ctx context.Context, rt *runContext, s *session, id string) string {
 	if s.state.Protection().Sealed == nil {
 		return ""
 	}
-	root, err := loadRoot()
+	root, err := loadRoot(rt)
 	if err != nil {
 		return ""
 	}
-	readers, ok := attributionReaders(readersOf(root))
+	readers, ok := attributionReaders(readersOf(rt, root))
 	if !ok {
 		return ""
 	}

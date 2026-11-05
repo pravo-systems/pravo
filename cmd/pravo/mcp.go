@@ -97,8 +97,8 @@ func mcpObject(props map[string]any, required ...string) map[string]any {
 
 // mcpTools are the tools the server offers: the plans, then the state and the explanations,
 // then the checks against the real objects.
-func mcpTools() []mcpTool {
-	return slices.Concat(mcpPlanTools(), mcpStateTools(), mcpCheckTools())
+func mcpTools(rt *runContext) []mcpTool {
+	return slices.Concat(mcpPlanTools(), mcpStateTools(rt), mcpCheckTools())
 }
 
 func mcpPlanTools() []mcpTool {
@@ -195,7 +195,7 @@ func mcpPlanTools() []mcpTool {
 	}
 }
 
-func mcpStateTools() []mcpTool {
+func mcpStateTools(rt *runContext) []mcpTool {
 	return []mcpTool{
 		{Name: "pravo_schema", Description: "The CUE definition of resource, data source, ephemeral or function types, with the provider's documentation. In the specification a resource is declared as name: $provider.#Resource.type & {...} and read as name.attribute, such as pet.id; inside a string use CUE interpolation, such as content: \"Hello, \\(pet.id)!\". required=true keeps only what the schema marks as required and hides the optional attributes, which a resource often still needs (the content of a local_file, the length of a random_pet, tags): leave it out to see all.",
 			InputSchema: mcpObject(map[string]any{"types": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "type names such as aws_s3_bucket, or provider/type"}, "required": map[string]any{"type": "boolean"}}, "types"),
@@ -225,7 +225,7 @@ func mcpStateTools() []mcpTool {
 				}
 				return append(append([]string{"why"}, addrs...), tagArgs(in)...), nil
 			}},
-		{Name: "pravo_state_query", Description: "Evaluate a CUE expression over the state: resources (by address), edges and outputs.", run: runStateQuery,
+		{Name: "pravo_state_query", Description: "Evaluate a CUE expression over the state: resources (by address), edges and outputs.", run: func(ctx context.Context, in map[string]any) (string, error) { return runStateQuery(ctx, rt, in) },
 			InputSchema: mcpObject(map[string]any{"expression": map[string]any{"type": "string"}, "tags": tagsProp}, "expression"),
 			args: func(in map[string]any) ([]string, error) {
 				if err := positional("expression", strArg(in, "expression")); err != nil {
@@ -241,7 +241,7 @@ func mcpStateTools() []mcpTool {
 				}
 				return append(append([]string{"state"}, tagArgs(in)...), "show", "--redact", strArg(in, "addr")), nil
 			}},
-		{Name: "pravo_dependents", Description: "Everything a change to the resource can reach: its blast radius.", run: runDependents,
+		{Name: "pravo_dependents", Description: "Everything a change to the resource can reach: its blast radius.", run: func(ctx context.Context, in map[string]any) (string, error) { return runDependents(ctx, rt, in) },
 			InputSchema: mcpObject(map[string]any{"addr": map[string]any{"type": "string"}, "tags": tagsProp}, "addr"),
 			args: func(in map[string]any) ([]string, error) {
 				if err := positional("addr", strArg(in, "addr")); err != nil {
@@ -310,7 +310,7 @@ type rpcResponse struct {
 	Error   *rpcError       `json:"error,omitempty"`
 }
 
-func mcpCmd() *cobra.Command {
+func mcpCmd(rt *runContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mcp",
 		Short: "Serve pravo's commands to an agent over the Model Context Protocol (stdio)",
@@ -333,14 +333,14 @@ not what the process around it may do.`,
 			// it runs inherit.
 			identityPrompt = false
 			defer func() { identityPrompt = true }()
-			return serveMCP(cmd.Context(), os.Stdin, os.Stdout)
+			return serveMCP(cmd.Context(), rt, os.Stdin, os.Stdout)
 		},
 	}
 	return cmd
 }
 
-func serveMCP(ctx context.Context, in io.Reader, outW io.Writer) error {
-	tools := mcpTools()
+func serveMCP(ctx context.Context, rt *runContext, in io.Reader, outW io.Writer) error {
+	tools := mcpTools(rt)
 	byName := map[string]mcpTool{}
 	for _, t := range tools {
 		byName[t.Name] = t
@@ -407,13 +407,13 @@ func serveMCP(ctx context.Context, in io.Reader, outW io.Writer) error {
 				cliArgs = append([]string{cliArgs[0], "--withhold-sensitive"}, cliArgs[1:]...)
 			}
 			callCtx, span := telemetry.Tracer().Start(ctx, "mcp tools/call "+p.Name, trace.WithSpanKind(trace.SpanKindServer),
-				trace.WithAttributes(attribute.String("mcp.tool", p.Name), attribute.String("pravo.actor", flags.Actor)))
+				trace.WithAttributes(attribute.String("mcp.tool", p.Name), attribute.String("pravo.actor", rt.flags.Actor)))
 			var text string
 			var code int
 			if t.run != nil {
-				text, code = inprocess(callCtx, p.Arguments, t.run)
+				text, code = inprocess(callCtx, rt, p.Arguments, t.run)
 			} else {
-				text, code = runSelf(callCtx, cliArgs)
+				text, code = runSelf(callCtx, rt, cliArgs)
 			}
 			span.SetAttributes(attribute.Int("pravo.exit_code", code))
 			var callErr error
@@ -431,20 +431,20 @@ func serveMCP(ctx context.Context, in io.Reader, outW io.Writer) error {
 
 // runSelf runs the pravo binary with --json in the current root, carrying
 // the actor and reason, and returns its stdout (falling back to stderr).
-func runSelf(ctx context.Context, args []string) (string, int) {
+func runSelf(ctx context.Context, rt *runContext, args []string) (string, int) {
 	exe, err := os.Executable()
 	if err != nil {
 		return err.Error(), 1
 	}
 	full := append([]string{"--json", "--no-color"}, args...)
-	if flags.Actor != "" {
-		full = append(full, "--actor", flags.Actor)
+	if rt.flags.Actor != "" {
+		full = append(full, "--actor", rt.flags.Actor)
 	}
-	if flags.Reason != "" {
-		full = append(full, "--reason", flags.Reason)
+	if rt.flags.Reason != "" {
+		full = append(full, "--reason", rt.flags.Reason)
 	}
-	if flags.Identity != "" {
-		full = append(full, "--identity", flags.Identity)
+	if rt.flags.Identity != "" {
+		full = append(full, "--identity", rt.flags.Identity)
 	}
 	c := exec.CommandContext(ctx, exe, full...)
 	var stdout, stderr bytes.Buffer

@@ -16,7 +16,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/ui"
 )
 
-func protectUnsealCmd() *cobra.Command {
+func protectUnsealCmd(rt *runContext) *cobra.Command {
 	var yes, removeFiles bool
 	var shareFiles []string
 	cmd := &cobra.Command{
@@ -53,11 +53,11 @@ use, 5 when your identity is not a reader of the state, or the shares do not
 rebuild its recovery key.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			p, err := newProtectRun(cmd)
+			p, err := newProtectRun(rt, cmd)
 			if err != nil {
 				return err
 			}
-			return p.unseal(yes, removeFiles, shareFiles)
+			return p.unseal(rt, yes, removeFiles, shareFiles)
 		},
 	}
 	f := cmd.Flags()
@@ -67,14 +67,14 @@ rebuild its recovery key.`,
 	return cmd
 }
 
-func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
+func (p *protectRun) unseal(rt *runContext, yes, removeFiles bool, shareFiles []string) error {
 	// Everything before the yes only reads, and a state that does not exist is not made.
 	rb, err := p.backend(false)
 	if err != nil {
 		return err
 	}
 	if _, err := rb.Get(p.ctx, metaKey); errors.Is(err, state.ErrNotFound) {
-		return p.notSealed(nil, removeFiles, yes, "There is no state yet.")
+		return p.notSealed(rt, nil, removeFiles, yes, "There is no state yet.")
 	}
 	b, err := p.backend(true)
 	if err != nil {
@@ -90,13 +90,13 @@ func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
 			defer id.Close()
 		}
 	} else {
-		st, id, idErr, err = p.open(b, true, true)
+		st, id, idErr, err = p.open(rt, b, true, true)
 		if err == nil {
 			err = p.needAdmin(st, "take the seal off the state")
 		}
 	}
 	if errors.Is(err, state.ErrUntrusted) {
-		return reportUntrusted(err)
+		return reportUntrusted(rt, err)
 	}
 	if err != nil {
 		return err
@@ -107,7 +107,7 @@ func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
 	case "migrating":
 		return errors.New("a seal is in progress; finish it with pravo protect init --encrypt before the seal is taken off")
 	default:
-		return p.notSealed(&prot, removeFiles, yes, "The state is not sealed.")
+		return p.notSealed(rt, &prot, removeFiles, yes, "The state is not sealed.")
 	}
 	if err := p.requireReader(st, prot, id, idErr); err != nil {
 		return err
@@ -122,21 +122,21 @@ func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
 	}
 	names := protectedNames(prot)
 	files := p.repoFiles()
-	if !flags.JSON {
-		out.Printf("%-8s %s  (%s)\n", "State", p.location(), prot.State)
+	if !rt.flags.JSON {
+		rt.out.Printf("%-8s %s  (%s)\n", "State", p.location(), prot.State)
 		if m := prot.Migration; prot.State == "unsealing" && m != nil {
-			out.Printf("An unseal was started by %s and did not finish: %s of %s records are done.\n", safeName(m.By), commas(m.Done), commas(m.Total))
+			rt.out.Printf("An unseal was started by %s and did not finish: %s of %s records are done.\n", safeName(m.By), commas(m.Done), commas(m.Total))
 		}
-		out.Println("This will:")
-		out.Printf("  1  open %s, the outputs and the stored plans with your key (%s)\n", counted(prot.Records, "record", "records"), id.Name)
-		out.Println("  2  write them in the open, and delete the sealed records")
-		out.Println("  3  take the sealed part out of meta.json; the format stays")
+		rt.out.Println("This will:")
+		rt.out.Printf("  1  open %s, the outputs and the stored plans with your key (%s)\n", counted(prot.Records, "record", "records"), id.Name)
+		rt.out.Println("  2  write them in the open, and delete the sealed records")
+		rt.out.Println("  3  take the sealed part out of meta.json; the format stays")
 		if removeFiles && len(files) > 0 {
-			out.Printf("  4  delete %s from the repository\n", strings.Join(displayPaths(files), " and "))
+			rt.out.Printf("  4  delete %s from the repository\n", strings.Join(displayPaths(files), " and "))
 		}
-		out.Println(out.C(ui.Yellow, fmt.Sprintf("Afterwards anyone who can read the bucket can read every value. The readers (%s) lose nothing, and the bucket loses the seal.", nameList(names))))
+		rt.out.Println(rt.out.C(ui.Yellow, fmt.Sprintf("Afterwards anyone who can read the bucket can read every value. The readers (%s) lose nothing, and the bucket loses the seal.", nameList(names))))
 	}
-	if ok, err := confirm("Proceed?", yes); err != nil {
+	if ok, err := confirm(rt, "Proceed?", yes); err != nil {
 		return err
 	} else if !ok {
 		return errors.New("protect unseal cancelled; nothing was written")
@@ -154,7 +154,7 @@ func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
 	case err != nil:
 		return err
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		gone, err := p.dropFiles(removeFiles)
 		if err != nil {
 			return err
@@ -162,39 +162,39 @@ func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
 		return emitJSON(map[string]any{"unsealed": true, "records": res.Records, "plans": res.PlansUnsealed, "resumed": res.Resumed, "files_removed": gone, "files_left": displayPaths(leftOver(files, gone))})
 	}
 	if res.Resumed {
-		out.Println("Finished an unseal that was begun earlier.")
+		rt.out.Println("Finished an unseal that was begun earlier.")
 	}
 	if res.Records > 0 || !res.Resumed {
-		out.Println(out.C(ui.Green, fmt.Sprintf("%s unsealed in %s", counted(res.Records, "record", "records"), elapsed(time.Since(began)))))
+		rt.out.Println(rt.out.C(ui.Green, fmt.Sprintf("%s unsealed in %s", counted(res.Records, "record", "records"), elapsed(time.Since(began)))))
 	}
 	if res.PlansUnsealed > 0 {
-		out.Println(out.C(ui.Green, counted(res.PlansUnsealed, "stored plan", "stored plans")+" unsealed"))
+		rt.out.Println(rt.out.C(ui.Green, counted(res.PlansUnsealed, "stored plan", "stored plans")+" unsealed"))
 	}
-	out.Println(out.C(ui.Green, "outputs unsealed · the sealed part of meta.json is gone"))
-	out.Println()
-	out.Printf("The state is not sealed any more (format %d).\n", prot.Format)
-	return p.finishFiles(removeFiles, true)
+	rt.out.Println(rt.out.C(ui.Green, "outputs unsealed · the sealed part of meta.json is gone"))
+	rt.out.Println()
+	rt.out.Printf("The state is not sealed any more (format %d).\n", prot.Format)
+	return p.finishFiles(rt, removeFiles, true)
 }
 
 // notSealed is the answer for a state that is not sealed. The files of the repository
 // are deleted only for a state that was sealed once, which is a state of format 3,
 // and then only after a yes: for any other state they are the anchor of a seal that
 // is yet to come, or of a state whose meta.json was lowered.
-func (p *protectRun) notSealed(prot *state.Protection, removeFiles, yes bool, line string) error {
+func (p *protectRun) notSealed(rt *runContext, prot *state.Protection, removeFiles, yes bool, line string) error {
 	wasSealed := prot != nil && prot.Format >= state.FormatSealed
 	files := p.repoFiles()
 	if removeFiles && len(files) > 0 && wasSealed {
-		if !flags.JSON {
-			out.Println(line)
-			out.Printf("This will delete %s from the repository.\n", strings.Join(displayPaths(files), " and "))
+		if !rt.flags.JSON {
+			rt.out.Println(line)
+			rt.out.Printf("This will delete %s from the repository.\n", strings.Join(displayPaths(files), " and "))
 		}
-		if ok, err := confirm("Proceed?", yes); err != nil {
+		if ok, err := confirm(rt, "Proceed?", yes); err != nil {
 			return err
 		} else if !ok {
 			return errors.New("protect unseal cancelled; nothing was deleted")
 		}
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		var gone []string
 		if removeFiles && wasSealed {
 			var err error
@@ -209,16 +209,16 @@ func (p *protectRun) notSealed(prot *state.Protection, removeFiles, yes bool, li
 		return emitJSON(map[string]any{"unsealed": false, "state": st, "files_removed": nonNil(gone), "files_left": displayPaths(leftOver(files, gone))})
 	}
 	if !removeFiles || !wasSealed {
-		out.Println(line)
+		rt.out.Println(line)
 		if removeFiles {
-			out.Println("--remove-files does nothing: this state was never sealed, and the files of the repository belong to a seal that is yet to come.")
+			rt.out.Println("--remove-files does nothing: this state was never sealed, and the files of the repository belong to a seal that is yet to come.")
 		}
 		return nil
 	}
 	if line != "" && (len(files) == 0) {
-		out.Println(line)
+		rt.out.Println(line)
 	}
-	return p.finishFiles(true, false)
+	return p.finishFiles(rt, true, false)
 }
 
 func nonNil(s []string) []string {
@@ -277,7 +277,7 @@ func (p *protectRun) dropFiles(remove bool) ([]string, error) {
 }
 
 // finishFiles says what is left to do about the files of the repository.
-func (p *protectRun) finishFiles(remove, unsealed bool) error {
+func (p *protectRun) finishFiles(rt *runContext, remove, unsealed bool) error {
 	files := p.repoFiles()
 	if remove {
 		gone, err := p.dropFiles(true)
@@ -285,23 +285,23 @@ func (p *protectRun) finishFiles(remove, unsealed bool) error {
 			return err
 		}
 		for _, f := range gone {
-			out.Printf("Removed %s; commit the deletion.\n", f)
+			rt.out.Printf("Removed %s; commit the deletion.\n", f)
 		}
 		if unsealed {
-			out.Println("Destroy the recovery shares, if there were any: they open nothing now.")
+			rt.out.Println("Destroy the recovery shares, if there were any: they open nothing now.")
 		}
 		return nil
 	}
 	if len(files) == 0 {
 		return nil
 	}
-	out.Println("The repository still expects a sealed state, and writers refuse this one (exit code 5) until these are removed:")
+	rt.out.Println("The repository still expects a sealed state, and writers refuse this one (exit code 5) until these are removed:")
 	for _, f := range files {
-		out.Printf("  %s\n", displayPath(f))
+		rt.out.Printf("  %s\n", displayPath(f))
 	}
-	out.Println("Remove them and commit the deletion, or run this again with --remove-files.")
+	rt.out.Println("Remove them and commit the deletion, or run this again with --remove-files.")
 	if unsealed {
-		out.Println("Destroy the recovery shares, if there were any: they open nothing now.")
+		rt.out.Println("Destroy the recovery shares, if there were any: they open nothing now.")
 	}
 	return nil
 }

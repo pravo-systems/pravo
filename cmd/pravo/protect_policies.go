@@ -11,7 +11,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
-func protectPoliciesCmd() *cobra.Command {
+func protectPoliciesCmd(rt *runContext) *cobra.Command {
 	var restore bool
 	cmd := &cobra.Command{
 		Use:   "policies",
@@ -32,18 +32,18 @@ the state. Removing a policy on purpose is not this: remove it from the specific
 apply, as an admin.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			p, err := newProtectRun(cmd)
+			p, err := newProtectRun(rt, cmd)
 			if err != nil {
 				return err
 			}
-			return p.policies(restore)
+			return p.policies(rt, restore)
 		},
 	}
 	cmd.Flags().BoolVar(&restore, "restore", false, "write back the missing versions whose text the specification holds")
 	return cmd
 }
 
-func (p *protectRun) policies(restore bool) error {
+func (p *protectRun) policies(rt *runContext, restore bool) error {
 	if err := p.rf.require(); err != nil {
 		return err
 	}
@@ -51,7 +51,7 @@ func (p *protectRun) policies(restore bool) error {
 	if err != nil {
 		return err
 	}
-	st, id, idErr, err := p.open(b, restore, true)
+	st, id, idErr, err := p.open(rt, b, restore, true)
 	if err != nil {
 		return err
 	}
@@ -70,11 +70,11 @@ func (p *protectRun) policies(restore bool) error {
 		return err
 	}
 	if len(missing) == 0 {
-		out.Println("No policy version that a signed transaction names is missing.")
+		rt.out.Println("No policy version that a signed transaction names is missing.")
 		return nil
 	}
 	for _, m := range missing {
-		out.Printf("missing: %s (sha256:%s), listed by transaction %s\n", m.Display(), m.Digest[:12], m.Txn)
+		rt.out.Printf("missing: %s (sha256:%s), listed by transaction %s\n", m.Display(), m.Digest[:12], m.Txn)
 	}
 	if !restore {
 		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%w: %s missing; pravo protect policies --restore writes them back from the specification", state.ErrUntrusted, plural(len(missing), "policy version is", "policy versions are")))
@@ -90,14 +90,14 @@ func (p *protectRun) policies(restore bool) error {
 	for _, m := range missing {
 		text, ok := texts[m.Digest]
 		if !ok {
-			out.Printf("cannot restore %s: no policy of the specification has that text\n", m.Display())
+			rt.out.Printf("cannot restore %s: no policy of the specification has that text\n", m.Display())
 			left++
 			continue
 		}
 		if err := st.RestorePolicyVersion(p.ctx, m, text, time.Now().UTC()); err != nil {
 			return err
 		}
-		out.Printf("restored %s\n", m.Display())
+		rt.out.Printf("restored %s\n", m.Display())
 	}
 	if left > 0 {
 		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%w: %s not restored", state.ErrUntrusted, plural(left, "version", "versions")))

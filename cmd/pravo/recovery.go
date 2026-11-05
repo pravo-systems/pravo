@@ -262,7 +262,7 @@ func (p *protectRun) storedRecovery() (rec *protect.Recovery, ok bool) {
 // failed. meta.json is written early, so the recovery may be in the store already. Shares
 // of a lock that is there are the only way in, and they stay; so do shares when the store
 // cannot be read to tell. Only shares of a key that the store does not hold are removed.
-func (p *protectRun) afterFailure(rec *protect.Recovery, removeShares func(), rcf recoveryFile) {
+func (p *protectRun) afterFailure(rt *runContext, rec *protect.Recovery, removeShares func(), rcf recoveryFile) {
 	if removeShares == nil {
 		return
 	}
@@ -277,9 +277,9 @@ func (p *protectRun) afterFailure(rec *protect.Recovery, removeShares func(), rc
 		} else {
 			note += fmt.Sprintf(" %s was written; commit it.", rcf.shown())
 		}
-		out.Println(out.C(ui.Yellow, note))
+		rt.out.Println(rt.out.C(ui.Yellow, note))
 	default:
-		out.Println(out.C(ui.Yellow, fmt.Sprintf("Could not tell whether the recovery was set, so the shares stay in %s. Run pravo protect status, and delete them only if the state has no recovery.", recoverySharesDir)))
+		rt.out.Println(rt.out.C(ui.Yellow, fmt.Sprintf("Could not tell whether the recovery was set, so the shares stay in %s. Run pravo protect status, and delete them only if the state has no recovery.", recoverySharesDir)))
 	}
 }
 
@@ -296,18 +296,18 @@ func recoveryJSON(action string, rec *protect.Recovery, rcf recoveryFile, shares
 }
 
 // printShares says where the shares are and what to do with them.
-func printShares(rec *protect.Recovery, shares []protect.Share, rcf recoveryFile) {
-	out.Println()
-	out.Printf("Recovery: %d shares written (any %d rebuild the recovery key):\n", rec.N, rec.K)
-	out.Printf("  ./%s/%s  …  %s\n", recoverySharesDir, shareName(shares[0]), shareName(shares[len(shares)-1]))
-	out.Println("Do not commit them. Give each to a different person, offline. They are written once.")
-	out.Println("Commit the recovery recipient with the readers file:")
-	out.Printf("  %s\n", rcf.shown())
+func printShares(rt *runContext, rec *protect.Recovery, shares []protect.Share, rcf recoveryFile) {
+	rt.out.Println()
+	rt.out.Printf("Recovery: %d shares written (any %d rebuild the recovery key):\n", rec.N, rec.K)
+	rt.out.Printf("  ./%s/%s  …  %s\n", recoverySharesDir, shareName(shares[0]), shareName(shares[len(shares)-1]))
+	rt.out.Println("Do not commit them. Give each to a different person, offline. They are written once.")
+	rt.out.Println("Commit the recovery recipient with the readers file:")
+	rt.out.Printf("  %s\n", rcf.shown())
 }
 
 // ---------- protect recover ----------
 
-func protectRecoverCmd() *cobra.Command {
+func protectRecoverCmd(rt *runContext) *cobra.Command {
 	var shareFiles []string
 	var newSpec string
 	var all, yes bool
@@ -332,11 +332,11 @@ Exit codes: 5 when the shares do not rebuild the recovery key of this state, 6
 when the readers file is missing or invalid.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			p, err := newProtectRun(cmd)
+			p, err := newProtectRun(rt, cmd)
 			if err != nil {
 				return err
 			}
-			return p.recover(shareFiles, newSpec, all, yes)
+			return p.recover(rt, shareFiles, newSpec, all, yes)
 		},
 	}
 	f := cmd.Flags()
@@ -380,8 +380,8 @@ type recoverRun struct {
 	resetRoles bool // the roles are stored again, with the recovering key as an admin
 }
 
-func (p *protectRun) recover(files []string, newSpec string, all, yes bool) error {
-	rr, err := p.openForRecovery(files, newSpec)
+func (p *protectRun) recover(rt *runContext, files []string, newSpec string, all, yes bool) error {
+	rr, err := p.openForRecovery(rt, files, newSpec)
 	if err != nil {
 		return err
 	}
@@ -396,8 +396,8 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 	if err := rr.checkRoles(); err != nil {
 		return err
 	}
-	rr.describe(all, added, removed)
-	if ok, err := confirm("Proceed?", yes); err != nil {
+	rr.describe(rt, all, added, removed)
+	if ok, err := confirm(rt, "Proceed?", yes); err != nil {
 		return err
 	} else if !ok {
 		return errors.New("protect recover cancelled; nothing was written")
@@ -407,7 +407,7 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 			return err
 		}
 	}
-	res, rcf, began, err := rr.rewrap(all)
+	res, rcf, began, err := rr.rewrap(rt, all)
 	if err != nil {
 		return err
 	}
@@ -418,16 +418,16 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 	}
 	var rolesInfo *recoveredRoles
 	if rr.resetRoles {
-		if rolesInfo, err = p.recoverRoles(rr.backend); err != nil {
+		if rolesInfo, err = p.recoverRoles(rt, rr.backend); err != nil {
 			return err
 		}
 	}
-	return rr.report(res, rcf, rolesInfo, all, began)
+	return rr.report(rt, res, rcf, rolesInfo, all, began)
 }
 
 // openForRecovery opens the state without a key, checks that it can be recovered, and rebuilds
 // the recovery key from the shares.
-func (p *protectRun) openForRecovery(files []string, newSpec string) (*recoverRun, error) {
+func (p *protectRun) openForRecovery(rt *runContext, files []string, newSpec string) (*recoverRun, error) {
 	if len(files) == 0 {
 		return nil, errors.New("pass the share files, one --share for each")
 	}
@@ -448,7 +448,7 @@ func (p *protectRun) openForRecovery(files []string, newSpec string) (*recoverRu
 	rr.backend = b
 	rr.locked, err = state.OpenBackendWith(p.ctx, b, state.Options{})
 	if errors.Is(err, state.ErrUntrusted) {
-		return nil, reportUntrusted(err)
+		return nil, reportUntrusted(rt, err)
 	}
 	if err != nil {
 		return nil, err
@@ -503,13 +503,13 @@ func (rr *recoverRun) checkRoles() error {
 }
 
 // describe says what the recovery will do.
-func (rr *recoverRun) describe(all bool, added, removed []string) {
+func (rr *recoverRun) describe(rt *runContext, all bool, added, removed []string) {
 	p := rr.p
-	out.Printf("Recovery key rebuilt from %s.\n", plural(rr.shares, "share", "shares"))
-	out.Printf("%-8s %s  (%s)\n", "Readers", p.rf.shown(), nameList(readerNames(p.rf.Readers)))
-	out.Println("This will:")
+	rt.out.Printf("Recovery key rebuilt from %s.\n", plural(rr.shares, "share", "shares"))
+	rt.out.Printf("%-8s %s  (%s)\n", "Readers", p.rf.shown(), nameList(readerNames(p.rf.Readers)))
+	rt.out.Println("This will:")
 	n := 1
-	step := func(s string) { out.Printf("  %d  %s\n", n, s); n++ }
+	step := func(s string) { rt.out.Printf("  %d  %s\n", n, s); n++ }
 	if len(added) == 0 && len(removed) == 0 {
 		step("keep the readers as they are: the file and the state agree")
 	} else {
@@ -532,7 +532,7 @@ func (rr *recoverRun) describe(all bool, added, removed []string) {
 }
 
 // rewrap opens the state with the recovery key and brings its keys in line with the readers file.
-func (rr *recoverRun) rewrap(all bool) (res state.RewrapResult, rcf recoveryFile, began time.Time, err error) {
+func (rr *recoverRun) rewrap(rt *runContext, all bool) (res state.RewrapResult, rcf recoveryFile, began time.Time, err error) {
 	p, newRec := rr.p, rr.newRec
 	var removeShares func()
 	if newRec != nil {
@@ -543,7 +543,7 @@ func (rr *recoverRun) rewrap(all bool) (res state.RewrapResult, rcf recoveryFile
 	rcf = loadRecoveryFile(p.rf)
 	st, err := state.OpenBackendWith(p.ctx, rr.backend, state.Options{Identity: rr.id})
 	if err != nil {
-		p.afterFailure(newRec, removeShares, rcf)
+		p.afterFailure(rt, newRec, removeShares, rcf)
 		return res, rcf, began, err
 	}
 	began = time.Now()
@@ -559,7 +559,7 @@ func (rr *recoverRun) rewrap(all bool) (res state.RewrapResult, rcf recoveryFile
 			GuardRecovery: true, RecoveryWas: rr.prot.Sealed.Recovery})
 	}
 	if err != nil {
-		p.afterFailure(newRec, removeShares, rcf)
+		p.afterFailure(rt, newRec, removeShares, rcf)
 		if errors.Is(err, state.ErrRecoveryChanged) {
 			return res, rcf, began, engine.WithCode(engine.ExitStale, errors.New("another command changed the recovery of the state while this ran, so this recovery was not set and its shares were removed; run it again"))
 		}
@@ -571,9 +571,9 @@ func (rr *recoverRun) rewrap(all bool) (res state.RewrapResult, rcf recoveryFile
 }
 
 // report says what the recovery did.
-func (rr *recoverRun) report(res state.RewrapResult, rcf recoveryFile, rolesInfo *recoveredRoles, all bool, began time.Time) error {
+func (rr *recoverRun) report(rt *runContext, res state.RewrapResult, rcf recoveryFile, rolesInfo *recoveredRoles, all bool, began time.Time) error {
 	newRec := rr.newRec
-	if flags.JSON {
+	if rt.flags.JSON {
 		j := map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup,
 			"resealed": res.Resealed, "recovery_replaced": newRec != nil}
 		if rolesInfo != nil {
@@ -584,42 +584,42 @@ func (rr *recoverRun) report(res state.RewrapResult, rcf recoveryFile, rolesInfo
 		}
 		return emitJSON(j)
 	}
-	out.Println(out.C(ui.Green, "meta.json updated"))
+	rt.out.Println(rt.out.C(ui.Green, "meta.json updated"))
 	if res.Change.NewGroup != "" && !all {
-		out.Println("New data keys for 1 reader group. Records are sealed again as they are next written.")
+		rt.out.Println("New data keys for 1 reader group. Records are sealed again as they are next written.")
 	}
 	if all {
-		out.Printf("Sealed %s again in %s.\n", counted(res.Resealed, "record", "records"), elapsed(time.Since(began)))
+		rt.out.Printf("Sealed %s again in %s.\n", counted(res.Resealed, "record", "records"), elapsed(time.Since(began)))
 	}
 	if rolesInfo != nil {
-		rr.p.reportRecoveredRoles(rolesInfo)
+		rr.p.reportRecoveredRoles(rt, rolesInfo)
 	}
 	if newRec != nil {
-		printShares(newRec, rr.newShares, rcf)
+		printShares(rt, newRec, rr.newShares, rcf)
 	} else {
-		out.Println(out.C(ui.Yellow, "The recovery key was rebuilt on this machine. Replace it: pravo protect rewrap --recovery K/N"))
+		rt.out.Println(rt.out.C(ui.Yellow, "The recovery key was rebuilt on this machine. Replace it: pravo protect rewrap --recovery K/N"))
 	}
 	return nil
 }
 
 // reportRecoveredRoles says what became of the roles.
-func (p *protectRun) reportRecoveredRoles(rolesInfo *recoveredRoles) {
-	out.Printf("Stored the roles again as version 1, with %s as an admin. Commit %s: it holds the new %s line.\n", rolesInfo.Admin, p.rf.shown(), protect.RolesGenesisKey)
+func (p *protectRun) reportRecoveredRoles(rt *runContext, rolesInfo *recoveredRoles) {
+	rt.out.Printf("Stored the roles again as version 1, with %s as an admin. Commit %s: it holds the new %s line.\n", rolesInfo.Admin, p.rf.shown(), protect.RolesGenesisKey)
 	if rolesInfo.Record {
-		out.Println("The record of the environment pinned the old roles; it pins the new ones now.")
+		rt.out.Println("The record of the environment pinned the old roles; it pins the new ones now.")
 	}
 	if rolesInfo.Withdrawals > 0 {
 		if rolesInfo.Withdrawals == 1 {
-			out.Println("1 release withdrawn by an admin of the old roles stays in force; an admin promotes it again to lift it.")
+			rt.out.Println("1 release withdrawn by an admin of the old roles stays in force; an admin promotes it again to lift it.")
 		} else {
-			out.Printf("%d releases withdrawn by admins of the old roles stay in force; an admin promotes them again to lift them.\n", rolesInfo.Withdrawals)
+			rt.out.Printf("%d releases withdrawn by admins of the old roles stay in force; an admin promotes them again to lift them.\n", rolesInfo.Withdrawals)
 		}
 	}
 	if rolesInfo.WithdrawalsLost != "" {
-		out.Println(out.C(ui.Yellow, "Withdrawals could not be carried over: "+rolesInfo.WithdrawalsLost+". A release that an admin withdrew is open to a writer again; withdraw it again with pravo promote ENV --revoke."))
+		rt.out.Println(rt.out.C(ui.Yellow, "Withdrawals could not be carried over: "+rolesInfo.WithdrawalsLost+". A release that an admin withdrew is open to a writer again; withdraw it again with pravo promote ENV --revoke."))
 	}
 	if len(rolesInfo.Others) > 0 {
-		out.Printf("The readers file also gives admin to %s.\n", nameList(rolesInfo.Others))
+		rt.out.Printf("The readers file also gives admin to %s.\n", nameList(rolesInfo.Others))
 	}
 }
 
@@ -640,8 +640,8 @@ type recoveredRoles struct {
 // first version: the roles of the readers file with the recovering identity as an admin. The
 // readers file is the trust anchor, so its pin is replaced with the digest of the new first
 // version; whoever commits it decides. The state must already be opened to the new readers.
-func (p *protectRun) recoverRoles(b state.Backend) (*recoveredRoles, error) {
-	st, id, idErr, err := p.open(b, true, true)
+func (p *protectRun) recoverRoles(rt *runContext, b state.Backend) (*recoveredRoles, error) {
+	st, id, idErr, err := p.open(rt, b, true, true)
 	if err != nil {
 		return nil, err
 	}
@@ -671,7 +671,7 @@ func (p *protectRun) recoverRoles(b state.Backend) (*recoveredRoles, error) {
 		return nil, err
 	}
 	next, nextFormer := protect.NextRoles(file, nil, nil, seen)
-	vouches, err := newVouches(p.ctx, st, &state.RolesChain{}, nil, next, seen, true)
+	vouches, err := newVouches(p.ctx, rt, st, &state.RolesChain{}, nil, next, seen, true)
 	if err != nil {
 		return nil, err
 	}

@@ -22,7 +22,7 @@ import (
 
 // runPravo runs "pravo -C dir args..." in this process and returns what it
 // printed on standard output and the exit code it would have.
-func runPravo(t *testing.T, dir string, args ...string) (string, int) {
+func runPravo(t *testing.T, rt *runContext, dir string, args ...string) (string, int) {
 	t.Helper()
 	wd, _ := os.Getwd()
 	defer os.Chdir(wd) //nolint:usetesting // the directory is put back after each call, so that a relative path in the next call means what it meant in the first
@@ -31,7 +31,7 @@ func runPravo(t *testing.T, dir string, args ...string) (string, int) {
 	os.Stdout = w
 	done := make(chan []byte)
 	go func() { b, _ := io.ReadAll(r); done <- b }()
-	root := newRootCmd()
+	root := newRootCmd(rt)
 	// main rewrites the single-dash long flags before cobra reads them.
 	root.SetArgs(normaliseArgs(append([]string{"pravo", "-C", dir}, args...))[1:])
 	err := root.Execute()
@@ -76,6 +76,8 @@ func entries(t *testing.T, dir string) []string {
 }
 
 func TestInitInADirectoryWithoutASpecification(t *testing.T) {
+	rt := &runContext{}
+
 	for name, files := range map[string]map[string]string{
 		"empty":     {},
 		"lock file": {"pravo.lock.cue": "providers: \"registry.opentofu.org/hashicorp/random\": version: \"3.0.0\"\n"},
@@ -84,7 +86,7 @@ func TestInitInADirectoryWithoutASpecification(t *testing.T) {
 		for n, c := range files {
 			os.WriteFile(filepath.Join(dir, n), []byte(c), 0o644)
 		}
-		text, code := runPravo(t, dir, "init")
+		text, code := runPravo(t, rt, dir, "init")
 		if code != 0 {
 			t.Fatalf("%s: init exited %d:\n%s", name, code, text)
 		}
@@ -97,26 +99,28 @@ func TestInitInADirectoryWithoutASpecification(t *testing.T) {
 			t.Errorf("%s: no module: %v", name, err)
 		}
 		// The second run has nothing to create and still succeeds.
-		text, code = runPravo(t, dir, "init")
+		text, code = runPravo(t, rt, dir, "init")
 		if code != 0 || strings.Contains(text, "Created") || !strings.Contains(text, "There is no specification yet") {
 			t.Errorf("%s: second init exited %d:\n%s", name, code, text)
 		}
 		// The directory is usable once a file is written.
 		os.WriteFile(filepath.Join(dir, "main.cue"), []byte("package demo\n\nsize: 3\n"), 0o644)
-		if text, code := runPravo(t, dir, "eval"); code != 0 || strings.TrimSpace(text) != "size: 3" {
+		if text, code := runPravo(t, rt, dir, "eval"); code != 0 || strings.TrimSpace(text) != "size: 3" {
 			t.Errorf("%s: eval exited %d:\n%s", name, code, text)
 		}
 	}
 }
 
 func TestEveryCommandReportsAFileOutsideThePackage(t *testing.T) {
+	rt := &runContext{}
+
 	for name, extra := range map[string]string{
 		"x.cue": "size: 4\n",
 		"y.cue": "package other\n\nsize: 4\n",
 	} {
 		dir := specDir(t, map[string]string{"main.cue": "package estate\n\nsize: 3\n", name: extra})
 		for _, args := range [][]string{{"validate"}, {"eval"}, {"plan"}, {"apply", "-auto-approve"}, {"destroy", "-auto-approve"}, {"init"}, {"gen"}} {
-			text, code := runPravo(t, dir, args...)
+			text, code := runPravo(t, rt, dir, args...)
 			if code != int(engine.ExitInvalid) || !strings.Contains(text, name) || !strings.Contains(text, "the other files are package estate") {
 				t.Errorf("pravo %s with %s: exit %d:\n%s", strings.Join(args, " "), name, code, text)
 			}
@@ -128,31 +132,35 @@ func TestEveryCommandReportsAFileOutsideThePackage(t *testing.T) {
 }
 
 func TestErrorsInTheSpecificationExitInvalid(t *testing.T) {
+	rt := &runContext{}
+
 	dir := specDir(t, map[string]string{"main.cue": "package estate\n\nsize: 11\nsize: 3\n"})
 	for _, args := range [][]string{
 		{"validate"}, {"plan"}, {"apply", "-auto-approve"}, {"destroy", "-auto-approve"}, {"eval"}, {"init"}, {"gen"},
 		{"output"}, {"providers"}, {"drift"}, {"why", "a"}, {"import", "a", "b"}, {"state", "list"}, {"state", "show", "a"},
 		{"state", "log"}, {"state", "rm", "a"}, {"state", "query", "1"}, {"mod", "list"},
 	} {
-		text, code := runPravo(t, dir, args...)
+		text, code := runPravo(t, rt, dir, args...)
 		if code != int(engine.ExitInvalid) || !strings.Contains(text, "conflicting values") {
 			t.Errorf("pravo %s: exit %d:\n%s", strings.Join(args, " "), code, text)
 		}
 	}
 	// A failure that is not in the specification keeps its own code.
-	if text, code := runPravo(t, dir, "show", "missing.plan"); code != int(engine.ExitError) {
+	if text, code := runPravo(t, rt, dir, "show", "missing.plan"); code != int(engine.ExitError) {
 		t.Errorf("show of a missing plan file: exit %d:\n%s", code, text)
 	}
 	good := specDir(t, map[string]string{"main.cue": "package estate\n\nsize: 3\n"})
-	if text, code := runPravo(t, good, "output", "nope"); code != int(engine.ExitError) {
+	if text, code := runPravo(t, rt, good, "output", "nope"); code != int(engine.ExitError) {
 		t.Errorf("a missing output: exit %d:\n%s", code, text)
 	}
-	if text, code := runPravo(t, good, "eval", "-c", "-e", "int"); code != int(engine.ExitError) {
+	if text, code := runPravo(t, rt, good, "eval", "-c", "-e", "int"); code != int(engine.ExitError) {
 		t.Errorf("eval -c of a value that is not concrete: exit %d:\n%s", code, text)
 	}
 }
 
 func TestStrayArgumentsAreRefused(t *testing.T) {
+	rt := &runContext{}
+
 	dir := specDir(t, map[string]string{"main.cue": "package estate\n\nsize: 3\n"})
 	for _, args := range [][]string{
 		{"plan", "stray"}, {"validate", "stray"}, {"destroy", "stray"}, {"init", "stray"}, {"gen", "stray"}, {"eval", "stray"},
@@ -160,20 +168,20 @@ func TestStrayArgumentsAreRefused(t *testing.T) {
 		{"providers", "lock", "stray"}, {"state", "stray"}, {"state", "list", "stray"}, {"state", "log", "stray"},
 		{"state", "locks", "stray"}, {"state", "graph", "stray"},
 	} {
-		text, code := runPravo(t, dir, args...)
+		text, code := runPravo(t, rt, dir, args...)
 		if code != int(engine.ExitError) || !strings.Contains(text, "stray") {
 			t.Errorf("pravo %s: exit %d:\n%s", strings.Join(args, " "), code, text)
 		}
 	}
-	text, _ := runPravo(t, dir, "plan", "-refresh", "false")
+	text, _ := runPravo(t, rt, dir, "plan", "-refresh", "false")
 	if !strings.Contains(text, `takes no arguments, but got "false"`) || !strings.Contains(text, "-refresh=false") {
 		t.Errorf("the value of -refresh after a space is explained:\n%s", text)
 	}
-	text, code := runPravo(t, dir, "apply", "-refresh", "false")
+	text, code := runPravo(t, rt, dir, "apply", "-refresh", "false")
 	if code != int(engine.ExitError) || !strings.Contains(text, `"false" is not a plan file`) || !strings.Contains(text, "-refresh=false") {
 		t.Errorf("apply -refresh false: exit %d:\n%s", code, text)
 	}
-	text, _ = runPravo(t, dir, "providers", "shema")
+	text, _ = runPravo(t, rt, dir, "providers", "shema")
 	if !strings.Contains(text, `unknown command "shema" for "pravo providers"`) {
 		t.Errorf("a misspelt subcommand:\n%s", text)
 	}
@@ -182,6 +190,8 @@ func TestStrayArgumentsAreRefused(t *testing.T) {
 // A command whose usage names no argument must reject one: the rule lives on
 // each command, so a new command that forgets it fails here.
 func TestACommandWithoutArgumentsRejectsOne(t *testing.T) {
+	rt := &runContext{}
+
 	var walk func(c *cobra.Command)
 	walk = func(c *cobra.Command) {
 		for _, sub := range c.Commands() {
@@ -198,38 +208,42 @@ func TestACommandWithoutArgumentsRejectsOne(t *testing.T) {
 			t.Errorf("%q takes no arguments and accepts one", c.CommandPath())
 		}
 	}
-	walk(newRootCmd())
+	walk(newRootCmd(rt))
 }
 
 func TestReadOnlyCommandsCreateNoState(t *testing.T) {
+	rt := &runContext{}
+
 	dir := specDir(t, map[string]string{"main.cue": "package estate\n\nsize: 3\n"})
 	for _, args := range [][]string{
 		{"eval"}, {"output"}, {"providers"}, {"validate"},
 		{"state", "list"}, {"state", "log"}, {"state", "locks"}, {"state", "graph"}, {"state", "query", "len(resources)"},
 		{"protect", "status"},
 	} {
-		if text, code := runPravo(t, dir, args...); code != 0 {
+		if text, code := runPravo(t, rt, dir, args...); code != 0 {
 			t.Errorf("pravo %s: exit %d:\n%s", strings.Join(args, " "), code, text)
 		}
 	}
 	for _, args := range [][]string{{"state", "show", "a"}, {"state", "dependents", "a"}} {
-		if text, code := runPravo(t, dir, args...); code != int(engine.ExitError) || !strings.Contains(text, "a is not in state") {
+		if text, code := runPravo(t, rt, dir, args...); code != int(engine.ExitError) || !strings.Contains(text, "a is not in state") {
 			t.Errorf("pravo %s: exit %d:\n%s", strings.Join(args, " "), code, text)
 		}
 	}
 	if got := entries(t, dir); strings.Join(got, ",") != "cue.mod,main.cue" {
 		t.Errorf("the directory holds %v; reading the state must not create it", got)
 	}
-	if text, _ := runPravo(t, dir, "state", "query", "len(resources)"); strings.TrimSpace(text) != "0" {
+	if text, _ := runPravo(t, rt, dir, "state", "query", "len(resources)"); strings.TrimSpace(text) != "0" {
 		t.Errorf("no state reads as an empty one: %q", text)
 	}
-	if text, _ := runPravo(t, dir, "state", "locks"); !strings.Contains(text, "No locks") {
+	if text, _ := runPravo(t, rt, dir, "state", "locks"); !strings.Contains(text, "No locks") {
 		t.Errorf("no state holds no locks: %q", text)
 	}
 }
 
 // A state that exists is read as it is.
 func TestReadOnlyOpenReadsAnExistingState(t *testing.T) {
+	rt := &runContext{}
+
 	dir := specDir(t, map[string]string{"main.cue": "package estate\n\nsize: 3\n"})
 	st, err := state.Open(filepath.Join(dir, "pravo.state"))
 	if err != nil {
@@ -238,14 +252,14 @@ func TestReadOnlyOpenReadsAnExistingState(t *testing.T) {
 	if err := st.Set(&state.Resource{Addr: "bucket", Mode: "managed", Type: "t_bucket", Name: "bucket", Attributes: []byte(`{"id":"b1"}`)}, ""); err != nil {
 		t.Fatal(err)
 	}
-	if text, code := runPravo(t, dir, "state", "list"); code != 0 || strings.TrimSpace(text) != "bucket" {
+	if text, code := runPravo(t, rt, dir, "state", "list"); code != 0 || strings.TrimSpace(text) != "bucket" {
 		t.Errorf("state list: exit %d:\n%s", code, text)
 	}
 	root, err := config.Load(dir, config.LoadOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	ro, err := openStateReadOnly(context.Background(), root)
+	ro, err := openStateReadOnly(context.Background(), rt, root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,6 +277,8 @@ func TestReadOnlyOpenReadsAnExistingState(t *testing.T) {
 }
 
 func TestStateCommandsTakeTags(t *testing.T) {
+	rt := &runContext{}
+
 	dir := specDir(t, map[string]string{"main.cue": `package estate
 
 import "pravo.dev/pravo"
@@ -272,7 +288,7 @@ env: *"dev" | "prod" @tag(env)
 $settings: pravo.#Settings & {state: path: "state/\(env)"}
 `})
 	// pravo.dev/pravo is generated by init.
-	if text, code := runPravo(t, dir, "init"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "init"); code != 0 {
 		t.Fatalf("init exited %d:\n%s", code, text)
 	}
 	st, err := state.Open(filepath.Join(dir, "state", "prod"))
@@ -282,7 +298,7 @@ $settings: pravo.#Settings & {state: path: "state/\(env)"}
 	if err := st.Set(&state.Resource{Addr: "bucket", Mode: "managed", Type: "t_bucket", Name: "bucket", Attributes: []byte(`{"id":"b1"}`)}, ""); err != nil {
 		t.Fatal(err)
 	}
-	if text, _ := runPravo(t, dir, "state", "list"); strings.TrimSpace(text) != "" {
+	if text, _ := runPravo(t, rt, dir, "state", "list"); strings.TrimSpace(text) != "" {
 		t.Errorf("the default environment holds nothing:\n%s", text)
 	}
 	for _, args := range [][]string{
@@ -291,24 +307,24 @@ $settings: pravo.#Settings & {state: path: "state/\(env)"}
 		{"state", "list", "--tag", "env=prod"},
 		{"state", "list", "--tag=env=prod"},
 	} {
-		if text, code := runPravo(t, dir, args...); code != 0 || strings.TrimSpace(text) != "bucket" {
+		if text, code := runPravo(t, rt, dir, args...); code != 0 || strings.TrimSpace(text) != "bucket" {
 			t.Errorf("pravo %s: exit %d:\n%s", strings.Join(args, " "), code, text)
 		}
 	}
 	for _, sub := range [][]string{{"show", "bucket"}, {"log"}, {"locks"}, {"graph"}, {"dependents", "bucket"}, {"query", "len(resources)"}} {
 		args := append(append([]string{"state"}, sub...), "-t", "env=prod")
-		if text, code := runPravo(t, dir, args...); code != 0 {
+		if text, code := runPravo(t, rt, dir, args...); code != 0 {
 			t.Errorf("pravo %s: exit %d:\n%s", strings.Join(args, " "), code, text)
 		}
 	}
 	for _, sub := range [][]string{{"mv", "bucket", "vault"}, {"unlock", "vault"}, {"rm", "vault"}} {
 		args := append(append([]string{"state"}, sub...), "-t", "env=prod")
-		if text, code := runPravo(t, dir, args...); code != 0 {
+		if text, code := runPravo(t, rt, dir, args...); code != 0 {
 			t.Errorf("pravo %s: exit %d:\n%s", strings.Join(args, " "), code, text)
 		}
 	}
 	// The system variables flag is accepted as well.
-	if text, code := runPravo(t, dir, "state", "list", "-T", "-t", "env=prod"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "state", "list", "-T", "-t", "env=prod"); code != 0 {
 		t.Errorf("-T: exit %d:\n%s", code, text)
 	}
 }
@@ -316,6 +332,8 @@ $settings: pravo.#Settings & {state: path: "state/\(env)"}
 // The state of a root may be where a variable says: the $settings block reads
 // a pravo.#Env, also in init, which reads it before the packages exist.
 func TestSettingsReadAnEnvironmentVariable(t *testing.T) {
+	rt := &runContext{}
+
 	dir := specDir(t, map[string]string{"main.cue": `package estate
 
 import "pravo.dev/pravo"
@@ -324,7 +342,7 @@ where: pravo.#Env & {name: "PRAVO_TEST_STATE_DIR", default: "state/dev"}
 
 $settings: pravo.#Settings & {state: path: where.value}
 `})
-	if text, code := runPravo(t, dir, "init"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "init"); code != 0 {
 		t.Fatalf("init exited %d:\n%s", code, text)
 	}
 	st, err := state.Open(filepath.Join(dir, "state", "prod"))
@@ -334,17 +352,19 @@ $settings: pravo.#Settings & {state: path: where.value}
 	if err := st.Set(&state.Resource{Addr: "bucket", Mode: "managed", Type: "t_bucket", Name: "bucket", Attributes: []byte(`{"id":"b1"}`)}, ""); err != nil {
 		t.Fatal(err)
 	}
-	if text, _ := runPravo(t, dir, "state", "list"); strings.TrimSpace(text) != "" {
+	if text, _ := runPravo(t, rt, dir, "state", "list"); strings.TrimSpace(text) != "" {
 		t.Errorf("the default location holds nothing:\n%s", text)
 	}
 	t.Setenv("PRAVO_TEST_STATE_DIR", "state/prod")
-	if text, code := runPravo(t, dir, "state", "list"); code != 0 || strings.TrimSpace(text) != "bucket" {
+	if text, code := runPravo(t, rt, dir, "state", "list"); code != 0 || strings.TrimSpace(text) != "bucket" {
 		t.Errorf("state list with the variable set: exit %d:\n%s", code, text)
 	}
 }
 
 // pravo fmt must have nothing to do right after pravo init wrote the lock.
 func TestLockFileIsWrittenFormatted(t *testing.T) {
+	rt := &runContext{}
+
 	dir := t.TempDir()
 	lock := &engine.Lock{
 		Providers: map[string]*engine.LockEntry{
@@ -374,13 +394,15 @@ func TestLockFileIsWrittenFormatted(t *testing.T) {
 	if err != nil || back.Providers["registry.opentofu.org/hashicorp/random"].Constraints != ">= 3.0" || back.Modules["github.com/acme/vpc@v1"].Hash != "sha256:cc" {
 		t.Errorf("the formatted file reads back as %+v, %v", back, err)
 	}
-	if text, code := runPravo(t, dir, "fmt"); code != 0 || text != "" {
+	if text, code := runPravo(t, rt, dir, "fmt"); code != 0 || text != "" {
 		t.Errorf("fmt after the lock was written: exit %d, printed %q", code, text)
 	}
 }
 
 // init regenerates the packages it warns about elsewhere, so it does not warn.
 func TestInitDoesNotWarnAboutSchemasItRegenerates(t *testing.T) {
+	rt := &runContext{}
+
 	dir := specDir(t, map[string]string{
 		"main.cue": "package estate\n\nimport dev \"pravo.dev/providers/x/dev\"\n\n$dev: dev.#Provider & {$protocol: \"tfplugin+reattach\", $address: \"tcp://127.0.0.1:4711\"}\n",
 		// A package made from another version than the one selected.
@@ -390,15 +412,15 @@ func TestInitDoesNotWarnAboutSchemasItRegenerates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stdout := out
-	defer func() { out = stdout }()
+	stdout := rt.out
+	defer func() { rt.out = stdout }()
 	for name, opts := range map[string]sessionOptions{
 		"another command": {root: root},
 		"init and gen":    {root: root, regenerates: true},
 	} {
 		var buf bytes.Buffer
-		out = ui.NewPrinter(&buf, true)
-		s, err := newSession(context.Background(), opts)
+		rt.out = ui.NewPrinter(&buf, true)
+		s, err := newSession(context.Background(), rt, opts)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
@@ -413,24 +435,26 @@ func TestInitDoesNotWarnAboutSchemasItRegenerates(t *testing.T) {
 // A saved plan whose only change is an output records it, once. The plan shows
 // the new value, and the apply of the file writes it.
 func TestSavedPlanOfAnOutputIsApplied(t *testing.T) {
+	rt := &runContext{}
+
 	spec := "package estate\n\nimport \"pravo.dev/pravo\"\n\nlabel: *\"a\" | string @tag(label)\n\nshown: pravo.#Output & {value: label}\n"
 	dir := specDir(t, map[string]string{"main.cue": spec})
 	for _, args := range [][]string{{"init"}, {"apply", "--auto-approve"}} {
-		if text, code := runPravo(t, dir, args...); code != 0 {
+		if text, code := runPravo(t, rt, dir, args...); code != 0 {
 			t.Fatalf("pravo %s exited %d:\n%s", strings.Join(args, " "), code, text)
 		}
 	}
-	if text, code := runPravo(t, dir, "plan", "-t", "label=b", "--out", "change.plan"); code != 0 || !strings.Contains(text, `shown: "a" → "b"`) {
+	if text, code := runPravo(t, rt, dir, "plan", "-t", "label=b", "--out", "change.plan"); code != 0 || !strings.Contains(text, `shown: "a" → "b"`) {
 		t.Fatalf("plan --out exited %d:\n%s", code, text)
 	}
-	text, code := runPravo(t, dir, "apply", "change.plan")
+	text, code := runPravo(t, rt, dir, "apply", "change.plan")
 	if code != 0 || !strings.Contains(text, "Apply complete!") || !strings.Contains(text, "1 output, 1 changed (shown).") {
 		t.Fatalf("apply of the file exited %d:\n%s", code, text)
 	}
-	if text, code := runPravo(t, dir, "output", "shown"); code != 0 || strings.TrimSpace(text) != `"b"` {
+	if text, code := runPravo(t, rt, dir, "output", "shown"); code != 0 || strings.TrimSpace(text) != `"b"` {
 		t.Fatalf("output exited %d:\n%s", code, text)
 	}
-	if text, code := runPravo(t, dir, "apply", "change.plan"); code != 0 || !strings.Contains(text, "nothing left to apply") {
+	if text, code := runPravo(t, rt, dir, "apply", "change.plan"); code != 0 || !strings.Contains(text, "nothing left to apply") {
 		t.Fatalf("a second apply of the file exited %d:\n%s", code, text)
 	}
 }
@@ -438,16 +462,18 @@ func TestSavedPlanOfAnOutputIsApplied(t *testing.T) {
 // An apply says how many outputs there are and which changed. It does not print
 // their values: the log of an apply is kept.
 func TestApplySummarisesOutputsWithoutTheirValues(t *testing.T) {
+	rt := &runContext{}
+
 	spec := "package estate\n\nimport \"pravo.dev/pravo\"\n\nlabel: *\"a-value\" | string @tag(label)\n\nshown: pravo.#Output & {value: label}\nsteady: pravo.#Output & {value: \"unchanging\"}\n"
 	dir := specDir(t, map[string]string{"main.cue": spec})
-	if text, code := runPravo(t, dir, "init"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "init"); code != 0 {
 		t.Fatalf("init exited %d:\n%s", code, text)
 	}
 	// A plan that only records outputs is applied from a file.
-	if text, code := runPravo(t, dir, "plan", "--out", "first.plan"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "plan", "--out", "first.plan"); code != 0 {
 		t.Fatalf("plan --out exited %d:\n%s", code, text)
 	}
-	text, code := runPravo(t, dir, "apply", "first.plan")
+	text, code := runPravo(t, rt, dir, "apply", "first.plan")
 	if code != 0 || !strings.Contains(text, `2 outputs, 2 changed (shown, steady). See them with "pravo output" or "pravo serve".`) {
 		t.Fatalf("first apply exited %d:\n%s", code, text)
 	}
@@ -455,10 +481,10 @@ func TestApplySummarisesOutputsWithoutTheirValues(t *testing.T) {
 	if strings.Contains(after, "a-value") || strings.Contains(after, "unchanging") || strings.Contains(after, "Outputs:") {
 		t.Errorf("the apply printed output values after it finished:\n%s", after)
 	}
-	if text, code := runPravo(t, dir, "plan", "-t", "label=b-value", "--out", "second.plan"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "plan", "-t", "label=b-value", "--out", "second.plan"); code != 0 {
 		t.Fatalf("plan --out exited %d:\n%s", code, text)
 	}
-	text, code = runPravo(t, dir, "apply", "second.plan")
+	text, code = runPravo(t, rt, dir, "apply", "second.plan")
 	if code != 0 || !strings.Contains(text, "2 outputs, 1 changed (shown).") {
 		t.Fatalf("second apply exited %d:\n%s", code, text)
 	}

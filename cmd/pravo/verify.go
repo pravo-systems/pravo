@@ -12,7 +12,7 @@ import (
 
 // verifyCmd checks the receipt of an apply: the signed start of its transaction names the
 // plan it judged and the policy versions that judged it.
-func verifyCmd() *cobra.Command {
+func verifyCmd(rt *runContext) *cobra.Command {
 	var planFile string
 	cmd := &cobra.Command{
 		Use:   "verify <txn>",
@@ -23,12 +23,12 @@ func verifyCmd() *cobra.Command {
 			var pf *engine.PlanFile
 			if planFile != "" {
 				var err error
-				if pf, err = readPlanFile(ctx, planFile); err != nil {
+				if pf, err = readPlanFile(ctx, rt, planFile); err != nil {
 					return err
 				}
-				flags.Tags, flags.SysTags = pf.Tags, pf.SysTags
+				rt.flags.Tags, rt.flags.SysTags = pf.Tags, pf.SysTags
 			}
-			s, err := newSession(ctx, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
+			s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
 			if err != nil {
 				return err
 			}
@@ -55,32 +55,32 @@ func verifyCmd() *cobra.Command {
 					return fmt.Errorf("the plan %s of transaction %s is not available (give the plan file with --plan): %w", t.PlanID, t.ID, err)
 				}
 			}
-			eng := s.engine(engine.Options{Refresh: engine.RefreshNone})
+			eng := s.engine(rt, engine.Options{Refresh: engine.RefreshNone})
 			rc, err := eng.VerifyReceipt(ctx, &t, pf)
 			if err != nil {
 				return err
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				return emitJSON(rc)
 			}
-			out.Printf("%s %s\n", out.C(ui.Bold, "Transaction"), rc.Txn)
-			out.Printf("  signed by %s, pravo %s\n", rc.Signer, rc.Version)
-			out.Printf("  plan      sha256:%s\n", rc.Digest)
+			rt.out.Printf("%s %s\n", rt.out.C(ui.Bold, "Transaction"), rc.Txn)
+			rt.out.Printf("  signed by %s, pravo %s\n", rc.Signer, rc.Version)
+			rt.out.Printf("  plan      sha256:%s\n", rc.Digest)
 			switch {
 			case !rc.Judged:
-				out.Println("  no resource was changed, so no policy judged it")
+				rt.out.Println("  no resource was changed, so no policy judged it")
 			case len(rc.Policies) == 0:
-				out.Println("  no policy was in force")
+				rt.out.Println("  no policy was in force")
 			default:
-				out.Printf("  judged by %d policy versions:\n", len(rc.Policies))
+				rt.out.Printf("  judged by %d policy versions:\n", len(rc.Policies))
 				for _, p := range rc.Policies {
-					out.Printf("    %s\n", p)
+					rt.out.Printf("    %s\n", p)
 				}
 			}
 			if rc.Unknown > 0 {
-				out.Printf("  %d of them were signed by a key that is not in the readers file\n", rc.Unknown)
+				rt.out.Printf("  %d of them were signed by a key that is not in the readers file\n", rc.Unknown)
 			}
-			out.Println(out.C(ui.Bold+ui.Green, "Verified."))
+			rt.out.Println(rt.out.C(ui.Bold+ui.Green, "Verified."))
 			return nil
 		},
 	}

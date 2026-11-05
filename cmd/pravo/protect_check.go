@@ -13,7 +13,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/ui"
 )
 
-func protectCheckCmd() *cobra.Command {
+func protectCheckCmd(rt *runContext) *cobra.Command {
 	var allowLocal bool
 	cmd := &cobra.Command{
 		Use:   "check",
@@ -31,18 +31,18 @@ Exit codes: 4 when a command is running or a lock is held, 6 when the readers
 file is missing or invalid.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			p, err := newProtectRun(cmd)
+			p, err := newProtectRun(rt, cmd)
 			if err != nil {
 				return err
 			}
-			return p.check(allowLocal)
+			return p.check(rt, allowLocal)
 		},
 	}
 	cmd.Flags().BoolVar(&allowLocal, "allow-local", false, "accept a state in a local directory that only you use")
 	return cmd
 }
 
-func (p *protectRun) check(allowLocal bool) error {
+func (p *protectRun) check(rt *runContext, allowLocal bool) error {
 	if err := p.refuseLocal(allowLocal); err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func (p *protectRun) check(allowLocal bool) error {
 	if err != nil {
 		return err
 	}
-	st, _, _, err := p.open(b, false, false)
+	st, _, _, err := p.open(rt, b, false, false)
 	if err != nil {
 		return err
 	}
@@ -58,24 +58,24 @@ func (p *protectRun) check(allowLocal bool) error {
 	res := checkResult{Store: p.location(), Format: prot.Format, Records: prot.Records}
 	if prot.State == "sealed" {
 		res.Sealed = true
-		if flags.JSON {
+		if rt.flags.JSON {
 			return emitJSON(res)
 		}
-		out.Println("Already sealed. Use pravo protect status.")
+		rt.out.Println("Already sealed. Use pravo protect status.")
 		return nil
 	}
 	if prot.State == "unsealing" {
-		if flags.JSON {
+		if rt.flags.JSON {
 			return emitJSON(res)
 		}
-		out.Println("The state is being unsealed: it was started and did not finish. Finish it with pravo protect unseal.")
+		rt.out.Println("The state is being unsealed: it was started and did not finish. Finish it with pravo protect unseal.")
 		return nil
 	}
-	out.Printf("%-16s %s\n", "Store", p.storeLine())
-	cond, err := p.probeLines(b)
-	out.Printf("%-16s %s\n", "Conditional", cond[0])
+	rt.out.Printf("%-16s %s\n", "Store", p.storeLine())
+	cond, err := p.probeLines(rt, b)
+	rt.out.Printf("%-16s %s\n", "Conditional", cond[0])
 	if cond[1] != "" {
-		out.Printf("%-16s %s\n", "", cond[1])
+		rt.out.Printf("%-16s %s\n", "", cond[1])
 	}
 	if err != nil {
 		return err
@@ -95,15 +95,15 @@ func (p *protectRun) check(allowLocal bool) error {
 	if prot.State == "unsealing" && prot.Migration != nil {
 		line += fmt.Sprintf(" · unsealing began, %s of %s records done", commas(prot.Migration.Done), commas(prot.Migration.Total))
 	}
-	out.Printf("%-16s %s\n", "State", line)
+	rt.out.Printf("%-16s %s\n", "State", line)
 	rf := p.rf
 	switch {
 	case !rf.Found:
-		out.Printf("%-16s not found (looked in %s)\n", "Readers file", rf.shownDir())
+		rt.out.Printf("%-16s not found (looked in %s)\n", "Readers file", rf.shownDir())
 	case rf.Err != nil:
-		out.Printf("%-16s %s · invalid: %s\n", "Readers file", rf.shown(), rf.problem())
+		rt.out.Printf("%-16s %s · invalid: %s\n", "Readers file", rf.shown(), rf.problem())
 	default:
-		out.Printf("%-16s %s · %s (%s)\n", "Readers file", rf.shown(), plural(len(rf.Readers), "reader", "readers"), nameList(readerNames(rf.Readers)))
+		rt.out.Printf("%-16s %s · %s (%s)\n", "Readers file", rf.shown(), plural(len(rf.Readers), "reader", "readers"), nameList(readerNames(rf.Readers)))
 		res.Readers = readerNames(rf.Readers)
 	}
 	running, locks, err := activity(st, txns)
@@ -111,12 +111,12 @@ func (p *protectRun) check(allowLocal bool) error {
 		return err
 	}
 	res.Running, res.Locks = running, locks
-	out.Printf("%-16s %s · %s held\n", "Running", plural(running, "transaction", "transactions"), plural(locks, "lock", "locks"))
-	out.Printf("%-16s %s\n", "Machines", machines(txns, time.Now()))
+	rt.out.Printf("%-16s %s · %s held\n", "Running", plural(running, "transaction", "transactions"), plural(locks, "lock", "locks"))
+	rt.out.Printf("%-16s %s\n", "Machines", machines(txns, time.Now()))
 	switch {
 	case !rf.Found || rf.Err != nil || len(rf.Readers) == 0:
 		res.NotReady = "readers file"
-		if flags.JSON {
+		if rt.flags.JSON {
 			if e := emitJSON(res); e != nil {
 				return e
 			}
@@ -125,8 +125,8 @@ func (p *protectRun) check(allowLocal bool) error {
 		return engine.WithCode(engine.ExitInvalid, errSilent)
 	case running > 0 || locks > 0:
 		res.NotReady = "running"
-		out.Println(out.C(ui.Red, "Not ready: wait for them, or release stale locks with pravo state unlock --stale."))
-		if flags.JSON {
+		rt.out.Println(rt.out.C(ui.Red, "Not ready: wait for them, or release stale locks with pravo state unlock --stale."))
+		if rt.flags.JSON {
 			if e := emitJSON(res); e != nil {
 				return e
 			}
@@ -134,8 +134,8 @@ func (p *protectRun) check(allowLocal bool) error {
 		return engine.WithCode(engine.ExitLocked, errSilent)
 	}
 	res.Ready = true
-	out.Println(out.C(ui.Green, "Ready to seal. Next: pravo protect init --encrypt"))
-	if flags.JSON {
+	rt.out.Println(rt.out.C(ui.Green, "Ready to seal. Next: pravo protect init --encrypt"))
+	if rt.flags.JSON {
 		return emitJSON(res)
 	}
 	return nil
@@ -143,7 +143,7 @@ func (p *protectRun) check(allowLocal bool) error {
 
 // probeLines runs the probes of an S3 or http store and returns the two lines of
 // "Conditional", and the error of the first check that failed.
-func (p *protectRun) probeLines(b state.Backend) ([2]string, error) {
+func (p *protectRun) probeLines(rt *runContext, b state.Backend) ([2]string, error) {
 	sb, ok := b.(state.Prober)
 	if !ok {
 		return [2]string{"a local directory: compare-and-swap is a lock of one user (--allow-local)"}, nil
@@ -157,7 +157,7 @@ func (p *protectRun) probeLines(b state.Backend) ([2]string, error) {
 		switch {
 		case err != nil:
 			failed = true
-			first = append(first, short[check]+" "+out.C(ui.Red, "FAILED"))
+			first = append(first, short[check]+" "+rt.out.C(ui.Red, "FAILED"))
 		case check != state.ProbeChecks[3]:
 			first = append(first, short[check]+" ok")
 		}
@@ -175,11 +175,11 @@ func (p *protectRun) probeLines(b state.Backend) ([2]string, error) {
 		case check == state.StrictChecks[0] && err == nil:
 			second = append(second, "8 concurrent replaces: 1 winner")
 		case check == state.StrictChecks[0]:
-			second = append(second, "8 concurrent replaces: "+out.C(ui.Red, "FAILED"))
+			second = append(second, "8 concurrent replaces: "+rt.out.C(ui.Red, "FAILED"))
 		case err == nil:
 			second = append(second, "listing sees a new key at once")
 		default:
-			second = append(second, "listing after a put: "+out.C(ui.Red, "FAILED"))
+			second = append(second, "listing after a put: "+rt.out.C(ui.Red, "FAILED"))
 		}
 	})
 	return [2]string{strings.Join(first, " · "), strings.Join(second, " · ")}, err

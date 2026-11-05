@@ -27,7 +27,7 @@ import (
 	"github.com/pravo-systems/pravo/pravo"
 )
 
-func serveCmd() *cobra.Command {
+func serveCmd(rt *runContext) *cobra.Command {
 	var port int
 	var noOpen bool
 	var planFile string
@@ -61,40 +61,19 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			}
 			// The directory of the readers file that the flag or the variable names; without one,
 			// each environment reads the one its settings name, else the one found by default.
-			explicit := flags.AccessDir
+			explicit := rt.flags.AccessDir
 			if explicit == "" {
 				explicit, _ = environment().Lookup("PRAVO_ACCESS_DIR")
 			}
-			v := &viewerState{name: flags.Identity, dir: dir, accessDir: loadReadersFile(dir, flags.AccessDir).Dir, explicitAccess: explicit}
+			v := &viewerState{name: rt.flags.Identity, dir: dir, accessDir: loadReadersFile(dir, rt.flags.AccessDir).Dir, explicitAccess: explicit}
 			defer v.close()
-			opts := serve.Options{Dir: dir, Env: environment(), Tags: flags.Tags, SysTags: flags.SysTags, Version: Version, OpenState: v.open, Protection: v.protection, AccessDir: explicit, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, SecretRules: v.secretRules, VerifyPlan: v.verifyPlan,
-				Environments: viewerEnvironments}
-			if isStoredRef(planFile) {
-				// The id of a plan in the state (a file of that name wins). The plan is
-				// looked up when the state is read, with the tags given here.
-				opts.PlanID = planFile
-			} else if planFile != "" {
-				// A sealed plan file opens with the key of a reader, which the viewer has
-				// once it has opened the state: its tags are not read here.
-				sealed, err := engine.PlanFileSealed(planFile)
-				if err != nil {
-					return err
-				}
-				var pf *engine.PlanFile
-				if !sealed {
-					if pf, err = engine.ReadPlanFile(planFile); err != nil {
-						return err
-					}
-				}
-				abs, err := filepath.Abs(planFile)
-				if err != nil {
-					return err
-				}
-				opts.PlanFile = abs
-				if pf != nil && len(flags.Tags) == 0 && !flags.SysTags {
-					// The plan was made with these values; the specification is read with them.
-					opts.Tags, opts.SysTags = pf.Tags, pf.SysTags
-				}
+			opts := serve.Options{Dir: dir, Env: environment(), Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Version: Version, Protection: v.protection, AccessDir: explicit, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, SecretRules: v.secretRules, VerifyPlan: v.verifyPlan}
+			opts.OpenState = func(ctx context.Context, root *config.Root) (*state.Store, error) { return v.open(ctx, rt, root) }
+			opts.Environments = func(ctx context.Context, root *config.Root) (*serve.Environments, error) {
+				return viewerEnvironments(ctx, rt, root)
+			}
+			if err := servePlan(rt, &opts, planFile); err != nil {
+				return err
 			}
 			co, err := chatOptions(chatProvider, chatModel, chatEndpoint)
 			if err != nil {
@@ -115,19 +94,19 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			}
 			url := srv.URL(ln.Addr())
 			if opts.Chat != nil {
-				out.Printf("pravo serve: chat on: %s %s via %s (reads only, sends the viewer's redacted views)\n", opts.Chat.Name, opts.Chat.Model, opts.Chat.Host)
+				rt.out.Printf("pravo serve: chat on: %s %s via %s (reads only, sends the viewer's redacted views)\n", opts.Chat.Name, opts.Chat.Model, opts.Chat.Host)
 			}
 			if d := srv.StateDescription(); d != "" {
-				out.Printf("pravo serve: reading state from %s\n", d)
+				rt.out.Printf("pravo serve: reading state from %s\n", d)
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				emitLine(map[string]any{"url": url, "token": srv.Token(), "port": ln.Addr().(*net.TCPAddr).Port})
 			} else {
-				out.Printf("pravo serve: %s\n", url)
+				rt.out.Printf("pravo serve: %s\n", url)
 			}
 			if !noOpen {
 				if err := openBrowser(url); err != nil {
-					out.Warning("could not open a browser: " + err.Error() + ". Open the address above.")
+					rt.out.Warning("could not open a browser: " + err.Error() + ". Open the address above.")
 				}
 			}
 			// The first signal cancels the context of the command; the server then
@@ -141,9 +120,41 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 	cmd.Flags().StringVar(&chatProvider, "chat", "", "turn on the read-only assistant: anthropic or openai-compatible, or off ($PRAVO_CHAT, also provider:model)")
 	cmd.Flags().StringVar(&chatModel, "chat-model", "", "the model the assistant asks ($PRAVO_CHAT_MODEL)")
 	cmd.Flags().StringVar(&chatEndpoint, "chat-endpoint", "", "the base URL of an openai-compatible provider, such as http://localhost:11434/v1 ($PRAVO_CHAT_ENDPOINT)")
-	addTagFlags(cmd)
-	addAccessDirFlag(cmd)
+	addTagFlags(rt, cmd)
+	addAccessDirFlag(rt, cmd)
 	return cmd
+}
+
+// servePlan puts the plan that --plan names into the options of the viewer: the id of a plan in the state, or a plan file.
+func servePlan(rt *runContext, opts *serve.Options, planFile string) error {
+	if isStoredRef(planFile) {
+		// The id of a plan in the state (a file of that name wins). The plan is
+		// looked up when the state is read, with the tags given here.
+		opts.PlanID = planFile
+	} else if planFile != "" {
+		// A sealed plan file opens with the key of a reader, which the viewer has
+		// once it has opened the state: its tags are not read here.
+		sealed, err := engine.PlanFileSealed(planFile)
+		if err != nil {
+			return err
+		}
+		var pf *engine.PlanFile
+		if !sealed {
+			if pf, err = engine.ReadPlanFile(planFile); err != nil {
+				return err
+			}
+		}
+		abs, err := filepath.Abs(planFile)
+		if err != nil {
+			return err
+		}
+		opts.PlanFile = abs
+		if pf != nil && len(rt.flags.Tags) == 0 && !rt.flags.SysTags {
+			// The plan was made with these values; the specification is read with them.
+			opts.Tags, opts.SysTags = pf.Tags, pf.SysTags
+		}
+	}
+	return nil
 }
 
 // chatOptions makes the assistant of the viewer from the flags and, for what a flag leaves out, the environment of this
@@ -272,7 +283,7 @@ func (v *viewerState) setRefused(on bool) (changed bool) {
 // openWith opens the store read-only with the identity. An identity that is not a
 // reader of the state is not an error for the viewer: the store opens without a
 // key, which lists the resources and shows no value.
-func (v *viewerState) openWith(ctx context.Context, b state.Backend, id *protect.Identity) (*state.Store, error) {
+func (v *viewerState) openWith(ctx context.Context, rt *runContext, b state.Backend, id *protect.Identity) (*state.Store, error) {
 	open := v.openStore
 	if open == nil {
 		open = state.OpenBackendWith
@@ -285,7 +296,7 @@ func (v *viewerState) openWith(ctx context.Context, b state.Backend, id *protect
 			return st, nil
 		case errors.Is(err, state.ErrNotReader):
 			if v.setRefused(true) {
-				out.Warning("the identity " + id.Name + " is not a reader of the state, so resources are listed and no value is shown.")
+				rt.out.Warning("the identity " + id.Name + " is not a reader of the state, so resources are listed and no value is shown.")
 			}
 		default:
 			return nil, err
@@ -306,7 +317,7 @@ func (v *viewerState) started() {
 // an identity that cannot be used gets an error before the server listens; one
 // who names none, and has none, gets a viewer that lists the resources and
 // shows no value, and so does anyone once the server listens.
-func (v *viewerState) resolve(readers ...protect.ReaderPublic) error {
+func (v *viewerState) resolve(rt *runContext, readers ...protect.ReaderPublic) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.resolved {
@@ -314,21 +325,21 @@ func (v *viewerState) resolve(readers ...protect.ReaderPublic) error {
 	}
 	v.resolved = true
 	if v.name == "none" {
-		out.Printf("pravo serve: the state is sealed; reading it with no identity\n")
+		rt.out.Printf("pravo serve: the state is sealed; reading it with no identity\n")
 		return nil
 	}
 	id, err := resolveIdentity(identityOptions{Name: v.name, Prompt: !v.listening, Readers: readers})
 	switch {
 	case err == nil:
 		v.ident = id
-		out.Printf("pravo serve: the state is sealed; using the identity %s\n", id.Name)
+		rt.out.Printf("pravo serve: the state is sealed; using the identity %s\n", id.Name)
 	case errors.Is(err, errNoIdentity) && (v.name == "" || v.listening):
-		out.Warning("the state is sealed and no identity was found, so resources are listed and no value is shown. Start the viewer with --identity NAME.")
+		rt.out.Warning("the state is sealed and no identity was found, so resources are listed and no value is shown. Start the viewer with --identity NAME.")
 	case (v.name == "" || v.listening) && strings.Contains(err.Error(), "sealed with a passphrase"):
 		v.locked = true
-		out.Warning("the identity is sealed with a passphrase and none was available, so resources are listed and no value is shown. Run the viewer in a terminal, or set PRAVO_PASSPHRASE.")
+		rt.out.Warning("the identity is sealed with a passphrase and none was available, so resources are listed and no value is shown. Run the viewer in a terminal, or set PRAVO_PASSPHRASE.")
 	case v.listening:
-		out.Warning("the state is sealed and the identity could not be used, so resources are listed and no value is shown: " + err.Error())
+		rt.out.Warning("the state is sealed and the identity could not be used, so resources are listed and no value is shown: " + err.Error())
 	default:
 		v.resolved = false
 		return err
@@ -339,7 +350,7 @@ func (v *viewerState) resolve(readers ...protect.ReaderPublic) error {
 // open opens the state for reading. The first look is without a key: only a state
 // that turns out to be sealed asks for the identity, so that a plain state never
 // asks for a passphrase.
-func (v *viewerState) open(ctx context.Context, root *config.Root) (*state.Store, error) {
+func (v *viewerState) open(ctx context.Context, rt *runContext, root *config.Root) (*state.Store, error) {
 	v.mu.Lock()
 	v.root = root
 	v.mu.Unlock()
@@ -359,16 +370,16 @@ func (v *viewerState) open(ctx context.Context, root *config.Root) (*state.Store
 	}
 	began := time.Now()
 	id, _, resolved := v.identity()
-	st, err := v.openWith(ctx, b, id)
+	st, err := v.openWith(ctx, rt, b, id)
 	if err != nil {
 		return nil, err
 	}
 	if !resolved && isProtected(st.Protection()) {
-		if err := v.resolve(pravo.CurrentReaders(st.Protection())...); err != nil {
+		if err := v.resolve(rt, pravo.CurrentReaders(st.Protection())...); err != nil {
 			return nil, err
 		}
 		if id, _, _ = v.identity(); id != nil {
-			if st, err = v.openWith(ctx, b, id); err != nil {
+			if st, err = v.openWith(ctx, rt, b, id); err != nil {
 				return nil, err
 			}
 		}
@@ -636,12 +647,12 @@ func (v *viewerState) readersFile() readersFile {
 
 // viewerEnvironments reads the promotion flow for the Environments page of the viewer, as "pravo
 // environments" does: without a key, writing nothing.
-func viewerEnvironments(ctx context.Context, root *config.Root) (*serve.Environments, error) {
+func viewerEnvironments(ctx context.Context, rt *runContext, root *config.Root) (*serve.Environments, error) {
 	rel, err := engine.ReleaseOf(root)
 	if err != nil {
 		return nil, err
 	}
-	rows := readEnvironmentRows(ctx, root, rel)
+	rows := readEnvironmentRows(ctx, rt, root, rel)
 	next := nextStep(root, rows)
 	doc := &serve.Environments{Next: next, Release: serve.EnvironmentRelease{Fingerprint: rel.Fingerprint, Tags: []string{}}, Environments: []serve.EnvironmentEntry{}}
 	for name := range rel.Tags {

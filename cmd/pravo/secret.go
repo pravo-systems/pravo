@@ -34,7 +34,7 @@ var (
 	askSecretValue = func(prompt string) ([]byte, error) { return protect.PassphraseFromTerminal(prompt, true) }
 )
 
-func secretCmd() *cobra.Command {
+func secretCmd(rt *runContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "secret",
 		Short: "Keep secrets in the sealed state and use them in runs",
@@ -62,12 +62,12 @@ parts, such as prod/db_password.`,
 		RunE: func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
 	pf := cmd.PersistentFlags()
-	pf.StringVar(&flags.AccessDir, "access-dir", "", accessDirUsage)
+	pf.StringVar(&rt.flags.AccessDir, "access-dir", "", accessDirUsage)
 	// The tags select the state, so the commands that open it take them too.
-	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
-	addEnvFlag(pf)
-	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
-	cmd.AddCommand(secretSetCmd(), secretGetCmd(), secretListCmd(), secretHistoryCmd(), secretRmCmd(), secretPurgeCmd(), secretExecCmd())
+	pf.StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
+	addEnvFlag(rt, pf)
+	pf.BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
+	cmd.AddCommand(secretSetCmd(rt), secretGetCmd(rt), secretListCmd(rt), secretHistoryCmd(rt), secretRmCmd(rt), secretPurgeCmd(rt), secretExecCmd(rt))
 	return cmd
 }
 
@@ -93,33 +93,33 @@ type secretRun struct {
 	rules state.RecordRules
 }
 
-func openSecrets(cmd *cobra.Command, access secretAccess) (*secretRun, error) {
+func openSecrets(rt *runContext, cmd *cobra.Command, access secretAccess) (*secretRun, error) {
 	ctx := cmd.Context()
-	root, err := loadRoot()
+	root, err := loadRoot(rt)
 	if err != nil {
 		return nil, err
 	}
-	rf := readersOf(root)
+	rf := readersOf(rt, root)
 	if access == secretWrite && stateMissing(ctx, root) {
 		// Opening a store for writing would make one, and a first writer makes it in the clear.
 		if rf.Found {
-			return nil, engine.WithCode(engine.ExitRefused, errors.New(missingStateProblemOf(ctx, root, rf)))
+			return nil, engine.WithCode(engine.ExitRefused, errors.New(missingStateProblemOf(ctx, rt, root, rf)))
 		}
 		return nil, engine.WithCode(engine.ExitRefused, fmt.Errorf("%w: there is no state yet. Seal one first: list the readers in %s (pravo id new prints a line) and run pravo protect init --encrypt", state.ErrSecretsNeedSeal, rf.shownDir()))
 	}
 	var st *state.Store
 	switch access {
 	case secretWrite:
-		st, err = openStateStore(ctx, root)
+		st, err = openStateStore(ctx, rt, root)
 	case secretRead:
-		st, err = openStateValues(ctx, root)
+		st, err = openStateValues(ctx, rt, root)
 	default:
-		st, err = openStateReadOnly(ctx, root)
+		st, err = openStateReadOnly(ctx, rt, root)
 	}
 	if err != nil {
 		return nil, secretErr(err)
 	}
-	st.SetActor(flags.Actor, flags.Reason, pravo.GitRevision(root.Dir))
+	st.SetActor(rt.flags.Actor, rt.flags.Reason, pravo.GitRevision(root.Dir))
 	eff, rs, err := rf.withRoles(st)
 	if err != nil {
 		st.Close()
@@ -176,7 +176,7 @@ func secretCommandLine(parts ...string) string {
 
 // ---------- secret set ----------
 
-func secretSetCmd() *cobra.Command {
+func secretSetCmd(rt *runContext) *cobra.Command {
 	var file, fromEnv, note string
 	cmd := &cobra.Command{
 		Use:   "set <name>",
@@ -205,7 +205,7 @@ It needs an identity that is a writer when the readers file gives roles.`,
 			if file != "" && fromEnv != "" {
 				return errors.New("name one source for the value: --file or --from-env")
 			}
-			r, err := openSecrets(cmd, secretWrite)
+			r, err := openSecrets(rt, cmd, secretWrite)
 			if err != nil {
 				return err
 			}
@@ -222,10 +222,10 @@ It needs an identity that is a writer when the readers file gives roles.`,
 			if err != nil {
 				return secretErr(err)
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				return emitJSON(info)
 			}
-			out.Printf("Set %s, version %d.\n", printable(info.Name), info.Seq)
+			rt.out.Printf("Set %s, version %d.\n", printable(info.Name), info.Seq)
 			return nil
 		},
 	}
@@ -295,7 +295,7 @@ type secretValueJSON struct {
 	Note        string  `json:"note,omitempty"`
 }
 
-func secretGetCmd() *cobra.Command {
+func secretGetCmd(rt *runContext) *cobra.Command {
 	var version int
 	cmd := &cobra.Command{
 		Use:   "get <name>",
@@ -316,7 +316,7 @@ roles, a version that no transaction of a writer accounts for is refused with ex
 			if version < 0 {
 				return errors.New("--version is a number from 1")
 			}
-			r, err := openSecrets(cmd, secretRead)
+			r, err := openSecrets(rt, cmd, secretRead)
 			if err != nil {
 				return err
 			}
@@ -326,8 +326,8 @@ roles, a version that no transaction of a writer accounts for is refused with ex
 				return secretErr(err)
 			}
 			defer clear(v.Value)
-			r.warnAbout(v.SecretInfo)
-			if flags.JSON {
+			r.warnAbout(rt, v.SecretInfo)
+			if rt.flags.JSON {
 				doc := secretValueJSON{SecretInfo: v.SecretInfo, Note: v.Note}
 				if utf8.Valid(v.Value) {
 					s := string(v.Value)
@@ -369,18 +369,18 @@ func printableValue(b []byte) bool {
 }
 
 // warnAbout says on standard error what is doubtful about a version that was read.
-func (r *secretRun) warnAbout(info state.SecretInfo) {
+func (r *secretRun) warnAbout(rt *runContext, info state.SecretInfo) {
 	switch info.Trust {
 	case state.TrustUnchecked:
-		out.Warning(fmt.Sprintf("version %d of %s was signed by %s, whose key is not in the readers file", info.Seq, printable(info.Name), safeName(info.Signer())))
+		rt.out.Warning(fmt.Sprintf("version %d of %s was signed by %s, whose key is not in the readers file", info.Seq, printable(info.Name), safeName(info.Signer())))
 	case state.TrustProblem, state.TrustUnconfirmed:
-		out.Warning(fmt.Sprintf("version %d of %s: %s. The readers file gives no roles, so it is read anyway", info.Seq, printable(info.Name), printable(info.Problem)))
+		rt.out.Warning(fmt.Sprintf("version %d of %s: %s. The readers file gives no roles, so it is read anyway", info.Seq, printable(info.Name), printable(info.Problem)))
 	}
 }
 
 // ---------- secret rm and purge ----------
 
-func secretRmCmd() *cobra.Command {
+func secretRmCmd(rt *runContext) *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "rm <name>",
@@ -396,7 +396,7 @@ It needs an identity that is an admin when the readers file gives roles.`,
 			if err := state.ValidSecretName(name); err != nil {
 				return err
 			}
-			r, err := openSecrets(cmd, secretWrite)
+			r, err := openSecrets(rt, cmd, secretWrite)
 			if err != nil {
 				return err
 			}
@@ -411,7 +411,7 @@ It needs an identity that is an admin when the readers file gives roles.`,
 			if hist[len(hist)-1].Kind == state.SecretKindRemoved {
 				return secretErr(fmt.Errorf("%s: %w", name, state.ErrSecretRemoved))
 			}
-			ok, err := confirm(fmt.Sprintf("Remove the secret %s? Runs that read it will fail until it is set again.", name), yes)
+			ok, err := confirm(rt, fmt.Sprintf("Remove the secret %s? Runs that read it will fail until it is set again.", name), yes)
 			if err != nil {
 				return err
 			}
@@ -422,10 +422,10 @@ It needs an identity that is an admin when the readers file gives roles.`,
 			if err != nil {
 				return secretErr(err)
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				return emitJSON(info)
 			}
-			out.Printf("Removed %s, version %d. Its values stay in the state until pravo secret purge %s --keep 0.\n", printable(info.Name), info.Seq, printable(info.Name))
+			rt.out.Printf("Removed %s, version %d. Its values stay in the state until pravo secret purge %s --keep 0.\n", printable(info.Name), info.Seq, printable(info.Name))
 			return nil
 		},
 	}
@@ -433,7 +433,7 @@ It needs an identity that is an admin when the readers file gives roles.`,
 	return cmd
 }
 
-func secretPurgeCmd() *cobra.Command {
+func secretPurgeCmd(rt *runContext) *cobra.Command {
 	var (
 		yes  bool
 		keep int
@@ -459,7 +459,7 @@ It needs an identity that is an admin when the readers file gives roles.`,
 			if keep < 0 {
 				return errors.New("--keep is a number of versions, 0 or more")
 			}
-			r, err := openSecrets(cmd, secretWrite)
+			r, err := openSecrets(rt, cmd, secretWrite)
 			if err != nil {
 				return err
 			}
@@ -482,13 +482,13 @@ It needs an identity that is an admin when the readers file gives roles.`,
 			}
 			doomed := max(values-keep, 0)
 			if doomed == 0 {
-				if flags.JSON {
+				if rt.flags.JSON {
 					return emitJSON(map[string]any{"name": name, "purged": 0})
 				}
-				out.Printf("Nothing to forget: %s holds %s.\n", printable(name), plural(values, "value", "values"))
+				rt.out.Printf("Nothing to forget: %s holds %s.\n", printable(name), plural(values, "value", "values"))
 				return nil
 			}
-			ok, err := confirm(fmt.Sprintf("Forget %s of %s, keeping the newest %d?", plural(doomed, "old value", "old values"), name, keep), yes)
+			ok, err := confirm(rt, fmt.Sprintf("Forget %s of %s, keeping the newest %d?", plural(doomed, "old value", "old values"), name, keep), yes)
 			if err != nil {
 				return err
 			}
@@ -499,10 +499,10 @@ It needs an identity that is an admin when the readers file gives roles.`,
 			if err != nil {
 				return secretErr(err)
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				return emitJSON(map[string]any{"name": name, "purged": n})
 			}
-			out.Printf("Forgot %s of %s.\n", plural(n, "value", "values"), printable(name))
+			rt.out.Printf("Forgot %s of %s.\n", plural(n, "value", "values"), printable(name))
 			return nil
 		},
 	}
@@ -553,7 +553,7 @@ func parseSecretBindings(specs []string) ([]secretBinding, error) {
 	return out, nil
 }
 
-func secretExecCmd() *cobra.Command {
+func secretExecCmd(rt *runContext) *cobra.Command {
 	var bindings []string
 	cmd := &cobra.Command{
 		Use:   "exec --var VAR=NAME... -- COMMAND [ARGUMENTS]",
@@ -573,7 +573,7 @@ an environment variable.`,
 			if err != nil {
 				return err
 			}
-			r, err := openSecrets(cmd, secretRead)
+			r, err := openSecrets(rt, cmd, secretRead)
 			if err != nil {
 				return err
 			}
@@ -591,7 +591,7 @@ an environment variable.`,
 					return secretErr(err)
 				}
 				values = append(values, v.Value)
-				r.warnAbout(v.SecretInfo)
+				r.warnAbout(rt, v.SecretInfo)
 				if bytes.IndexByte(v.Value, 0) >= 0 {
 					return fmt.Errorf("%s holds a null byte, which an environment variable cannot", b.name)
 				}

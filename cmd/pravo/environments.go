@@ -26,16 +26,16 @@ type environmentsOf struct {
 	err  error
 }
 
-func (e *environmentsOf) all() ([]config.EnvironmentSettings, error) {
+func (e *environmentsOf) all(rt *runContext) ([]config.EnvironmentSettings, error) {
 	e.once.Do(func() {
-		e.list, e.err = config.ReadEnvironmentSettings(e.root.Dir, config.LoadOptions{Tags: e.root.Tags, SysTags: flags.SysTags, Env: environment()})
+		e.list, e.err = config.ReadEnvironmentSettings(e.root.Dir, config.LoadOptions{Tags: e.root.Tags, SysTags: rt.flags.SysTags, Env: environment()})
 	})
 	return e.list, e.err
 }
 
 // settings are those of the environment name, or why they cannot be read here.
-func (e *environmentsOf) settings(name string) (config.EnvironmentSettings, error) {
-	all, err := e.all()
+func (e *environmentsOf) settings(rt *runContext, name string) (config.EnvironmentSettings, error) {
+	all, err := e.all(rt)
 	if err != nil {
 		return config.EnvironmentSettings{}, err
 	}
@@ -54,10 +54,10 @@ func (e *environmentsOf) settings(name string) (config.EnvironmentSettings, erro
 // readersFile is the readers file of the environment name. The environment of the run reads
 // the file the run reads (--access-dir, $PRAVO_ACCESS_DIR, then its settings); another reads
 // the one its own settings name, else the one found by default.
-func (e *environmentsOf) readersFile(name string) (readersFile, error) {
-	rf := readersOf(e.root)
+func (e *environmentsOf) readersFile(rt *runContext, name string) (readersFile, error) {
+	rf := readersOf(rt, e.root)
 	if name != e.root.Environment {
-		es, err := e.settings(name)
+		es, err := e.settings(rt, name)
 		if err != nil {
 			return readersFile{}, err
 		}
@@ -76,8 +76,8 @@ func (e *environmentsOf) readersFile(name string) (readersFile, error) {
 // its readers file, with the roles that its state holds when the file pins them. A sealed state
 // whose record pins its roles is refused when the file does not pin those roles, so that an
 // edit of its access directory does not make anyone a writer there.
-func (e *environmentsOf) readers(name string) (engine.Judges, error) {
-	s := e.open(commandContext(), name)
+func (e *environmentsOf) readers(rt *runContext, name string) (engine.Judges, error) {
+	s := e.open(commandContext(), rt, name)
 	defer s.close()
 	switch {
 	case s.Err != nil:
@@ -85,7 +85,7 @@ func (e *environmentsOf) readers(name string) (engine.Judges, error) {
 	case s.Sealed:
 		return engine.Judges{Readers: s.rf.Readers, Vouched: s.Vouched}, nil
 	}
-	rf, err := e.readersFile(name)
+	rf, err := e.readersFile(rt, name)
 	if err != nil {
 		return engine.Judges{}, err
 	}
@@ -132,9 +132,9 @@ func (s *envState) close() {
 }
 
 // openEnvironment opens the state of the environment name for reading, without a key.
-func (e *environmentsOf) open(ctx context.Context, name string) *envState {
+func (e *environmentsOf) open(ctx context.Context, rt *runContext, name string) *envState {
 	s := &envState{}
-	es, err := e.settings(name)
+	es, err := e.settings(rt, name)
 	s.es = es
 	if err != nil {
 		s.Err = err
@@ -154,7 +154,7 @@ func (e *environmentsOf) open(ctx context.Context, name string) *envState {
 	s.Sealed = st.Sealer() != nil
 	pin := ""
 	if s.Sealed {
-		rf, err := e.readersFile(name)
+		rf, err := e.readersFile(rt, name)
 		var rs state.RolesStatus
 		if err == nil {
 			rf, rs, err = rf.withRoles(st)
@@ -225,7 +225,7 @@ type promoteOpts struct {
 	signOnly, autoApprove, full, store bool
 }
 
-func promoteCmd() *cobra.Command {
+func promoteCmd(rt *runContext) *cobra.Command {
 	var o promoteOpts
 	cmd := &cobra.Command{
 		Use:   "promote <environment>",
@@ -257,12 +257,12 @@ reason in its note. --revoke "reason" withdraws the release: only an admin of th
   pravo promote prod -t image=1.4 --revoke "1.4 corrupts uploads"`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return promoteInto(cmd, args[0], o)
+			return promoteInto(rt, cmd, args[0], o)
 		},
 	}
 	f := cmd.Flags()
-	addTagFlags(cmd)
-	f.StringVar(&flags.AccessDir, "access-dir", "", accessDirUsage)
+	addTagFlags(rt, cmd)
+	f.StringVar(&rt.flags.AccessDir, "access-dir", "", accessDirUsage)
 	f.StringVar(&o.note, "note", "", "a line of text to keep with the promotion")
 	f.StringVar(&o.waive, "waive", "", "promote without the notes of the environments before; an admin gives the reason")
 	f.StringVar(&o.revoke, "revoke", "", "withdraw the promotions of this release; an admin gives the reason")
@@ -270,7 +270,7 @@ reason in its note. --revoke "reason" withdraws the release: only an admin of th
 	f.BoolVar(&o.store, "store", false, "sign the promotion and store the plan of the apply in the state instead of applying, to be applied later with \"pravo apply <plan-id>\"")
 	f.StringVar(&o.ttl, "ttl", "", "with --store: keep the plan this long if it is not applied (90m, 36h, 7d; the default is 7d)")
 	f.BoolVar(&o.autoApprove, "auto-approve", false, "apply without asking")
-	addRunFlags(cmd, &o.refresh, &o.full)
+	addRunFlags(rt, cmd, &o.refresh, &o.full)
 	return cmd
 }
 
@@ -296,16 +296,16 @@ type promotionSourceJSON struct {
 	At          time.Time `json:"at"`
 }
 
-func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
+func promoteInto(rt *runContext, cmd *cobra.Command, env string, o promoteOpts) error {
 	ctx := cmd.Context()
-	if err := checkPromoteFlags(env, o); err != nil {
+	if err := checkPromoteFlags(rt, env, o); err != nil {
 		return err
 	}
-	flags.Tags = config.WithEnvironment(flags.Tags, env)
+	rt.flags.Tags = config.WithEnvironment(rt.flags.Tags, env)
 	if _, err := parseRefresh(o.refresh); err != nil {
 		return err
 	}
-	root, err := loadRoot()
+	root, err := loadRoot(rt)
 	if err != nil {
 		return err
 	}
@@ -315,45 +315,45 @@ func promoteInto(cmd *cobra.Command, env string, o promoteOpts) error {
 	if stateMissing(ctx, root) {
 		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s has no state yet, and a promotion is kept in it, signed. Seal one first: pravo protect init --encrypt --env %s", env, env))
 	}
-	line, already, err := signPromotion(ctx, root, &environmentsOf{root: root}, env, o)
+	line, already, err := signPromotion(ctx, rt, root, &environmentsOf{root: root}, env, o)
 	if err != nil {
 		return err
 	}
 	if already != "" {
-		if flags.JSON {
+		if rt.flags.JSON {
 			rel, _ := engine.ReleaseOf(root)
 			emitLine(map[string]any{"kind": "already_running", "environment": env, "fingerprint": rel.Fingerprint})
 		} else {
-			out.Println(already)
+			rt.out.Println(already)
 			if cmd.Flags().Changed("refresh") {
-				out.Println("\n--refresh was ignored: nothing was promoted, so no plan ran.")
+				rt.out.Println("\n--refresh was ignored: nothing was promoted, so no plan ran.")
 			}
 		}
 		return nil
 	}
 	if o.revoke != "" || o.signOnly {
-		if !flags.JSON {
-			out.Println(line)
+		if !rt.flags.JSON {
+			rt.out.Println(line)
 			if o.signOnly {
-				out.Printf("Apply it there with:\n\n    %s\n", engine.ApplyCommand(root, env))
+				rt.out.Printf("Apply it there with:\n\n    %s\n", engine.ApplyCommand(root, env))
 			}
 		}
 		return nil
 	}
-	if !flags.JSON {
-		out.Println(line)
-		out.Println()
+	if !rt.flags.JSON {
+		rt.out.Println(line)
+		rt.out.Println()
 	}
 	if o.store {
-		return storePromotedPlan(cmd, o)
+		return storePromotedPlan(rt, cmd, o)
 	}
 	// The apply is the one "pravo apply" makes. Where the policies of the environment ask for
 	// approvals it is refused, and says how to store the plan.
-	return runApply(cmd, o.refresh, o.full, o.autoApprove, false, nil, nil, nil)
+	return runApply(rt, cmd, o.refresh, o.full, o.autoApprove, false, nil, nil, nil)
 }
 
 // checkPromoteFlags refuses the flags of promote that do not go together.
-func checkPromoteFlags(env string, o promoteOpts) error {
+func checkPromoteFlags(rt *runContext, env string, o promoteOpts) error {
 	if o.waive != "" && o.revoke != "" {
 		return engine.WithCode(engine.ExitInvalid, errors.New("--waive and --revoke do not go together"))
 	}
@@ -363,7 +363,7 @@ func checkPromoteFlags(env string, o promoteOpts) error {
 	if o.ttl != "" && !o.store {
 		return engine.WithCode(engine.ExitInvalid, errors.New("--ttl goes with --store"))
 	}
-	if given, ok := config.EnvironmentOf(flags.Tags); ok && given != env {
+	if given, ok := config.EnvironmentOf(rt.flags.Tags); ok && given != env {
 		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the environment is the argument of promote: pravo promote %s, without --env %s", env, given))
 	}
 	return nil
@@ -387,36 +387,36 @@ type promotionRun struct {
 
 // signPromotion signs the promotion in the state of the environment. It returns the line that
 // says what was signed, or the answer that the release already runs there.
-func signPromotion(ctx context.Context, root *config.Root, envs *environmentsOf, env string, o promoteOpts) (line, already string, err error) {
-	st, err := openStateStore(ctx, root)
+func signPromotion(ctx context.Context, rt *runContext, root *config.Root, envs *environmentsOf, env string, o promoteOpts) (line, already string, err error) {
+	st, err := openStateStore(ctx, rt, root)
 	if err != nil {
 		return "", "", err
 	}
 	defer st.Close()
-	st.SetActor(flags.Actor, flags.Reason, pravo.GitRevision(root.Dir))
+	st.SetActor(rt.flags.Actor, rt.flags.Reason, pravo.GitRevision(root.Dir))
 	if st.Sealer() == nil {
 		return "", "", engine.WithCode(engine.ExitRefused, fmt.Errorf("the state of %s is not sealed, and a promotion is a signature. Seal it: pravo protect init --encrypt --env %s", env, env))
 	}
 	pr := &promotionRun{ctx: ctx, root: root, envs: envs, env: env, o: o, st: st}
-	if err := pr.prepare(); err != nil {
+	if err := pr.prepare(rt); err != nil {
 		return "", "", err
 	}
 	if o.revoke == "" && o.waive == "" {
 		if err := pr.refuseWithdrawn(); err != nil {
 			return "", "", err
 		}
-		if msg := alreadyRuns(ctx, st, envs, env, pr.gate, pr.rec, pr.rel, pr.readers, pr.vouched); msg != "" {
+		if msg := alreadyRuns(ctx, rt, st, envs, env, pr.gate, pr.rec, pr.rel, pr.readers, pr.vouched); msg != "" {
 			return "", msg, nil
 		}
 	}
 	p := &state.Promotion{Kind: state.PromotionPromoted, Environment: env, Fingerprint: pr.rel.Fingerprint, Tags: pr.rel.Tags, Note: o.note}
-	if line, err = pr.fill(p); err != nil {
+	if line, err = pr.fill(rt, p); err != nil {
 		return "", "", err
 	}
 	if err := st.PutPromotion(ctx, p); err != nil {
 		return "", "", secretErr(err)
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		emitPromotion(p, env)
 	}
 	return line, "", nil
@@ -424,8 +424,8 @@ func signPromotion(ctx context.Context, root *config.Root, envs *environmentsOf,
 
 // prepare reads the roles, the record of the environment and the release, and checks that the
 // key may make this promotion.
-func (pr *promotionRun) prepare() error {
-	pr.rf = readersOf(pr.root)
+func (pr *promotionRun) prepare(rt *runContext) error {
+	pr.rf = readersOf(rt, pr.root)
 	eff, effRoles, err := pr.rf.withRoles(pr.st)
 	if err != nil {
 		return engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
@@ -475,7 +475,7 @@ func (pr *promotionRun) refuseWithdrawn() error {
 }
 
 // fill completes the promotion for what was asked, and returns the line that says what it is.
-func (pr *promotionRun) fill(p *state.Promotion) (string, error) {
+func (pr *promotionRun) fill(rt *runContext, p *state.Promotion) (string, error) {
 	switch {
 	case pr.o.revoke != "":
 		p.Kind, p.Note = state.PromotionRevoked, pr.o.revoke
@@ -484,11 +484,11 @@ func (pr *promotionRun) fill(p *state.Promotion) (string, error) {
 		p.Kind, p.Note = state.PromotionWaived, pr.o.waive
 		return fmt.Sprintf("Waived: %s may take this release although %s was not checked. The reason is kept with the promotion and with the note of the apply.", pr.env, joinAnd(pr.gate)), nil
 	}
-	return pr.fillFromUpstream(p)
+	return pr.fillFromUpstream(rt, p)
 }
 
 // fillFromUpstream reads the environments that this one follows into the promotion.
-func (pr *promotionRun) fillFromUpstream(p *state.Promotion) (string, error) {
+func (pr *promotionRun) fillFromUpstream(rt *runContext, p *state.Promotion) (string, error) {
 	env := pr.env
 	var ran []string
 	next := state.EnvironmentRecord{Name: env}
@@ -497,7 +497,7 @@ func (pr *promotionRun) fillFromUpstream(p *state.Promotion) (string, error) {
 	}
 	fills := false
 	for _, up := range pr.gate {
-		src, by, err := readUpstream(pr.ctx, pr.envs, pr.root, up, env, pr.rel, pr.rec)
+		src, by, err := readUpstream(pr.ctx, rt, pr.envs, pr.root, up, env, pr.rel, pr.rec)
 		if err != nil {
 			return "", err
 		}
@@ -532,8 +532,8 @@ func (pr *promotionRun) fillFromUpstream(p *state.Promotion) (string, error) {
 	if by, ago, why, ok := g.Withdrawal(pr.ctx, pr.rel); ok {
 		line += fmt.Sprintf("\nNote: %s withdrew this release from %s %s ago (%s). Your promotion, as an admin, lifts that; an admin withdraws it again with --revoke.", by, env, engine.RoundAge(ago), why)
 	}
-	if shared := sharedReaders(pr.envs, env, pr.gate); shared != "" {
-		line += "\n" + out.C(ui.Dim, shared)
+	if shared := sharedReaders(rt, pr.envs, env, pr.gate); shared != "" {
+		line += "\n" + rt.out.C(ui.Dim, shared)
 	}
 	return line, nil
 }
@@ -550,11 +550,11 @@ func emitPromotion(p *state.Promotion, env string) {
 
 // storePromotedPlan stores the plan of the apply in the state, as "pravo plan --store" does.
 // Its apply by id checks the promotion again.
-func storePromotedPlan(cmd *cobra.Command, o promoteOpts) error {
+func storePromotedPlan(rt *runContext, cmd *cobra.Command, o promoteOpts) error {
 	// Defining the flags of plan resets the globals they write, so they are put back.
-	tags, env, sys := flags.Tags, flags.Env, flags.SysTags
-	pc := planCmd()
-	flags.Tags, flags.Env, flags.SysTags = tags, env, sys
+	tags, env, sys := rt.flags.Tags, rt.flags.Env, rt.flags.SysTags
+	pc := planCmd(rt)
+	rt.flags.Tags, rt.flags.Env, rt.flags.SysTags = tags, env, sys
 	pc.SetContext(cmd.Context())
 	set := map[string]string{"store": "true", "refresh": o.refresh}
 	if o.ttl != "" {
@@ -574,13 +574,13 @@ func storePromotedPlan(cmd *cobra.Command, o promoteOpts) error {
 // alreadyRuns says that env already runs the release, or "" when it does not: its newest
 // note, signed there by a writer, names the release, and a promotion of the release still
 // counts. Promoting again would sign a second promotion and apply nothing new.
-func alreadyRuns(ctx context.Context, st *state.Store, envs *environmentsOf, env string, gate []string, rec *state.EnvironmentRecord, rel engine.Release, readers []protect.Reader, vouched map[string]protect.Vouch) string {
+func alreadyRuns(ctx context.Context, rt *runContext, st *state.Store, envs *environmentsOf, env string, gate []string, rec *state.EnvironmentRecord, rel engine.Release, readers []protect.Reader, vouched map[string]protect.Vouch) string {
 	now := time.Now()
 	note, _, err := st.LatestRun(ctx, now)
 	if err != nil || note == nil || !rel.Same(note) || note.Deferred > 0 || engine.NoteProblem(note, env, st.Lineage(), engine.Judges{Readers: readers, Vouched: vouched}, now) != "" {
 		return ""
 	}
-	c := engine.GateReader{State: st, Environment: env, Readers: readers, Vouched: vouched, Upstream: envs.readers, Now: now}.Check(ctx, gate, rec, rel)
+	c := engine.GateReader{State: st, Environment: env, Readers: readers, Vouched: vouched, Upstream: func(env string) (engine.Judges, error) { return envs.readers(rt, env) }, Now: now}.Check(ctx, gate, rec, rel)
 	if !c.Met || c.Admission == nil {
 		return ""
 	}
@@ -601,8 +601,8 @@ func mustCurrent(root *config.Root) config.Environment {
 // readUpstream reads the note of the environment up and checks that it runs the release: it is
 // signed there by a writer, names the release, and comes from the state the record of env
 // follows.
-func readUpstream(ctx context.Context, envs *environmentsOf, root *config.Root, up, env string, rel engine.Release, rec *state.EnvironmentRecord) (*state.PromotionSource, string, error) {
-	s := envs.open(ctx, up)
+func readUpstream(ctx context.Context, rt *runContext, envs *environmentsOf, root *config.Root, up, env string, rel engine.Release, rec *state.EnvironmentRecord) (*state.PromotionSource, string, error) {
+	s := envs.open(ctx, rt, up)
 	defer s.close()
 	steps := func(why string) error {
 		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s does not run this release: %s.\n\nRun these, skipping a step that is already done:\n\n%s", up, why, engine.Steps(root, env)))
@@ -634,13 +634,13 @@ func readUpstream(ctx context.Context, envs *environmentsOf, root *config.Root, 
 
 // sharedReaders says, when the environment and one it follows read one readers file, that the
 // writers of the one before may promote into it.
-func sharedReaders(envs *environmentsOf, env string, gate []string) string {
-	mine, err := envs.readersFile(env)
+func sharedReaders(rt *runContext, envs *environmentsOf, env string, gate []string) string {
+	mine, err := envs.readersFile(rt, env)
 	if err != nil {
 		return ""
 	}
 	for _, up := range gate {
-		if rf, err := envs.readersFile(up); err == nil && rf.Path == mine.Path {
+		if rf, err := envs.readersFile(rt, up); err == nil && rf.Path == mine.Path {
 			return fmt.Sprintf("Note: %s and %s read one readers file, so a writer of %s may promote into %s. $settings.access.dir gives %s a file of its own.", up, env, up, env, env)
 		}
 	}
@@ -661,8 +661,8 @@ func joinAnd(items []string) string {
 // such as state rm, import or secret set, when the record of the state says that it serves
 // another environment than the one the specification was loaded for: the check that plan and
 // apply make, so that a state that a setting points at by mistake is not written to.
-func refuseOtherEnvironment(ctx context.Context, root *config.Root, st *state.Store) error {
-	eff, _, err := readersOf(root).withRoles(st)
+func refuseOtherEnvironment(ctx context.Context, rt *runContext, root *config.Root, st *state.Store) error {
+	eff, _, err := readersOf(rt, root).withRoles(st)
 	if err != nil {
 		return engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
 	}

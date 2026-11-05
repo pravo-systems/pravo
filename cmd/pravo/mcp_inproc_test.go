@@ -13,6 +13,8 @@ import (
 // The tools that read the state answer from inside the server, as the commands
 // do, and refuse the way they do.
 func TestInprocessStateTools(t *testing.T) {
+	rt := &runContext{}
+
 	dir := t.TempDir()
 	for name, content := range map[string]string{
 		"cue.mod/module.cue": "module: \"pravo.local/test\"\nlanguage: version: \"v0.14.0\"\n",
@@ -28,14 +30,14 @@ func TestInprocessStateTools(t *testing.T) {
 		}
 	}
 	t.Chdir(dir)
-	root := newRootCmd()
+	root := newRootCmd(rt)
 	root.SetArgs(normaliseArgs([]string{"pravo", "apply", "-auto-approve", "--no-color"})[1:])
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
 
 	byName := map[string]mcpTool{}
-	for _, tool := range mcpTools() {
+	for _, tool := range mcpTools(rt) {
 		byName[tool.Name] = tool
 	}
 	for _, name := range []string{"pravo_state_query", "pravo_dependents"} {
@@ -44,19 +46,19 @@ func TestInprocessStateTools(t *testing.T) {
 		}
 	}
 	ctx := context.Background()
-	text, code := inprocess(ctx, map[string]any{"expression": "outputs.greeting"}, byName["pravo_state_query"].run)
+	text, code := inprocess(ctx, rt, map[string]any{"expression": "outputs.greeting"}, byName["pravo_state_query"].run)
 	if code != 0 || !strings.Contains(text, "hello") {
 		t.Errorf("state query: %d %q", code, text)
 	}
-	text, code = inprocess(ctx, map[string]any{"expression": "outputs.greeting +"}, byName["pravo_state_query"].run)
+	text, code = inprocess(ctx, rt, map[string]any{"expression": "outputs.greeting +"}, byName["pravo_state_query"].run)
 	if code == 0 || !strings.Contains(text, `"kind":"error"`) {
 		t.Errorf("a bad expression: %d %q", code, text)
 	}
-	text, code = inprocess(ctx, map[string]any{"addr": "nothing.here"}, byName["pravo_dependents"].run)
+	text, code = inprocess(ctx, rt, map[string]any{"addr": "nothing.here"}, byName["pravo_dependents"].run)
 	if code == 0 {
 		t.Errorf("an unknown address was accepted: %q", text)
 	}
-	if flags.Tags != nil {
-		t.Errorf("the tags of a call were left set: %v", flags.Tags)
+	if rt.flags.Tags != nil {
+		t.Errorf("the tags of a call were left set: %v", rt.flags.Tags)
 	}
 }

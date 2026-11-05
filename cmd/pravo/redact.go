@@ -25,8 +25,8 @@ const minTaint = 6
 // that a sensitive attribute of the state holds (a field built from a password, an echo of it).
 // The private blob of a record is dropped. It returns the number of values withheld. It
 // works on copies: the store is not changed.
-func redactedSnapshot(ctx context.Context, st *state.Store) (*state.Snapshot, int, error) {
-	s, err := newSession(ctx, sessionOptions{schemas: true})
+func redactedSnapshot(ctx context.Context, rt *runContext, st *state.Store) (*state.Snapshot, int, error) {
+	s, err := newSession(ctx, rt, sessionOptions{schemas: true})
 	if err != nil {
 		return nil, 0, fmt.Errorf("--redact needs the provider schemas: %w", err)
 	}

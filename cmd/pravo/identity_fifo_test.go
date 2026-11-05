@@ -14,7 +14,9 @@ import (
 // A named pipe among the identity files must not hold up the choice of the
 // identity: its public part is read without opening anything that waits.
 func TestIdentityDirectoryWithANamedPipe(t *testing.T) {
-	s := sealedBucket(t)
+	rt := &runContext{}
+
+	s := sealedBucket(t, rt)
 	t.Setenv("USER", "bob")
 	dir := t.TempDir()
 	putIdentity(t, dir, "ada", s.identityFile(t, "ada"))
@@ -27,7 +29,7 @@ func TestIdentityDirectoryWithANamedPipe(t *testing.T) {
 	resetIdentityState(t)
 	done := make(chan string, 1)
 	go func() {
-		text, code := runPravo(t, s.dir, "protect", "status")
+		text, code := runPravo(t, rt, s.dir, "protect", "status")
 		if code != 0 {
 			text = "exit " + text
 		}
@@ -47,7 +49,7 @@ func TestIdentityDirectoryWithANamedPipe(t *testing.T) {
 		t.Fatal(err)
 	}
 	go func() {
-		text, _ := runPravo(t, s.dir, "protect", "status", "--identity", "aaa")
+		text, _ := runPravo(t, rt, s.dir, "protect", "status", "--identity", "aaa")
 		done <- text
 	}()
 	select {

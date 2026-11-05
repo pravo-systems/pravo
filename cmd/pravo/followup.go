@@ -18,26 +18,26 @@ const maxFollowUps = 5
 // waited for is known now. It returns the engine and the plan, or a nil plan when the new
 // plan makes no progress: it defers as many changes as the apply did and writes nothing.
 // The plan is printed, or sent as a JSON line.
-func followUp(ctx context.Context, s *session, opts engine.Options, deferred int) (*engine.Engine, *engine.Plan, error) {
+func followUp(ctx context.Context, rt *runContext, s *session, opts engine.Options, deferred int) (*engine.Engine, *engine.Plan, error) {
 	opts.Replace = nil // a replacement asked for was made
-	eng := s.engine(opts)
+	eng := s.engine(rt, opts)
 	plan, err := eng.Plan(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("planning the deferred changes again: %w", err)
 	}
 	if !plan.HasWrites() && plan.DeferredCount() >= deferred {
-		if !flags.JSON {
-			out.Println()
-			out.Printf("The next plan still defers %s and has nothing else to apply. They wait for something that no apply here makes known: run \"pravo plan\" to see why.\n", plural(plan.DeferredCount(), "change", "changes"))
+		if !rt.flags.JSON {
+			rt.out.Println()
+			rt.out.Printf("The next plan still defers %s and has nothing else to apply. They wait for something that no apply here makes known: run \"pravo plan\" to see why.\n", plural(plan.DeferredCount(), "change", "changes"))
 		}
 		return eng, nil, nil
 	}
-	if flags.JSON {
-		emitLine(map[string]any{"kind": "plan", "phase": "done", "follow_up": true, "plan": eng.NewView(plan, engine.ViewOptions{Redact: flags.Withhold})})
+	if rt.flags.JSON {
+		emitLine(map[string]any{"kind": "plan", "phase": "done", "follow_up": true, "plan": eng.NewView(plan, engine.ViewOptions{Redact: rt.flags.Withhold})})
 	} else {
-		out.Println()
-		out.Println(out.C(ui.Bold, fmt.Sprintf("Planned again for the %s that the apply deferred:", plural(deferred, "change", "changes"))))
-		out.RenderPlan(plan)
+		rt.out.Println()
+		rt.out.Println(rt.out.C(ui.Bold, fmt.Sprintf("Planned again for the %s that the apply deferred:", plural(deferred, "change", "changes"))))
+		rt.out.RenderPlan(plan)
 	}
 	return eng, plan, nil
 }
@@ -45,8 +45,8 @@ func followUp(ctx context.Context, s *session, opts engine.Options, deferred int
 // storeFollowUp stores the follow-up plan of an apply of the stored plan id that deferred
 // changes, and says how to apply it. The new plan is judged by the policies in force first,
 // as one that "pravo plan --store" makes is.
-func storeFollowUp(ctx context.Context, s *session, id string, deferred int) error {
-	eng, plan, err := followUp(ctx, s, engine.Options{Refresh: engine.RefreshAge, Reason: "follows " + id + ": the changes it deferred"}, deferred)
+func storeFollowUp(ctx context.Context, rt *runContext, s *session, id string, deferred int) error {
+	eng, plan, err := followUp(ctx, rt, s, engine.Options{Refresh: engine.RefreshAge, Reason: "follows " + id + ": the changes it deferred"}, deferred)
 	if err != nil || plan == nil || !planWorth(plan) {
 		return err
 	}
@@ -57,18 +57,18 @@ func storeFollowUp(ctx context.Context, s *session, id string, deferred int) err
 	if err != nil {
 		return err
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		emitLine(map[string]any{"kind": "follow_up", "plan": stored.Meta.ID, "after": id})
 		return nil
 	}
-	printStored(stored)
+	printStored(rt, stored)
 	return nil
 }
 
 // saveFollowUp writes the follow-up plan of an apply of the plan file path that deferred
 // changes next to it, and says how to apply it.
-func saveFollowUp(ctx context.Context, s *session, path string, deferred int) error {
-	eng, plan, err := followUp(ctx, s, engine.Options{Refresh: engine.RefreshAge}, deferred)
+func saveFollowUp(ctx context.Context, rt *runContext, s *session, path string, deferred int) error {
+	eng, plan, err := followUp(ctx, rt, s, engine.Options{Refresh: engine.RefreshAge}, deferred)
 	if err != nil || plan == nil || !planWorth(plan) {
 		return err
 	}
@@ -76,15 +76,15 @@ func saveFollowUp(ctx context.Context, s *session, path string, deferred int) er
 		return err
 	}
 	next := nextPlanPath(path)
-	if err := eng.SavePlan(next, plan, flags.Tags, flags.SysTags); err != nil {
+	if err := eng.SavePlan(next, plan, rt.flags.Tags, rt.flags.SysTags); err != nil {
 		return err
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		emitLine(map[string]any{"kind": "follow_up", "planfile": next, "after": path})
 		return nil
 	}
-	out.Println()
-	out.Printf("Saved the plan to %s. To apply exactly these actions, run:\n  pravo apply %s\n", next, next)
+	rt.out.Println()
+	rt.out.Printf("Saved the plan to %s. To apply exactly these actions, run:\n  pravo apply %s\n", next, next)
 	return nil
 }
 

@@ -18,6 +18,8 @@ import (
 // values come as they always did, and with no identity, or with one that is not a
 // reader, the resources are listed and no value is sent, and nothing is written.
 func TestServeReadsASealedState(t *testing.T) {
+	rt := &runContext{}
+
 	const secret = "s3cr3t-value-in-a-sealed-record"
 	idDir := t.TempDir()
 	t.Setenv("PRAVO_IDENTITY_DIR", idDir)
@@ -81,7 +83,7 @@ func TestServeReadsASealedState(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			before := digestDir(t, dir)
-			info, stop := runServe(t, dir, "--identity", c.identity)
+			info, stop := runServe(t, rt, dir, "--identity", c.identity)
 			var a serve.Access
 			if err := json.Unmarshal(fetch(t, info, "/api/access"), &a); err != nil {
 				t.Fatal(err)
@@ -129,6 +131,8 @@ func TestServeReadsASealedState(t *testing.T) {
 // A state of immutable records (format 2) is read as any other, says so in the
 // Access view, asks for no identity, and is not written.
 func TestServeReadsAnImmutableState(t *testing.T) {
+	rt := &runContext{}
+
 	t.Setenv("PRAVO_IDENTITY_DIR", filepath.Join(t.TempDir(), "none"))
 	t.Setenv("PRAVO_IDENTITY", "")
 	dir := specDir(t, map[string]string{"main.cue": "package estate\n\nsize: 3\n"})
@@ -147,7 +151,7 @@ func TestServeReadsAnImmutableState(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := digestDir(t, dir)
-	info, stop := runServe(t, dir)
+	info, stop := runServe(t, rt, dir)
 	var a serve.Access
 	if err := json.Unmarshal(fetch(t, info, "/api/access"), &a); err != nil {
 		t.Fatal(err)

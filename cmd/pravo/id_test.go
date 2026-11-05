@@ -39,10 +39,12 @@ func mode(t *testing.T, path string) os.FileMode {
 }
 
 func TestIDNewWritesASealedIdentityAndPrintsItsLine(t *testing.T) {
-	ids := isolateIdentities(t)
+	rt := &runContext{}
+
+	ids := isolateIdentities(t, rt)
 	t.Setenv("PRAVO_PASSPHRASE", testPass)
 	dir := t.TempDir()
-	text, code := runPravo(t, dir, "id", "new", "--name", "ada")
+	text, code := runPravo(t, rt, dir, "id", "new", "--name", "ada")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -93,14 +95,16 @@ func TestIDNewWritesASealedIdentityAndPrintsItsLine(t *testing.T) {
 // directory, so the identity is found by the commands that read identities, which
 // look in that directory first.
 func TestIDNewWritesToPravoIdentityDir(t *testing.T) {
-	ids := isolateIdentities(t)
+	rt := &runContext{}
+
+	ids := isolateIdentities(t, rt)
 	t.Setenv("PRAVO_PASSPHRASE", testPass)
 	base := t.TempDir()
 	dir := filepath.Join(base, "keys", "ids") // neither level exists
 	t.Setenv("PRAVO_IDENTITY_DIR", dir)
 	work := t.TempDir()
 
-	made, code := runPravo(t, work, "id", "new", "--name", "ada")
+	made, code := runPravo(t, rt, work, "id", "new", "--name", "ada")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, made)
 	}
@@ -124,7 +128,7 @@ func TestIDNewWritesToPravoIdentityDir(t *testing.T) {
 		}
 	}
 	// A second one is refused where it is looked for.
-	if text, code := runPravo(t, work, "id", "new", "--name", "ada"); code != 1 || !strings.Contains(text, "Error: identity ada already exists at "+file) {
+	if text, code := runPravo(t, rt, work, "id", "new", "--name", "ada"); code != 1 || !strings.Contains(text, "Error: identity ada already exists at "+file) {
 		t.Errorf("exit %d, want 1 and the refusal\n%s", code, text)
 	}
 
@@ -132,7 +136,7 @@ func TestIDNewWritesToPravoIdentityDir(t *testing.T) {
 	t.Setenv("PRAVO_PASSPHRASE", "")
 	resetIdentityState(t)
 	for _, args := range [][]string{{"id", "show"}, {"id", "show", "--name", "ada"}} {
-		text, code := runPravo(t, work, args...)
+		text, code := runPravo(t, rt, work, args...)
 		if code != 0 || publicLine(t, text).String() != reader.String() || !strings.Contains(text, file) {
 			t.Errorf("%v: exit %d\n%s", args, code, text)
 		}
@@ -145,42 +149,46 @@ func TestIDNewWritesToPravoIdentityDir(t *testing.T) {
 // A command that opens a sealed state finds an identity that id new made under
 // PRAVO_IDENTITY_DIR: it seals the state to it, and status says who the reader is.
 func TestIdentityMadeUnderPravoIdentityDirOpensAState(t *testing.T) {
+	rt := &runContext{}
+
 	requireSealing(t)
-	isolateIdentities(t)
+	isolateIdentities(t, rt)
 	t.Setenv("PRAVO_PASSPHRASE", testPass)
 	t.Setenv("PRAVO_IDENTITY_DIR", filepath.Join(t.TempDir(), "ids"))
 	dir := specDir(t, map[string]string{"main.cue": "package t\n"})
 
-	made, code := runPravo(t, dir, "id", "new", "--name", "ada")
+	made, code := runPravo(t, rt, dir, "id", "new", "--name", "ada")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, made)
 	}
 	reader := publicLine(t, made)
 	writeReaders(t, filepath.Join(dir, ".pravo", "access"), reader.String())
 	resetIdentityState(t)
-	if text, code := runPravo(t, dir, "protect", "init", "--encrypt", "--yes", "--allow-local"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "protect", "init", "--encrypt", "--yes", "--allow-local"); code != 0 {
 		t.Fatalf("init: exit %d\n%s", code, text)
 	}
 	resetIdentityState(t)
-	text, code := runPravo(t, dir, "protect", "status")
+	text, code := runPravo(t, rt, dir, "protect", "status")
 	if code != 0 || !strings.Contains(text, "You          ada · reader key "+reader.Key.String()+"\n") {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}
 	resetIdentityState(t)
-	if text, code := runPravo(t, dir, "state", "list"); code != 0 || strings.Contains(text, "Warning") {
+	if text, code := runPravo(t, rt, dir, "state", "list"); code != 0 || strings.Contains(text, "Warning") {
 		t.Errorf("state list: exit %d\n%s", code, text)
 	}
 }
 
 func TestIDNewNeverOverwritesAnIdentity(t *testing.T) {
-	ids := isolateIdentities(t)
+	rt := &runContext{}
+
+	ids := isolateIdentities(t, rt)
 	t.Setenv("PRAVO_PASSPHRASE", testPass)
 	dir := t.TempDir()
-	if text, code := runPravo(t, dir, "id", "new", "--name", "ada"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "id", "new", "--name", "ada"); code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	before, _ := os.ReadFile(filepath.Join(ids, "ada"))
-	text, code := runPravo(t, dir, "id", "new", "--name", "ada")
+	text, code := runPravo(t, rt, dir, "id", "new", "--name", "ada")
 	if code != 1 || !strings.Contains(text, "Error: identity ada already exists at ") {
 		t.Fatalf("exit %d, want 1 and the refusal\n%s", code, text)
 	}
@@ -192,16 +200,18 @@ func TestIDNewNeverOverwritesAnIdentity(t *testing.T) {
 	asked := false
 	askNewPassphrase = func(string) ([]byte, error) { asked = true; return []byte(testPass), nil }
 	stdinIsTerminal = func() bool { return true }
-	if _, code := runPravo(t, dir, "id", "new", "--name", "ada"); code != 1 || asked {
+	if _, code := runPravo(t, rt, dir, "id", "new", "--name", "ada"); code != 1 || asked {
 		t.Errorf("exit %d, asked %v; want the refusal before the prompt", code, asked)
 	}
 }
 
 func TestIDNewNameDefaultsToTheUser(t *testing.T) {
-	ids := isolateIdentities(t)
+	rt := &runContext{}
+
+	ids := isolateIdentities(t, rt)
 	t.Setenv("PRAVO_PASSPHRASE", testPass)
 	t.Setenv("USER", "grace")
-	if text, code := runPravo(t, t.TempDir(), "id", "new"); code != 0 {
+	if text, code := runPravo(t, rt, t.TempDir(), "id", "new"); code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	if _, err := os.Stat(filepath.Join(ids, "grace")); err != nil {
@@ -209,20 +219,22 @@ func TestIDNewNameDefaultsToTheUser(t *testing.T) {
 	}
 	t.Setenv("USER", "")
 	t.Setenv("USERNAME", "")
-	if text, code := runPravo(t, t.TempDir(), "id", "new"); code != 1 || !strings.Contains(text, "--name NAME") {
+	if text, code := runPravo(t, rt, t.TempDir(), "id", "new"); code != 1 || !strings.Contains(text, "--name NAME") {
 		t.Errorf("exit %d, want 1 and a request for a name\n%s", code, text)
 	}
-	if text, code := runPravo(t, t.TempDir(), "id", "new", "--name", "../x"); code != 1 || !strings.Contains(text, "identity name") {
+	if text, code := runPravo(t, rt, t.TempDir(), "id", "new", "--name", "../x"); code != 1 || !strings.Contains(text, "identity name") {
 		t.Errorf("exit %d, want 1 and a refusal of the name\n%s", code, text)
 	}
 }
 
 func TestIDNewCINeedsAName(t *testing.T) {
-	ids := isolateIdentities(t)
+	rt := &runContext{}
+
+	ids := isolateIdentities(t, rt)
 	t.Setenv("USER", "grace")
 	work := t.TempDir()
 	out := filepath.Join(work, "bot.identity")
-	text, code := runPravo(t, work, "id", "new", "--ci", "--out", out)
+	text, code := runPravo(t, rt, work, "id", "new", "--ci", "--out", out)
 	if code != 1 || !strings.Contains(text, "--ci needs --name NAME") {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -232,19 +244,21 @@ func TestIDNewCINeedsAName(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(ids, "grace")); err == nil {
 		t.Error("an identity named like the user was made")
 	}
-	if text, code := runPravo(t, work, "id", "new", "--ci"); code != 1 || !strings.Contains(text, "--ci needs --name NAME") {
+	if text, code := runPravo(t, rt, work, "id", "new", "--ci"); code != 1 || !strings.Contains(text, "--ci needs --name NAME") {
 		t.Errorf("exit %d\n%s", code, text)
 	}
-	if text, code := runPravo(t, work, "id", "new", "--ci", "--name", "deploy-bot", "--out", out); code != 0 {
+	if text, code := runPravo(t, rt, work, "id", "new", "--ci", "--name", "deploy-bot", "--out", out); code != 0 {
 		t.Errorf("exit %d\n%s", code, text)
 	}
 }
 
 func TestIDNewPassphrase(t *testing.T) {
-	ids := isolateIdentities(t)
+	rt := &runContext{}
+
+	ids := isolateIdentities(t, rt)
 	dir := t.TempDir()
 	t.Run("stdin is not a terminal and nothing is set", func(t *testing.T) {
-		text, code := runPravo(t, dir, "id", "new", "--name", "ada")
+		text, code := runPravo(t, rt, dir, "id", "new", "--name", "ada")
 		if code != 1 || !strings.Contains(text, "stdin is not a terminal") || !strings.Contains(text, "PRAVO_PASSPHRASE") || !strings.Contains(text, "--ci") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -254,7 +268,7 @@ func TestIDNewPassphrase(t *testing.T) {
 	})
 	t.Run("too short", func(t *testing.T) {
 		t.Setenv("PRAVO_PASSPHRASE", "short")
-		text, code := runPravo(t, dir, "id", "new", "--name", "ada")
+		text, code := runPravo(t, rt, dir, "id", "new", "--name", "ada")
 		if code != 1 || !strings.Contains(text, "at least 8 characters") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -267,7 +281,7 @@ func TestIDNewPassphrase(t *testing.T) {
 		defer func() { stdinIsTerminal = func() bool { return false } }()
 		var prompt string
 		askNewPassphrase = func(p string) ([]byte, error) { prompt = p; return []byte(testPass), nil }
-		text, code := runPravo(t, dir, "id", "new", "--name", "ada")
+		text, code := runPravo(t, rt, dir, "id", "new", "--name", "ada")
 		if code != 0 || !strings.Contains(prompt, "ada") {
 			t.Fatalf("exit %d, prompt %q\n%s", code, prompt, text)
 		}
@@ -278,7 +292,9 @@ func TestIDNewPassphrase(t *testing.T) {
 }
 
 func TestIDNewReusesAnSSHPublicKey(t *testing.T) {
-	ids := isolateIdentities(t)
+	rt := &runContext{}
+
+	ids := isolateIdentities(t, rt)
 	t.Setenv("PRAVO_PASSPHRASE", testPass)
 	pub, _, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -295,7 +311,7 @@ func TestIDNewReusesAnSSHPublicKey(t *testing.T) {
 	}
 	dir := t.TempDir()
 
-	text, code := runPravo(t, dir, "id", "new", "--name", "ada", "--ssh", private)
+	text, code := runPravo(t, rt, dir, "id", "new", "--name", "ada", "--ssh", private)
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -312,14 +328,14 @@ func TestIDNewReusesAnSSHPublicKey(t *testing.T) {
 	}
 
 	t.Run("the .pub file itself", func(t *testing.T) {
-		if text, code := runPravo(t, dir, "id", "new", "--name", "dan", "--ssh", private+".pub"); code != 0 {
+		if text, code := runPravo(t, rt, dir, "id", "new", "--name", "dan", "--ssh", private+".pub"); code != 0 {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 	t.Run("a key of another type", func(t *testing.T) {
 		p := filepath.Join(keys, "id_rsa.pub")
 		os.WriteFile(p, []byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7 me@laptop\n"), 0o644)
-		text, code := runPravo(t, dir, "id", "new", "--name", "eve", "--ssh", p)
+		text, code := runPravo(t, rt, dir, "id", "new", "--name", "eve", "--ssh", p)
 		if code != 1 || !strings.Contains(text, "ssh-ed25519") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -330,23 +346,25 @@ func TestIDNewReusesAnSSHPublicKey(t *testing.T) {
 	t.Run("a private key is never read", func(t *testing.T) {
 		only := filepath.Join(t.TempDir(), "id_ed25519")
 		os.WriteFile(only, []byte(secretBody), 0o600)
-		text, code := runPravo(t, dir, "id", "new", "--name", "fay", "--ssh", only)
+		text, code := runPravo(t, rt, dir, "id", "new", "--name", "fay", "--ssh", only)
 		if code != 1 || strings.Contains(text, "SECRETKEYBODY") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 	t.Run("a file that does not exist", func(t *testing.T) {
-		if text, code := runPravo(t, dir, "id", "new", "--name", "gus", "--ssh", filepath.Join(keys, "missing")); code != 1 {
+		if text, code := runPravo(t, rt, dir, "id", "new", "--name", "gus", "--ssh", filepath.Join(keys, "missing")); code != 1 {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 }
 
 func TestIDNewForAJob(t *testing.T) {
-	ids := isolateIdentities(t)
+	rt := &runContext{}
+
+	ids := isolateIdentities(t, rt)
 	work := t.TempDir()
 	out := filepath.Join(work, "deploy-bot.identity")
-	text, code := runPravo(t, work, "id", "new", "--ci", "--name", "deploy-bot", "--out", out)
+	text, code := runPravo(t, rt, work, "id", "new", "--ci", "--name", "deploy-bot", "--out", out)
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -386,7 +404,7 @@ func TestIDNewForAJob(t *testing.T) {
 	}
 
 	t.Run("it never overwrites", func(t *testing.T) {
-		text, code := runPravo(t, work, "id", "new", "--ci", "--name", "deploy-bot", "--out", out)
+		text, code := runPravo(t, rt, work, "id", "new", "--ci", "--name", "deploy-bot", "--out", out)
 		if code != 1 || !strings.Contains(text, "already exists") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -396,7 +414,7 @@ func TestIDNewForAJob(t *testing.T) {
 		}
 	})
 	t.Run("it needs --out", func(t *testing.T) {
-		if text, code := runPravo(t, work, "id", "new", "--ci", "--name", "x"); code != 1 || !strings.Contains(text, "--out") {
+		if text, code := runPravo(t, rt, work, "id", "new", "--ci", "--name", "x"); code != 1 || !strings.Contains(text, "--out") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 		if got := entries(t, work); len(got) != 1 {
@@ -405,7 +423,7 @@ func TestIDNewForAJob(t *testing.T) {
 	})
 	t.Run("--out is for --ci", func(t *testing.T) {
 		t.Setenv("PRAVO_PASSPHRASE", testPass)
-		if text, code := runPravo(t, work, "id", "new", "--name", "x", "--out", filepath.Join(work, "x")); code != 1 || !strings.Contains(text, "--ci") {
+		if text, code := runPravo(t, rt, work, "id", "new", "--name", "x", "--out", filepath.Join(work, "x")); code != 1 || !strings.Contains(text, "--ci") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
@@ -426,18 +444,20 @@ func TestIDNewForAJob(t *testing.T) {
 }
 
 func TestIDShow(t *testing.T) {
-	ids := isolateIdentities(t)
+	rt := &runContext{}
+
+	ids := isolateIdentities(t, rt)
 	t.Setenv("PRAVO_PASSPHRASE", testPass)
 	dir := t.TempDir()
 
 	t.Run("no identity", func(t *testing.T) {
-		text, code := runPravo(t, dir, "id", "show")
+		text, code := runPravo(t, rt, dir, "id", "show")
 		if code != 1 || !strings.Contains(text, "Error: no identity found in ") || !strings.Contains(text, "Make one with: pravo id new --name NAME") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 
-	made, code := runPravo(t, dir, "id", "new", "--name", "ada")
+	made, code := runPravo(t, rt, dir, "id", "new", "--name", "ada")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, made)
 	}
@@ -446,7 +466,7 @@ func TestIDShow(t *testing.T) {
 	resetIdentityState(t)
 
 	t.Run("a sealed identity, without a passphrase", func(t *testing.T) {
-		text, code := runPravo(t, dir, "id", "show")
+		text, code := runPravo(t, rt, dir, "id", "show")
 		if code != 0 {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -460,22 +480,22 @@ func TestIDShow(t *testing.T) {
 		}
 	})
 	t.Run("by name", func(t *testing.T) {
-		if text, code := runPravo(t, dir, "id", "show", "--name", "ada"); code != 0 || !strings.Contains(text, "Identity ada") {
+		if text, code := runPravo(t, rt, dir, "id", "show", "--name", "ada"); code != 0 || !strings.Contains(text, "Identity ada") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
-		if text, code := runPravo(t, dir, "id", "show", "--name", "bob"); code != 1 || !strings.Contains(text, "no identity named bob") {
+		if text, code := runPravo(t, rt, dir, "id", "show", "--name", "bob"); code != 1 || !strings.Contains(text, "no identity named bob") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 	t.Run("an identity of a job in the environment", func(t *testing.T) {
 		out := filepath.Join(t.TempDir(), "bot.identity")
-		text, code := runPravo(t, dir, "id", "new", "--ci", "--name", "bot", "--out", out)
+		text, code := runPravo(t, rt, dir, "id", "new", "--ci", "--name", "bot", "--out", out)
 		if code != 0 {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 		data, _ := os.ReadFile(out)
 		t.Setenv("PRAVO_IDENTITY", string(data))
-		text, code = runPravo(t, dir, "id", "show")
+		text, code = runPravo(t, rt, dir, "id", "show")
 		if code != 0 || !strings.Contains(text, "Identity bot (PRAVO_IDENTITY)") || !strings.Contains(text, "no passphrase") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -485,7 +505,7 @@ func TestIDShow(t *testing.T) {
 	})
 	t.Run("a value that is not an identity is not repeated", func(t *testing.T) {
 		t.Setenv("PRAVO_IDENTITY", "{\"secret\":\"SECRET-TOKEN\"}")
-		text, code := runPravo(t, dir, "id", "show")
+		text, code := runPravo(t, rt, dir, "id", "show")
 		if code != 1 || strings.Contains(text, "SECRET-TOKEN") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -493,10 +513,12 @@ func TestIDShow(t *testing.T) {
 }
 
 func TestIDJSON(t *testing.T) {
-	isolateIdentities(t)
+	rt := &runContext{}
+
+	isolateIdentities(t, rt)
 	t.Setenv("PRAVO_PASSPHRASE", testPass)
 	dir := t.TempDir()
-	text, code := runPravo(t, dir, "--json", "id", "new", "--name", "ada")
+	text, code := runPravo(t, rt, dir, "--json", "id", "new", "--name", "ada")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -514,7 +536,7 @@ func TestIDJSON(t *testing.T) {
 	if _, err := protect.ParseReaderLine(made.Line); err != nil {
 		t.Errorf("the line does not parse: %v", err)
 	}
-	text, code = runPravo(t, dir, "--json", "id", "show")
+	text, code = runPravo(t, rt, dir, "--json", "id", "show")
 	var shown struct{ Line string }
 	if code != 0 || json.Unmarshal([]byte(text), &shown) != nil || shown.Line != made.Line {
 		t.Errorf("exit %d, document %s", code, text)
@@ -522,9 +544,11 @@ func TestIDJSON(t *testing.T) {
 }
 
 func TestIDCommandsTakeNoStrayArguments(t *testing.T) {
-	isolateIdentities(t)
+	rt := &runContext{}
+
+	isolateIdentities(t, rt)
 	for _, args := range [][]string{{"id", "stray"}, {"id", "new", "stray"}, {"id", "show", "stray"}} {
-		if text, code := runPravo(t, t.TempDir(), args...); code != 1 || !strings.Contains(text, "stray") {
+		if text, code := runPravo(t, rt, t.TempDir(), args...); code != 1 || !strings.Contains(text, "stray") {
 			t.Errorf("%v: exit %d\n%s", args, code, text)
 		}
 	}

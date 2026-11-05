@@ -13,7 +13,9 @@ import (
 
 // A readers file that is a named pipe must be refused, not waited for.
 func TestReadersFileThatIsAPipe(t *testing.T) {
-	isolateIdentities(t)
+	rt := &runContext{}
+
+	isolateIdentities(t, rt)
 	root := t.TempDir()
 	dir := filepath.Join(root, ".pravo", "access")
 	if err := os.MkdirAll(dir, 0o755); err != nil {

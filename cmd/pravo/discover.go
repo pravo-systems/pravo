@@ -21,7 +21,7 @@ import (
 // many more there are.
 const maxShown = 20
 
-func discoverCmd() *cobra.Command {
+func discoverCmd(rt *runContext) *cobra.Command {
 	var all, exitCode bool
 	cmd := &cobra.Command{
 		Use:   "discover [<name>...]",
@@ -53,49 +53,49 @@ discover adopt" to write the resource that adopts an object.`,
 			if all && len(args) > 0 {
 				return errors.New("--all runs every discovery; name some or give --all, not both")
 			}
-			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, planning: true})
 			if err != nil {
 				return err
 			}
 			defer s.close()
 			if len(s.root.Discoveries) == 0 {
-				if flags.JSON {
+				if rt.flags.JSON {
 					return emitJSON(map[string]any{"discoveries": []any{}})
 				}
-				out.Println("The specification has no discoveries.")
+				rt.out.Println("The specification has no discoveries.")
 				return nil
 			}
 			// A run is kept in the state: not in the state of another environment.
-			if err := refuseOtherEnvironment(cmd.Context(), s.root, s.state); err != nil {
+			if err := refuseOtherEnvironment(cmd.Context(), rt, s.root, s.state); err != nil {
 				return err
 			}
 			res, err := s.ws.Discover(cmd.Context(), pravo.DiscoverOptions{
 				Names: args, All: all,
-				Error: func(_ string, err error) { out.Printf("%s %s\n", out.C(ui.Red+ui.Bold, "Error:"), err) },
+				Error: func(_ string, err error) { rt.out.Printf("%s %s\n", rt.out.C(ui.Red+ui.Bold, "Error:"), err) },
 			})
 			if err != nil {
 				return err
 			}
 			chosen, rep, failed := res.Chosen, res.Report, res.Failed
 			for _, p := range res.Problems {
-				out.Warning("cannot read " + p.Error())
+				rt.out.Warning("cannot read " + p.Error())
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				if err := emitJSON(discoveryJSON(rep, names(chosen), false)); err != nil {
 					return err
 				}
 			} else {
 				if len(chosen) == 0 {
-					out.Printf("Every discovery is current. Run pravo discover --all to list them again.\n")
+					rt.out.Printf("Every discovery is current. Run pravo discover --all to list them again.\n")
 				}
 				for _, d := range chosen {
 					if v := rep.View(d.Name); v != nil && v.Run != nil && v.Freshness == engine.FreshCurrent {
-						printView(v, false)
+						printView(rt, v, false)
 					}
 				}
 			}
-			if msg, _ := roleProblem(readersOf(s.root), s.state, protect.RoleWriter, ""); msg != "" && !flags.JSON {
-				out.Printf("Not kept: your identity is a reader, so this run is shown and not stored.\n")
+			if msg, _ := roleProblem(readersOf(rt, s.root), s.state, protect.RoleWriter, ""); msg != "" && !rt.flags.JSON {
+				rt.out.Printf("Not kept: your identity is a reader, so this run is shown and not stored.\n")
 			}
 			if failed > 0 {
 				return fmt.Errorf("%s failed", plural(failed, "discovery", "discoveries"))
@@ -116,8 +116,8 @@ discover adopt" to write the resource that adopts an object.`,
 	}
 	cmd.Flags().BoolVar(&exitCode, "exit-code", false, "exit 2 when an object that was listed is unmanaged")
 	cmd.Flags().BoolVar(&all, "all", false, "run every discovery, not only the ones that have not run or whose scope changed")
-	addTagFlags(cmd)
-	cmd.AddCommand(discoverShowCmd(), discoverAdoptCmd())
+	addTagFlags(rt, cmd)
+	cmd.AddCommand(discoverShowCmd(rt), discoverAdoptCmd(rt))
 	return cmd
 }
 
@@ -135,20 +135,20 @@ func unknownDiscovery(root *config.Root, name string) error {
 
 // discoveryReport reads the runs and the acknowledgements of the state and sets
 // them against its records.
-func discoveryReport(s *session) (*engine.DiscoveryReport, error) {
+func discoveryReport(rt *runContext, s *session) (*engine.DiscoveryReport, error) {
 	rep, problems, err := s.ws.DiscoveryReport()
 	if err != nil {
 		return nil, err
 	}
 	for _, p := range problems {
-		out.Warning("cannot read " + p.Error())
+		rt.out.Warning("cannot read " + p.Error())
 	}
 	return rep, nil
 }
 
 // ---------- pravo discover show ----------
 
-func discoverShowCmd() *cobra.Command {
+func discoverShowCmd(rt *runContext) *cobra.Command {
 	var exitCode, managed bool
 	cmd := &cobra.Command{
 		Use:   "show [<name>...]",
@@ -165,15 +165,15 @@ With --exit-code the command exits 2 when any discovery shown has an unmanaged
 object, so that a schedule can tell someone.`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := checkMarkdown(); err != nil {
+			if err := checkMarkdown(rt); err != nil {
 				return err
 			}
-			s, err := newSession(cmd.Context(), sessionOptions{loadState: true, readOnlyState: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{loadState: true, readOnlyState: true})
 			if err != nil {
 				return err
 			}
 			defer s.close()
-			rep, err := discoveryReport(s)
+			rep, err := discoveryReport(rt, s)
 			if err != nil {
 				return err
 			}
@@ -192,11 +192,11 @@ object, so that a schedule can tell someone.`,
 			for _, v := range views {
 				unmanaged += v.Counts[engine.Unmanaged]
 			}
-			if flags.Markdown {
+			if rt.flags.Markdown {
 				if err := emitMarkdown(discoveryMarkdown(views)); err != nil {
 					return err
 				}
-			} else if flags.JSON {
+			} else if rt.flags.JSON {
 				names := make([]string, len(views))
 				for i, v := range views {
 					names[i] = v.Name
@@ -206,13 +206,13 @@ object, so that a schedule can tell someone.`,
 				}
 			} else {
 				if len(views) == 0 {
-					out.Println("The specification has no discoveries.")
+					rt.out.Println("The specification has no discoveries.")
 				}
 				for i, v := range views {
 					if i > 0 {
-						out.Println()
+						rt.out.Println()
 					}
-					printView(v, managed)
+					printView(rt, v, managed)
 				}
 			}
 			if exitCode && unmanaged > 0 {
@@ -223,30 +223,30 @@ object, so that a schedule can tell someone.`,
 	}
 	cmd.Flags().BoolVar(&exitCode, "exit-code", false, "exit 2 when an unmanaged object is shown")
 	cmd.Flags().BoolVar(&managed, "managed", false, "list the managed objects too")
-	cmd.Flags().BoolVar(&flags.Markdown, "markdown", false, "print what was found as Markdown for an issue or a comment: names and counts, never values")
-	addTagFlags(cmd)
+	cmd.Flags().BoolVar(&rt.flags.Markdown, "markdown", false, "print what was found as Markdown for an issue or a comment: names and counts, never values")
+	addTagFlags(rt, cmd)
 	return cmd
 }
 
-func printView(v *engine.DiscoveryView, showManaged bool) {
+func printView(rt *runContext, v *engine.DiscoveryView, showManaged bool) {
 	head := v.Name
 	if !v.Declared {
-		head += " " + out.C(ui.Dim, "(no longer in the specification)")
+		head += " " + rt.out.C(ui.Dim, "(no longer in the specification)")
 	}
-	out.Printf("%s  %s\n", out.C(ui.Bold, head), out.C(ui.Dim, v.Type+" via "+providerLabel(v)))
+	rt.out.Printf("%s  %s\n", rt.out.C(ui.Bold, head), rt.out.C(ui.Dim, v.Type+" via "+providerLabel(v)))
 	if len(v.Scope) > 0 || v.Limit > 0 {
-		out.Printf("  scope: %s\n", scopeText(v.Scope, v.Limit))
+		rt.out.Printf("  scope: %s\n", scopeText(v.Scope, v.Limit))
 	}
 	switch v.Freshness {
 	case engine.FreshNever:
-		out.Printf("  %s\n", out.C(ui.Yellow, "not run yet. Run: pravo discover "+engine.ShellWord(v.Name)))
+		rt.out.Printf("  %s\n", rt.out.C(ui.Yellow, "not run yet. Run: pravo discover "+engine.ShellWord(v.Name)))
 		return
 	case engine.FreshBroken:
-		out.Printf("  %s\n", out.C(ui.Red, "cannot run: "+v.ScopeErr))
+		rt.out.Printf("  %s\n", rt.out.C(ui.Red, "cannot run: "+v.ScopeErr))
 	case engine.FreshStale:
-		out.Printf("  %s\n", out.C(ui.Yellow, "the scope changed since the last run, which answers the old one. Run: pravo discover "+engine.ShellWord(v.Name)))
+		rt.out.Printf("  %s\n", rt.out.C(ui.Yellow, "the scope changed since the last run, which answers the old one. Run: pravo discover "+engine.ShellWord(v.Name)))
 	case engine.FreshUndeclared:
-		out.Printf("  %s\n", out.C(ui.Dim, "the specification has no discovery of this name; this is what its last run found"))
+		rt.out.Printf("  %s\n", rt.out.C(ui.Dim, "the specification has no discovery of this name; this is what its last run found"))
 	}
 	if v.Run == nil {
 		return
@@ -256,17 +256,17 @@ func printView(v *engine.DiscoveryView, showManaged bool) {
 	if v.Run.Actor != "" {
 		by = " by " + v.Run.Actor
 	}
-	out.Printf("  last run %s%s: %s\n", ago(&t), engine.PlainText(by), plural(len(v.Run.Items), "object", "objects"))
+	rt.out.Printf("  last run %s%s: %s\n", ago(&t), engine.PlainText(by), plural(len(v.Run.Items), "object", "objects"))
 	if v.Run.Status == state.RunTruncated {
-		out.Printf("  %s\n", out.C(ui.Yellow, fmt.Sprintf("the list was cut off at the limit of %d; there may be more", v.Limit)))
+		rt.out.Printf("  %s\n", rt.out.C(ui.Yellow, fmt.Sprintf("the list was cut off at the limit of %d; there may be more", v.Limit)))
 	}
 	for _, w := range v.Run.Warnings {
-		out.Printf("  %s %s\n", out.C(ui.Yellow, "warning:"), engine.PlainText(w))
+		rt.out.Printf("  %s %s\n", rt.out.C(ui.Yellow, "warning:"), engine.PlainText(w))
 	}
 	if v.Unreadable > 0 {
-		out.Printf("  %s\n", out.C(ui.Yellow, fmt.Sprintf("%s of type %s could not be read, so what they manage may be listed as unmanaged", plural(v.Unreadable, "record", "records"), v.Type)))
+		rt.out.Printf("  %s\n", rt.out.C(ui.Yellow, fmt.Sprintf("%s of type %s could not be read, so what they manage may be listed as unmanaged", plural(v.Unreadable, "record", "records"), v.Type)))
 	}
-	out.Printf("  %s\n", countsText(v))
+	rt.out.Printf("  %s\n", countsText(rt, v))
 	for _, group := range []struct {
 		status engine.DiscoveryStatus
 		title  string
@@ -284,17 +284,17 @@ func printView(v *engine.DiscoveryView, showManaged bool) {
 		if len(items) == 0 {
 			continue
 		}
-		out.Printf("\n  %s\n", out.C(group.color, group.title))
+		rt.out.Printf("\n  %s\n", rt.out.C(group.color, group.title))
 		limit := maxShown
 		if group.status == engine.Managed || showManaged {
 			limit = len(items)
 		}
 		for i, it := range items {
 			if i == limit {
-				out.Printf("    ... and %d more: pravo discover show %s --json\n", len(items)-limit, engine.ShellWord(v.Name))
+				rt.out.Printf("    ... and %d more: pravo discover show %s --json\n", len(items)-limit, engine.ShellWord(v.Name))
 				break
 			}
-			out.Printf("    %s\n", itemLine(v, it))
+			rt.out.Printf("    %s\n", itemLine(rt, v, it))
 		}
 	}
 }
@@ -322,10 +322,10 @@ func scopeText(scope map[string]any, limit int64) string {
 	return strings.Join(parts, " ")
 }
 
-func countsText(v *engine.DiscoveryView) string {
+func countsText(rt *runContext, v *engine.DiscoveryView) string {
 	var parts []string
 	if n := v.Counts[engine.Unmanaged]; n > 0 {
-		parts = append(parts, out.C(ui.Yellow+ui.Bold, fmt.Sprintf("%d unmanaged", n)))
+		parts = append(parts, rt.out.C(ui.Yellow+ui.Bold, fmt.Sprintf("%d unmanaged", n)))
 	} else {
 		parts = append(parts, "0 unmanaged")
 	}
@@ -335,7 +335,7 @@ func countsText(v *engine.DiscoveryView) string {
 	return strings.Join(parts, " · ")
 }
 
-func itemLine(v *engine.DiscoveryView, it engine.DiscoveredItem) string {
+func itemLine(rt *runContext, v *engine.DiscoveryView, it engine.DiscoveredItem) string {
 	// An object that only its whole identity names is called by its display name, and
 	// the identity is in the command that adopts it.
 	lead, name := it.ID, it.Name
@@ -348,16 +348,16 @@ func itemLine(v *engine.DiscoveryView, it engine.DiscoveredItem) string {
 	}
 	switch it.Status {
 	case engine.Unmanaged:
-		line += "  " + out.C(ui.Dim, "pravo discover adopt "+engine.ShellWord(v.Name)+" "+engine.ShellWord(it.ID))
+		line += "  " + rt.out.C(ui.Dim, "pravo discover adopt "+engine.ShellWord(v.Name)+" "+engine.ShellWord(it.ID))
 	case engine.Adopting:
-		line += "  " + out.C(ui.Dim, "by "+it.By)
+		line += "  " + rt.out.C(ui.Dim, "by "+it.By)
 	case engine.Acknowledged:
-		line += "  " + out.C(ui.Dim, it.By)
+		line += "  " + rt.out.C(ui.Dim, it.By)
 		if it.Reason != "" {
-			line += " " + out.C(ui.Dim, "“"+engine.PlainText(it.Reason)+"”")
+			line += " " + rt.out.C(ui.Dim, "“"+engine.PlainText(it.Reason)+"”")
 		}
 	case engine.Managed:
-		line += "  " + out.C(ui.Dim, "is "+it.By)
+		line += "  " + rt.out.C(ui.Dim, "is "+it.By)
 	}
 	return line
 }
@@ -433,7 +433,7 @@ func countsJSON(v *engine.DiscoveryView) map[string]int {
 
 // ---------- pravo discover adopt ----------
 
-func discoverAdoptCmd() *cobra.Command {
+func discoverAdoptCmd(rt *runContext) *cobra.Command {
 	var read bool
 	cmd := &cobra.Command{
 		Use:   "adopt <name> <id>",
@@ -451,12 +451,12 @@ in a comment and not written. Nothing is recorded in the state.`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name, id := args[0], args[1]
-			s, err := newSession(cmd.Context(), sessionOptions{install: read, schemas: read, loadState: true, readOnlyState: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: read, schemas: read, loadState: true, readOnlyState: true})
 			if err != nil {
 				return err
 			}
 			defer s.close()
-			rep, err := discoveryReport(s)
+			rep, err := discoveryReport(rt, s)
 			if err != nil {
 				return err
 			}
@@ -484,23 +484,23 @@ in a comment and not written. Nothing is recorded in the state.`,
 			l := item.Listed
 			body := ""
 			if read {
-				eng := s.engine(engine.Options{Progress: func(string, ...any) {}})
+				eng := s.engine(rt, engine.Options{Progress: func(string, ...any) {}})
 				if body, err = eng.ReadAdoption(cmd.Context(), v.ProviderKey, v.Type, plugin.ImportTarget{Identity: l.Identity}); err != nil {
 					return err
 				}
 			}
 			snippet := engine.FormatCUE(engine.AdoptSnippet(s.root, v, l, body))
-			if flags.JSON {
+			if rt.flags.JSON {
 				return emitJSON(map[string]any{"discovery": name, "id": l.ID, "identity": l.Identity, "status": item.Status, "snippet": snippet})
 			}
 			fmt.Print(snippet)
 			if item.Status == engine.Adopting {
-				out.Printf("// Note: %s already adopts this object.\n", item.By)
+				rt.out.Printf("// Note: %s already adopts this object.\n", item.By)
 			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&read, "read", false, "ask the provider for the object and write its attributes into the resource")
-	addTagFlags(cmd)
+	addTagFlags(rt, cmd)
 	return cmd
 }

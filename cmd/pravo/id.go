@@ -15,7 +15,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/protect"
 )
 
-func idCmd() *cobra.Command {
+func idCmd(rt *runContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "id",
 		Short: "Make and show the identity that reads a sealed state",
@@ -29,11 +29,11 @@ An identity touches no state. Its public line goes into
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(idNewCmd(), idShowCmd())
+	cmd.AddCommand(idNewCmd(rt), idShowCmd(rt))
 	return cmd
 }
 
-func idNewCmd() *cobra.Command {
+func idNewCmd(rt *runContext) *cobra.Command {
 	var name, sshFile, outFile, unlock, agentKey string
 	var ci bool
 	cmd := &cobra.Command{
@@ -68,7 +68,7 @@ Nothing is written to the identity directory.`,
 			return noArgs(cmd, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runIDNew(name, sshFile, outFile, ci, unlock, agentKey)
+			return runIDNew(rt, name, sshFile, outFile, ci, unlock, agentKey)
 		},
 	}
 	f := cmd.Flags()
@@ -81,7 +81,7 @@ Nothing is written to the identity directory.`,
 	return cmd
 }
 
-func idShowCmd() *cobra.Command {
+func idShowCmd(rt *runContext) *cobra.Command {
 	var name string
 	cmd := &cobra.Command{
 		Use:   "show",
@@ -93,16 +93,16 @@ $PRAVO_IDENTITY, then the identity directory ($PRAVO_IDENTITY_DIR, default ~/.co
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if name == "" {
-				name = flags.Identity // the global flag means the same
+				name = rt.flags.Identity // the global flag means the same
 			}
-			return runIDShow(name)
+			return runIDShow(rt, name)
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "name of the identity (same as --identity)")
 	return cmd
 }
 
-func runIDNew(name, sshFile, outFile string, ci bool, unlock, agentKey string) error {
+func runIDNew(rt *runContext, name, sshFile, outFile string, ci bool, unlock, agentKey string) error {
 	switch unlock {
 	case "passphrase", "agent":
 	default:
@@ -221,27 +221,27 @@ func runIDNew(name, sshFile, outFile string, ci bool, unlock, agentKey string) e
 		keeping = "sealed under ssh-agent key " + fp
 		unlocked = map[string]any{"by": "ssh-agent", "key": fp, "comment": unlocker.Comment}
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		return emitJSON(map[string]any{"name": id.Name, "path": path, "ci": ci, "unlock": unlocked,
 			"signing": map[string]string{"alg": "ssh-ed25519", "fingerprint": sum.Fingerprint, "source": sum.Source},
 			"reader":  sum.Reader, "line": sum.Line})
 	}
 	if ci {
-		out.Printf("Identity %s created for a job. It has no passphrase: protect the file.\n", id.Name)
-		out.Printf("  private  %s   (store it as the CI secret PRAVO_IDENTITY, then delete this file)\n", path)
-		out.Printf("  public   %s\n", sum.Line)
+		rt.out.Printf("Identity %s created for a job. It has no passphrase: protect the file.\n", id.Name)
+		rt.out.Printf("  private  %s   (store it as the CI secret PRAVO_IDENTITY, then delete this file)\n", path)
+		rt.out.Printf("  public   %s\n", sum.Line)
 		if runtime.GOOS == "windows" {
-			out.Println("  Check who can read the file with: icacls " + path)
+			rt.out.Println("  Check who can read the file with: icacls " + path)
 		}
 		return nil
 	}
-	out.Printf("Identity %s created\n", id.Name)
-	out.Printf("  signing  ssh-ed25519 %s  %s\n", sum.Fingerprint, sum.Source)
-	out.Printf("  reader   %s  %s in %s\n", sum.Reader, keeping, tilde(path))
-	out.Println()
-	out.Println("Give whoever keeps .pravo/access/readers.txt this line, and nothing else.")
-	out.Println("They add the role as its last word: role:reader (the default), role:writer or role:admin.")
-	out.Println()
+	rt.out.Printf("Identity %s created\n", id.Name)
+	rt.out.Printf("  signing  ssh-ed25519 %s  %s\n", sum.Fingerprint, sum.Source)
+	rt.out.Printf("  reader   %s  %s in %s\n", sum.Reader, keeping, tilde(path))
+	rt.out.Println()
+	rt.out.Println("Give whoever keeps .pravo/access/readers.txt this line, and nothing else.")
+	rt.out.Println("They add the role as its last word: role:reader (the default), role:writer or role:admin.")
+	rt.out.Println()
 	fmt.Println("  " + sum.Line)
 	return nil
 }
@@ -363,7 +363,7 @@ func (p publicIdentity) unlockedBy() (by, key string) {
 	return "ssh-agent", protect.SSHFingerprint(pub)
 }
 
-func runIDShow(name string) error {
+func runIDShow(rt *runContext, name string) error {
 	taken.mu.Lock()
 	src, err := findIdentity(identityOptions{Name: name})
 	taken.mu.Unlock()
@@ -394,7 +394,7 @@ func runIDShow(name string) error {
 	}
 	sum := identitySummary(p.Name, sign, p.Signing.Via, reader)
 	by, agentKey := p.unlockedBy()
-	if flags.JSON {
+	if rt.flags.JSON {
 		unlocked := map[string]any{"by": by}
 		if agentKey != "" {
 			unlocked["key"] = agentKey
@@ -410,13 +410,13 @@ func runIDShow(name string) error {
 	case "ssh-agent":
 		keeping = "sealed under ssh-agent key " + agentKey
 	}
-	out.Printf("Identity %s (%s)\n", p.Name, where)
-	out.Printf("  signing  ssh-ed25519 %s  %s\n", sum.Fingerprint, sum.Source)
-	out.Printf("  reader   %s  %s\n", sum.Reader, keeping)
-	out.Println()
-	out.Println("Give whoever keeps .pravo/access/readers.txt this line, and nothing else.")
-	out.Println("They add the role as its last word: role:reader (the default), role:writer or role:admin.")
-	out.Println()
+	rt.out.Printf("Identity %s (%s)\n", p.Name, where)
+	rt.out.Printf("  signing  ssh-ed25519 %s  %s\n", sum.Fingerprint, sum.Source)
+	rt.out.Printf("  reader   %s  %s\n", sum.Reader, keeping)
+	rt.out.Println()
+	rt.out.Println("Give whoever keeps .pravo/access/readers.txt this line, and nothing else.")
+	rt.out.Println("They add the role as its last word: role:reader (the default), role:writer or role:admin.")
+	rt.out.Println()
 	fmt.Println("  " + sum.Line)
 	return nil
 }

@@ -27,15 +27,15 @@ type policyRoot struct {
 const policyHead = "package infra\n\nimport \"pravo.dev/pravo\"\nimport loc \"pravo.dev/providers/hashicorp/local\"\n\n$local: loc.#Provider\n\n#unused: pravo.#Policy\n"
 
 // newPolicyRoot makes the root with the given policies and files, and the state sealed to ada.
-func newPolicyRoot(t *testing.T, rules map[string]string, files ...string) *policyRoot {
+func newPolicyRoot(t *testing.T, rt *runContext, rules map[string]string, files ...string) *policyRoot {
 	t.Helper()
 	requireLocalProvider(t)
 	requireSealing(t)
-	ids := isolateIdentities(t)
+	ids := isolateIdentities(t, rt)
 	ada, line := person(t, ids, "ada")
 	r := &policyRoot{ada: ada, ids: ids, dir: specDir(t, map[string]string{})}
 	r.declare(t, rules, files...)
-	if text, code := runPravo(t, r.dir, "init"); code != 0 {
+	if text, code := runPravo(t, rt, r.dir, "init"); code != 0 {
 		t.Skipf("init exited %d:\n%s", code, text)
 	}
 	writeReaders(t, filepath.Join(r.dir, ".pravo", "access"), line)
@@ -90,17 +90,17 @@ func (r *policyRoot) declare(t *testing.T, rules map[string]string, files ...str
 	}
 }
 
-func (r *policyRoot) apply(t *testing.T) (string, int) {
+func (r *policyRoot) apply(t *testing.T, rt *runContext) (string, int) {
 	t.Helper()
-	return runPravo(t, r.dir, "apply", "--auto-approve")
+	return runPravo(t, rt, r.dir, "apply", "--auto-approve")
 }
 
 // policyInForce is a root with the files a, b, c and d applied, and the policy in force.
-func policyInForce(t *testing.T, rule string) *policyRoot {
+func policyInForce(t *testing.T, rt *runContext, rule string) *policyRoot {
 	t.Helper()
 	rules := map[string]string{"rule": rule}
-	r := newPolicyRoot(t, rules, "a", "b", "c", "d")
-	if text, code := r.apply(t); code != 0 {
+	r := newPolicyRoot(t, rt, rules, "a", "b", "c", "d")
+	if text, code := r.apply(t, rt); code != 0 {
 		t.Fatalf("first apply: exit %d\n%s", code, text)
 	}
 	r.declare(t, rules, "b", "c", "d") // a is destroyed by the next plan
@@ -108,27 +108,29 @@ func policyInForce(t *testing.T, rule string) *policyRoot {
 }
 
 func TestPoliciesJudgeLaterPlansAndTheReceiptListsThem(t *testing.T) {
+	rt := &runContext{}
+
 	rules := map[string]string{"few": "summary: destroy: <=1"}
-	r := newPolicyRoot(t, rules, "a", "b", "c", "d")
-	text, code := runPravo(t, r.dir, "plan")
+	r := newPolicyRoot(t, rt, rules, "a", "b", "c", "d")
+	text, code := runPravo(t, rt, r.dir, "plan")
 	if code != 0 || !strings.Contains(text, "Policies: +1 new, ~0 changed, -0 removed") || !strings.Contains(text, "+ few (sha256:") {
 		t.Fatalf("plan: exit %d\n%s", code, text)
 	}
 	// The plan that adds a policy is not judged by it; the apply writes the version last.
-	if text, code = r.apply(t); code != 0 {
+	if text, code = r.apply(t, rt); code != 0 {
 		t.Fatalf("first apply: exit %d\n%s", code, text)
 	}
 	set := r.policies(t)
 	if len(set.InForce()) != 1 || set.InForce()[0].Name != "few" || set.InForce()[0].Signer != "ada" {
 		t.Fatalf("policies: %+v", set.InForce())
 	}
-	if text, code = runPravo(t, r.dir, "plan"); code != 0 || strings.Contains(text, "Policies:") {
+	if text, code = runPravo(t, rt, r.dir, "plan"); code != 0 || strings.Contains(text, "Policies:") {
 		t.Fatalf("an unchanged policy is not in the plan: exit %d\n%s", code, text)
 	}
 
 	// Within the rule: applied, and the signed start lists the version that judged.
 	r.declare(t, rules, "b", "c", "d")
-	if text, code = r.apply(t); code != 0 {
+	if text, code = r.apply(t, rt); code != 0 {
 		t.Fatalf("apply within the rule: exit %d\n%s", code, text)
 	}
 	head, _ := set.Head("few")
@@ -147,11 +149,11 @@ func TestPoliciesJudgeLaterPlansAndTheReceiptListsThem(t *testing.T) {
 
 	// A plan the rule refuses: exit 5 at plan and at apply, and nothing is destroyed.
 	r.declare(t, rules, "d")
-	text, code = runPravo(t, r.dir, "plan")
+	text, code = runPravo(t, rt, r.dir, "plan")
 	if code != 5 || !strings.Contains(text, "violates the policy few@1") {
 		t.Fatalf("plan: exit %d\n%s", code, text)
 	}
-	text, code = r.apply(t)
+	text, code = r.apply(t, rt)
 	if code != 5 || !strings.Contains(text, "violates the policy few@1") {
 		t.Fatalf("apply: exit %d\n%s", code, text)
 	}
@@ -173,23 +175,25 @@ func lastTxn(t *testing.T, st *state.Store) state.Transaction {
 }
 
 func TestAPolicyThatRefusesEveryPlanIsRetiredByAPolicyOnlyApply(t *testing.T) {
+	rt := &runContext{}
+
 	rules := map[string]string{"none": "summary: destroy: 0"}
-	r := newPolicyRoot(t, rules, "a")
-	if text, code := r.apply(t); code != 0 {
+	r := newPolicyRoot(t, rt, rules, "a")
+	if text, code := r.apply(t, rt); code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	// The removal is part of a plan that also destroys: refused by the policy in force.
 	r.declare(t, nil)
-	if text, code := r.apply(t); code != 5 {
+	if text, code := r.apply(t, rt); code != 5 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	// Policy only: it asks, exits 2 under --detailed-exitcode, and is not judged.
 	r.declare(t, nil, "a")
-	text, code := runPravo(t, r.dir, "plan", "--detailed-exitcode")
+	text, code := runPravo(t, rt, r.dir, "plan", "--detailed-exitcode")
 	if code != 2 || !strings.Contains(text, "-1 removed") {
 		t.Fatalf("plan: exit %d\n%s", code, text)
 	}
-	if text, code = r.apply(t); code != 0 {
+	if text, code = r.apply(t, rt); code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	set := r.policies(t)
@@ -205,18 +209,20 @@ func TestAPolicyThatRefusesEveryPlanIsRetiredByAPolicyOnlyApply(t *testing.T) {
 }
 
 func TestAChangedPolicyIsJudgedByTheVersionInForce(t *testing.T) {
-	r := newPolicyRoot(t, map[string]string{"p": "summary: destroy: <=5"}, "a")
-	if text, code := r.apply(t); code != 0 {
+	rt := &runContext{}
+
+	r := newPolicyRoot(t, rt, map[string]string{"p": "summary: destroy: <=5"}, "a")
+	if text, code := r.apply(t, rt); code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	// An edit that is stricter than the plan it comes with: the plan is judged by the
 	// version in force, so the destroy passes, and the new version is written.
 	r.declare(t, map[string]string{"p": "summary: destroy: 0"})
-	text, code := runPravo(t, r.dir, "plan")
+	text, code := runPravo(t, rt, r.dir, "plan")
 	if code != 0 || !strings.Contains(text, "~ p (version 1") {
 		t.Fatalf("plan: exit %d\n%s", code, text)
 	}
-	if text, code = r.apply(t); code != 0 {
+	if text, code = r.apply(t, rt); code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	head, _ := r.policies(t).Head("p")
@@ -226,30 +232,34 @@ func TestAChangedPolicyIsJudgedByTheVersionInForce(t *testing.T) {
 }
 
 func TestAStalePolicyEntryIsRefused(t *testing.T) {
-	r := newPolicyRoot(t, map[string]string{"p": "summary: destroy: <=5"}, "a")
+	rt := &runContext{}
+
+	r := newPolicyRoot(t, rt, map[string]string{"p": "summary: destroy: <=5"}, "a")
 	plan := filepath.Join(t.TempDir(), "p.plan")
-	if text, code := runPravo(t, r.dir, "plan", "--out", plan); code != 0 {
+	if text, code := runPravo(t, rt, r.dir, "plan", "--out", plan); code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	// Another writer puts the first version before this plan is applied.
 	if err := r.store(t).PutPolicyVersion(context.Background(), "p", 1, "summary: add: >=0", time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	text, code := runPravo(t, r.dir, "apply", plan)
+	text, code := runPravo(t, rt, r.dir, "apply", plan)
 	if code != 3 || !strings.Contains(text, "policy p changed") {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 }
 
 func TestPoliciesNeedASealedStateAtPlan(t *testing.T) {
+	rt := &runContext{}
+
 	requireLocalProvider(t)
 	dir := specDir(t, map[string]string{})
 	r := &policyRoot{dir: dir}
 	r.declare(t, map[string]string{"no": "summary: destroy: 0"})
-	if text, code := runPravo(t, dir, "init"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "init"); code != 0 {
 		t.Fatalf("init exited %d:\n%s", code, text)
 	}
-	text, code := runPravo(t, dir, "plan")
+	text, code := runPravo(t, rt, dir, "plan")
 	if code != 5 || !strings.Contains(text, "must be sealed") {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -258,20 +268,22 @@ func TestPoliciesNeedASealedStateAtPlan(t *testing.T) {
 // A saved plan is judged whole, whatever --only selects, by the policies in force when
 // the apply starts, including a version put after the plan was made.
 func TestTheWholeFileIsJudgedWhateverOnlySelects(t *testing.T) {
-	r := newPolicyRoot(t, nil, "a", "b", "c")
-	if text, code := r.apply(t); code != 0 {
+	rt := &runContext{}
+
+	r := newPolicyRoot(t, rt, nil, "a", "b", "c")
+	if text, code := r.apply(t, rt); code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	r.declare(t, nil, "c")
 	plan := filepath.Join(t.TempDir(), "p.plan")
-	if text, code := runPravo(t, r.dir, "plan", "--out", plan); code != 0 {
+	if text, code := runPravo(t, rt, r.dir, "plan", "--out", plan); code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	if err := r.store(t).PutPolicyVersion(context.Background(), "lim", 1, "summary: destroy: <=1", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{{"apply", plan}, {"apply", plan, "--only", "a"}} {
-		text, code := runPravo(t, r.dir, args...)
+		text, code := runPravo(t, rt, r.dir, args...)
 		if code != 5 || !strings.Contains(text, "violates the policy lim@1") {
 			t.Errorf("pravo %s: exit %d\n%s", strings.Join(args, " "), code, text)
 		}
@@ -282,18 +294,20 @@ func TestTheWholeFileIsJudgedWhateverOnlySelects(t *testing.T) {
 }
 
 func TestVerifyChecksTheReceiptOfAStoredPlan(t *testing.T) {
+	rt := &runContext{}
+
 	rules := map[string]string{"lim": "summary: {\n\tdestroy: <=2\n}\n"}
-	r := newPolicyRoot(t, rules, "a", "b", "c", "d")
+	r := newPolicyRoot(t, rt, rules, "a", "b", "c", "d")
 	// The version is dated well before the apply, as one that has been in force for a while.
 	if err := r.store(t).PutPolicyVersion(context.Background(), "lim", 1, rules["lim"], time.Now().Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if text, code := r.apply(t); code != 0 {
+	if text, code := r.apply(t, rt); code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	r.declare(t, rules, "c", "d")
-	id := storePlanAs(t, r.dir, "ci")
-	text, code := runPravo(t, r.dir, "apply", id)
+	id := storePlanAs(t, rt, r.dir, "ci")
+	text, code := runPravo(t, rt, r.dir, "apply", id)
 	if code != 0 {
 		t.Fatalf("apply exit %d\n%s", code, text)
 	}
@@ -301,7 +315,7 @@ func TestVerifyChecksTheReceiptOfAStoredPlan(t *testing.T) {
 	if len(txn.Policies) != 1 || txn.PlanID != id {
 		t.Fatalf("receipt %+v", txn)
 	}
-	text, code = runPravo(t, r.dir, "state", "verify", txn.ID)
+	text, code = runPravo(t, rt, r.dir, "state", "verify", txn.ID)
 	if code != 0 || !strings.Contains(text, "lim@1:") || !strings.Contains(text, "Verified.") {
 		t.Fatalf("verify: exit %d\n%s", code, text)
 	}
@@ -321,7 +335,7 @@ func TestVerifyChecksTheReceiptOfAStoredPlan(t *testing.T) {
 	if err := forged.Finish("applied", "", true); err != nil {
 		t.Fatal(err)
 	}
-	text, code = runPravo(t, r.dir, "state", "verify", forged.ID())
+	text, code = runPravo(t, rt, r.dir, "state", "verify", forged.ID())
 	if code != 7 || !strings.Contains(text, "does not list it") {
 		t.Errorf("an omission: exit %d\n%s", code, text)
 	}
@@ -330,9 +344,11 @@ func TestVerifyChecksTheReceiptOfAStoredPlan(t *testing.T) {
 // A rule that is written against the schema of pravo is stored without it: the state
 // holds standalone CUE, and the judge compiles it without the module.
 func TestARuleWrittenAgainstTheSchemaIsStoredWithoutIt(t *testing.T) {
+	rt := &runContext{}
+
 	rules := map[string]string{"nodel": "changes: [...pravo.#Change & {action: string, addr: string\n\tif action == \"delete\" {error(addr)}\n}]"}
-	r := newPolicyRoot(t, rules, "a", "b")
-	if text, code := r.apply(t); code != 0 {
+	r := newPolicyRoot(t, rt, rules, "a", "b")
+	if text, code := r.apply(t, rt); code != 0 {
 		t.Fatalf("first apply: exit %d\n%s", code, text)
 	}
 	head, _ := r.policies(t).Head("nodel")
@@ -340,7 +356,7 @@ func TestARuleWrittenAgainstTheSchemaIsStoredWithoutIt(t *testing.T) {
 		t.Errorf("stored text: %q", head.Text)
 	}
 	r.declare(t, rules, "b") // a is destroyed by the next plan
-	if text, code := runPravo(t, r.dir, "plan"); code != 5 || !strings.Contains(text, "a: ") && !strings.Contains(text, "changes.") {
+	if text, code := runPravo(t, rt, r.dir, "plan"); code != 5 || !strings.Contains(text, "a: ") && !strings.Contains(text, "changes.") {
 		t.Errorf("plan must be refused by the rule: exit %d\n%s", code, text)
 	}
 }
@@ -348,14 +364,16 @@ func TestARuleWrittenAgainstTheSchemaIsStoredWithoutIt(t *testing.T) {
 // An apply says which policy versions it wrote, as text and in its JSON line, so that an
 // apply that changes only policies does not read as an apply that did nothing.
 func TestApplyReportsThePolicyVersionsItWrote(t *testing.T) {
+	rt := &runContext{}
+
 	rules := map[string]string{"few": "summary: destroy: <=1", "lim": "summary: add: <=9"}
-	r := newPolicyRoot(t, rules)
-	text, code := r.apply(t)
+	r := newPolicyRoot(t, rt, rules)
+	text, code := r.apply(t, rt)
 	if code != 0 || !strings.Contains(text, "Policies: +2 new, ~0 changed, -0 removed.") {
 		t.Fatalf("apply: exit %d\n%s", code, text)
 	}
 	r.declare(t, map[string]string{"few": "summary: destroy: <=2"})
-	text, code = runPravo(t, r.dir, "apply", "--auto-approve", "--json")
+	text, code = runPravo(t, rt, r.dir, "apply", "--auto-approve", "--json")
 	if code != 0 {
 		t.Fatalf("json apply: exit %d\n%s", code, text)
 	}

@@ -16,7 +16,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/ui"
 )
 
-func protectRewrapCmd() *cobra.Command {
+func protectRewrapCmd(rt *runContext) *cobra.Command {
 	var all, removeRecovery, yes, allowNoAdmin bool
 	var readd []string
 	var recovery string
@@ -49,11 +49,11 @@ It needs an identity that is a reader of the state, and the readers file.
 --all does not run while a command is running or a lock is held (exit 4).`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			p, err := newProtectRun(cmd)
+			p, err := newProtectRun(rt, cmd)
 			if err != nil {
 				return err
 			}
-			return p.rewrap(all, recovery, removeRecovery, yes, allowNoAdmin, readd)
+			return p.rewrap(rt, all, recovery, removeRecovery, yes, allowNoAdmin, readd)
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "seal every record, the outputs and the stored plans again under the current key")
@@ -102,7 +102,7 @@ type rewrapPlan struct {
 	all          bool
 }
 
-func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes, allowNoAdmin bool, readd []string) error {
+func (p *protectRun) rewrap(rt *runContext, all bool, recoverySpec string, removeRecovery, yes, allowNoAdmin bool, readd []string) error {
 	if recoverySpec != "" && removeRecovery {
 		return errors.New("set the recovery or remove it, not both")
 	}
@@ -117,7 +117,7 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes, 
 	if err != nil {
 		return err
 	}
-	st, id, idErr, err := p.open(b, true, true)
+	st, id, idErr, err := p.open(rt, b, true, true)
 	if err != nil {
 		return err
 	}
@@ -152,14 +152,14 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes, 
 		return err
 	}
 	if len(added) == 0 && len(removed) == 0 && !all && pl.setRec == nil && !pl.removing && !pl.fileRemoving && len(prot.RecoveryUnverified) == 0 {
-		if removeRecovery && !flags.JSON {
-			out.Println("The state has no recovery recipient, and there is no recovery file.")
+		if removeRecovery && !rt.flags.JSON {
+			rt.out.Println("The state has no recovery recipient, and there is no recovery file.")
 			return nil
 		}
-		if flags.JSON {
+		if rt.flags.JSON {
 			return emitJSON(map[string]any{"added": nil, "removed": nil, "new_group": "", "resealed": 0})
 		}
-		out.Println("The store already matches the readers file.")
+		rt.out.Println("The store already matches the readers file.")
 		return nil
 	}
 	if all {
@@ -170,7 +170,7 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes, 
 		}
 	}
 	if pl.replacing || pl.removing {
-		if err := confirmRecoveryLoss(pl, prot, yes); err != nil {
+		if err := confirmRecoveryLoss(rt, pl, prot, yes); err != nil {
 			return err
 		}
 	}
@@ -191,7 +191,7 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes, 
 		Plans: engine.NewPlanStoreFor(st).ResealAll,
 	})
 	if err != nil && pl.newRec != nil {
-		p.afterFailure(pl.newRec, removeShares, pl.rcf)
+		p.afterFailure(rt, pl.newRec, removeShares, pl.rcf)
 	}
 	if errors.Is(err, state.ErrRecoveryChanged) {
 		return engine.WithCode(engine.ExitStale, errors.New("another command changed the recovery of the state while this ran, so nothing was set and any new shares were removed; run it again"))
@@ -202,18 +202,18 @@ func (p *protectRun) rewrap(all bool, recoverySpec string, removeRecovery, yes, 
 	if err != nil {
 		return err
 	}
-	recNote, recJSON, err := settleRecoveryFiles(pl)
+	recNote, recJSON, err := settleRecoveryFiles(rt, pl)
 	if err != nil {
 		return err
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		j := map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup, "resealed": res.Resealed, "plans_skipped": res.PlansSkipped}
 		if recJSON != nil {
 			j["recovery"] = recJSON
 		}
 		return emitJSON(j)
 	}
-	p.reportRewrap(st, prot, res, all, began)
+	p.reportRewrap(rt, st, prot, res, all, began)
 	if recNote != nil {
 		recNote()
 	}
@@ -242,14 +242,14 @@ func (p *protectRun) planRecovery(pl *rewrapPlan, prot state.Protection, removeR
 }
 
 // confirmRecoveryLoss asks before a recovery key is replaced or removed.
-func confirmRecoveryLoss(pl *rewrapPlan, prot state.Protection, yes bool) error {
+func confirmRecoveryLoss(rt *runContext, pl *rewrapPlan, prot state.Protection, yes bool) error {
 	what := "The recovery key will be replaced"
 	if pl.removing {
 		what = "The recovery recipient will be removed"
 	}
-	out.Printf("%s (%d of %d shares, key %s). The shares that were given out open nothing that is written from now on.\n",
+	rt.out.Printf("%s (%d of %d shares, key %s). The shares that were given out open nothing that is written from now on.\n",
 		what, prot.Sealed.Recovery.K, prot.Sealed.Recovery.N, prot.Sealed.Recovery.Key.Short())
-	if ok, err := confirm("Proceed?", yes); err != nil {
+	if ok, err := confirm(rt, "Proceed?", yes); err != nil {
 		return err
 	} else if !ok {
 		return errors.New("protect rewrap cancelled; nothing was written")
@@ -259,7 +259,7 @@ func confirmRecoveryLoss(pl *rewrapPlan, prot state.Protection, yes bool) error 
 
 // settleRecoveryFiles writes or deletes the files of the recovery before anything is reported,
 // and returns what to tell about it.
-func settleRecoveryFiles(pl *rewrapPlan) (note func(), j map[string]any, err error) {
+func settleRecoveryFiles(rt *runContext, pl *rewrapPlan) (note func(), j map[string]any, err error) {
 	rcf := pl.rcf
 	switch {
 	case pl.newRec != nil:
@@ -271,15 +271,15 @@ func settleRecoveryFiles(pl *rewrapPlan) (note func(), j map[string]any, err err
 			j["action"] = "replaced"
 		}
 		note = func() {
-			printShares(pl.newRec, pl.shares, rcf)
+			printShares(rt, pl.newRec, pl.shares, rcf)
 			if pl.replacing {
-				out.Println("The old shares open nothing that is written from now on. Collect them and destroy them.")
+				rt.out.Println("The old shares open nothing that is written from now on. Collect them and destroy them.")
 			}
 		}
 	case pl.fromFile:
 		j = recoveryJSON("from_file", pl.setRec, rcf, false)
 		note = func() {
-			out.Printf("Recovery recipient set from %s: key %s, any %d of %d shares rebuild its key.\n", rcf.shown(), pl.setRec.Key.Short(), pl.setRec.K, pl.setRec.N)
+			rt.out.Printf("Recovery recipient set from %s: key %s, any %d of %d shares rebuild its key.\n", rcf.shown(), pl.setRec.Key.Short(), pl.setRec.K, pl.setRec.N)
 		}
 	case pl.removing || pl.fileRemoving:
 		if err := os.Remove(rcf.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -288,9 +288,9 @@ func settleRecoveryFiles(pl *rewrapPlan) (note func(), j map[string]any, err err
 		j = recoveryJSON("removed", nil, rcf, false)
 		note = func() {
 			if pl.removing {
-				out.Printf("Recovery removed. Commit the deletion of %s, and destroy the shares.\n", rcf.shown())
+				rt.out.Printf("Recovery removed. Commit the deletion of %s, and destroy the shares.\n", rcf.shown())
 			} else {
-				out.Printf("The state has no recovery recipient. Removed %s; commit the deletion.\n", rcf.shown())
+				rt.out.Printf("The state has no recovery recipient. Removed %s; commit the deletion.\n", rcf.shown())
 			}
 		}
 	}
@@ -298,35 +298,35 @@ func settleRecoveryFiles(pl *rewrapPlan) (note func(), j map[string]any, err err
 }
 
 // reportRewrap says what a rewrap did.
-func (p *protectRun) reportRewrap(st *state.Store, prot state.Protection, res state.RewrapResult, all bool, began time.Time) {
+func (p *protectRun) reportRewrap(rt *runContext, st *state.Store, prot state.Protection, res state.RewrapResult, all bool, began time.Time) {
 	line := "Readers in " + p.rf.shown() + ": " + nameList(readerNames(p.rf.Readers))
 	if len(res.Change.Removed) > 0 {
 		line += "  (" + nameList(safeNames(res.Change.Removed)) + " removed)"
 	}
-	out.Println(line)
+	rt.out.Println(line)
 	if n := len(res.Change.Added); n > 0 {
 		groups := len(prot.Sealed.Groups)
-		out.Printf("Wrapped the data keys for %s (%s, %s)\n", nameList(res.Change.Added),
+		rt.out.Printf("Wrapped the data keys for %s (%s, %s)\n", nameList(res.Change.Added),
 			plural(groups, "reader group", "reader groups"), plural(groups*n, "new wrapped key", "new wrapped keys"))
 	}
 	if res.Change.NewGroup != "" {
 		if all {
-			out.Println("New data keys for 1 reader group.")
+			rt.out.Println("New data keys for 1 reader group.")
 		} else {
-			out.Println("New data keys for 1 reader group. Records are sealed again as they are next written.")
+			rt.out.Println("New data keys for 1 reader group. Records are sealed again as they are next written.")
 		}
 	}
 	if all {
-		out.Printf("Sealed %s again in %s.\n", counted(res.Resealed, "record", "records"), elapsed(time.Since(began)))
+		rt.out.Printf("Sealed %s again in %s.\n", counted(res.Resealed, "record", "records"), elapsed(time.Since(began)))
 		if res.PlansSkipped > 0 {
-			out.Println(plansInUseLine(res.PlansSkipped, true))
+			rt.out.Println(plansInUseLine(res.PlansSkipped, true))
 		}
 		// A plan that an apply uses is left alone, and stays as readable as it was.
 		if entries, _, err := engine.NewPlanStoreFor(st).EntriesAndSkipped(p.ctx, engine.PlanCheckFor(st)); err == nil {
-			warnUnsealed(unsealedPlans(entries))
+			warnUnsealed(rt, unsealedPlans(entries))
 		}
 	} else if len(res.Change.Added) > 0 || len(res.Change.Removed) == 0 {
-		out.Println(out.C(ui.Green, "meta.json updated"))
+		rt.out.Println(rt.out.C(ui.Green, "meta.json updated"))
 	}
 }
 

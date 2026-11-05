@@ -67,7 +67,7 @@ func rememberS3Store(root *config.Root) {
 // probeS3 runs the probe of the store that the root names, writes one line for
 // each check and remembers a store that passes. It ignores the verdict that is
 // remembered and PRAVO_S3_PROBE.
-func probeS3(ctx context.Context, root *config.Root) error {
+func probeS3(ctx context.Context, rt *runContext, root *config.Root) error {
 	if !root.State.Remote() {
 		return errors.New("the state is not on a remote store: $settings.state.backend is neither \"s3\" nor \"http\"")
 	}
@@ -91,18 +91,18 @@ func probeS3(ctx context.Context, root *config.Root) error {
 			r.Error = err.Error()
 		}
 		results = append(results, r)
-		if !flags.JSON {
+		if !rt.flags.JSON {
 			status := "ok"
 			if err != nil {
 				status = "FAILED"
 			}
-			out.Printf("%-32s %s\n", check, status)
+			rt.out.Printf("%-32s %s\n", check, status)
 		}
 	})
 	if err == nil {
 		rememberS3Store(root)
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		if e := emitJSON(map[string]any{"store": sb.Name(), "ok": err == nil, "checks": results}); e != nil {
 			return e
 		}
@@ -112,7 +112,7 @@ func probeS3(ctx context.Context, root *config.Root) error {
 		return nil
 	}
 	if err == nil {
-		out.Printf("%s honours the conditional requests that the locks need.\n", sb.Name())
+		rt.out.Printf("%s honours the conditional requests that the locks need.\n", sb.Name())
 	}
 	return err
 }

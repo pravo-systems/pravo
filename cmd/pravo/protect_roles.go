@@ -18,7 +18,7 @@ import (
 
 // ---------- protect roles ----------
 
-func protectRolesCmd() *cobra.Command {
+func protectRolesCmd(rt *runContext) *cobra.Command {
 	var yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning bool
 	var readd []string
 	cmd := &cobra.Command{
@@ -49,11 +49,11 @@ objects only, and a new note by the key that left is still refused. The command 
 many would stop counting. Do not use it for a key that may be compromised.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			p, err := newProtectRun(cmd)
+			p, err := newProtectRun(rt, cmd)
 			if err != nil {
 				return err
 			}
-			return p.roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning, readd)
+			return p.roles(rt, yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning, readd)
 		},
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask before the roles are stored")
@@ -65,16 +65,16 @@ many would stop counting. Do not use it for a key that may be compromised.`,
 	return cmd
 }
 
-func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning bool, readd []string) error {
-	rr, err := p.rolesTarget()
+func (p *protectRun) roles(rt *runContext, yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning bool, readd []string) error {
+	rr, err := p.rolesTarget(rt)
 	if err != nil {
 		return err
 	}
-	pl, err := p.planRoles(rr, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning, readd)
+	pl, err := p.planRoles(rt, rr, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning, readd)
 	if err != nil {
 		return err
 	}
-	return p.storeRoles(rr, pl, p.describeRoleChanges(rr, pl), yes)
+	return p.storeRoles(rt, rr, pl, p.describeRoleChanges(rr, pl), yes)
 }
 
 // rolesRun is the store that "protect roles" works on and the roles it holds now.
@@ -90,7 +90,7 @@ type rolesRun struct {
 // rolesTarget opens the store for "protect roles" and checks that the caller may
 // store roles in it: the state is sealed, the caller reads it, the roles in it are
 // the ones the readers file pins, and the caller is an admin of the roles that decide.
-func (p *protectRun) rolesTarget() (*rolesRun, error) {
+func (p *protectRun) rolesTarget(rt *runContext) (*rolesRun, error) {
 	if err := p.rf.require(); err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (p *protectRun) rolesTarget() (*rolesRun, error) {
 	if err != nil {
 		return nil, err
 	}
-	st, id, idErr, err := p.open(b, true, true)
+	st, id, idErr, err := p.open(rt, b, true, true)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ type rolesPlan struct {
 
 // planRoles works out the roles to store, and refuses the ones that would lock the admins
 // out or cut off a running command.
-func (p *protectRun) planRoles(rr *rolesRun, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning bool, readd []string) (*rolesPlan, error) {
+func (p *protectRun) planRoles(rt *runContext, rr *rolesRun, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning bool, readd []string) (*rolesPlan, error) {
 	st, prot, chain, before, beforeFormer := rr.st, rr.prot, rr.chain, rr.before, rr.beforeFormer
 	// Keys that signed transactions and that no one lists are recorded as former: they are
 	// members who left before the roles were stored. A key that is not recorded here is
@@ -193,11 +193,11 @@ func (p *protectRun) planRoles(rr *rolesRun, adoptUnsigned, vouchNotes, allowNoA
 		if !allowRunning {
 			return nil, engine.WithCode(engine.ExitLocked, runningLeaversError(running))
 		}
-		if !flags.JSON {
-			out.Printf("Warning: %s. What it writes from now on is signed by a key that is not a writer and stays refused (exit 7). To trust it, make the key a writer again, store the roles, and demote it again once the transaction has ended.\n", describeRunning(running))
+		if !rt.flags.JSON {
+			rt.out.Printf("Warning: %s. What it writes from now on is signed by a key that is not a writer and stays refused (exit 7). To trust it, make the key a writer again, store the roles, and demote it again once the transaction has ended.\n", describeRunning(running))
 		}
 	}
-	vouches, err := newVouches(p.ctx, st, chain, before, next, seen, adoptUnsigned)
+	vouches, err := newVouches(p.ctx, rt, st, chain, before, next, seen, adoptUnsigned)
 	if err != nil {
 		return nil, err
 	}
@@ -217,8 +217,8 @@ func (p *protectRun) planRoles(rr *rolesRun, adoptUnsigned, vouchNotes, allowNoA
 	}
 	txnVouches := vouches
 	vouches = append(append(append([]protect.Vouch(nil), vouches...), envVouches...), withdrawn...)
-	if left > 0 && !flags.JSON {
-		out.Printf("Warning: %s of keys that leave the writers will stop counting, so the environments after this one refuse this release until a current writer applies it again. If the keys are safe, run this with --vouch-notes to carry them over. Do not, if a key may be compromised. A withdrawal by an admin who is demoted or leaves keeps holding either way.\n", plural(left, "run note or promotion", "run notes and promotions"))
+	if left > 0 && !rt.flags.JSON {
+		rt.out.Printf("Warning: %s of keys that leave the writers will stop counting, so the environments after this one refuse this release until a current writer applies it again. If the keys are safe, run this with --vouch-notes to carry them over. Do not, if a key may be compromised. A withdrawal by an admin who is demoted or leaves keeps holding either way.\n", plural(left, "run note or promotion", "run notes and promotions"))
 	}
 	text := protect.FormatRolesSet(next, nextFormer, vouches)
 	return &rolesPlan{next: next, nextFormer: nextFormer, seen: seen, counts: counts, vouches: vouches, txnVouches: txnVouches, envVouches: envVouches, withdrawn: withdrawn, text: text}, nil
@@ -301,7 +301,7 @@ func (p *protectRun) describeRoleChanges(rr *rolesRun, pl *rolesPlan) []string {
 
 // storeRoles confirms the plan, stores it as the next version of the roles and pins its
 // first version in the readers file.
-func (p *protectRun) storeRoles(rr *rolesRun, pl *rolesPlan, changes []string, yes bool) error {
+func (p *protectRun) storeRoles(rt *runContext, rr *rolesRun, pl *rolesPlan, changes []string, yes bool) error {
 	st, head, chain, next, nextFormer, vouches, text := rr.st, rr.head, rr.chain, pl.next, pl.nextFormer, pl.vouches, pl.text
 	seq := 1
 	if head != nil {
@@ -309,12 +309,12 @@ func (p *protectRun) storeRoles(rr *rolesRun, pl *rolesPlan, changes []string, y
 	}
 	wrote := head == nil || len(vouches) > 0 || protect.FormatRolesSet(head.Set, head.Former, nil) != protect.FormatRolesSet(next, nextFormer, nil)
 	if wrote {
-		if len(changes) > 0 && !flags.JSON {
+		if len(changes) > 0 && !rt.flags.JSON {
 			for _, c := range changes {
-				out.Println("  " + c)
+				rt.out.Println("  " + c)
 			}
 		}
-		if ok, err := confirm(fmt.Sprintf("Store these roles as version %d?", seq), yes); err != nil {
+		if ok, err := confirm(rt, fmt.Sprintf("Store these roles as version %d?", seq), yes); err != nil {
 			return err
 		} else if !ok {
 			return errors.New("protect roles cancelled; nothing was written")
@@ -345,17 +345,17 @@ func (p *protectRun) storeRoles(rr *rolesRun, pl *rolesPlan, changes []string, y
 		}
 		pinAdded = true
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		return emitJSON(map[string]any{"version": seq, "written": wrote, "pin": digest, "pin_added": pinAdded, "changes": changes})
 	}
 	switch {
 	case wrote:
-		out.Printf("Stored the roles as version %d.\n", seq)
+		rt.out.Printf("Stored the roles as version %d.\n", seq)
 	default:
-		out.Printf("The state already holds these roles (version %d).\n", seq)
+		rt.out.Printf("The state already holds these roles (version %d).\n", seq)
 	}
 	if pinAdded {
-		out.Printf("Added %s %s to %s. Commit it: until it is in the repository the roles of the file decide.\n", protect.RolesGenesisKey, digest, p.rf.shown())
+		rt.out.Printf("Added %s %s to %s. Commit it: until it is in the repository the roles of the file decide.\n", protect.RolesGenesisKey, digest, p.rf.shown())
 	}
 	return nil
 }
@@ -451,7 +451,7 @@ const maxVouches = 5000
 // a writer in next, when the key was a writer in before, when there were no roles yet, or when
 // the key is one of seen, which the admin has just been shown. A transaction that an earlier
 // version vouched for is left out.
-func newVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, before, next []protect.Reader, seen []string, adoptUnsigned bool) ([]protect.Vouch, error) {
+func newVouches(ctx context.Context, rt *runContext, st *state.Store, chain *state.RolesChain, before, next []protect.Reader, seen []string, adoptUnsigned bool) ([]protect.Vouch, error) {
 	live, err := st.LiveSigners(ctx)
 	if err != nil {
 		return nil, err
@@ -505,8 +505,8 @@ func newVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, b
 		}
 	}
 	if skipped > 0 {
-		if !flags.JSON {
-			out.Printf("Warning: %s that no identity signed, or whose end is not signed, wrote records in the state, and those records stay refused. Run this with --adopt-unsigned to vouch for them.\n", plural(skipped, "transaction", "transactions"))
+		if !rt.flags.JSON {
+			rt.out.Printf("Warning: %s that no identity signed, or whose end is not signed, wrote records in the state, and those records stay refused. Run this with --adopt-unsigned to vouch for them.\n", plural(skipped, "transaction", "transactions"))
 		}
 	}
 	if len(found) > maxVouches {

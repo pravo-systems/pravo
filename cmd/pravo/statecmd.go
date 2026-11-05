@@ -20,7 +20,7 @@ import (
 	"github.com/pravo-systems/pravo/pravo"
 )
 
-func stateCmd() *cobra.Command {
+func stateCmd(rt *runContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "state",
 		Short: "Inspect and modify the state graph",
@@ -30,29 +30,29 @@ func stateCmd() *cobra.Command {
 	// The tags select the state that $settings.state.path names, as they do
 	// for the commands that load the specification.
 	pf := cmd.PersistentFlags()
-	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
-	addEnvFlag(pf)
-	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
+	pf.StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
+	addEnvFlag(rt, pf)
+	pf.BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
 	// Subcommands run with their own context; the parent's is never set.
 	load := func() (*state.Store, error) {
-		root, err := loadRoot()
+		root, err := loadRoot(rt)
 		if err != nil {
 			return nil, err
 		}
-		return openState(commandContext(), root)
+		return openState(commandContext(), rt, root)
 	}
 	// loadEdit is load for a subcommand that changes the records, as an apply does: a state
 	// whose record serves another environment is refused, as an apply is.
 	loadEdit := func() (*state.Store, error) {
-		root, err := loadRoot()
+		root, err := loadRoot(rt)
 		if err != nil {
 			return nil, err
 		}
-		st, err := openState(commandContext(), root)
+		st, err := openState(commandContext(), rt, root)
 		if err != nil {
 			return nil, err
 		}
-		if err := refuseOtherEnvironment(commandContext(), root, st); err != nil {
+		if err := refuseOtherEnvironment(commandContext(), rt, root, st); err != nil {
 			st.Close()
 			return nil, err
 		}
@@ -61,20 +61,20 @@ func stateCmd() *cobra.Command {
 	// loadRead is for the subcommands that only look: a state that does not
 	// exist is empty, and none is created.
 	loadRead := func() (*state.Store, error) {
-		root, err := loadRoot()
+		root, err := loadRoot(rt)
 		if err != nil {
 			return nil, err
 		}
-		return openStateReadOnly(commandContext(), root)
+		return openStateReadOnly(commandContext(), rt, root)
 	}
 	// loadValues is loadRead for a subcommand that prints values: a sealed state
 	// is refused to a user who is not one of its readers.
 	loadValues := func() (*state.Store, error) {
-		root, err := loadRoot()
+		root, err := loadRoot(rt)
 		if err != nil {
 			return nil, err
 		}
-		return openStateValues(commandContext(), root)
+		return openStateValues(commandContext(), rt, root)
 	}
 	// whole is a loader that also refuses a state with a pointer gone, as plan and drift do:
 	// a listing that lacks a resource would read as the truth.
@@ -86,8 +86,8 @@ func stateCmd() *cobra.Command {
 			}
 			if prot := st.Protection(); prot.Sealed != nil && !st.Locked() {
 				var readers []protect.Reader
-				if root, err := loadRoot(); err == nil {
-					readers, _ = attributionReaders(readersOf(root))
+				if root, err := loadRoot(rt); err == nil {
+					readers, _ = attributionReaders(readersOf(rt, root))
 				}
 				if err := st.CheckLoadedNodes(commandContext(), readers); err != nil {
 					st.Close()
@@ -117,28 +117,28 @@ func stateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				out.Printf("Copied %d objects from %s to %s\n", n, src.Name(), dst.Name())
+				rt.out.Printf("Copied %d objects from %s to %s\n", n, src.Name(), dst.Name())
 				return nil
 			},
 		}
 	}
 	cmd.AddCommand(
-		verifyCmd(),
+		verifyCmd(rt),
 		stateListCmd(whole(loadRead)),
-		stateShowCmd(whole(loadValues)),
-		stateRmCmd(loadEdit),
-		stateMvCmd(loadEdit),
-		stateLogCmd(loadRead),
-		stateProbeCmd(),
-		stateLocksCmd(loadRead),
-		upgradeCmd(load),
-		unlockCmd(load),
+		stateShowCmd(rt, whole(loadValues)),
+		stateRmCmd(rt, loadEdit),
+		stateMvCmd(rt, loadEdit),
+		stateLogCmd(rt, loadRead),
+		stateProbeCmd(rt),
+		stateLocksCmd(rt, loadRead),
+		upgradeCmd(rt, load),
+		unlockCmd(rt, load),
 		copyCmd("pull <dir>", "Copy the configured state graph into a local directory", false),
 		copyCmd("push <dir>", "Copy a local state directory into the configured backend", true),
-		stateEdgesCmd(whole(loadRead)),
+		stateEdgesCmd(rt, whole(loadRead)),
 		stateDependentsCmd(whole(loadRead)),
-		stateQueryCmd(whole(loadValues)),
-		stateImportTfstateCmd(loadEdit),
+		stateQueryCmd(rt, whole(loadValues)),
+		stateImportTfstateCmd(rt, loadEdit),
 	)
 	return cmd
 }
@@ -161,7 +161,7 @@ func stateListCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 }
 
 // stateShowCmd is "state show".
-func stateShowCmd(loadValues func() (*state.Store, error)) *cobra.Command {
+func stateShowCmd(rt *runContext, loadValues func() (*state.Store, error)) *cobra.Command {
 	var redact bool
 	cmd := &cobra.Command{
 		Use: "show <addr>", Short: "Show a node: attributes as CUE plus its bookkeeping", Args: cobra.ExactArgs(1),
@@ -179,7 +179,7 @@ func stateShowCmd(loadValues func() (*state.Store, error)) *cobra.Command {
 				return notInState(args[0])
 			}
 			if redact {
-				snap, n, err := redactedSnapshot(cmd.Context(), st)
+				snap, n, err := redactedSnapshot(cmd.Context(), rt, st)
 				if err != nil {
 					return err
 				}
@@ -188,7 +188,7 @@ func stateShowCmd(loadValues func() (*state.Store, error)) *cobra.Command {
 					fmt.Fprintf(os.Stderr, "%d values withheld (--redact)\n", n)
 				}
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				return emitJSON(map[string]any{"node": r, "dependents": st.Dependents(r.Address())})
 			}
 			provider := r.Provider
@@ -221,7 +221,7 @@ func stateShowCmd(loadValues func() (*state.Store, error)) *cobra.Command {
 }
 
 // stateRmCmd is "state rm".
-func stateRmCmd(load func() (*state.Store, error)) *cobra.Command {
+func stateRmCmd(rt *runContext, load func() (*state.Store, error)) *cobra.Command {
 	return &cobra.Command{
 		Use: "rm <addr>", Short: "Forget a resource without destroying it", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -245,14 +245,14 @@ func stateRmCmd(load func() (*state.Store, error)) *cobra.Command {
 				return err
 			}
 			txn.Record(args[0], "forget", r.Revision, 0)
-			out.Printf("Removed %s\n", args[0])
+			rt.out.Printf("Removed %s\n", args[0])
 			return txn.Finish("applied", "forgot "+args[0], true)
 		},
 	}
 }
 
 // stateMvCmd is "state mv".
-func stateMvCmd(load func() (*state.Store, error)) *cobra.Command {
+func stateMvCmd(rt *runContext, load func() (*state.Store, error)) *cobra.Command {
 	return &cobra.Command{
 		Use: "mv <from> <to>", Short: "Rename a resource in state", Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -333,14 +333,14 @@ func stateMvCmd(load func() (*state.Store, error)) *cobra.Command {
 					txn.Record(d, "relink", was, other.Revision)
 				}
 			}
-			out.Printf("Moved %s to %s\n", args[0], args[1])
+			rt.out.Printf("Moved %s to %s\n", args[0], args[1])
 			return txn.Finish("applied", "moved "+args[0]+" to "+args[1], true)
 		},
 	}
 }
 
 // stateLogCmd is "state log".
-func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
+func stateLogCmd(rt *runContext, loadRead func() (*state.Store, error)) *cobra.Command {
 	return &cobra.Command{
 		Use: "log", Short: "List recorded transactions, newest first", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -356,8 +356,8 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 			// transactions as they are stored: the status below is a reading of them.
 			readers, checked := []protect.Reader(nil), false
 			if prot := st.Protection(); prot.Sealed != nil {
-				if root, err := loadRoot(); err == nil {
-					readers, checked = attributionReaders(readersOf(root))
+				if root, err := loadRoot(rt); err == nil {
+					readers, checked = attributionReaders(readersOf(rt, root))
 				}
 			}
 			verdicts := make([]state.TxnVerdict, len(txns))
@@ -386,10 +386,10 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 					txns[i].SummarySealed = nil
 				}
 			}
-			if !checked && !flags.JSON && st.Protection().Sealed != nil {
-				out.Println(out.C(ui.Dim, "Signatures are not checked: the readers file is missing or invalid."))
+			if !checked && !rt.flags.JSON && st.Protection().Sealed != nil {
+				rt.out.Println(rt.out.C(ui.Dim, "Signatures are not checked: the readers file is missing or invalid."))
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				type view struct {
 					state.Transaction
 					Signature *sigStatusJSON `json:"signature,omitempty"`
@@ -411,8 +411,8 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 				if t.Finished != nil {
 					dur = " " + t.Finished.Sub(t.Started).Round(time.Millisecond).String()
 				}
-				out.Printf("%s  %-8s %-9s %s%s\n", t.ID, t.Kind, t.Status, t.Started.Local().Format("2006-01-02 15:04:05"), dur)
-				out.Printf("    %s\n", out.C(ui.Dim, ui.Safe(t.Command)))
+				rt.out.Printf("%s  %-8s %-9s %s%s\n", t.ID, t.Kind, t.Status, t.Started.Local().Format("2006-01-02 15:04:05"), dur)
+				rt.out.Printf("    %s\n", rt.out.C(ui.Dim, ui.Safe(t.Command)))
 				// The signature line names a signer that the readers file vouches for, so an actor
 				// that is only that name is not said twice.
 				actor := t.Actor
@@ -424,30 +424,30 @@ func stateLogCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 					if actor != "" || t.Reason == "" && t.GitRevision == "" {
 						label = "actor " + orNone(ui.Safe(actor)) + "  "
 					}
-					out.Printf("    %s\n", out.C(ui.Dim, strings.TrimSpace(fmt.Sprintf("%s%s  %s", label, ui.Safe(t.Reason), ui.Safe(t.GitRevision)))))
+					rt.out.Printf("    %s\n", rt.out.C(ui.Dim, strings.TrimSpace(fmt.Sprintf("%s%s  %s", label, ui.Safe(t.Reason), ui.Safe(t.GitRevision)))))
 				}
 				if checked {
 					line := txnSigText(verdicts[i])
 					if verdicts[i].Overall() == protect.SigInvalid {
-						line = out.C(ui.Red, line)
+						line = rt.out.C(ui.Red, line)
 					} else {
-						line = out.C(ui.Dim, line)
+						line = rt.out.C(ui.Dim, line)
 					}
-					out.Printf("    %s\n", line)
+					rt.out.Printf("    %s\n", line)
 				}
 				if t.Summary != "" {
-					out.Printf("    %s\n", t.Summary)
+					rt.out.Printf("    %s\n", t.Summary)
 				}
 				for _, c := range t.Changes {
 					if t.Kind == "secret" {
-						out.Printf("    %-8s %s%s\n", c.Action, printable(c.Addr), out.C(ui.Dim, secretVersions(c)))
+						rt.out.Printf("    %-8s %s%s\n", c.Action, printable(c.Addr), rt.out.C(ui.Dim, secretVersions(c)))
 						continue
 					}
-					out.Printf("    %-8s %s", c.Action, c.Addr)
+					rt.out.Printf("    %-8s %s", c.Action, c.Addr)
 					if c.After > 0 {
-						out.Printf("%s", out.C(ui.Dim, fmt.Sprintf("  r%d -> r%d", c.Before, c.After)))
+						rt.out.Printf("%s", rt.out.C(ui.Dim, fmt.Sprintf("  r%d -> r%d", c.Before, c.After)))
 					}
-					out.Println()
+					rt.out.Println()
 				}
 			}
 			return invalidTxns(invalid)
@@ -470,21 +470,21 @@ func secretVersions(c state.Change) string {
 }
 
 // stateProbeCmd is "state probe".
-func stateProbeCmd() *cobra.Command {
+func stateProbeCmd(rt *runContext) *cobra.Command {
 	return &cobra.Command{
 		Use: "probe", Short: "Check that the S3 store honours the conditional requests that locks need", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			root, err := loadRoot()
+			root, err := loadRoot(rt)
 			if err != nil {
 				return err
 			}
-			return probeS3(commandContext(), root)
+			return probeS3(commandContext(), rt, root)
 		},
 	}
 }
 
 // stateLocksCmd is "state locks".
-func stateLocksCmd(loadRead func() (*state.Store, error)) *cobra.Command {
+func stateLocksCmd(rt *runContext, loadRead func() (*state.Store, error)) *cobra.Command {
 	return &cobra.Command{
 		Use: "locks", Short: "List resource locks held by running commands", Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -504,14 +504,14 @@ func stateLocksCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 				orphan, _ := st.Orphaned(p, rec)
 				locks = append(locks, state.Lock{Addr: p.Addr, PID: p.PID, Host: p.Host, Command: p.Command, Txn: p.Txn, Since: p.Since, RenewedAt: p.Since, Kind: "note", Stale: orphan})
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				if locks == nil {
 					locks = []state.Lock{}
 				}
 				return emitJSON(locks)
 			}
 			if len(locks) == 0 {
-				out.Println("No locks or reservations held.")
+				rt.out.Println("No locks or reservations held.")
 			}
 			for _, l := range locks {
 				who := l.Actor
@@ -523,7 +523,7 @@ func stateLocksCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 					stale = " [stale]"
 				}
 				if l.Kind == "note" {
-					out.Printf("%s  note of a create that stopped (txn %s, on %s since %s, %s)%s: the object it created may exist untracked; find it with pravo discover (with a #Discovery rule), adopt it (pravo state rm %s, then pravo import %s ID) or clear the note with pravo state unlock --allow-create %s\n", l.Addr, l.Txn, l.Host, l.Since.Local().Format(time.RFC3339), l.Command, stale, l.Addr, l.Addr, l.Addr)
+					rt.out.Printf("%s  note of a create that stopped (txn %s, on %s since %s, %s)%s: the object it created may exist untracked; find it with pravo discover (with a #Discovery rule), adopt it (pravo state rm %s, then pravo import %s ID) or clear the note with pravo state unlock --allow-create %s\n", l.Addr, l.Txn, l.Host, l.Since.Local().Format(time.RFC3339), l.Command, stale, l.Addr, l.Addr, l.Addr)
 					continue
 				}
 				if l.Kind == "reservation" {
@@ -531,10 +531,10 @@ func stateLocksCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 					if l.Expires != nil {
 						until = "until " + l.Expires.Local().Format(time.RFC3339)
 					}
-					out.Printf("%s  reserved by %s %s: %s%s\n", l.Addr, who, until, l.Command, stale)
+					rt.out.Printf("%s  reserved by %s %s: %s%s\n", l.Addr, who, until, l.Command, stale)
 					continue
 				}
-				out.Printf("%s  locked by %s, pid %d on %s since %s: %s%s\n", l.Addr, who, l.PID, l.Host, l.Since.Local().Format(time.RFC3339), l.Command, stale)
+				rt.out.Printf("%s  locked by %s, pid %d on %s since %s: %s%s\n", l.Addr, who, l.PID, l.Host, l.Since.Local().Format(time.RFC3339), l.Command, stale)
 			}
 			return nil
 		},
@@ -563,7 +563,7 @@ func stateDependentsCmd(loadRead func() (*state.Store, error)) *cobra.Command {
 }
 
 // stateQueryCmd is "state query".
-func stateQueryCmd(loadValues func() (*state.Store, error)) *cobra.Command {
+func stateQueryCmd(rt *runContext, loadValues func() (*state.Store, error)) *cobra.Command {
 	var redact bool
 	cmd := &cobra.Command{
 		Use:   "query <cue-expression>",
@@ -588,7 +588,7 @@ Examples:
 			}
 			var res *pravo.QueryResult
 			if redact {
-				snap, _, rerr := redactedSnapshot(cmd.Context(), st)
+				snap, _, rerr := redactedSnapshot(cmd.Context(), rt, st)
 				if rerr != nil {
 					return rerr
 				}
@@ -599,7 +599,7 @@ Examples:
 			if err != nil {
 				return err
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				b, err := res.JSON()
 				if err != nil {
 					return err
@@ -623,7 +623,7 @@ Examples:
 // upgradeCmd is "state upgrade": the first step of "protect init" alone. It is
 // hidden, because a state in format 2 is not encrypted and nothing but a test or
 // a careful operator has a use for it.
-func upgradeCmd(load func() (*state.Store, error)) *cobra.Command {
+func upgradeCmd(rt *runContext, load func() (*state.Store, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:    "upgrade",
 		Short:  "Store each record as an immutable object (format 2), without encrypting it",
@@ -638,10 +638,10 @@ func upgradeCmd(load func() (*state.Store, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				return emitJSON(map[string]any{"from": res.From, "to": res.To, "records": res.Records})
 			}
-			out.Printf("The state is in format %d: %s as immutable objects\n", res.To, plural(res.Records, "record", "records"))
+			rt.out.Printf("The state is in format %d: %s as immutable objects\n", res.To, plural(res.Records, "record", "records"))
 			return nil
 		},
 	}
@@ -649,7 +649,7 @@ func upgradeCmd(load func() (*state.Store, error)) *cobra.Command {
 
 // unlockCmd is "state unlock": it releases one lock, or with --stale every lock
 // that may be reclaimed.
-func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
+func unlockCmd(rt *runContext, load func() (*state.Store, error)) *cobra.Command {
 	var stale, allowCreate, force bool
 	cmd := &cobra.Command{
 		Use: "unlock [addr]", Short: "Release a resource lock left behind by a crashed command", Args: cobra.MaximumNArgs(1),
@@ -675,12 +675,12 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 				}
 			}
 			kept := func(a string) {
-				out.Printf("%s has no record, and an apply stopped while it was creating it: the lock stays, because the object may exist in the cloud and the next apply would create it again. Adopt the object (pravo discover, or pravo import %s ID), or run pravo state unlock --allow-create %s if the create never reached the cloud.\n", a, a, a)
+				rt.out.Printf("%s has no record, and an apply stopped while it was creating it: the lock stays, because the object may exist in the cloud and the next apply would create it again. Adopt the object (pravo discover, or pravo import %s ID), or run pravo state unlock --allow-create %s if the create never reached the cloud.\n", a, a, a)
 			}
 			if stale {
 				released, err := st.ReleaseStaleExcept(func(l state.Lock) bool { return !allowCreate && creating[l.Addr] })
 				for _, a := range released {
-					out.Printf("Unlocked %s\n", a)
+					rt.out.Printf("Unlocked %s\n", a)
 				}
 				var held []string
 				for a, c := range creating {
@@ -696,7 +696,7 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 					return err
 				}
 				if len(released) == 0 && len(held) == 0 {
-					out.Println("No stale locks.")
+					rt.out.Println("No stale locks.")
 				}
 				if len(held) > 0 {
 					return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s kept", plural(len(held), "lock", "locks")))
@@ -705,17 +705,17 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 			}
 			if note, _ := st.PendingCreateOf(args[0]); note != nil {
 				if !allowCreate {
-					out.Printf("%s has the note of a create that stopped (txn %s): the object it created may exist in the cloud untracked, and the next create of the node would make a second one. Adopt the object (pravo state rm %s, then pravo import %s ID), or run pravo state unlock --allow-create %s if the create never reached the cloud.\n", args[0], note.Txn, args[0], args[0], args[0])
+					rt.out.Printf("%s has the note of a create that stopped (txn %s): the object it created may exist in the cloud untracked, and the next create of the node would make a second one. Adopt the object (pravo state rm %s, then pravo import %s ID), or run pravo state unlock --allow-create %s if the create never reached the cloud.\n", args[0], note.Txn, args[0], args[0], args[0])
 					return engine.WithCode(engine.ExitRefused, errors.New("note kept"))
 				}
 				if err := st.ClearPendingCreate(args[0]); err != nil {
 					return err
 				}
-				out.Printf("Cleared the note of the stopped create of %s\n", args[0])
+				rt.out.Printf("Cleared the note of the stopped create of %s\n", args[0])
 			}
 			if !force {
 				if l, err := st.LockOf(args[0]); err == nil && l.Live() {
-					out.Printf("%s is held by a running command: %s (pid %d on %s, %s, last renewed %s). Releasing it lets a second command change the node at the same time, and the first one stops with a lost lock. Wait for it to end, or run pravo state unlock --force %s to release the lock anyway.\n", args[0], l.Command, l.PID, l.Host, l.Holder(), l.RenewedAt.Local().Format(time.RFC3339), args[0])
+					rt.out.Printf("%s is held by a running command: %s (pid %d on %s, %s, last renewed %s). Releasing it lets a second command change the node at the same time, and the first one stops with a lost lock. Wait for it to end, or run pravo state unlock --force %s to release the lock anyway.\n", args[0], l.Command, l.PID, l.Host, l.Holder(), l.RenewedAt.Local().Format(time.RFC3339), args[0])
 					return engine.WithCode(engine.ExitRefused, errors.New("lock kept: its holder is running"))
 				}
 			}
@@ -733,9 +733,9 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 				return err
 			}
 			if !ok {
-				out.Printf("%s was not locked\n", args[0])
+				rt.out.Printf("%s was not locked\n", args[0])
 			} else {
-				out.Printf("Unlocked %s\n", args[0])
+				rt.out.Printf("Unlocked %s\n", args[0])
 			}
 			return nil
 		},
@@ -746,7 +746,7 @@ func unlockCmd(load func() (*state.Store, error)) *cobra.Command {
 	return cmd
 }
 
-func stateEdgesCmd(load func() (*state.Store, error)) *cobra.Command {
+func stateEdgesCmd(rt *runContext, load func() (*state.Store, error)) *cobra.Command {
 	var dot bool
 	cmd := &cobra.Command{
 		Use: "graph", Short: "Print the dependency edges, optionally as DOT", Args: noArgs,
@@ -769,7 +769,7 @@ func stateEdgesCmd(load func() (*state.Store, error)) *cobra.Command {
 				return nil
 			}
 			if len(edges) == 0 {
-				out.Println("No dependency edges recorded.")
+				rt.out.Println("No dependency edges recorded.")
 			}
 			for _, e := range edges {
 				fmt.Printf("%s -> %s\n", e.From, e.To)
@@ -781,7 +781,7 @@ func stateEdgesCmd(load func() (*state.Store, error)) *cobra.Command {
 	return cmd
 }
 
-func stateImportTfstateCmd(load func() (*state.Store, error)) *cobra.Command {
+func stateImportTfstateCmd(rt *runContext, load func() (*state.Store, error)) *cobra.Command {
 	var force bool
 	cmd := &cobra.Command{
 		Use:   "import-tfstate <terraform.tfstate>",
@@ -838,15 +838,15 @@ once.`,
 			if err := txn.Finish("applied", fmt.Sprintf("imported %d resources from %s", len(res.Resources), args[0]), true); err != nil {
 				return err
 			}
-			out.Printf("Imported %d resources and %d outputs from %s into %s\n", len(res.Resources), len(res.Outputs), args[0], st.Dir())
+			rt.out.Printf("Imported %d resources and %d outputs from %s into %s\n", len(res.Resources), len(res.Outputs), args[0], st.Dir())
 			for _, n := range res.Notes {
-				out.Warning(n)
+				rt.out.Warning(n)
 			}
 			if len(res.Renamed) > 0 {
-				out.Println()
-				out.Println(out.C(ui.Bold, "Renamed instances") + " (these are the addresses now in the state; point each at its place in the specification with $from):")
+				rt.out.Println()
+				rt.out.Println(rt.out.C(ui.Bold, "Renamed instances") + " (these are the addresses now in the state; point each at its place in the specification with $from):")
 				for _, r := range res.Renamed {
-					out.Printf("  %s -> %s\n", r.From, r.To)
+					rt.out.Printf("  %s -> %s\n", r.From, r.To)
 				}
 			}
 			return nil
