@@ -95,6 +95,35 @@ func (l *lazyPack) ranges(k kind) map[string]packRange {
 	return l.index.Resources
 }
 
+// errPackChanged says that the file is not the one that was opened first.
+var errPackChanged = errors.New("changed after it was opened")
+
+// readType returns the document of the type called name. A file that another
+// pravo replaced since this one opened it (two commands that fetch the same
+// schema write the same pack, and on Windows a file that is not held open can be
+// replaced) is opened again, its index read again, and the read made once more:
+// a type must not go missing because a copy of the pack was written.
+func (l *lazyPack) readType(k kind, name string) ([]byte, bool, error) {
+	r, ok := l.ranges(k)[name]
+	if !ok {
+		return nil, false, nil
+	}
+	b, err := l.read(r)
+	if errors.Is(err, errPackChanged) && l.f == nil {
+		fresh, oerr := OpenPack(l.path)
+		if oerr != nil || fresh.lazy == nil {
+			return nil, true, err
+		}
+		fl := fresh.lazy
+		l.size, l.mtime, l.base, l.index = fl.size, fl.mtime, fl.base, fl.index
+		if r, ok = l.ranges(k)[name]; !ok {
+			return nil, false, nil
+		}
+		b, err = l.read(r)
+	}
+	return b, true, err
+}
+
 // read returns the document at r.
 func (l *lazyPack) read(r packRange) ([]byte, error) {
 	if r[0] < 0 || r[1] < 0 {
@@ -112,7 +141,7 @@ func (l *lazyPack) read(r packRange) ([]byte, error) {
 			return nil, err
 		}
 		if st.Size() != l.size || !st.ModTime().Equal(l.mtime) {
-			return nil, fmt.Errorf("%s changed after it was opened", l.path)
+			return nil, fmt.Errorf("%s %w", l.path, errPackChanged)
 		}
 	}
 	buf := make([]byte, r[1])
@@ -286,12 +315,8 @@ func (p *ProviderSchema) Function(name string) *Function {
 	if f, ok := p.Functions[name]; ok {
 		return f
 	}
-	r, ok := l.index.Functions[name]
-	if !ok {
-		return nil
-	}
-	b, err := l.read(r)
-	if err != nil {
+	b, ok, err := l.readType(kindFunction, name)
+	if !ok || err != nil {
 		return nil
 	}
 	var f Function
@@ -313,12 +338,8 @@ func (p *ProviderSchema) schemaOf(k kind, name string) *Schema {
 	if s, ok := m[name]; ok {
 		return s
 	}
-	r, ok := l.ranges(k)[name]
-	if !ok {
-		return nil
-	}
-	b, err := l.read(r)
-	if err != nil {
+	b, ok, err := l.readType(k, name)
+	if !ok || err != nil {
 		return nil
 	}
 	var s Schema

@@ -1,0 +1,150 @@
+name: Platforms
+
+# Runs tools/xplat on Linux, macOS and Windows and sets what it saw side by side
+# (tools/xplat/compare.py). By hand only: the suite starts providers, kills commands
+# and takes minutes. "repeat" runs the whole suite that many times on each system
+# and fails when a repeat records anything the first run did not.
+on:
+  workflow_dispatch:
+    inputs:
+      repeat:
+        description: Runs of the suite on each system (the flake check)
+        default: "3"
+      only:
+        description: Cases to run, comma separated (all when empty)
+        default: ""
+  pull_request:
+    paths:
+      - .github/workflows/platforms.yml
+      - tools/xplat/**
+
+permissions:
+  contents: read
+
+env:
+  GOFLAGS: -mod=readonly
+
+jobs:
+  suite:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: xplat-${{ matrix.os }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build pravo
+        shell: bash
+        run: go build -o bin/pravo${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/pravo
+      - name: Run the suite
+        shell: bash
+        env:
+          REPEAT: ${{ github.event.inputs.repeat || '2' }}
+          ONLY: ${{ github.event.inputs.only || '' }}
+          LABEL: ${{ runner.os }}
+        run: |
+          exe=bin/pravo; [ "$RUNNER_OS" = Windows ] && exe=bin/pravo.exe
+          python -X utf8 tools/xplat/xplat.py --pravo "$exe" --out "out/$LABEL" --label "$LABEL" --repeat "$REPEAT" --only "$ONLY" | tee "out-$LABEL.txt"
+      - if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: xplat-${{ runner.os }}
+          path: out/${{ runner.os }}/results.json
+
+  compare:
+    needs: suite
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v5
+        with:
+          path: results
+      - name: Compare
+        run: |
+          set -o pipefail
+          ls -R results
+          python3 tools/xplat/compare.py Linux=results/xplat-Linux/results.json macOS=results/xplat-macOS/results.json Windows=results/xplat-Windows/results.json | tee compare.txt
+          { echo '```'; cat compare.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  # A state that one system wrote, read and changed by another, and read back by the first
+  # (tools/xplat/estate.py): a laptop on Windows or macOS and CI on Linux.
+  estate-make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: xplat-ubuntu-latest
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: go build -o bin/pravo ./cmd/pravo
+      - run: python -X utf8 tools/xplat/estate.py make --pravo bin/pravo --out out
+      - uses: actions/upload-artifact@v5
+        with:
+          name: estate
+          path: out/estate.tar
+
+  estate-use:
+    needs: estate-make
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: xplat-${{ matrix.os }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - shell: bash
+        run: go build -o bin/pravo${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/pravo
+      - uses: actions/download-artifact@v5
+        with:
+          name: estate
+          path: in
+      - shell: bash
+        run: |
+          exe=bin/pravo; [ "$RUNNER_OS" = Windows ] && exe=bin/pravo.exe
+          python -X utf8 tools/xplat/estate.py use --pravo "$exe" --in in/estate.tar --out out
+      - if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: back-${{ runner.os }}
+          path: out/back-*.tar
+
+  estate-back:
+    needs: estate-use
+    strategy:
+      fail-fast: false
+      matrix:
+        from: [macOS, Windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: xplat-ubuntu-latest
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: go build -o bin/pravo ./cmd/pravo
+      - uses: actions/download-artifact@v5
+        with:
+          name: back-${{ matrix.from }}
+          path: in
+      - run: python -X utf8 tools/xplat/estate.py back --pravo bin/pravo --in in/back-${{ matrix.from == 'macOS' && 'darwin' || 'windows' }}.tar --out out

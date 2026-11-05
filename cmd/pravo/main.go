@@ -280,6 +280,26 @@ func showsProgress(cmd *cobra.Command) bool {
 	return false
 }
 
+// answersOnStdout says whether standard output is the answer of the command, a value that a
+// script captures with $(...) or a pipe, so that a warning must not be written there.
+func answersOnStdout(cmd *cobra.Command) bool {
+	path := strings.Fields(cmd.CommandPath())[1:]
+	if len(path) == 0 {
+		return false
+	}
+	switch path[0] {
+	case "eval", "output", "schema":
+		return true
+	case "secret":
+		return len(path) > 1 && (path[1] == "get" || path[1] == "exec")
+	case "state":
+		return len(path) > 1 && path[1] == "query"
+	case "providers":
+		return len(path) > 1 && path[1] == "schema"
+	}
+	return false
+}
+
 // flagError adds the flag a reader of another tool would have meant to an unknown-flag error.
 func flagError(cmd *cobra.Command, err error) error {
 	switch err.Error() {
@@ -314,6 +334,9 @@ func newRootCmd() *cobra.Command {
 				out = ui.NewPrinter(os.Stderr, true)
 			} else {
 				out = ui.NewPrinter(os.Stdout, colourOff(flags.NoColor))
+			}
+			if answersOnStdout(cmd) {
+				out.Warnings = os.Stderr
 			}
 			if spinner != nil && flags.Verbose == 0 && showsProgress(cmd) {
 				// The status line gives way to whatever the command prints.

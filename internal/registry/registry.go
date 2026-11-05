@@ -763,6 +763,44 @@ func (c *Client) Checksum(ctx context.Context, src Source, ver string, plat Plat
 	return strings.ToLower(dl.Shasum), nil
 }
 
+// ChecksumSigned is Checksum for a provider that is already on disk: it also checks the
+// signature of the checksum list, as an install does, and returns the fingerprint of the key
+// that made it ("" when the registry does not sign). A lock file written beside a provider
+// that was installed by an earlier run then holds what an install would have written. A
+// signature that does not verify is an error, and so is a missing one when
+// PRAVO_REQUIRE_SIGNED is set; the checksum is not returned then.
+func (c *Client) ChecksumSigned(ctx context.Context, src Source, ver string, plat Platform) (sum, signer string, err error) {
+	if src.OCI {
+		sum, err = c.checksumOCI(ctx, src, ver, plat)
+		return sum, "", err
+	}
+	base, err := c.providersBase(ctx, src.Host)
+	if err != nil {
+		return "", "", err
+	}
+	var dl downloadInfo
+	u := fmt.Sprintf("%s%s/%s/%s/download/%s/%s", base, url.PathEscape(src.Namespace), url.PathEscape(src.Type), ver, plat.OS, plat.Arch)
+	if err := c.getJSON(ctx, u, &dl); err != nil {
+		if notFound(err) {
+			return "", "", fmt.Errorf("%s v%s was not found for %s", src.Display(), ver, plat)
+		}
+		return "", "", fmt.Errorf("resolving download for %s %s: %w", src.Display(), ver, err)
+	}
+	if dl.Shasum == "" {
+		return "", "", fmt.Errorf("%s does not state a checksum for %s %s (%s)", src.Host, src.Display(), ver, plat)
+	}
+	sum = strings.ToLower(dl.Shasum)
+	if dl.signed() {
+		signer, err = c.verifySignature(ctx, &dl, sum)
+		if err != nil {
+			return "", "", fmt.Errorf("%s %s: %w", src.Display(), ver, err)
+		}
+	} else if truthy(c.Env.Get("PRAVO_REQUIRE_SIGNED")) {
+		return "", "", fmt.Errorf("%s %s is not signed by the registry (no signing keys or no signature of the checksum list), and PRAVO_REQUIRE_SIGNED is set", src.Display(), ver)
+	}
+	return sum, signer, nil
+}
+
 // Archive downloads the zip archive of one provider version for plat into
 // dir, checks it against the checksum the registry gave, and returns its path
 // and sha256.

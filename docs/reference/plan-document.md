@@ -116,7 +116,7 @@ pravo plan --json 2>/dev/null | jq 'del(.changes)'
     }
   },
   "providers": {
-    "kubernetes": "3.4.0",
+    "kubernetes": "3.5.0",
     "local": "2.9.1",
     "random": "3.9.1"
   }

@@ -4,6 +4,8 @@ description: How pravo finds, installs, locks, starts and talks to a provider, h
 order: 7
 minutes: 14
 normalize:
+  - pattern: '(?m)^\t\t"signer": +"[0-9A-F]+"\n'
+    replace: ''
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
   - pattern: '\[txn [0-9]{8}T[0-9]{6}Z-[0-9a-f]+\]'

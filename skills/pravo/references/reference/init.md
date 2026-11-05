@@ -211,7 +211,7 @@ pravo.lock.cue
 ### The lock file
 
 ```sh
-head -n 9 pravo.lock.cue
+head -n 10 pravo.lock.cue
 ```
 
 Output:

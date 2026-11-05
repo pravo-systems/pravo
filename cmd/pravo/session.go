@@ -449,7 +449,7 @@ func (s *session) writeGenerated(verbose bool) error {
 		}
 		name := strings.NewReplacer(" ", "-", "_", "-").Replace(strings.ToLower(filepath.Base(root.Dir)))
 		content := fmt.Sprintf("module: %q\nlanguage: version: \"v0.14.0\"\n", "pravo.local/"+name)
-		if err := os.WriteFile(filepath.Join(modDir, "module.cue"), []byte(content), 0o644); err != nil {
+		if _, err := pravo.WriteIfChanged(filepath.Join(modDir, "module.cue"), []byte(content)); err != nil {
 			return err
 		}
 		out.Printf("Created %s\n", filepath.Join("cue.mod", "module.cue"))
@@ -471,6 +471,11 @@ func (s *session) writeGenerated(verbose bool) error {
 		dir := filepath.Join(modDir, "gen", filepath.FromSlash(importPath))
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
+		}
+		// A type that cannot be read from the cache must stop the command, not
+		// leave a package without it that every later command is checked against.
+		if err := ps.Materialize(); err != nil {
+			return fmt.Errorf("provider %s: %w", local, err)
 		}
 		changed, err := pravo.WriteIfChanged(filepath.Join(dir, pkgName+"_gen.cue"), schema.GenerateCUE(ps, pkgName, opts))
 		if err != nil {

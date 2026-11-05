@@ -14,7 +14,7 @@ import (
 
 // retryAttempts is the number of times a request that failed for a reason that
 // passes is made before its failure is returned.
-const retryAttempts = 4
+const retryAttempts = 5
 
 // maxRetryWait is the longest pause before a new try, whatever Retry-After asks
 // for: a registry cannot make a command sleep for hours.
@@ -82,7 +82,9 @@ func (t *retryTransport) pause(n int) time.Duration {
 	if t.wait != nil {
 		return t.wait(n)
 	}
-	d := 500 * time.Millisecond << (n - 1) // 0.5 s, 1 s, 2 s
+	// 1 s, 2 s, 4 s, 8 s: GitHub, where most providers are downloaded from, answers 502 and 504 for
+	// stretches of ten seconds or so, and a CI job that gives up after three seconds fails for it.
+	d := time.Second << (n - 1)
 	return d/2 + time.Duration(rand.Int64N(int64(d)))
 }
 

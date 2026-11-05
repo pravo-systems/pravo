@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -682,5 +683,28 @@ func TestNoMCPToolHandsOutASecret(t *testing.T) {
 		if strings.Contains(text, value) {
 			t.Errorf("pravo %s shows the value", strings.Join(args, " "))
 		}
+	}
+}
+
+// A warning is not part of the answer: a script that captures the value of a secret with
+// $(pravo secret get NAME) must get the value, whatever else pravo has to say. In a sealed
+// state a label for --actor (or $PRAVO_ACTOR, which CI sets) is dropped with a warning.
+func TestSecretGetKeepsWarningsOffStandardOutput(t *testing.T) {
+	s := sealedBucket(t)
+	if text, code := s.setSecret(t, "tok-xyz", "ci/token"); code != 0 {
+		t.Fatalf("set: exit %d\n%s", code, text)
+	}
+	stderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+	text, code := runPravo(t, s.dir, "secret", "get", "ci/token", "--actor", "a-ci-job")
+	w.Close()
+	os.Stderr = stderr
+	warned, _ := io.ReadAll(r)
+	if code != 0 || text != "tok-xyz" {
+		t.Errorf("get with a label for the actor: exit %d, stdout %q, want only the value", code, text)
+	}
+	if !strings.Contains(string(warned), "--actor") {
+		t.Errorf("the warning that the label is ignored is not on standard error: %q", warned)
 	}
 }
