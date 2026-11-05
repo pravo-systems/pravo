@@ -39,8 +39,8 @@ func idNewCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "new",
 		Short: "Make an identity and print the line for the readers file",
-		Long: `Makes a reader key and a signing key, writes them to the identity file NAME in
-the identity directory, and prints the public line for .pravo/access/readers.txt.
+		Long: `Makes a reader key and a signing key, writes them to the identity file named by --name
+(default: the user name) in the identity directory, and prints the public line for .pravo/access/readers.txt.
 The reader key is sealed under a passphrase, which is asked for twice on the
 terminal, or read from $PRAVO_PASSPHRASE when stdin is not a terminal.
 An identity that exists is never overwritten.
