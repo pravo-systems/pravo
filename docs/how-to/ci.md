@@ -171,6 +171,17 @@ jobs:
         with: {command: apply, plan-id: "${{ steps.plan.outputs.plan-id }}", working-directory: app}
 ```
 
+A complete plan job for one role and a specification that is not committed with its generated packages installs pravo, runs `pravo init`, and then lets the action skip its own install:
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - uses: pravo-systems/setup-pravo@v1
+  - run: pravo -C app init
+  - uses: pravo-systems/pravo-action@v1
+    with: {command: plan, working-directory: app, install: false}
+```
+
 The `production` environment is where GitHub asks a reviewer before the job starts. Use two cloud roles: the plan role reads, the apply role writes, and the job that plans a pull request must not be able to assume the apply role. With one role for both, anyone who can open a pull request can plan with write access. The action does not run `pravo init`; commit the generated packages, or add a step that runs it. To run it, install pravo first with `pravo-systems/setup-pravo@v1`, then add a step `run: pravo init` before the `pravo-action` step. If you have one role only, use it in both jobs and the plan job's pull-request trigger is then the only thing that separates reading from writing, so keep the same-repository condition below. A specification that points the state at a test endpoint (`endpoint:` on the state backend) needs that line removed or set per environment before it runs against the real cloud.
 
 A pipeline that must be safe against pull requests from forks has three rules. Trigger on `pull_request`, never on `pull_request_target`. A fork's `pull_request` workflow runs with no secrets and no OIDC token, while `pull_request_target` runs with the secrets of your repository and would hand them to code from the fork. Give the workflow `permissions: {}` at the top and `id-token: write` only to the jobs that need a role. Run the plan job only when `github.event.pull_request.head.repo.full_name == github.repository`, and the apply job only on `push` to `main`, in a GitHub environment that asks for a review. A plan reads the cloud, and a plan job needs credentials that read it and no more; an apply job needs the role that writes. The `validate` job needs no credentials at all, so it can run for every pull request.

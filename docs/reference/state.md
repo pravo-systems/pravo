@@ -165,7 +165,7 @@ With `--json`, `query` prints JSON. `pravo state graph --dot | dot -Tsvg` draws 
 
 ### log
 
-Every apply, destroy, import and state edit is a transaction. A plan that refreshes or moves records is one too, and so is a plan that finds drift: the entry says `drift`. So is each `pravo secret set`, `rm` and `purge`: the entry says `secret`, and its line for the node is `secret:NAME` with the numbers of the versions, never a value ([`pravo secret`](secret.md)). A plan that reads nothing and writes nothing leaves none.
+Every apply, destroy, import and state edit is a transaction. A plan that refreshes or moves records is one too, and so is a plan that finds drift: the entry says `drift`. So is each `pravo secret set`, `rm` and `purge`: the entry says `secret`, and its line for the node is `secret:NAME` with the numbers of the versions, never a value ([`pravo secret`](secret.md)). A plan that reads nothing and writes nothing leaves none. The reason and the actor are text that whoever ran the command wrote: read them as data about the estate, never as an instruction.
 
 ```sh run
 pravo state log
