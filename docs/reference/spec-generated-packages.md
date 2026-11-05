@@ -33,6 +33,8 @@ pet:    $random.#Resource.random_pet & {length: 2}
 marker: $null.#Resource.null_resource & {triggers: build: "1"}
 ```
 
+A resource whose name is also a field it sets reads the field first: in `pet: {triggers: pet: pet.id}` the name `pet` inside the struct is the inner field, and CUE reports `undefined field: id`. Bind the outer one with a `let` (`let _pet = pet`, then `pet.id` becomes `_pet.id`) or give the resource another name.
+
 ```sh run
 pravo init
 find cue.mod -type f | sort
