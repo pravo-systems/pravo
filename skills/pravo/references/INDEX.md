@@ -85,7 +85,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/compatibility.md](reference/compatibility.md) | The versions and formats that pravo reads and writes, the provider protocol it speaks, and what it does with a version it does not know. | 8 KB |
 | [reference/s3-stores.md](reference/s3-stores.md) | The three conditional requests that the S3 backend needs, how pravo checks that a store honours them, and how to test a store before it holds a state. | 8 KB |
 | [reference/http-stores.md](reference/http-stores.md) | The object protocol that the http backend speaks, the conditional requests that the locks need, and how pravo retries and checks a server. | 5 KB |
-| [reference/library.md](reference/library.md) | Package pravo: what the command line does, as a Go library. Open a workspace, plan, judge, store, apply, drift, discover and query, with nothing read from flags or the environment of the process. | 12 KB |
+| [reference/library.md](reference/library.md) | Package pravo: what the command line does, as a Go library. Open a workspace, plan, judge, store, apply, drift, discover and query, with nothing read from flags or the environment of the process. | 13 KB |
 
 ### Lookup
 
@@ -152,7 +152,7 @@ One task each, for a reader who knows the basics.
 | [how-to/ci.md](how-to/ci.md) | Validate without credentials, plan under a policy, apply a saved or a stored plan, wait for an approval, find drift, test offline and keep a trace of each job, with the exit code of every step. | 26 KB |
 | [how-to/policies.md](how-to/policies.md) | Write a policy rule, test it on fixtures with the matching cue version, try it on the plans you have, roll a new rule out as advice, exempt by type, apply under the policies of the state, ask for approvals and retire a policy. | 20 KB |
 | [how-to/agents-and-mcp.md](how-to/agents-and-mcp.md) | Give a program or an AI agent the schema, a plan file, a reservation, a tool server that the policies of the state bind, and an identity with the role of a reader, so that it plans and stores and a person applies, and see what that does and does not protect. | 19 KB |
-| [how-to/embed-pravo-in-your-program.md](how-to/embed-pravo-in-your-program.md) | Build a small runner on the Go library. Open a workspace, plan, judge the plan with the policies of the specification, apply it or store it for later, read the result as data, map an error to an exit code, and open a sealed state with a key the program holds. | 15 KB |
+| [how-to/embed-pravo-in-your-program.md](how-to/embed-pravo-in-your-program.md) | Build a small runner on the Go library. Open a workspace, plan, judge the plan with the policies of the specification, apply it or store it for later, read the result as data, map an error to an exit code, and open a sealed state with a key the program holds. | 16 KB |
 | [how-to/secrets.md](how-to/secrets.md) | Read a secret from the environment with pravo.#SecretEnv, hand it to a provider and see where pravo allows the value and where it refuses. | 11 KB |
 | [how-to/importing-and-moving.md](how-to/importing-and-moving.md) | Rename a resource without recreating it, move a group of resources, adopt an object that already exists and forget one without destroying it. | 9 KB |
 | [how-to/find-what-nothing-manages.md](how-to/find-what-nothing-manages.md) | Declare a discovery, run it, read the objects that no record accounts for, acknowledge the ones that are meant to stay, adopt the rest and run it again when the scope changes. | 9 KB |

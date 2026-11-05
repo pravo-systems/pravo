@@ -27,6 +27,12 @@ type StoreOptions struct {
 	// Choose picks the identity from the readers of a sealed state when Identity is
 	// nil, without opening the state first to see them. An error opens it locked.
 	Choose func(readers []ReaderPublic) (*Identity, error)
+	// Backend, when set, keeps the state in place of the location that the settings
+	// of the root name; their state block is not consulted. The store treats it like
+	// a remote one: it is opened for reading without any write reaching it, a write
+	// opens it with CheckConditions, and Overlay keeps writes in memory. See the
+	// comment at the top of backend.go for what a Backend is trusted with.
+	Backend Backend
 	// Env is the environment the credentials of a remote store come from
 	// (AWS_SESSION_TOKEN, PRAVO_STATE_TOKEN).
 	Env Env
@@ -57,10 +63,13 @@ func openStore(ctx context.Context, root *config.Root, o StoreOptions) (*state.S
 		so.Choose = func(p state.Protection) (*Identity, error) { return o.Choose(CurrentReaders(p)) }
 	}
 	switch {
-	case root.State.Remote():
-		b, err := RemoteBackend(ctx, root, o.Env)
-		if err != nil {
-			return nil, err
+	case o.Backend != nil || root.State.Remote():
+		b := o.Backend
+		if b == nil {
+			var err error
+			if b, err = RemoteBackend(ctx, root, o.Env); err != nil {
+				return nil, err
+			}
 		}
 		if o.Write {
 			if o.CheckConditions != nil {
