@@ -232,7 +232,29 @@ A [sealed state](seal-the-state.md) opens with the key of a reader. The command 
 
 `pravo.ParseIdentity` reads an identity file as `pravo id new` writes it: the form that `--ci` writes needs no passphrase, and for a form sealed with one the second argument supplies it. Without an identity a sealed state opens locked: addresses and revisions are readable, values are not, and a plan cannot be computed. The identity's role, from the readers file of the checkout and the roles of the state, bounds what the workspace may do, as it bounds the command line: a reader plans and stores, a writer applies. Keep the key where the job's secrets live, and give the program the smallest role its work needs, as [Give people roles](give-people-roles.md) says.
 
-## 8. Logs and traces
+## 8. Keep the state in a store of your own
+
+The state lives in a directory, a bucket or a server that the specification names. A program can keep it somewhere else by giving the workspace a `pravo.Backend`: a flat store of named objects that a database, an object store or a service of yours can implement.
+
+```go
+	Backend: myStore, // a pravo.Backend; the state block of the specification is not read
+```
+
+The interface has `Get`, `Put`, `Delete`, `List`, and three conditional operations, `PutIfAbsent`, `ReplaceIf` and `DeleteIf`, that the locks rest on: two commands that race for one lock are told apart only if exactly one call wins. Return `pravo.ErrNotFound` for a missing object. `pravo.NewMemoryBackend` is a complete implementation to read and to use in tests.
+
+Check an implementation with the package `backendtest`, from a test of your own:
+
+```go
+func TestMyStore(t *testing.T) {
+	backendtest.Run(t, func(t *testing.T) pravo.Backend { return newMyStore(t) })
+}
+```
+
+The checks that matter most run the conditional operations from sixteen goroutines at once.
+
+A backend is trusted with availability and not with the state. A [sealed state](seal-the-state.md) is encrypted before the backend sees it, the records of a state with roles are signed, and a record that was changed, removed or put back is found out by the store above the backend, whatever it holds. A backend that alters an object makes the state fail verification (`pravo.ExitUntrusted`); it cannot make the library accept a state that no reader's key wrote. What a faulty backend can still do is lose objects or refuse requests, which stops work without changing it.
+
+## 9. Logs and traces
 
 The debug log of every workspace in the process goes to one handler, the one that `-v` prints on the command line:
 
@@ -242,7 +264,7 @@ The debug log of every workspace in the process goes to one handler, the one tha
 
 Spans go to the global OpenTelemetry tracer provider of the process. A program that runs under its own tracer, with `otel.SetTracerProvider`, sees [the spans that the command line records](../reference/telemetry.md#traces) inside its own trace: the plan, each resource, each call to a provider, each request to the state. The debug events are attached to them.
 
-## 9. Ask without planning
+## 10. Ask without planning
 
 Not every program plans. The other methods of a workspace answer the questions the other commands answer, and the ones that only read the state need neither the schemas nor a writable state: open with `Schemas: false` and `State: pravo.StateRead`.
 

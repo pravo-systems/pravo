@@ -91,6 +91,10 @@ An error carries the exit code that the command would give, and `pravo.CodeOf(er
 
 A workspace opens a sealed state with the identity that `Config.Identity` returns. The library never looks for an identity file and never asks for a passphrase: a program that keeps keys in a vault fetches the file from there, and a program that runs as a job holds the file of the job, and either hands it to `pravo.ParseIdentity(data, passphrase)`, which reads it as `pravo id new` wrote it, the form of `--ci` that needs no passphrase or the sealed form, for which `passphrase` is called once. Without an identity a sealed state opens locked: addresses and revisions are readable, values are not, and a plan cannot be computed. The readers file and the roles are the program's to give to an apply through `ApplyStoredOptions.Tune`, which may change the options of the engine before it is made.
 
+## A state of your own
+
+`Config.Backend` (and `StoreOptions.Backend` for `OpenStore`) keeps the state in a `pravo.Backend` that the program implements, in place of the directory, bucket or server that the specification names. A backend is a flat store of named objects: `Get`, `Put`, `Delete`, `List`, and the conditional `PutIfAbsent`, `ReplaceIf` and `DeleteIf` that the locks rest on, each of which must be atomic. A missing object is `pravo.ErrNotFound`. `pravo.NewMemoryBackend` is a complete implementation, and `backendtest.Run` in `pravo/backendtest` checks another against the contract, with concurrent calls. Sealing, signatures and the checks for a changed, removed or put-back record run above the backend: a backend is trusted with availability, and one that alters an object makes the state fail verification. See [Embed pravo in your program](../how-to/embed-pravo-in-your-program.md#8-keep-the-state-in-a-store-of-your-own).
+
 ## A program that plans and applies
 
 The program in `examples/embed` opens a root, plans it, prints the document and applies the plan when asked:

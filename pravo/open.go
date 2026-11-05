@@ -73,6 +73,10 @@ type Config struct {
 	// command of a transaction. Empty means "pravo" alone.
 	Args []string
 
+	// Backend keeps the state in a store of the program's own, in place of the
+	// location that the settings of the specification name (see StoreOptions.Backend).
+	// It is ignored when OpenState is set.
+	Backend Backend
 	// OpenState opens the state. Nil opens it with OpenStore, and with Identity if
 	// the state is sealed. A program with its own rules for who may open which state
 	// (the readers of a repository, a vault) gives its own.
@@ -227,7 +231,7 @@ func (w *Workspace) open(ctx context.Context) error {
 // openState is the default Config.OpenState: the store of the root, opened with
 // the identity of Config.Identity when the state is sealed.
 func (w *Workspace) openState(ctx context.Context, root *Root, mode StateMode) (*Store, error) {
-	o := StoreOptions{Write: mode == StateWrite, Env: w.cfg.Env, Warn: w.cfg.Warn, Choose: w.cfg.Identity}
+	o := StoreOptions{Write: mode == StateWrite, Backend: w.cfg.Backend, Env: w.cfg.Env, Warn: w.cfg.Warn, Choose: w.cfg.Identity}
 	st, err := OpenStore(ctx, root, o)
 	if err != nil {
 		return nil, err
