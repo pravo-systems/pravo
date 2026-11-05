@@ -4,6 +4,8 @@ description: Install the providers a root needs, write the lock file and generat
 order: 1
 group: Commands
 normalize:
+  - pattern: '(?m)^\t\t"signer": +"[0-9A-F]+"\n'
+    replace: ''
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
   - pattern: 'pravo\.local/ws'

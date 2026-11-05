@@ -9,6 +9,8 @@ level: advanced
 services:
   - fakeoci:5001
 normalize:
+  - pattern: '(?m)^\t\t"signer": +"[0-9A-F]+"\n'
+    replace: ''
   - pattern: '(?m)^Downloading .*\n'
     replace: ''
   - pattern: '\[id=[^\]]+\]'
