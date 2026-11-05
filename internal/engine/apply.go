@@ -148,7 +148,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 	}
 	switch ch.Action {
 	case ActionCreate, ActionUpdate:
-		if final, private, err = e.applyCreateUpdate(ctx, prov, ch, start); err != nil {
+		if final, err = e.applyCreateUpdate(ctx, prov, ch, start); err != nil {
 			return tftypes.Value{}, err
 		}
 	case ActionReplace:
@@ -156,7 +156,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 		if ch.CreateBeforeDestroy {
 			replace = e.replaceCreateFirst
 		}
-		if final, private, err = replace(ctx, prov, ch); err != nil {
+		if final, err = replace(ctx, prov, ch); err != nil {
 			return tftypes.Value{}, err
 		}
 		e.step("replace", ch.Addr, "done", idOf(ch, final), start, "%s: Replacement complete after %s %s", ch.Addr, since(start), idSuffix(ch, final))
@@ -169,7 +169,8 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 
 // applyCreateUpdate creates or updates the resource of a change and records what the
 // provider returned.
-func (e *Engine) applyCreateUpdate(ctx context.Context, prov plugin.Provider, ch *Change, start time.Time) (final tftypes.Value, private []byte, err error) {
+func (e *Engine) applyCreateUpdate(ctx context.Context, prov plugin.Provider, ch *Change, start time.Time) (final tftypes.Value, err error) {
+	var private []byte
 	verb, done := "Creating", "Creation"
 	if ch.Action == ActionUpdate {
 		verb, done = "Modifying", "Modifications"
@@ -182,7 +183,7 @@ func (e *Engine) applyCreateUpdate(ctx context.Context, prov plugin.Provider, ch
 	if ch.Action == ActionCreate {
 		if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
 			if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), rec.AppliedAt, true, e.txnID(), e.Opts.Command); err != nil {
-				return tftypes.Value{}, nil, fmt.Errorf("%s: noting the create: %w", ch.Addr, err)
+				return tftypes.Value{}, fmt.Errorf("%s: noting the create: %w", ch.Addr, err)
 			}
 			noted = true
 		}
@@ -193,7 +194,7 @@ func (e *Engine) applyCreateUpdate(ctx context.Context, prov plugin.Provider, ch
 		if noted && !e.isUnsettled(ch.Addr) {
 			_ = e.State.ClearPendingCreate(ch.Addr)
 		}
-		return tftypes.Value{}, nil, err
+		return tftypes.Value{}, err
 	}
 	final, private = res.NewState, res.Private
 	what := "creation"
@@ -201,19 +202,20 @@ func (e *Engine) applyCreateUpdate(ctx context.Context, prov plugin.Provider, ch
 		what = "update"
 	}
 	if err := e.recordApplied(ch, what, final, private, string(ch.Action)); err != nil {
-		return tftypes.Value{}, nil, err
+		return tftypes.Value{}, err
 	}
 	if noted {
 		_ = e.State.ClearPendingCreate(ch.Addr)
 	}
 	e.step(string(ch.Action), ch.Addr, "done", idOf(ch, final), start, "%s: %s complete after %s %s", ch.Addr, done, since(start), idSuffix(ch, final))
-	return final, private, nil
+	return final, nil
 }
 
 // replaceCreateFirst replaces a resource that is create_before_destroy: the
 // replacement is created now, and the destroy of the old object waits for the end of
 // the walk.
-func (e *Engine) replaceCreateFirst(ctx context.Context, prov plugin.Provider, ch *Change) (final tftypes.Value, private []byte, err error) {
+func (e *Engine) replaceCreateFirst(ctx context.Context, prov plugin.Provider, ch *Change) (final tftypes.Value, err error) {
+	var private []byte
 	nullV := tftypes.NewValue(ch.Schema.Block.Type(), nil)
 	e.Opts.Progress("%s: Creating replacement...", ch.Addr)
 	// The record keeps the old object until the replacement is recorded. A note that
@@ -227,7 +229,7 @@ func (e *Engine) replaceCreateFirst(ctx context.Context, prov plugin.Provider, c
 	}
 	if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
 		if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), rec.AppliedAt, ch.Action == ActionCreate, e.txnID(), e.Opts.Command); err != nil {
-			return tftypes.Value{}, nil, fmt.Errorf("%s: noting the replacement: %w", ch.Addr, err)
+			return tftypes.Value{}, fmt.Errorf("%s: noting the replacement: %w", ch.Addr, err)
 		}
 		noted = true
 	}
@@ -251,11 +253,11 @@ func (e *Engine) replaceCreateFirst(ctx context.Context, prov plugin.Provider, c
 				_ = e.State.ClearPendingCreate(ch.Addr)
 			}
 		}
-		return tftypes.Value{}, nil, err
+		return tftypes.Value{}, err
 	}
 	final, private = res.NewState, res.Private
 	if err := e.recordApplied(ch, "creation", final, private, "replace"); err != nil {
-		return tftypes.Value{}, nil, err
+		return tftypes.Value{}, err
 	}
 	if noted {
 		_ = e.State.ClearPendingCreate(ch.Addr)
@@ -274,28 +276,29 @@ func (e *Engine) replaceCreateFirst(ctx context.Context, prov plugin.Provider, c
 		e.undepose(deposed)
 		return nil
 	})
-	return final, private, nil
+	return final, nil
 }
 
 // replaceInPlace replaces a resource by destroying the old object and then creating
 // the replacement.
-func (e *Engine) replaceInPlace(ctx context.Context, prov plugin.Provider, ch *Change) (final tftypes.Value, private []byte, err error) {
+func (e *Engine) replaceInPlace(ctx context.Context, prov plugin.Provider, ch *Change) (final tftypes.Value, err error) {
+	var private []byte
 	nullV := tftypes.NewValue(ch.Schema.Block.Type(), nil)
 	if !ch.predestroyed {
 		if err := e.destroyOld(ctx, prov, ch); err != nil {
-			return tftypes.Value{}, nil, err
+			return tftypes.Value{}, err
 		}
 	}
 	e.Opts.Progress("%s: Creating replacement...", ch.Addr)
 	res, err := e.applyChange(ctx, prov, ch, nullV, ch.PlannedCreate, ch.Config, ch.CreatePrivate)
 	if err != nil {
-		return tftypes.Value{}, nil, err
+		return tftypes.Value{}, err
 	}
 	final, private = res.NewState, res.Private
 	if err := e.recordApplied(ch, "creation", final, private, "replace"); err != nil {
-		return tftypes.Value{}, nil, err
+		return tftypes.Value{}, err
 	}
-	return final, private, nil
+	return final, nil
 }
 
 func (e *Engine) applyChange(ctx context.Context, prov plugin.Provider, ch *Change, prior, planned, cfg tftypes.Value, private []byte) (*plugin.ApplyResult, error) {
