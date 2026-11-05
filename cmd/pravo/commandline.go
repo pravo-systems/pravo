@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -10,6 +12,16 @@ import (
 // runningCommand is the command that runs. The root command sets it when the
 // command is known, with the flags that were given parsed.
 var runningCommand *cobra.Command
+
+// commandContext is the context of the command that runs, which carries the
+// interrupt of the process: a Ctrl-C reaches what a command does with it. Outside
+// a command (a test that calls a loader directly) it is a background context.
+func commandContext() context.Context {
+	if runningCommand != nil && runningCommand.Context() != nil {
+		return runningCommand.Context()
+	}
+	return context.Background()
+}
 
 // The state seals the value of a flag that takes one, in the form --flag value as in
 // --flag=value, and it cannot tell such a flag from a boolean one. The command tree

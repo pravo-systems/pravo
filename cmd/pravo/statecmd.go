@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -40,7 +39,7 @@ func stateCmd() *cobra.Command {
 		if err != nil {
 			return nil, err
 		}
-		return openState(context.Background(), root)
+		return openState(commandContext(), root)
 	}
 	// loadEdit is load for a subcommand that changes the records, as an apply does: a state
 	// whose record serves another environment is refused, as an apply is.
@@ -49,11 +48,11 @@ func stateCmd() *cobra.Command {
 		if err != nil {
 			return nil, err
 		}
-		st, err := openState(context.Background(), root)
+		st, err := openState(commandContext(), root)
 		if err != nil {
 			return nil, err
 		}
-		if err := refuseOtherEnvironment(context.Background(), root, st); err != nil {
+		if err := refuseOtherEnvironment(commandContext(), root, st); err != nil {
 			st.Close()
 			return nil, err
 		}
@@ -66,7 +65,7 @@ func stateCmd() *cobra.Command {
 		if err != nil {
 			return nil, err
 		}
-		return openStateReadOnly(context.Background(), root)
+		return openStateReadOnly(commandContext(), root)
 	}
 	// loadValues is loadRead for a subcommand that prints values: a sealed state
 	// is refused to a user who is not one of its readers.
@@ -75,7 +74,7 @@ func stateCmd() *cobra.Command {
 		if err != nil {
 			return nil, err
 		}
-		return openStateValues(context.Background(), root)
+		return openStateValues(commandContext(), root)
 	}
 	// whole is a loader that also refuses a state with a pointer gone, as plan and drift do:
 	// a listing that lacks a resource would read as the truth.
@@ -90,7 +89,7 @@ func stateCmd() *cobra.Command {
 				if root, err := loadRoot(); err == nil {
 					readers, _ = attributionReaders(readersOf(root))
 				}
-				if err := st.CheckLoadedNodes(context.Background(), readers); err != nil {
+				if err := st.CheckLoadedNodes(commandContext(), readers); err != nil {
 					st.Close()
 					return nil, err
 				}
@@ -479,7 +478,7 @@ func stateProbeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return probeS3(context.Background(), root)
+			return probeS3(commandContext(), root)
 		},
 	}
 }

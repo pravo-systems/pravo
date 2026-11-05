@@ -77,7 +77,7 @@ func (e *environmentsOf) readersFile(name string) (readersFile, error) {
 // whose record pins its roles is refused when the file does not pin those roles, so that an
 // edit of its access directory does not make anyone a writer there.
 func (e *environmentsOf) readers(name string) (engine.Judges, error) {
-	s := e.open(context.Background(), name)
+	s := e.open(commandContext(), name)
 	defer s.close()
 	switch {
 	case s.Err != nil:
