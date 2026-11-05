@@ -1060,26 +1060,26 @@ def case_agent(c):
     if r.returncode != 0:
         raise Skip("ssh-add: " + (r.stdout + r.stderr)[-200:])
     try:
-        r = c.run(["id", "new", "--name", "ada", "--unlock", "agent"], cwd=d, extra=agent_env)
+        r = c.run(["id", "new", "--name", "agentid", "--unlock", "agent"], cwd=d, extra=agent_env)
         c.obs("id.new.rc", r.rc)
         if not c.expect(r, 0, "id new --unlock agent"):
             return
-        r2 = c.run(["id", "show", "--identity", "ada"], cwd=d, extra=agent_env)
+        r2 = c.run(["id", "show", "--identity", "agentid"], cwd=d, extra=agent_env)
         c.expect(r2, 0, "id show")
-        pub = [l for l in (r2.out + r.out).split("\n") if re.match(r"^\s*ada ssh-ed25519 \S+ x25519:\S+$", l)]
+        pub = [l for l in (r2.out + r.out).split("\n") if re.match(r"^\s*agentid ssh-ed25519 \S+ x25519:\S+$", l)]
         if not c.check(bool(pub), "no readers line"):
             return
         write(os.path.join(d, ".pravo", "access", "readers.txt"), pub[0].strip() + "\n")
-        r = c.run(["protect", "init", "--encrypt", "--allow-local", "--yes", "--identity", "ada"], cwd=d, extra=agent_env)
+        r = c.run(["protect", "init", "--encrypt", "--allow-local", "--yes", "--identity", "agentid"], cwd=d, extra=agent_env)
         c.expect(r, 0, "protect init with an agent identity")
-        r = c.run(["apply", "--auto-approve", "--identity", "ada"], cwd=d, extra=agent_env)
+        r = c.run(["apply", "--auto-approve", "--identity", "agentid"], cwd=d, extra=agent_env)
         c.expect(r, 0, "apply with an agent identity")
-        r = c.run(["state", "show", "r", "--identity", "ada"], cwd=d, extra=agent_env)
+        r = c.run(["state", "show", "r", "--identity", "agentid"], cwd=d, extra=agent_env)
         c.check("result:" in r.out, "the sealed record cannot be read through the agent")
         # an address with no agent behind it: a clear refusal, soon
         dead = os.path.join(c.root, "no-agent.sock") if not WINDOWS else r"\\.\pipe\xplat-no-such-agent"
         t0 = time.time()
-        r = c.run(["state", "show", "r", "--identity", "ada"], cwd=d, extra={"PRAVO_SSH_AUTH_SOCK": dead}, timeout=120)
+        r = c.run(["state", "show", "r", "--identity", "agentid"], cwd=d, extra={"PRAVO_SSH_AUTH_SOCK": dead}, timeout=120)
         took = time.time() - t0
         c.obs("dead.rc_nonzero", r.rc != 0)
         c.obs("dead.msg", c.lines(r.all)[:2], local=True)
