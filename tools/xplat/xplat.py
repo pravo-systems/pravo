@@ -978,6 +978,113 @@ def case_coldinit(c):
         c.home = old_home
 
 
+def case_skill(c):
+    """The skill is embedded in the binary: the same bytes everywhere, written under this system's home directory."""
+    d = c.new("skill", LIFE)
+    r = c.run(["skill", "list"], cwd=d)
+    c.expect(r, 0, "skill list")
+    listed = sorted(l.split()[0].replace("\\", "/") for l in r.out.splitlines() if l.strip() and not l.startswith(" "))
+    c.obs("list.count", len(listed))
+    r = c.run(["skill", "print"], cwd=d)
+    c.expect(r, 0, "skill print")
+    c.obs("print.sha", sha(r.out.encode("utf-8")))
+    c.check("\r" not in r.out, "skill print holds a carriage return")
+    target = os.path.join(c.home, ".claude", "skills", "pravo")
+    r = c.run(["skill", "install"], cwd=d)
+    c.expect(r, 0, "skill install")
+    c.check(os.path.exists(os.path.join(target, "SKILL.md")), f"no SKILL.md under {target}")
+    if os.path.exists(os.path.join(target, "SKILL.md")):
+        c.obs("installed.sha", sha(read(os.path.join(target, "SKILL.md"))))
+        c.check(b"\r" not in read(os.path.join(target, "SKILL.md")), "the installed SKILL.md holds a carriage return")
+        files = tree(target)
+        c.obs("installed.count", len(files))
+        h = hashlib.sha256()
+        for f in files:
+            h.update(f.encode() + b"\0" + read(os.path.join(target, *f.split("/"))))
+        c.obs("installed.tree_sha", h.hexdigest()[:16])
+    # again, and into a directory with spaces, and over a directory that holds something else
+    r = c.run(["skill", "install"], cwd=d)
+    c.expect(r, 0, "second skill install")
+    other = os.path.join(c.root, "skills dir é")
+    r = c.run(["skill", "install", other], cwd=d)
+    c.expect(r, 0, "skill install into a directory with a space")
+    foreign = os.path.join(c.root, "foreign", "pravo")
+    os.makedirs(foreign)
+    write(os.path.join(foreign, "mine.txt"), "mine\n")
+    r = c.run(["skill", "install", os.path.join(c.root, "foreign")], cwd=d)
+    c.obs("foreign.rc", r.rc)
+    c.check(r.rc != 0 and os.path.exists(os.path.join(foreign, "mine.txt")), "install touched a directory named pravo that holds something else")
+
+
+def case_agent(c):
+    """An identity opened by the ssh-agent: a socket on Linux and macOS, the OpenSSH named pipe on Windows."""
+    if WINDOWS:
+        sysdir = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "OpenSSH")
+        keygen, add = os.path.join(sysdir, "ssh-keygen.exe"), os.path.join(sysdir, "ssh-add.exe")
+        if not (os.path.exists(keygen) and os.path.exists(add)):
+            raise Skip("no OpenSSH client in " + sysdir)
+        ps = subprocess.run(["powershell", "-NoProfile", "-Command",
+                             "Get-Service ssh-agent | Set-Service -StartupType Manual; Start-Service ssh-agent; (Get-Service ssh-agent).Status"],
+                            capture_output=True, text=True, timeout=60)
+        c.obs("service.start", ps.stdout.strip().split("\n")[-1:] , local=True)
+        if "Running" not in ps.stdout:
+            raise Skip("the ssh-agent service does not start: " + (ps.stdout + ps.stderr)[-300:])
+        agent_env = {}
+        sock = None
+    else:
+        keygen, add = shutil.which("ssh-keygen"), shutil.which("ssh-add")
+        agent = shutil.which("ssh-agent")
+        if not (keygen and add and agent):
+            raise Skip("no OpenSSH client")
+        sockdir = tempfile.mkdtemp(prefix="xa", dir="/tmp")  # a unix socket path must stay short
+        sock = os.path.join(sockdir, "agent.sock")
+        ag = subprocess.Popen([agent, "-D", "-a", sock], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        c.procs.append(ag)
+        if not wait_until(lambda: os.path.exists(sock), 10):
+            raise Skip("ssh-agent made no socket")
+        agent_env = {"PRAVO_SSH_AUTH_SOCK": sock}
+    d = c.new("agent", LIFE)
+    key = os.path.join(c.root, "agentkey")
+    r = subprocess.run([keygen, "-q", "-t", "ed25519", "-N", "", "-C", "xplat", "-f", key], capture_output=True, text=True, timeout=60)
+    if r.returncode != 0:
+        raise Skip("ssh-keygen: " + r.stderr[-200:])
+    addenv = dict(os.environ)
+    if sock:
+        addenv["SSH_AUTH_SOCK"] = sock
+    r = subprocess.run([add, key], capture_output=True, text=True, timeout=60, env=addenv)
+    if r.returncode != 0:
+        raise Skip("ssh-add: " + (r.stdout + r.stderr)[-200:])
+    try:
+        r = c.run(["id", "new", "--name", "ada", "--unlock", "agent"], cwd=d, extra=agent_env)
+        c.obs("id.new.rc", r.rc)
+        if not c.expect(r, 0, "id new --unlock agent"):
+            return
+        r2 = c.run(["id", "show", "--identity", "ada"], cwd=d, extra=agent_env)
+        c.expect(r2, 0, "id show")
+        pub = [l for l in (r2.out + r.out).split("\n") if re.match(r"^\s*ada ssh-ed25519 \S+ x25519:\S+$", l)]
+        if not c.check(bool(pub), "no readers line"):
+            return
+        write(os.path.join(d, ".pravo", "access", "readers.txt"), pub[0].strip() + "\n")
+        r = c.run(["protect", "init", "--encrypt", "--allow-local", "--yes", "--identity", "ada"], cwd=d, extra=agent_env)
+        c.expect(r, 0, "protect init with an agent identity")
+        r = c.run(["apply", "--auto-approve", "--identity", "ada"], cwd=d, extra=agent_env)
+        c.expect(r, 0, "apply with an agent identity")
+        r = c.run(["state", "show", "r", "--identity", "ada"], cwd=d, extra=agent_env)
+        c.check("result:" in r.out, "the sealed record cannot be read through the agent")
+        # an address with no agent behind it: a clear refusal, soon
+        dead = os.path.join(c.root, "no-agent.sock") if not WINDOWS else r"\\.\pipe\xplat-no-such-agent"
+        t0 = time.time()
+        r = c.run(["state", "show", "r", "--identity", "ada"], cwd=d, extra={"PRAVO_SSH_AUTH_SOCK": dead}, timeout=120)
+        took = time.time() - t0
+        c.obs("dead.rc_nonzero", r.rc != 0)
+        c.obs("dead.msg", c.lines(r.all)[:2], local=True)
+        c.check(r.rc != 0 and "result:" not in r.out, "the identity opened without its agent")
+        c.check(took < 30, f"a missing agent took {took:.0f} s to be refused")
+        c.check("agent" in r.all.lower(), "the refusal does not mention the agent: " + c.norm(r.all)[:200])
+    finally:
+        subprocess.run([add, "-D"], capture_output=True, timeout=60, env=addenv)
+
+
 def case_json_exitcodes(c):
     """The numbers and the shapes that CI depends on."""
     d = c.new("machine", LIFE)
@@ -1028,7 +1135,7 @@ def case_json_exitcodes(c):
 CASES = [
     ("init", case_init), ("lifecycle", case_lifecycle), ("crlf", case_crlf), ("names", case_names), ("paths", case_paths),
     ("split", case_split_files), ("locks", case_locks), ("interrupt", case_interrupt), ("plans", case_stored_plan),
-    ("seal", case_identity), ("serve", case_serve), ("machine", case_json_exitcodes), ("examples", case_examples), ("mcp", case_mcp), ("hammer", case_hammer), ("coldinit", case_coldinit),
+    ("seal", case_identity), ("serve", case_serve), ("machine", case_json_exitcodes), ("examples", case_examples), ("mcp", case_mcp), ("hammer", case_hammer), ("coldinit", case_coldinit), ("skill", case_skill), ("agent", case_agent),
 ]
 
 
