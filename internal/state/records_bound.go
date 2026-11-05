@@ -145,13 +145,23 @@ func (s *Store) CheckRecordsWith(rules RecordRules, addrs ...string) RecordVerdi
 	}, rules, addrs)
 }
 
+// boundNode is a record that a pointer names, and what the pointer says about who wrote it.
+type boundNode struct {
+	addr, rec, txn, resealed string
+	revision                 int
+}
+
+// recordCheck judges the records of one state against the transactions that wrote them.
+type recordCheck struct {
+	lookup  func(id string) *Transaction
+	rules   RecordRules
+	readers []protect.Reader
+	lineage string
+	v       RecordVerdict
+}
+
 func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordRules, addrs []string) RecordVerdict {
-	readers := rules.Readers
-	type node struct {
-		addr, rec, txn, resealed string
-		revision                 int
-	}
-	var nodes []node
+	var nodes []boundNode
 	s.mu.Lock()
 	want := map[string]bool{}
 	for _, a := range addrs {
@@ -162,158 +172,182 @@ func (s *Store) verifyRecords(lookup func(id string) *Transaction, rules RecordR
 			continue
 		}
 		if ref := s.held[addr]; ref.Record != "" {
-			nodes = append(nodes, node{addr, ref.Record, r.Txn, r.Resealed, r.Revision})
+			nodes = append(nodes, boundNode{addr, ref.Record, r.Txn, r.Resealed, r.Revision})
 		}
 	}
 	s.mu.Unlock()
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].addr < nodes[j].addr })
 
-	var v RecordVerdict
-	// resealedTo says whether a rewrap that a writer signed sealed the record again.
-	resealedTo := func(id, addr string, revision int, rec string) bool {
-		if id == "" {
-			return false
-		}
-		t := lookup(id)
-		if t == nil || t.Kind != "rewrap" || t.Finished == nil || t.FinishSig == nil {
-			return false
-		}
-		verdict := VerifyTransaction(s.Lineage(), t, readers)
-		if verdict.Altered {
-			return false
-		}
-		switch verdict.Finish {
-		case protect.SigVerified:
-			if role, _ := protect.RoleOf(readers, t.FinishSig.Key); !role.Allows(protect.RoleWriter) {
-				return false
-			}
-		case protect.SigUnknownKey:
-			vo, ok := rules.Vouched[t.ID]
-			if !ok || vo.Key != t.FinishSig.Key || vo.Digest != VouchDigest(s.Lineage(), t) {
-				return false
-			}
-		default:
-			return false
-		}
-		c := changeOf(t, addr, revision)
-		return c != nil && c.Action == "reseal" && c.Record == rec
+	c := &recordCheck{lookup: lookup, rules: rules, readers: rules.Readers, lineage: s.Lineage()}
+	for _, n := range nodes {
+		c.check(n)
 	}
-	problem := func(addr, why string) { v.Problems = append(v.Problems, RecordProblem{addr, why}) }
-	lineage := s.Lineage()
-	// A key the signature names that is not in the roles is a problem when the rules are strict.
-	unknown := func(addr, txn string) {
-		if rules.Strict {
-			problem(addr, "the transaction "+txn+" that wrote it was signed by a key that is not in the roles, and no admin vouched for it")
+	return c.v
+}
+
+func (c *recordCheck) problem(addr, why string) {
+	c.v.Problems = append(c.v.Problems, RecordProblem{addr, why})
+}
+
+// unknown notes a key the signature names that is not in the roles: a problem when the rules
+// are strict.
+func (c *recordCheck) unknown(addr, txn string) {
+	if c.rules.Strict {
+		c.problem(addr, "the transaction "+txn+" that wrote it was signed by a key that is not in the roles, and no admin vouched for it")
+		return
+	}
+	c.v.Unchecked++
+}
+
+// resealedTo says whether a rewrap that a writer signed sealed the record again.
+func (c *recordCheck) resealedTo(id, addr string, revision int, rec string) bool {
+	if id == "" {
+		return false
+	}
+	t := c.lookup(id)
+	if t == nil || t.Kind != "rewrap" || t.Finished == nil || t.FinishSig == nil {
+		return false
+	}
+	verdict := VerifyTransaction(c.lineage, t, c.readers)
+	if verdict.Altered {
+		return false
+	}
+	switch verdict.Finish {
+	case protect.SigVerified:
+		if role, _ := protect.RoleOf(c.readers, t.FinishSig.Key); !role.Allows(protect.RoleWriter) {
+			return false
+		}
+	case protect.SigUnknownKey:
+		vo, ok := c.rules.Vouched[t.ID]
+		if !ok || vo.Key != t.FinishSig.Key || vo.Digest != VouchDigest(c.lineage, t) {
+			return false
+		}
+	default:
+		return false
+	}
+	ch := changeOf(t, addr, revision)
+	return ch != nil && ch.Action == "reseal" && ch.Record == rec
+}
+
+// check judges one record by the transaction that wrote it.
+func (c *recordCheck) check(n boundNode) {
+	if n.txn == "" {
+		c.problem(n.addr, "it names no transaction that wrote it")
+		return
+	}
+	t := c.lookup(n.txn)
+	if t == nil {
+		// Transactions are never collected: a record that names one that is not there
+		// may name one that never was.
+		c.problem(n.addr, "the transaction "+n.txn+" that wrote it is not in the state")
+		return
+	}
+	switch {
+	case t.Finished == nil || t.FinishSig == nil && t.Status == "running":
+		c.unfinished(n, t)
+	case t.FinishSig == nil && t.StartSig != nil:
+		c.endUnsigned(n, t)
+	case t.FinishSig == nil && t.StartSig == nil:
+		c.unsigned(n, t)
+	default:
+		c.signed(n, t)
+	}
+}
+
+// unfinished judges a record of a run that is still going or was killed. Its start is signed by
+// a writer, or it is not a run of a writer.
+func (c *recordCheck) unfinished(n boundNode, t *Transaction) {
+	sv := VerifyTransaction(c.lineage, t, c.readers)
+	role, _ := protect.RoleOf(c.readers, startKey(t))
+	if vo, ok := c.rules.Vouched[t.ID]; ok && t.StartSig != nil && (t.Status == "running" || t.FinishSig == nil) && !role.Allows(protect.RoleWriter) &&
+		vo.Key == t.StartSig.Key && vo.Digest == startDigest(c.lineage, t) && sv.Start != protect.SigInvalid {
+		// An admin vouched for the start of a run that was killed: its records stay.
+		c.v.Vouched++
+		return
+	}
+	switch {
+	case sv.Start == protect.SigUnknownKey:
+		c.unknown(n.addr, t.ID)
+	case sv.Start != protect.SigVerified || !role.Allows(protect.RoleWriter):
+		c.problem(n.addr, "the transaction "+t.ID+" that wrote it was not started by a writer")
+	default:
+		c.v.Unchecked++
+	}
+}
+
+// endUnsigned judges a record of a run that finished and whose end is not signed: the ssh-agent
+// refused, or someone removed the signature. Nothing but the start is signed, so no record of it
+// is bound; an admin who has looked at it vouches for it (pravo protect roles --adopt-unsigned).
+func (c *recordCheck) endUnsigned(n boundNode, t *Transaction) {
+	sv := VerifyTransaction(c.lineage, t, c.readers)
+	if vo, ok := c.rules.Vouched[t.ID]; ok && sv.Start != protect.SigInvalid && vo.Key == t.StartSig.Key && vo.Digest == startDigest(c.lineage, t) {
+		c.v.Vouched++
+		return
+	}
+	c.problem(n.addr, "the transaction "+t.ID+" that wrote it "+endUnsignedWhy+", and no admin vouched for it (pravo protect roles --adopt-unsigned)")
+}
+
+// unsigned judges a record written with no identity, before the state was sealed or by a job
+// that had none. Only the transaction an admin vouched for by id and digest is accepted.
+func (c *recordCheck) unsigned(n boundNode, t *Transaction) {
+	vo, ok := c.rules.Vouched[t.ID]
+	if !ok || vo.Key != protect.UnsignedKey || vo.Digest != VouchDigest(c.lineage, t) {
+		c.problem(n.addr, "the transaction "+t.ID+" that wrote it is not signed, or its signature does not verify")
+		return
+	}
+	switch ch := changeOf(t, n.addr, n.revision); {
+	case ch == nil:
+		c.problem(n.addr, "the transaction "+t.ID+" does not name revision "+strconv.Itoa(n.revision))
+	case ch.Record != "" && ch.Record != n.rec && !c.resealedTo(n.resealed, n.addr, n.revision, n.rec):
+		c.problem(n.addr, "the transaction "+t.ID+" signed another record for revision "+strconv.Itoa(n.revision))
+	default:
+		c.v.Vouched++
+	}
+}
+
+// signed judges a record of a transaction whose end is signed.
+func (c *recordCheck) signed(n boundNode, t *Transaction) {
+	verdict := VerifyTransaction(c.lineage, t, c.readers)
+	vouched := false
+	if vo, ok := c.rules.Vouched[t.ID]; ok && t.FinishSig != nil && vo.Key == t.FinishSig.Key && vo.Digest == VouchDigest(c.lineage, t) {
+		vouched = true
+	} else if ok && t.FinishSig != nil && t.StartSig != nil && t.StartSig.Key == t.FinishSig.Key && vo.Key == t.StartSig.Key && vo.Digest == startDigest(c.lineage, t) {
+		// The vouch was for the start of a run that was thought dead, and the run finished.
+		vouched = true
+	}
+	switch verdict.Finish {
+	case protect.SigUnknownKey:
+		if !vouched {
+			c.unknown(n.addr, t.ID)
 			return
 		}
-		v.Unchecked++
+	case protect.SigVerified:
+	default:
+		c.problem(n.addr, "the transaction "+t.ID+" that wrote it is not signed, or its signature does not verify")
+		return
 	}
-	for _, n := range nodes {
-		if n.txn == "" {
-			problem(n.addr, "it names no transaction that wrote it")
-			continue
-		}
-		t := lookup(n.txn)
-		if t == nil {
-			// Transactions are never collected: a record that names one that is not there
-			// may name one that never was.
-			problem(n.addr, "the transaction "+n.txn+" that wrote it is not in the state")
-			continue
-		}
-		if t.Finished == nil || t.FinishSig == nil && t.Status == "running" {
-			// A run that is still going or was killed.
-			// Its start is signed by a writer, or it is not a run of a writer.
-			sv := VerifyTransaction(lineage, t, readers)
-			role, _ := protect.RoleOf(readers, startKey(t))
-			if vo, ok := rules.Vouched[t.ID]; ok && t.StartSig != nil && (t.Status == "running" || t.FinishSig == nil) && !role.Allows(protect.RoleWriter) &&
-				vo.Key == t.StartSig.Key && vo.Digest == startDigest(lineage, t) && sv.Start != protect.SigInvalid {
-				// An admin vouched for the start of a run that was killed: its records stay.
-				v.Vouched++
-				continue
-			}
-			switch {
-			case sv.Start == protect.SigUnknownKey:
-				unknown(n.addr, t.ID)
-			case sv.Start != protect.SigVerified || !role.Allows(protect.RoleWriter):
-				problem(n.addr, "the transaction "+t.ID+" that wrote it was not started by a writer")
-			default:
-				v.Unchecked++
-			}
-			continue
-		}
-		if t.FinishSig == nil && t.StartSig != nil {
-			// Finished, and the end is not signed: the ssh-agent refused, or someone removed the
-			// signature. Nothing but the start is signed, so no record of it is bound; an admin
-			// who has looked at it vouches for it (pravo protect roles --adopt-unsigned).
-			sv := VerifyTransaction(lineage, t, readers)
-			if vo, ok := rules.Vouched[t.ID]; ok && sv.Start != protect.SigInvalid && vo.Key == t.StartSig.Key && vo.Digest == startDigest(lineage, t) {
-				v.Vouched++
-			} else {
-				problem(n.addr, "the transaction "+t.ID+" that wrote it "+endUnsignedWhy+", and no admin vouched for it (pravo protect roles --adopt-unsigned)")
-			}
-			continue
-		}
-		if t.FinishSig == nil && t.StartSig == nil {
-			// Written with no identity, before the state was sealed or by a job that had none.
-			// Only the transaction an admin vouched for by id and digest is accepted.
-			vo, ok := rules.Vouched[t.ID]
-			if !ok || vo.Key != protect.UnsignedKey || vo.Digest != VouchDigest(lineage, t) {
-				problem(n.addr, "the transaction "+t.ID+" that wrote it is not signed, or its signature does not verify")
-				continue
-			}
-			switch c := changeOf(t, n.addr, n.revision); {
-			case c == nil:
-				problem(n.addr, "the transaction "+t.ID+" does not name revision "+strconv.Itoa(n.revision))
-			case c.Record != "" && c.Record != n.rec && !resealedTo(n.resealed, n.addr, n.revision, n.rec):
-				problem(n.addr, "the transaction "+t.ID+" signed another record for revision "+strconv.Itoa(n.revision))
-			default:
-				v.Vouched++
-			}
-			continue
-		}
-		verdict := VerifyTransaction(lineage, t, readers)
-		vouched := false
-		if vo, ok := rules.Vouched[t.ID]; ok && t.FinishSig != nil && vo.Key == t.FinishSig.Key && vo.Digest == VouchDigest(lineage, t) {
-			vouched = true
-		} else if ok && t.FinishSig != nil && t.StartSig != nil && t.StartSig.Key == t.FinishSig.Key && vo.Key == t.StartSig.Key && vo.Digest == startDigest(lineage, t) {
-			// The vouch was for the start of a run that was thought dead, and the run finished.
-			vouched = true
-		}
-		switch verdict.Finish {
-		case protect.SigUnknownKey:
-			if !vouched {
-				unknown(n.addr, t.ID)
-				continue
-			}
-		case protect.SigVerified:
-		default:
-			problem(n.addr, "the transaction "+t.ID+" that wrote it is not signed, or its signature does not verify")
-			continue
-		}
-		if verdict.Altered {
-			problem(n.addr, "the transaction "+t.ID+" that wrote it was altered")
-			continue
-		}
-		if role, _ := protect.RoleOf(readers, t.FinishSig.Key); role.Allows(protect.RoleWriter) {
-			vouched = false // a writer needs no vouching
-		} else if !vouched {
-			problem(n.addr, "the transaction "+t.ID+" that wrote it was run by "+verdict.Signer+", who is a "+role.String()+" and may not write")
-			continue
-		}
-		switch c := changeOf(t, n.addr, n.revision); {
-		case c == nil:
-			problem(n.addr, "the transaction "+t.ID+" does not name revision "+strconv.Itoa(n.revision))
-		case c.Record == "":
-			v.Earlier++
-		case c.Record != n.rec && !resealedTo(n.resealed, n.addr, n.revision, n.rec):
-			problem(n.addr, "the transaction "+t.ID+" signed another record for revision "+strconv.Itoa(n.revision))
-		case vouched:
-			v.Vouched++
-		default:
-			v.Bound++
-		}
+	if verdict.Altered {
+		c.problem(n.addr, "the transaction "+t.ID+" that wrote it was altered")
+		return
 	}
-	return v
+	if role, _ := protect.RoleOf(c.readers, t.FinishSig.Key); role.Allows(protect.RoleWriter) {
+		vouched = false // a writer needs no vouching
+	} else if !vouched {
+		c.problem(n.addr, "the transaction "+t.ID+" that wrote it was run by "+verdict.Signer+", who is a "+role.String()+" and may not write")
+		return
+	}
+	switch ch := changeOf(t, n.addr, n.revision); {
+	case ch == nil:
+		c.problem(n.addr, "the transaction "+t.ID+" does not name revision "+strconv.Itoa(n.revision))
+	case ch.Record == "":
+		c.v.Earlier++
+	case ch.Record != n.rec && !c.resealedTo(n.resealed, n.addr, n.revision, n.rec):
+		c.problem(n.addr, "the transaction "+t.ID+" signed another record for revision "+strconv.Itoa(n.revision))
+	case vouched:
+		c.v.Vouched++
+	default:
+		c.v.Bound++
+	}
 }
 
 // endUnsignedWhy is the part of a problem that says a transaction finished with its end not

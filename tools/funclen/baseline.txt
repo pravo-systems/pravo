@@ -38,13 +38,11 @@ internal/serve/secrets.go model.buildSecrets 118
 internal/serve/server.go Server.api 102
 internal/serve/source.go blockReader.mask 115
 internal/serve/source.go blockReader.read 106
-internal/serve/templates.go Server.templateTryHandler 228
 internal/serve/templates.go model.buildTemplates 127
 internal/serve/templates.go templateInputs 101
 internal/serve/templates_inputs.go model.choicesOf 102
 internal/serve/traces.go Server.traces 104
 internal/state/gc.go Store.gcGroups 164
-internal/state/records_bound.go Store.verifyRecords 170
 internal/state/seal_upgrade.go Store.Rewrap 120
 internal/state/seal_upgrade.go Store.upgradeSealed 110
 internal/state/unseal.go Store.Unseal 143
