@@ -855,6 +855,85 @@ def case_examples(c):
         c.check(r.rc in (0, 2), f"{name}: plan exits {r.rc}: {c.norm(r.all)[:200]}")
 
 
+def case_mcp(c):
+    """pravo mcp over standard input and output: one JSON object a line, whatever the system's line ending."""
+    d = c.new("mcp", LIFE)
+    msgs = [
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "xplat", "version": "1"}}},
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+        {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "pravo_validate", "arguments": {}}},
+        {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "pravo_plan", "arguments": {"out": "m.plan"}}},
+        {"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "pravo_apply_plan", "arguments": {"planfile": "m.plan"}}},
+        {"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "pravo_state_query", "arguments": {"expression": "resources.r.attributes.result"}}},
+        {"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "pravo_locks", "arguments": {}}},
+    ]
+    data = ("\n".join(json.dumps(m) for m in msgs) + "\n").encode()
+    r = subprocess.run([c.pravo, "mcp"], cwd=d, env=c.env(), input=data, capture_output=True, timeout=240)
+    c.obs("rc", r.returncode)
+    raw = r.stdout
+    c.check(b"\r" not in raw, "the MCP server wrote a carriage return")
+    got = {}
+    for l in raw.decode("utf-8", "replace").split("\n"):
+        if not l.strip():
+            continue
+        try:
+            j = json.loads(l)
+            got[j.get("id")] = j
+        except Exception:
+            c.check(False, f"a line of the MCP server is not JSON: {l[:80]!r}")
+    c.obs("ids", sorted(k for k in got if k is not None))
+    if 2 in got:
+        c.obs("tools", sorted(t["name"] for t in got[2]["result"]["tools"]))
+    for i in (3, 4, 5, 6, 7):
+        j = got.get(i)
+        if not c.check(j is not None, f"no answer to request {i}"):
+            continue
+        c.obs(f"call{i}.isError", bool(j.get("result", {}).get("isError")))
+        c.check(not j.get("result", {}).get("isError"), f"request {i} failed: {json.dumps(j)[:300]}")
+    c.check(os.path.exists(os.path.join(d, "out", "f.txt")), "pravo_apply_plan made no file")
+    if 6 in got:
+        c.obs("query", re.findall(r"\d+", json.dumps(got[6])))
+    c.obs("stderr", c.lines(r.stderr.decode("utf-8", "replace"))[:3])
+
+
+def case_hammer(c):
+    """Several commands change one state at once: the lock, the rename and the retry of the system under load."""
+    n = 6
+    body = HEADER + 'gen: *"0" | string @tag(gen)\n' + "".join(f'n{i}: $null.#Resource.null_resource & {{triggers: v: gen}}\n' for i in range(n))
+    d = c.new("hammer", body)
+    r = c.run(["apply", "--auto-approve"], cwd=d)
+    c.expect(r, 0, "first apply")
+    for rnd_ in range(1, 4):
+        r = c.run(["plan", "-t", f"gen={rnd_}", "--out", "p.plan"], cwd=d)
+        c.expect(r, 0, f"plan round {rnd_}")
+        procs = [c.popen(["apply", "p.plan", "--only", f"n{i}"], d) for i in range(n)]
+        # and readers at the same time
+        readers = [c.popen(["state", "list"], d) for _ in range(3)] + [c.popen(["plan", "--detailed-exitcode", "-t", f"gen={rnd_}"], d)]
+        rcs = []
+        for p in procs:
+            out, err = p.communicate(timeout=180)
+            rcs.append((p.returncode, err.decode("utf-8", "replace")[-200:] + out.decode("utf-8", "replace")[-200:]))
+        rrcs = []
+        for p in readers:
+            out, err = p.communicate(timeout=180)
+            rrcs.append(p.returncode)
+        bad = [x for x in rcs if x[0] != 0]
+        c.obs(f"round{rnd_}.writers_failed", len(bad))
+        c.check(not bad, f"round {rnd_}: {len(bad)} of {n} writers failed: {c.norm(bad[0][1]) if bad else ''}")
+        c.obs(f"round{rnd_}.readers", sorted(set(rrcs)) if all(x in (0, 2) for x in rrcs) else rrcs)
+        c.check(all(x in (0, 2) for x in rrcs), f"round {rnd_}: a reader failed: {rrcs}")
+        r = c.run(["plan", "-t", f"gen={rnd_}", "--detailed-exitcode"], cwd=d)
+        c.check(r.rc == 0, f"round {rnd_}: the plan after the writers exits {r.rc}: {c.norm(r.all)[-300:]}")
+        r = c.run(["state", "log"], cwd=d)
+        c.check("locked" not in c.run(["state", "locks"], cwd=d).out, f"round {rnd_}: a lock is left")
+    r = c.run(["destroy", "--auto-approve"], cwd=d)
+    c.expect(r, 0, "destroy")
+    r = c.run(["state", "list"], cwd=d)
+    c.check(r.out.strip() == "", f"records left after destroy: {r.out.split()[:3]}")
+    c.obs("tree.after", [n_ for n_ in state_tree(d, c) if not n_.startswith(("txn/", "kinds/"))])
+
+
 def case_json_exitcodes(c):
     """The numbers and the shapes that CI depends on."""
     d = c.new("machine", LIFE)
@@ -901,7 +980,7 @@ def case_json_exitcodes(c):
 CASES = [
     ("init", case_init), ("lifecycle", case_lifecycle), ("crlf", case_crlf), ("names", case_names), ("paths", case_paths),
     ("split", case_split_files), ("locks", case_locks), ("interrupt", case_interrupt), ("plans", case_stored_plan),
-    ("seal", case_identity), ("serve", case_serve), ("machine", case_json_exitcodes), ("examples", case_examples),
+    ("seal", case_identity), ("serve", case_serve), ("machine", case_json_exitcodes), ("examples", case_examples), ("mcp", case_mcp), ("hammer", case_hammer),
 ]
 
 
