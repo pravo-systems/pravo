@@ -232,8 +232,9 @@ func TestPackOpenedForEachRead(t *testing.T) {
 	if p.Function("parse") == nil {
 		t.Error("a function is read from the file when it is asked for")
 	}
-	// The file is replaced by a pack of another size: a type that was not read yet
-	// is not found, and the bytes of the other file are not taken for it.
+	// The file is replaced by another pack, as a second command that fetches the
+	// same schema does: a type that was not read yet is read from the new file,
+	// by the new index, and not by the old offsets.
 	other := packFixture()
 	other.Resources["x_delta"] = other.Resources["x_alpha"]
 	data, err := other.MarshalPack()
@@ -243,8 +244,12 @@ func TestPackOpenedForEachRead(t *testing.T) {
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := p.Resource("x_beta"); got != nil {
-		t.Errorf("a type was read from a file that is not the one that was opened: %+v", got)
+	want := orig.Resources["x_beta"]
+	if got := p.Resource("x_beta"); got == nil || len(got.Block.Attributes) != len(want.Block.Attributes) {
+		t.Errorf("a type is lost when the file is replaced: %+v", got)
+	}
+	if p.Resource("x_delta") == nil {
+		t.Error("a type of the new file is not found")
 	}
 	if p.Resource("x_alpha") == nil {
 		t.Error("a type that was read before stays")

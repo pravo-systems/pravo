@@ -472,6 +472,11 @@ func (s *session) writeGenerated(verbose bool) error {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
+		// A type that cannot be read from the cache must stop the command, not
+		// leave a package without it that every later command is checked against.
+		if err := ps.Materialize(); err != nil {
+			return fmt.Errorf("provider %s: %w", local, err)
+		}
 		changed, err := pravo.WriteIfChanged(filepath.Join(dir, pkgName+"_gen.cue"), schema.GenerateCUE(ps, pkgName, opts))
 		if err != nil {
 			return err
