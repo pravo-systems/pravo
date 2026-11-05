@@ -11,6 +11,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 func protectStatusCmd(rt *runContext) *cobra.Command {
@@ -82,7 +83,7 @@ type statusReport struct {
 
 	sealed, none, expects bool
 	rf, erf               readersFile
-	rstat                 state.RolesStatus
+	rstat                 pravo.RolesStatus
 	recoveryFileState     string
 
 	txns         []state.Transaction
@@ -201,7 +202,7 @@ func (r *statusReport) check() error {
 	if rerr != nil {
 		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("roles: %s", printable(rerr.Error())))
 	}
-	rolesOn := erf.Found && erf.Err == nil && protect.RolesOn(erf.Readers)
+	rolesOn := erf.Found && erf.Err == nil && pravo.RolesOn(erf.Readers)
 	add("Roles", rolesText(erf, rstat, st))
 	if erf.Found && erf.Err == nil {
 		if n := st.Unnamed(p.ctx, erf.Readers); n > 0 {
@@ -418,16 +419,16 @@ func secretProblemText(p state.SecretProblem) string {
 }
 
 // rolesText is the Roles line of protect status.
-func rolesText(rf readersFile, rs state.RolesStatus, st *state.Store) string {
-	if !rf.Found || rf.Err != nil || !protect.RolesOn(rf.Readers) {
+func rolesText(rf readersFile, rs pravo.RolesStatus, st *state.Store) string {
+	if !rf.Found || rf.Err != nil || !pravo.RolesOn(rf.Readers) {
 		return "off"
 	}
 	var n [4]int
 	for _, r := range rf.Readers {
-		role, _ := protect.RoleOf(rf.Readers, protect.SSHFingerprint(r.Sign))
+		role, _ := pravo.RoleOf(rf.Readers, protect.SSHFingerprint(r.Sign))
 		n[role]++
 	}
-	line := fmt.Sprintf("on · %d admin · %d writer · %d reader", n[protect.RoleAdmin], n[protect.RoleWriter], n[protect.RoleReader])
+	line := fmt.Sprintf("on · %d admin · %d writer · %d reader", n[pravo.RoleAdmin], n[pravo.RoleWriter], n[pravo.RoleReader])
 	switch {
 	case rs.Source == "state":
 		line += fmt.Sprintf(" · pinned, version %d in the state", rs.Version)
@@ -441,19 +442,19 @@ func rolesText(rf readersFile, rs state.RolesStatus, st *state.Store) string {
 	}
 	if rs.Unpinned {
 		// The roles in the state decide who may change it, as the commands that change it judge.
-		role := protect.RoleReader
-		if r, ok := protect.RoleOf(rs.Stored, st.SigningKey()); ok {
+		role := pravo.RoleReader
+		if r, ok := pravo.RoleOf(rs.Stored, st.SigningKey()); ok {
 			role = r
 		}
 		line += " · you are " + article(role) + " in the roles in the state"
-	} else if role, ok := protect.RoleOf(rf.Readers, st.SigningKey()); ok {
+	} else if role, ok := pravo.RoleOf(rf.Readers, st.SigningKey()); ok {
 		line += " · you are " + article(role)
 	}
 	return line
 }
 
-func rolesDoc(rf readersFile, rs state.RolesStatus, st *state.Store) map[string]any {
-	doc := map[string]any{"on": rf.Found && rf.Err == nil && protect.RolesOn(rf.Readers)}
+func rolesDoc(rf readersFile, rs pravo.RolesStatus, st *state.Store) map[string]any {
+	doc := map[string]any{"on": rf.Found && rf.Err == nil && pravo.RolesOn(rf.Readers)}
 	if doc["on"] == true {
 		doc["source"] = rs.Source
 		doc["pinned"] = rs.Source == "state"
@@ -463,12 +464,12 @@ func rolesDoc(rf readersFile, rs state.RolesStatus, st *state.Store) map[string]
 		if rs.Differs {
 			doc["file_differs"] = true
 		}
-		if role, ok := protect.RoleOf(rf.Readers, st.SigningKey()); ok {
+		if role, ok := pravo.RoleOf(rf.Readers, st.SigningKey()); ok {
 			doc["you"] = role.String()
 		}
 		if rs.Unpinned {
-			role := protect.RoleReader
-			if r, ok := protect.RoleOf(rs.Stored, st.SigningKey()); ok {
+			role := pravo.RoleReader
+			if r, ok := pravo.RoleOf(rs.Stored, st.SigningKey()); ok {
 				role = r
 			}
 			doc["you"] = role.String()

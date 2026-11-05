@@ -14,6 +14,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 // The readers file is .pravo/access/readers.txt in the repository: one line per
@@ -41,7 +42,7 @@ type readersFile struct {
 	Found bool
 	// Readers is the parsed list, in file order. Nil unless Err is nil and Found
 	// is set.
-	Readers []protect.Reader
+	Readers []pravo.Reader
 	// Pin is the digest of the first roles of the state that the file pins, empty without
 	// the roles-genesis line.
 	Pin string
@@ -244,7 +245,7 @@ var (
 	quotedText     = regexp.MustCompile(`\s?"(?:[^"\\]|\\.)*"`)
 )
 
-// sanitiseReadersError turns an error of protect.ParseReaders into one with a
+// sanitiseReadersError turns an error of pravo.ParseReaders into one with a
 // line number and a reason. Reasons that quote part of the line (a name, a key)
 // are cut, so that a readers file that is a link to something else leaks
 // nothing through the message.
@@ -267,9 +268,9 @@ func sanitiseReadersError(err error) error {
 // withRoles is the readers file with the roles that decide for the state: the roles stored
 // in it when the file pins them (see state.Store.RolesFor), the roles of the file otherwise.
 // An error is a chain that does not verify, or is not the one the file pins.
-func (rf readersFile) withRoles(st *state.Store) (readersFile, state.RolesStatus, error) {
+func (rf readersFile) withRoles(st *state.Store) (readersFile, pravo.RolesStatus, error) {
 	if !rf.Found || rf.Err != nil || st == nil {
-		return rf, state.RolesStatus{Source: "off"}, nil
+		return rf, pravo.RolesStatus{Source: "off"}, nil
 	}
 	readers, status, err := st.RolesFor(st.Context(), rf.Readers, rf.Pin)
 	if err != nil {

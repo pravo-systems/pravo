@@ -14,6 +14,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 // ---------- protect roles ----------
@@ -81,9 +82,9 @@ func (p *protectRun) roles(rt *runContext, yes, adoptUnsigned, vouchNotes, allow
 type rolesRun struct {
 	st           *state.Store
 	prot         state.Protection
-	chain        *state.RolesChain
+	chain        *pravo.RolesChain
 	head         *state.RolesVersion
-	before       []protect.Reader
+	before       []pravo.Reader
 	beforeFormer []protect.FormerKey
 }
 
@@ -94,7 +95,7 @@ func (p *protectRun) rolesTarget(rt *runContext) (*rolesRun, error) {
 	if err := p.rf.require(); err != nil {
 		return nil, err
 	}
-	if !protect.RolesOn(p.rf.Readers) {
+	if !pravo.RolesOn(p.rf.Readers) {
 		return nil, engine.WithCode(engine.ExitInvalid, fmt.Errorf("%s gives no roles. Add role:reader, role:writer or role:admin to the lines of the readers first.", p.rf.shown()))
 	}
 	b, err := p.backend(true)
@@ -129,14 +130,14 @@ func (p *protectRun) rolesTarget(rt *runContext) (*rolesRun, error) {
 	if head != nil {
 		deciding, whose = head.Set, "the roles in the state"
 	}
-	if role, ok := protect.RoleOf(deciding, st.SigningKey()); !ok || role != protect.RoleAdmin {
+	if role, ok := pravo.RoleOf(deciding, st.SigningKey()); !ok || role != pravo.RoleAdmin {
 		got := "not listed"
 		if ok {
 			got = article(role)
 		}
 		return nil, engine.WithCode(engine.ExitRefused, fmt.Errorf("your identity is %s in %s, and an admin is needed to store the roles.", got, whose))
 	}
-	var before []protect.Reader
+	var before []pravo.Reader
 	var beforeFormer []protect.FormerKey
 	if head != nil {
 		before, beforeFormer = head.Set, head.Former
@@ -148,7 +149,7 @@ func (p *protectRun) rolesTarget(rt *runContext) (*rolesRun, error) {
 // readers file and the roles in the state, and the vouches that carry over what keys that
 // leave the writers signed.
 type rolesPlan struct {
-	next                            []protect.Reader
+	next                            []pravo.Reader
 	nextFormer                      []protect.FormerKey
 	seen                            []string
 	counts                          map[string]int
@@ -175,7 +176,7 @@ func (p *protectRun) planRoles(rt *runContext, rr *rolesRun, adoptUnsigned, vouc
 	if !allowNoAdmin && !hasAdmin(next, p.rf.Readers) {
 		var demoted []string
 		for _, r := range before {
-			if r.Role == protect.RoleAdmin {
+			if r.Role == pravo.RoleAdmin {
 				demoted = append(demoted, r.Name)
 			}
 		}
@@ -253,7 +254,7 @@ func (p *protectRun) describeRoleChanges(rr *rolesRun, pl *rolesPlan) []string {
 		envVouched[v.Key]++
 	}
 	names := map[string]string{}
-	for _, rs := range [][]protect.Reader{before, p.rf.Readers} {
+	for _, rs := range [][]pravo.Reader{before, p.rf.Readers} {
 		for _, r := range rs {
 			names[protect.SSHFingerprint(r.Sign)] = r.Name
 		}
@@ -362,8 +363,8 @@ func (p *protectRun) storeRoles(rt *runContext, rr *rolesRun, pl *rolesPlan, cha
 
 // roleChanges describes how the active roles went from before to after, one line each, in name
 // order. A key that is gone from after is now a former key.
-func roleChanges(before, after []protect.Reader) []string {
-	old := map[string]protect.Role{}
+func roleChanges(before, after []pravo.Reader) []string {
+	old := map[string]pravo.Role{}
 	for _, r := range before {
 		old[r.Name] = r.Role
 	}
@@ -371,8 +372,8 @@ func roleChanges(before, after []protect.Reader) []string {
 	var lines []string
 	for _, r := range after {
 		role := r.Role
-		if role == protect.RoleNone {
-			role = protect.RoleReader
+		if role == pravo.RoleNone {
+			role = pravo.RoleReader
 		}
 		seen[r.Name] = true
 		was, had := old[r.Name]
@@ -395,9 +396,9 @@ func roleChanges(before, after []protect.Reader) []string {
 // unlistedSigners are the fingerprints of the keys that signed a transaction of the state and
 // that are not in the readers file, the active roles or the former keys, in order, and how many
 // transactions each signed.
-func unlistedSigners(st *state.Store, file, active []protect.Reader, former []protect.FormerKey) ([]string, map[string]int, error) {
+func unlistedSigners(st *state.Store, file, active []pravo.Reader, former []protect.FormerKey) ([]string, map[string]int, error) {
 	known := map[string]bool{}
-	for _, rs := range [][]protect.Reader{file, active} {
+	for _, rs := range [][]pravo.Reader{file, active} {
 		for _, r := range rs {
 			known[protect.SSHFingerprint(r.Sign)] = true
 		}
@@ -451,7 +452,7 @@ const maxVouches = 5000
 // a writer in next, when the key was a writer in before, when there were no roles yet, or when
 // the key is one of seen, which the admin has just been shown. A transaction that an earlier
 // version vouched for is left out.
-func newVouches(ctx context.Context, rt *runContext, st *state.Store, chain *state.RolesChain, before, next []protect.Reader, seen []string, adoptUnsigned bool) ([]protect.Vouch, error) {
+func newVouches(ctx context.Context, rt *runContext, st *state.Store, chain *pravo.RolesChain, before, next []pravo.Reader, seen []string, adoptUnsigned bool) ([]protect.Vouch, error) {
 	live, err := st.LiveSigners(ctx)
 	if err != nil {
 		return nil, err
@@ -462,10 +463,10 @@ func newVouches(ctx context.Context, rt *runContext, st *state.Store, chain *sta
 			done[vo.Txn] = vo.Digest
 		}
 	}
-	writer := func(rs []protect.Reader) map[string]bool {
+	writer := func(rs []pravo.Reader) map[string]bool {
 		out := map[string]bool{}
 		for _, r := range rs {
-			out[protect.SSHFingerprint(r.Sign)] = r.Role >= protect.RoleWriter
+			out[protect.SSHFingerprint(r.Sign)] = r.Role >= pravo.RoleWriter
 		}
 		return out
 	}
@@ -519,18 +520,18 @@ func newVouches(ctx context.Context, rt *runContext, st *state.Store, chain *sta
 // that a key signed which leaves the writers: it was a writer in before, is one of seen or a
 // former key, or there are no roles yet. They are returned only when vouch is set; left counts those that are
 // not vouched for and stop counting, since the key is not a writer in next.
-func environmentVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, before []protect.Reader, former []protect.FormerKey, next []protect.Reader, seen []string, vouch bool, skip map[string]bool) ([]protect.Vouch, int, error) {
+func environmentVouches(ctx context.Context, st *state.Store, chain *pravo.RolesChain, before []pravo.Reader, former []protect.FormerKey, next []pravo.Reader, seen []string, vouch bool, skip map[string]bool) ([]protect.Vouch, int, error) {
 	all, err := st.EnvironmentVouches(ctx)
 	if err != nil {
 		return nil, 0, err
 	}
 	isWriter := map[string]bool{}
 	for _, r := range next {
-		isWriter[protect.SSHFingerprint(r.Sign)] = r.Role >= protect.RoleWriter
+		isWriter[protect.SSHFingerprint(r.Sign)] = r.Role >= pravo.RoleWriter
 	}
 	wasWriter := map[string]bool{}
 	for _, r := range before {
-		wasWriter[protect.SSHFingerprint(r.Sign)] = r.Role >= protect.RoleWriter
+		wasWriter[protect.SSHFingerprint(r.Sign)] = r.Role >= pravo.RoleWriter
 	}
 	unlisted := map[string]bool{}
 	for _, fp := range seen {
@@ -567,7 +568,7 @@ func environmentVouches(ctx context.Context, st *state.Store, chain *state.Roles
 // withdrawalVouches are the vouches for the withdrawals (promote --revoke) in the state that a
 // key signed while it was an admin in before and is not an admin in next: the key was demoted or
 // left. The signature is checked against before, since a key that left has no key in next.
-func withdrawalVouches(ctx context.Context, st *state.Store, chain *state.RolesChain, before, next []protect.Reader) ([]protect.Vouch, error) {
+func withdrawalVouches(ctx context.Context, st *state.Store, chain *pravo.RolesChain, before, next []pravo.Reader) ([]protect.Vouch, error) {
 	if len(before) == 0 {
 		return nil, nil
 	}
@@ -590,9 +591,9 @@ func withdrawalVouches(ctx context.Context, st *state.Store, chain *state.RolesC
 		if sst, _ := p.Verify(st.Lineage(), before); sst != protect.SigVerified {
 			continue
 		}
-		was, _ := protect.RoleOf(before, p.Signature.Key)
-		now, _ := protect.RoleOf(next, p.Signature.Key)
-		if !was.Allows(protect.RoleAdmin) || now.Allows(protect.RoleAdmin) {
+		was, _ := pravo.RoleOf(before, p.Signature.Key)
+		now, _ := pravo.RoleOf(next, p.Signature.Key)
+		if !was.Allows(pravo.RoleAdmin) || now.Allows(pravo.RoleAdmin) {
 			continue
 		}
 		if v, ok := p.Vouch(st.Lineage()); ok {
@@ -650,16 +651,16 @@ type runningTxn struct{ Name, Txn, Host string }
 // are not in next. Only a finished transaction is vouched for, so what such a transaction
 // writes when it ends would be signed by a key that is no writer: every command would then
 // refuse the state (exit 7).
-func runningLeavers(st *state.Store, before, next []protect.Reader) ([]runningTxn, error) {
+func runningLeavers(st *state.Store, before, next []pravo.Reader) ([]runningTxn, error) {
 	isWriter := map[string]bool{}
 	for _, r := range next {
-		if r.Role >= protect.RoleWriter {
+		if r.Role >= pravo.RoleWriter {
 			isWriter[protect.SSHFingerprint(r.Sign)] = true
 		}
 	}
 	names := map[string]string{}
 	for _, r := range before {
-		if r.Role >= protect.RoleWriter {
+		if r.Role >= pravo.RoleWriter {
 			if fp := protect.SSHFingerprint(r.Sign); !isWriter[fp] {
 				names[fp] = r.Name
 			}

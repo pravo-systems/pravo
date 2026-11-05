@@ -15,10 +15,10 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
-	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/sensitivity"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 func environmentsCmd(rt *runContext) *cobra.Command {
@@ -372,7 +372,7 @@ For a specification that declares no environments any more, it records that the 
 				if rec.RolesPin != "" {
 					judge.Pin = rec.RolesPin
 				}
-				if msg, code := roleProblem(judge, st, protect.RoleAdmin, "change what the state records of its environment"); msg != "" {
+				if msg, code := roleProblem(judge, st, pravo.RoleAdmin, "change what the state records of its environment"); msg != "" {
 					return engine.WithCode(code, errors.New(msg))
 				}
 			}

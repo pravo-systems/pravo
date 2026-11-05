@@ -15,6 +15,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 // displayPath writes a path relative to the working directory, with forward
@@ -134,7 +135,7 @@ func commas(n int) string {
 	return s
 }
 
-func readerNames(rs []protect.Reader) []string {
+func readerNames(rs []pravo.Reader) []string {
 	out := make([]string, len(rs))
 	for i, r := range rs {
 		out[i] = r.Name
@@ -269,7 +270,7 @@ func checkReadersFile(rt *runContext, root *config.Root, st *state.Store, write 
 		problem = fmt.Sprintf("%s and the state differ (%s). Run pravo protect rewrap.", rf.shown(), diffText(added, removed))
 	}
 	if problem == "" && write {
-		problem, code = roleProblem(rf, st, protect.RoleWriter, "change the state")
+		problem, code = roleProblem(rf, st, pravo.RoleWriter, "change the state")
 	}
 	if problem == "" {
 		return nil
@@ -281,7 +282,7 @@ func checkReadersFile(rt *runContext, root *config.Root, st *state.Store, write 
 	return nil
 }
 
-func readersInclude(rs []protect.Reader, id *protect.Identity) bool {
+func readersInclude(rs []pravo.Reader, id *protect.Identity) bool {
 	me := id.Reader.Public()
 	for _, r := range rs {
 		if r.Key.Equal(me) {
@@ -321,7 +322,7 @@ func protectedNames(prot state.Protection) []string {
 // readers file without roles lets every key do everything. This is the check of an honest
 // pravo; a state that was written by a key without the role is found by the signatures (see
 // sealed-state.md), and only the credentials of the bucket stop a write.
-func roleProblem(rf readersFile, st *state.Store, need protect.Role, what string) (string, engine.ExitCode) {
+func roleProblem(rf readersFile, st *state.Store, need pravo.Role, what string) (string, engine.ExitCode) {
 	rf, rs, err := rf.withRoles(st)
 	if err != nil {
 		return printable(err.Error()), engine.ExitUntrusted
@@ -336,8 +337,8 @@ func roleProblem(rf readersFile, st *state.Store, need protect.Role, what string
 	case rs.Source == "state":
 		source = "the roles in the state"
 	case rs.Unpinned:
-		role := protect.RoleReader
-		if r, ok := protect.RoleOf(rs.Stored, key); ok {
+		role := pravo.RoleReader
+		if r, ok := pravo.RoleOf(rs.Stored, key); ok {
 			role = r
 		}
 		if role.Allows(need) {
@@ -345,10 +346,10 @@ func roleProblem(rf readersFile, st *state.Store, need protect.Role, what string
 		}
 		return fmt.Sprintf("your identity is %s in the roles stored in the state, and %s is needed to %s. %s does not pin those roles, so the roles in the state decide; commit the %s line that pravo protect roles printed.", article(role), article(need), what, rf.shown(), protect.RolesGenesisKey), engine.ExitRefused
 	}
-	if !rf.Found || rf.Err != nil || !protect.RolesOn(readers) {
+	if !rf.Found || rf.Err != nil || !pravo.RolesOn(readers) {
 		return "", engine.ExitRefused
 	}
-	role, ok := protect.RoleOf(readers, key)
+	role, ok := pravo.RoleOf(readers, key)
 	if !ok {
 		return fmt.Sprintf("your identity is not in %s, so its role is not known, and %s is needed to %s.", source, article(need), what), engine.ExitRefused
 	}
@@ -359,8 +360,8 @@ func roleProblem(rf readersFile, st *state.Store, need protect.Role, what string
 }
 
 // article puts a or an before the name of a role.
-func article(r protect.Role) string {
-	if r == protect.RoleAdmin {
+func article(r pravo.Role) string {
+	if r == pravo.RoleAdmin {
 		return "an admin"
 	}
 	return "a " + r.String()

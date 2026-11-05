@@ -15,6 +15,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
+	"github.com/pravo-systems/pravo/pravo"
 )
 
 // The recovery recipient of a sealed state is one more reader whose key nobody
@@ -493,7 +494,7 @@ func (rr *recoverRun) checkRoles() error {
 	} else if chain.Head() != nil || p.rf.Pin != "" {
 		rr.resetRoles = true
 	}
-	if rr.resetRoles && !protect.RolesOn(p.rf.Readers) {
+	if rr.resetRoles && !pravo.RolesOn(p.rf.Readers) {
 		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the state holds roles, and %s gives none. Add role:reader, role:writer or role:admin to its lines; your own line gets role:admin.", p.rf.shown()))
 	}
 	if rr.resetRoles && !hasAdmin(p.rf.Readers, p.rf.Readers) {
@@ -532,7 +533,7 @@ func (rr *recoverRun) describe(rt *runContext, all bool, added, removed []string
 }
 
 // rewrap opens the state with the recovery key and brings its keys in line with the readers file.
-func (rr *recoverRun) rewrap(rt *runContext, all bool) (res state.RewrapResult, rcf recoveryFile, began time.Time, err error) {
+func (rr *recoverRun) rewrap(rt *runContext, all bool) (res pravo.RewrapResult, rcf recoveryFile, began time.Time, err error) {
 	p, newRec := rr.p, rr.newRec
 	var removeShares func()
 	if newRec != nil {
@@ -549,13 +550,13 @@ func (rr *recoverRun) rewrap(rt *runContext, all bool) (res state.RewrapResult, 
 	began = time.Now()
 	// The recovery key opens the state until the recovery is replaced: the records are
 	// sealed again first, and the replacement is a step of its own.
-	first := state.RewrapOptions{Readers: p.rf.Readers, All: all, By: protect.RecoveryName, Plans: engine.NewPlanStoreFor(st).ResealAll}
+	first := pravo.RewrapOptions{Readers: p.rf.Readers, All: all, By: protect.RecoveryName, Plans: engine.NewPlanStoreFor(st).ResealAll}
 	if newRec != nil && !all {
 		first.Recovery, first.GuardRecovery, first.RecoveryWas = newRec, true, rr.prot.Sealed.Recovery
 	}
 	res, err = st.Rewrap(p.ctx, first)
 	if err == nil && newRec != nil && all {
-		_, err = st.Rewrap(p.ctx, state.RewrapOptions{Readers: p.rf.Readers, By: protect.RecoveryName, Recovery: newRec,
+		_, err = st.Rewrap(p.ctx, pravo.RewrapOptions{Readers: p.rf.Readers, By: protect.RecoveryName, Recovery: newRec,
 			GuardRecovery: true, RecoveryWas: rr.prot.Sealed.Recovery})
 	}
 	if err != nil {
@@ -571,7 +572,7 @@ func (rr *recoverRun) rewrap(rt *runContext, all bool) (res state.RewrapResult, 
 }
 
 // report says what the recovery did.
-func (rr *recoverRun) report(rt *runContext, res state.RewrapResult, rcf recoveryFile, rolesInfo *recoveredRoles, all bool, began time.Time) error {
+func (rr *recoverRun) report(rt *runContext, res pravo.RewrapResult, rcf recoveryFile, rolesInfo *recoveredRoles, all bool, began time.Time) error {
 	newRec := rr.newRec
 	if rt.flags.JSON {
 		j := map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup,
@@ -649,12 +650,12 @@ func (p *protectRun) recoverRoles(rt *runContext, b state.Backend) (*recoveredRo
 		return nil, engine.WithCode(engine.ExitRefused, notReaderError(p.rf, id, idErr))
 	}
 	me := st.SigningKey()
-	file := make([]protect.Reader, len(p.rf.Readers))
+	file := make([]pravo.Reader, len(p.rf.Readers))
 	copy(file, p.rf.Readers)
 	admin, found := "", false
 	var others []string
 	for _, r := range file {
-		if protect.SSHFingerprint(r.Sign) == me && r.Role == protect.RoleAdmin {
+		if protect.SSHFingerprint(r.Sign) == me && r.Role == pravo.RoleAdmin {
 			admin, found = r.Name, true
 		}
 	}
@@ -662,7 +663,7 @@ func (p *protectRun) recoverRoles(rt *runContext, b state.Backend) (*recoveredRo
 		return nil, engine.WithCode(engine.ExitRefused, fmt.Errorf("your identity is not an admin in %s. Give your own line role:admin and run protect recover again: recovery stores the roles again with your key as an admin.", p.rf.shown()))
 	}
 	for _, r := range file {
-		if r.Role == protect.RoleAdmin && r.Name != admin {
+		if r.Role == pravo.RoleAdmin && r.Name != admin {
 			others = append(others, r.Name)
 		}
 	}
@@ -671,7 +672,7 @@ func (p *protectRun) recoverRoles(rt *runContext, b state.Backend) (*recoveredRo
 		return nil, err
 	}
 	next, nextFormer := protect.NextRoles(file, nil, nil, seen)
-	vouches, err := newVouches(p.ctx, rt, st, &state.RolesChain{}, nil, next, seen, true)
+	vouches, err := newVouches(p.ctx, rt, st, &pravo.RolesChain{}, nil, next, seen, true)
 	if err != nil {
 		return nil, err
 	}
@@ -713,7 +714,7 @@ func (p *protectRun) recoverRoles(rt *runContext, b state.Backend) (*recoveredRo
 // those signed by a key that was an admin in the head of the old chain, and those that an
 // earlier version of it vouched for after their admin had left. lost says why none could be
 // carried when the old roles cannot be read.
-func recoveredWithdrawals(ctx context.Context, st *state.Store, next []protect.Reader) (carried []protect.Vouch, lost string) {
+func recoveredWithdrawals(ctx context.Context, st *state.Store, next []pravo.Reader) (carried []protect.Vouch, lost string) {
 	chain, err := st.RolesChain(ctx)
 	if err != nil {
 		return nil, "the old roles cannot be read (" + printable(err.Error()) + ")"
@@ -722,7 +723,7 @@ func recoveredWithdrawals(ctx context.Context, st *state.Store, next []protect.R
 	if head == nil {
 		return nil, ""
 	}
-	carried, err = withdrawalVouches(ctx, st, &state.RolesChain{}, head.Set, next)
+	carried, err = withdrawalVouches(ctx, st, &pravo.RolesChain{}, head.Set, next)
 	if err != nil {
 		return nil, "the promotions of the state cannot be read (" + printable(err.Error()) + ")"
 	}

@@ -85,7 +85,7 @@ func stateCmd(rt *runContext) *cobra.Command {
 				return nil, err
 			}
 			if prot := st.Protection(); prot.Sealed != nil && !st.Locked() {
-				var readers []protect.Reader
+				var readers []pravo.Reader
 				if root, err := loadRoot(rt); err == nil {
 					readers, _ = attributionReaders(readersOf(rt, root))
 				}
@@ -354,7 +354,7 @@ func stateLogCmd(rt *runContext, loadRead func() (*state.Store, error)) *cobra.C
 			}
 			// Under a sealed state the signatures are checked against the readers file, on the
 			// transactions as they are stored: the status below is a reading of them.
-			readers, checked := []protect.Reader(nil), false
+			readers, checked := []pravo.Reader(nil), false
 			if prot := st.Protection(); prot.Sealed != nil {
 				if root, err := loadRoot(rt); err == nil {
 					readers, checked = attributionReaders(readersOf(rt, root))

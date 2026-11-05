@@ -426,18 +426,18 @@ func rolesFacts(ctx context.Context, st *state.Store, rf readersFile) *serve.Rol
 		f.Error = err.Error()
 		erf = rf
 	}
-	if !protect.RolesOn(erf.Readers) {
+	if !pravo.RolesOn(erf.Readers) {
 		if f.Error == "" && rs.Version == 0 {
 			f.Source = "off"
 		}
 		return f
 	}
-	if role, ok := protect.RoleOf(erf.Readers, st.SigningKey()); ok {
+	if role, ok := pravo.RoleOf(erf.Readers, st.SigningKey()); ok {
 		f.You = role.String()
 	}
 	for _, r := range erf.Readers {
 		fp := protect.SSHFingerprint(r.Sign)
-		role, _ := protect.RoleOf(erf.Readers, fp)
+		role, _ := pravo.RoleOf(erf.Readers, fp)
 		f.Keys = append(f.Keys, serve.RoleKeyFacts{Name: r.Name, Fingerprint: fp, Role: role.String()})
 	}
 	f.Records = recordCheckFacts(st, erf, rs)
@@ -445,7 +445,7 @@ func rolesFacts(ctx context.Context, st *state.Store, rf readersFile) *serve.Rol
 }
 
 // recordCheckFacts is the verdict of the records against the transactions of writers.
-func recordCheckFacts(st *state.Store, rf readersFile, rs state.RolesStatus) *serve.RecordCheckFacts {
+func recordCheckFacts(st *state.Store, rf readersFile, rs pravo.RolesStatus) *serve.RecordCheckFacts {
 	if st.Len() > maxRecordCheck {
 		return &serve.RecordCheckFacts{Skipped: fmt.Sprintf("the state holds more than %d records; run pravo protect status", maxRecordCheck)}
 	}
@@ -583,7 +583,7 @@ func (v *viewerState) verifyTxn(st *state.Store, t *state.Transaction) (string, 
 
 // policyReaders gives the readers that the signatures of the policy versions are checked
 // against, for the policies view. A repository with no readers file has none.
-func (v *viewerState) policyReaders(st *state.Store) ([]protect.Reader, bool) {
+func (v *viewerState) policyReaders(st *state.Store) ([]pravo.Reader, bool) {
 	return attributionReaders(v.readersFile())
 }
 
