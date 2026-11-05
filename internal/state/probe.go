@@ -86,112 +86,127 @@ func probeReports(names []string, report func(check string, err error), checks .
 // concurrent creates of one key must leave one winner.
 func runProbe(ctx context.Context, p probeIO, report func(check string, err error)) error {
 	id := newID(8)
-	one, race := "probe/"+id, "probe/"+id+"-race"
-	defer p.cleanup(ctx, one, race)
-	name := p.storeName()
-	fail := func(format string, a ...any) error {
-		return &ProbeError{Store: name, Detail: fmt.Sprintf(format, a...)}
-	}
-	// verdict reads an answer: accepted or refused, or the error that the answer is.
-	verdict := func(header string, a probeAnswer) (bool, error) {
-		switch {
-		case errors.Is(a.err, errProbeUnsupported):
-			return false, fail("%s is not implemented", header)
-		case a.err != nil:
-			return false, fmt.Errorf("checking %s on %s: %w", header, name, a.err)
-		}
-		return a.accepted, nil
-	}
-	// refusedBy is the words a store gave for a refusal, to append to a message.
-	refusedBy := func(a probeAnswer) string {
-		if a.refusal == nil {
-			return ""
-		}
-		return ": " + a.refusal.Error()
-	}
-	put := func(header, key, body, ifNone, ifMatch string) (bool, probeAnswer, error) {
-		a := p.put(ctx, key, body, ifNone, ifMatch)
-		ok, err := verdict(header, a)
-		return ok, a, err
-	}
+	r := &probeRun{ctx: ctx, p: p, name: p.storeName(), one: "probe/" + id, race: "probe/" + id + "-race"}
+	defer p.cleanup(ctx, r.one, r.race)
+	return probeReports(ProbeChecks, report, r.createOnly, r.replace, r.remove, r.concurrent)
+}
 
-	createOnly := func() error {
-		ok, a, err := put("If-None-Match", one, "one", "*", "")
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return fail("a create of a new key was refused%s", refusedBy(a))
-		}
-		ok, _, err = put("If-None-Match", one, "two", "*", "")
-		if err != nil {
-			return err
-		}
-		if ok {
-			return fail("a second create of the same key succeeded, so If-None-Match is ignored")
-		}
-		if got, _, err := p.get(ctx, one); err != nil || got != "one" {
-			return fail("a refused create changed the object (it holds %q)", got)
-		}
-		return nil
+// probeRun is one run of the checks of ProbeChecks: the store, and the two scratch
+// keys it writes.
+type probeRun struct {
+	ctx       context.Context
+	p         probeIO
+	name      string
+	one, race string
+}
+
+func (r *probeRun) fail(format string, a ...any) error {
+	return &ProbeError{Store: r.name, Detail: fmt.Sprintf(format, a...)}
+}
+
+// verdict reads an answer: accepted or refused, or the error that the answer is.
+func (r *probeRun) verdict(header string, a probeAnswer) (bool, error) {
+	switch {
+	case errors.Is(a.err, errProbeUnsupported):
+		return false, r.fail("%s is not implemented", header)
+	case a.err != nil:
+		return false, fmt.Errorf("checking %s on %s: %w", header, r.name, a.err)
 	}
-	replace := func() error {
-		ok, _, err := put("If-Match", one, "two", "", staleTag)
-		if err != nil {
-			return err
-		}
-		if ok {
-			return fail("a put with a stale entity tag succeeded, so If-Match is ignored on a put")
-		}
-		got, tag, err := p.get(ctx, one)
-		if err != nil || got != "one" {
-			return fail("a refused put changed the object (it holds %q)", got)
-		}
-		ok, a, err := put("If-Match", one, "three", "", tag)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return fail("a put with the current entity tag was refused%s", refusedBy(a))
-		}
-		return nil
+	return a.accepted, nil
+}
+
+// refusedBy is the words a store gave for a refusal, to append to a message.
+func refusedBy(a probeAnswer) string {
+	if a.refusal == nil {
+		return ""
 	}
-	remove := func() error {
-		ok, err := verdict("If-Match", p.del(ctx, one, staleTag))
-		if err != nil {
-			return err
-		}
-		if ok {
-			return fail("a delete with a stale entity tag succeeded, so If-Match is ignored on a delete")
-		}
-		got, tag, err := p.get(ctx, one)
-		if err != nil || got != "three" {
-			return fail("a refused delete changed the object (it holds %q)", got)
-		}
-		a := p.del(ctx, one, tag)
-		if ok, err = verdict("If-Match", a); err != nil {
-			return err
-		} else if !ok {
-			return fail("a delete with the current entity tag was refused%s", refusedBy(a))
-		}
-		if _, _, err := p.get(ctx, one); !errors.Is(err, ErrNotFound) {
-			return fail("the object is still there after a delete with the current entity tag")
-		}
-		return nil
+	return ": " + a.refusal.Error()
+}
+
+func (r *probeRun) put(header, key, body, ifNone, ifMatch string) (bool, probeAnswer, error) {
+	a := r.p.put(r.ctx, key, body, ifNone, ifMatch)
+	ok, err := r.verdict(header, a)
+	return ok, a, err
+}
+
+func (r *probeRun) createOnly() error {
+	ok, a, err := r.put("If-None-Match", r.one, "one", "*", "")
+	if err != nil {
+		return err
 	}
-	concurrent := func() error {
-		won, err := probeRace(p, "concurrent creates", func(i int) probeAnswer {
-			return p.put(ctx, race, strconv.Itoa(i), "*", "")
-		})
-		if err != nil {
-			return err
-		}
-		if len(won) != 1 {
-			return fail("%d of %d concurrent creates of one key succeeded, want 1", len(won), probeRacers)
-		}
-		return nil
+	if !ok {
+		return r.fail("a create of a new key was refused%s", refusedBy(a))
 	}
-	return probeReports(ProbeChecks, report, createOnly, replace, remove, concurrent)
+	ok, _, err = r.put("If-None-Match", r.one, "two", "*", "")
+	if err != nil {
+		return err
+	}
+	if ok {
+		return r.fail("a second create of the same key succeeded, so If-None-Match is ignored")
+	}
+	if got, _, err := r.p.get(r.ctx, r.one); err != nil || got != "one" {
+		return r.fail("a refused create changed the object (it holds %q)", got)
+	}
+	return nil
+}
+
+func (r *probeRun) replace() error {
+	ok, _, err := r.put("If-Match", r.one, "two", "", staleTag)
+	if err != nil {
+		return err
+	}
+	if ok {
+		return r.fail("a put with a stale entity tag succeeded, so If-Match is ignored on a put")
+	}
+	got, tag, err := r.p.get(r.ctx, r.one)
+	if err != nil || got != "one" {
+		return r.fail("a refused put changed the object (it holds %q)", got)
+	}
+	ok, a, err := r.put("If-Match", r.one, "three", "", tag)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return r.fail("a put with the current entity tag was refused%s", refusedBy(a))
+	}
+	return nil
+}
+
+func (r *probeRun) remove() error {
+	ok, err := r.verdict("If-Match", r.p.del(r.ctx, r.one, staleTag))
+	if err != nil {
+		return err
+	}
+	if ok {
+		return r.fail("a delete with a stale entity tag succeeded, so If-Match is ignored on a delete")
+	}
+	got, tag, err := r.p.get(r.ctx, r.one)
+	if err != nil || got != "three" {
+		return r.fail("a refused delete changed the object (it holds %q)", got)
+	}
+	a := r.p.del(r.ctx, r.one, tag)
+	if ok, err = r.verdict("If-Match", a); err != nil {
+		return err
+	} else if !ok {
+		return r.fail("a delete with the current entity tag was refused%s", refusedBy(a))
+	}
+	if _, _, err := r.p.get(r.ctx, r.one); !errors.Is(err, ErrNotFound) {
+		return r.fail("the object is still there after a delete with the current entity tag")
+	}
+	return nil
+}
+
+func (r *probeRun) concurrent() error {
+	won, err := probeRace(r.p, "concurrent creates", func(i int) probeAnswer {
+		return r.p.put(r.ctx, r.race, strconv.Itoa(i), "*", "")
+	})
+	if err != nil {
+		return err
+	}
+	if len(won) != 1 {
+		return r.fail("%d of %d concurrent creates of one key succeeded, want 1", len(won), probeRacers)
+	}
+	return nil
 }
 
 // probeRace makes probeRacers requests at once and returns which of them were

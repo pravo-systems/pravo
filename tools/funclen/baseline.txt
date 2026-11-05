@@ -51,10 +51,7 @@ internal/serve/templates_inputs.go model.choicesOf 102
 internal/serve/traces.go Server.traces 104
 internal/state/gc.go Store.GC 191
 internal/state/gc.go Store.gcGroups 164
-internal/state/httpprobe.go HTTPBackend.ProbeSteps 136
 internal/state/records_bound.go Store.verifyRecords 170
-internal/state/s3probe.go S3Backend.ProbeSteps 163
-internal/state/s3probe.go S3Backend.ProbeStrict 103
 internal/state/seal_upgrade.go Store.Rewrap 120
 internal/state/seal_upgrade.go Store.upgradeSealed 110
 internal/state/unseal.go Store.Unseal 143
