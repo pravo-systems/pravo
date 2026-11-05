@@ -961,6 +961,15 @@ def case_coldinit(c):
         bad = [o for o in outs if o[0] != 0]
         c.obs("init.failed", len(bad))
         c.check(not bad, f"{len(bad)} of 3 concurrent inits failed: {c.norm(bad[0][1])[-300:] if bad else ''}")
+        if bad:
+            # what each init generated: the schema files must hold the same resource types
+            for i, d in enumerate(dirs):
+                seen = [l.strip() for l in outs[i][1].splitlines() if "resource types" in l or l.startswith("Error")]
+                sizes = {}
+                for dp, dn, fn in os.walk(os.path.join(d, "cue.mod", "gen")):
+                    for f in fn:
+                        sizes[os.path.relpath(os.path.join(dp, f), d).replace("\\", "/")] = os.path.getsize(os.path.join(dp, f))
+                c.fails.append(f"diag init {i} rc={outs[i][0]}: {c.norm(' | '.join(seen))[:700]} ;; files {sizes}")
         locks = [read(os.path.join(d, "pravo.lock.cue")) for d in dirs if os.path.exists(os.path.join(d, "pravo.lock.cue"))]
         if not c.check(len(set(locks)) <= 1 and len(locks) == 3, "the lock files of three inits of one specification differ"):
             import difflib
