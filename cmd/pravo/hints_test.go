@@ -8,9 +8,11 @@ import (
 )
 
 func TestValidateAndPlanSayWhenTheSpecificationIsWrittenAsHCL(t *testing.T) {
+	rt := &runContext{}
+
 	dir := specDir(t, map[string]string{"main.cue": "package x\n\nproviders: random: source: \"hashicorp/random\"\nresource: random_pet: pet: {length: 2}\n"})
 	for _, cmd := range []string{"validate", "plan"} {
-		out, code := runPravo(t, dir, cmd)
+		out, code := runPravo(rt, t, dir, cmd)
 		if code != 0 {
 			t.Fatalf("%s: exit %d\n%s", cmd, code, out)
 		}
@@ -21,16 +23,18 @@ func TestValidateAndPlanSayWhenTheSpecificationIsWrittenAsHCL(t *testing.T) {
 		}
 	}
 	// --json is not changed by it.
-	out, _ := runPravo(t, dir, "--json", "validate")
+	out, _ := runPravo(rt, t, dir, "--json", "validate")
 	if strings.Contains(out, "hint") {
 		t.Errorf("--json carries the hint: %s", out)
 	}
 }
 
 func TestPlainCUEGetsNoHint(t *testing.T) {
+	rt := &runContext{}
+
 	dir := specDir(t, map[string]string{"main.cue": "package x\n\nsize: >=1 & <=20 | *5\nname: \"web\\(size)\"\n"})
 	for _, cmd := range []string{"validate", "plan"} {
-		if out, _ := runPravo(t, dir, cmd); strings.Contains(out, "hint") {
+		if out, _ := runPravo(rt, t, dir, cmd); strings.Contains(out, "hint") {
 			t.Errorf("%s on plain CUE: %s", cmd, out)
 		}
 	}
@@ -65,7 +69,9 @@ func TestSchemaNamesAreParsed(t *testing.T) {
 }
 
 func TestSchemaWithoutASpecificationSaysHowToNameTheProvider(t *testing.T) {
-	out, code := runPravo(t, t.TempDir(), "schema", "random_pet")
+	rt := &runContext{}
+
+	out, code := runPravo(rt, t, t.TempDir(), "schema", "random_pet")
 	if code == 0 || !strings.Contains(out, "this directory has no specification") || !strings.Contains(out, "hashicorp/random/random_pet") {
 		t.Errorf("exit %d\n%s", code, out)
 	}

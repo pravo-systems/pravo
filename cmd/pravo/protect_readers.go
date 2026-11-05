@@ -206,8 +206,8 @@ func downgradeProblem(rf readersFile) string {
 // readers when the state does not exist yet. The state is not created: a first
 // writer would make it in format 1, in the clear, and the guard would then have
 // nothing to say but that it is not sealed.
-func missingStateProblem(rf readersFile) string {
-	return fmt.Sprintf("the repository lists readers in %s, but the state does not exist yet. Create it sealed with: %s", rf.shown(), strings.TrimSpace("pravo protect init --encrypt "+engine.TagFlags(flags.Tags)))
+func missingStateProblem(rt *runContext, rf readersFile) string {
+	return fmt.Sprintf("the repository lists readers in %s, but the state does not exist yet. Create it sealed with: %s", rf.shown(), strings.TrimSpace("pravo protect init --encrypt "+engine.TagFlags(rt.flags.Tags)))
 }
 
 // lostStateProblem is what a command says when meta.json is missing but the
@@ -219,11 +219,11 @@ func lostStateProblem(rf readersFile) string {
 
 // missingStateProblemOf picks between a state that does not exist yet and one
 // that lost its meta.json.
-func missingStateProblemOf(ctx context.Context, root *config.Root, rf readersFile) string {
+func missingStateProblemOf(rt *runContext, ctx context.Context, root *config.Root, rf readersFile) string {
 	if stateLost(ctx, stateBackendIfAny(ctx, root)) {
 		return lostStateProblem(rf)
 	}
-	return missingStateProblem(rf)
+	return missingStateProblem(rt, rf)
 }
 
 // expectsSealed reports whether the repository expects the state to be sealed:
@@ -238,9 +238,9 @@ func expectsSealed(prot state.Protection, rf readersFile) bool {
 // warns. A state that is not sealed in a repository that has a readers file
 // is refused to a writer with exit code 5 and warned of to a reader: it was not
 // sealed yet, or it was downgraded in the bucket.
-func checkReadersFile(root *config.Root, st *state.Store, write bool) error {
+func checkReadersFile(rt *runContext, root *config.Root, st *state.Store, write bool) error {
 	prot := st.Protection()
-	rf := readersOf(root)
+	rf := readersOf(rt, root)
 	if !isSealed(prot) {
 		if !expectsSealed(prot, rf) {
 			return nil
@@ -294,10 +294,10 @@ func readersInclude(rs []protect.Reader, id *protect.Identity) bool {
 // reportUntrusted prints the object that failed verification when the state
 // could not be opened because of it. The error is the one of the state package:
 // "rec/SHA256: does not match its name (ADDRESS): the state failed verification".
-func reportUntrusted(err error) error {
+func reportUntrusted(rt *runContext, err error) error {
 	msg := printable(strings.TrimSuffix(err.Error(), ": "+state.ErrUntrusted.Error()))
 	msg = strings.Replace(msg, ": does not match", " does not match", 1)
-	out.Println(out.C(ui.Red, "Untrusted: "+msg))
+	rt.out.Println(rt.out.C(ui.Red, "Untrusted: "+msg))
 	return engine.WithCode(engine.ExitUntrusted, errSilent)
 }
 
@@ -373,8 +373,8 @@ func unnamedNotice(n int) string {
 }
 
 // noteUnnamed prints the notice for st when it applies.
-func noteUnnamed(ctx context.Context, root *config.Root, st *state.Store) {
-	if readers, ok := attributionReaders(readersOf(root)); ok {
+func noteUnnamed(rt *runContext, ctx context.Context, root *config.Root, st *state.Store) {
+	if readers, ok := attributionReaders(readersOf(rt, root)); ok {
 		if n := st.Unnamed(ctx, readers); n > 0 {
 			fmt.Fprintln(os.Stderr, unnamedNotice(n))
 		}

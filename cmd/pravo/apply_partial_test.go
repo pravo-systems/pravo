@@ -14,9 +14,9 @@ import (
 // failingRoot is a root whose second resource cannot be created while "blocker"
 // is a file: its directory is not one. The first is made before it, and the third
 // waits for it.
-func failingRoot(t *testing.T) string {
+func failingRoot(rt *runContext, t *testing.T) string {
 	t.Helper()
-	dir := localRoot(t, `first: $local.#Resource.local_file & {filename: "first.txt", content: "first\n"}
+	dir := localRoot(rt, t, `first: $local.#Resource.local_file & {filename: "first.txt", content: "first\n"}
 bad: $local.#Resource.local_file & {filename: "blocker/x.txt", content: "bad \(first.id)\n"}
 after: $local.#Resource.local_file & {filename: "after.txt", content: "after \(bad.id)\n"}
 `)
@@ -34,9 +34,11 @@ func exists(dir, name string) bool {
 // An apply of a stored plan that fails records the changes it made in the plan:
 // the plan is partial, and the same command applies the rest once the cause is gone.
 func TestFailedApplyOfAStoredPlanRecordsWhatItApplied(t *testing.T) {
-	dir := failingRoot(t)
-	id := storePlanAs(t, dir, "alice")
-	text, code := runPravo(t, dir, "apply", id)
+	rt := &runContext{}
+
+	dir := failingRoot(rt, t)
+	id := storePlanAs(rt, t, dir, "alice")
+	text, code := runPravo(rt, t, dir, "apply", id)
 	if code != 1 || !strings.Contains(text, "Error:") {
 		t.Fatalf("the apply exited %d, want 1:\n%s", code, text)
 	}
@@ -50,11 +52,11 @@ func TestFailedApplyOfAStoredPlanRecordsWhatItApplied(t *testing.T) {
 	if !exists(dir, "first.txt") || exists(dir, "after.txt") {
 		t.Errorf("first.txt exists: %v, after.txt exists: %v", exists(dir, "first.txt"), exists(dir, "after.txt"))
 	}
-	text, _ = runPravo(t, dir, "plan", "list")
+	text, _ = runPravo(rt, t, dir, "plan", "list")
 	if !regexp.MustCompile(id+`\s+partial\s+alice`).MatchString(text) || !strings.Contains(text, "1 of 3 changes applied") {
 		t.Errorf("list after the failed apply:\n%s", text)
 	}
-	text, _ = runPravo(t, dir, "plan", "show", id)
+	text, _ = runPravo(rt, t, dir, "plan", "show", id)
 	if !strings.Contains(text, "1 of 3 changes applied") || !strings.Contains(text, "(already applied in txn") {
 		t.Errorf("show after the failed apply:\n%s", text)
 	}
@@ -63,14 +65,14 @@ func TestFailedApplyOfAStoredPlanRecordsWhatItApplied(t *testing.T) {
 	if err := os.Remove(filepath.Join(dir, "blocker")); err != nil {
 		t.Fatal(err)
 	}
-	text, code = runPravo(t, dir, "apply", id)
+	text, code = runPravo(rt, t, dir, "apply", id)
 	if code != 0 || !strings.Contains(text, "Apply complete!") || !strings.Contains(text, "2 added, 0 changed, 0 destroyed") {
 		t.Fatalf("the rest: exit %d:\n%s", code, text)
 	}
 	if !exists(dir, "blocker/x.txt") || !exists(dir, "after.txt") {
 		t.Error("the rest of the plan was not applied")
 	}
-	if text, _ = runPravo(t, dir, "plan", "list", "--all"); !regexp.MustCompile(id + `\s+applied`).MatchString(text) {
+	if text, _ = runPravo(rt, t, dir, "plan", "list", "--all"); !regexp.MustCompile(id + `\s+applied`).MatchString(text) {
 		t.Errorf("list --all after all of it:\n%s", text)
 	}
 }
@@ -79,11 +81,13 @@ func TestFailedApplyOfAStoredPlanRecordsWhatItApplied(t *testing.T) {
 // with --json the note goes to the error stream and the output stays a stream of
 // JSON lines.
 func TestFailedApplyOfAPlanFileMarksWhatItApplied(t *testing.T) {
-	dir := failingRoot(t)
-	if text, code := runPravo(t, dir, "plan", "--out", "change.plan"); code != 0 {
+	rt := &runContext{}
+
+	dir := failingRoot(rt, t)
+	if text, code := runPravo(rt, t, dir, "plan", "--out", "change.plan"); code != 0 {
 		t.Fatalf("plan --out exited %d:\n%s", code, text)
 	}
-	text, code := runPravo(t, dir, "--json", "apply", "change.plan")
+	text, code := runPravo(rt, t, dir, "--json", "apply", "change.plan")
 	if code != 1 {
 		t.Fatalf("the apply exited %d, want 1:\n%s", code, text)
 	}
@@ -109,33 +113,35 @@ func TestFailedApplyOfAPlanFileMarksWhatItApplied(t *testing.T) {
 	if len(marked) != 1 || marked["first"] == "" || pf.ApplyTxn != "" {
 		t.Errorf("marked %v, apply txn %q; want only first, and no apply that finished", marked, pf.ApplyTxn)
 	}
-	if text, code = runPravo(t, dir, "show", "change.plan"); code != 0 || !strings.Contains(text, "first") {
+	if text, code = runPravo(rt, t, dir, "show", "change.plan"); code != 0 || !strings.Contains(text, "first") {
 		t.Errorf("show of the marked file exited %d:\n%s", code, text)
 	}
 
 	// A human reads the note: the same apply, without --json, on a file that is
 	// marked again.
-	text, code = runPravo(t, dir, "apply", "change.plan")
+	text, code = runPravo(rt, t, dir, "apply", "change.plan")
 	if code != 1 || strings.Contains(text, "applied before the error") {
 		t.Errorf("the second apply exited %d; it applied nothing, so it has nothing to record:\n%s", code, text)
 	}
 	if err := os.Remove(filepath.Join(dir, "blocker")); err != nil {
 		t.Fatal(err)
 	}
-	text, code = runPravo(t, dir, "apply", "change.plan")
+	text, code = runPravo(rt, t, dir, "apply", "change.plan")
 	if code != 0 || !strings.Contains(text, "Apply complete!") || !strings.Contains(text, "2 added, 0 changed, 0 destroyed") {
 		t.Fatalf("the rest: exit %d:\n%s", code, text)
 	}
-	if text, code = runPravo(t, dir, "apply", "change.plan"); code != 0 || !strings.Contains(text, "nothing left") {
+	if text, code = runPravo(rt, t, dir, "apply", "change.plan"); code != 0 || !strings.Contains(text, "nothing left") {
 		t.Errorf("a third apply exited %d:\n%s", code, text)
 	}
 }
 
 // A failed apply that was limited with --only says to run the same limited command again.
 func TestTheNoteAfterAFailedOnlyApplyKeepsTheSelection(t *testing.T) {
-	dir := failingRoot(t)
-	id := storePlanAs(t, dir, "alice")
-	text, code := runPravo(t, dir, "apply", id, "--only", "first,bad")
+	rt := &runContext{}
+
+	dir := failingRoot(rt, t)
+	id := storePlanAs(rt, t, dir, "alice")
+	text, code := runPravo(rt, t, dir, "apply", id, "--only", "first,bad")
 	if code != 1 {
 		t.Fatalf("exit %d:\n%s", code, text)
 	}

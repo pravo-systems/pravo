@@ -25,7 +25,7 @@ const accessDirUsage = "directory of the readers file (default .pravo/access); $
 // server comes from the environment.
 var identityPrompt = true
 
-func protectCmd() *cobra.Command {
+func protectCmd(rt *runContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "protect",
 		Short: "Seal the state to a list of readers and check that it holds",
@@ -51,12 +51,12 @@ that nothing is sealed in any more.`,
 		RunE: func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
 	pf := cmd.PersistentFlags()
-	pf.StringVar(&flags.AccessDir, "access-dir", "", accessDirUsage)
+	pf.StringVar(&rt.flags.AccessDir, "access-dir", "", accessDirUsage)
 	// The tags select the state, so the commands that open it take them too.
-	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
-	addEnvFlag(pf)
-	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
-	cmd.AddCommand(protectCheckCmd(), protectInitCmd(), protectStatusCmd(), protectRewrapCmd(), protectRolesCmd(), protectPoliciesCmd(), protectRecoverCmd(), protectUnsealCmd(), protectGCCmd())
+	pf.StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
+	addEnvFlag(rt, pf)
+	pf.BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
+	cmd.AddCommand(protectCheckCmd(rt), protectInitCmd(rt), protectStatusCmd(rt), protectRewrapCmd(rt), protectRolesCmd(rt), protectPoliciesCmd(rt), protectRecoverCmd(rt), protectUnsealCmd(rt), protectGCCmd(rt))
 	return cmd
 }
 
@@ -68,12 +68,12 @@ type protectRun struct {
 	rf   readersFile
 }
 
-func newProtectRun(cmd *cobra.Command) (*protectRun, error) {
-	root, err := loadRoot()
+func newProtectRun(rt *runContext, cmd *cobra.Command) (*protectRun, error) {
+	root, err := loadRoot(rt)
 	if err != nil {
 		return nil, err
 	}
-	return &protectRun{ctx: cmd.Context(), root: root, rf: readersOf(root)}, nil
+	return &protectRun{ctx: cmd.Context(), root: root, rf: readersOf(rt, root)}, nil
 }
 
 // needAdmin refuses an identity that is not an admin in the readers file of the repository.
@@ -153,7 +153,7 @@ func (p *protectRun) storeLine() string {
 // the identity of the user and opens the store again with it. A state that is
 // sealed and cannot be opened with a key is returned locked, with the reason in
 // idErr.
-func (p *protectRun) open(b state.Backend, write, needKey bool) (st *state.Store, id *protect.Identity, idErr error, err error) {
+func (p *protectRun) open(rt *runContext, b state.Backend, write, needKey bool) (st *state.Store, id *protect.Identity, idErr error, err error) {
 	mk := func(id *protect.Identity) (*state.Store, error) {
 		bb := b
 		if !write {
@@ -164,7 +164,7 @@ func (p *protectRun) open(b state.Backend, write, needKey bool) (st *state.Store
 	if st, err = mk(nil); err != nil || !st.Locked() || !needKey {
 		return st, nil, nil, err
 	}
-	id, idErr = resolveIdentity(identityOptions{Name: flags.Identity, Prompt: identityPrompt, Readers: pravo.CurrentReaders(st.Protection())})
+	id, idErr = resolveIdentity(identityOptions{Name: rt.flags.Identity, Prompt: identityPrompt, Readers: pravo.CurrentReaders(st.Protection())})
 	if idErr != nil {
 		return st, nil, idErr, nil
 	}

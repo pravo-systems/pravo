@@ -112,6 +112,8 @@ func (e *s3Env) ageRecords(t *testing.T) int {
 }
 
 func TestProtectGCOfAStateOfFormatTwo(t *testing.T) {
+	rt := &runContext{}
+
 	requireSealing(t)
 	e := gcFormat2(t)
 	total := len(e.recKeys())
@@ -120,7 +122,7 @@ func TestProtectGCOfAStateOfFormatTwo(t *testing.T) {
 	}
 
 	// Everything is young.
-	text, code := runPravo(t, e.dir, "protect", "gc")
+	text, code := runPravo(rt, t, e.dir, "protect", "gc")
 	if code != 0 || !strings.Contains(text, "No record is older than 24h: 3 records that no pointer names are kept.") {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -130,7 +132,7 @@ func TestProtectGCOfAStateOfFormatTwo(t *testing.T) {
 
 	// A dry run says what it would mark, and writes nothing: no marks either.
 	snapshot, puts := e.bucketText(), e.puts()
-	text, code = runPravo(t, e.dir, "protect", "gc", "--dry-run")
+	text, code = runPravo(rt, t, e.dir, "protect", "gc", "--dry-run")
 	if code != 0 || !strings.Contains(text, "Would mark 3 records that no pointer names. A collection at least 15m later deletes the ones that are still unnamed.") || strings.Contains(text, "Would delete") || e.bucketText() != snapshot || e.puts() != puts {
 		t.Fatalf("dry run: exit %d, changed %v\n%s", code, e.bucketText() != snapshot, text)
 	}
@@ -142,7 +144,7 @@ func TestProtectGCOfAStateOfFormatTwo(t *testing.T) {
 		Records struct{ Listed, Named, Unnamed, Marked, Settling, Deleted int }
 		Groups  any `json:"groups"`
 	}
-	text, code = runPravo(t, e.dir, "--json", "protect", "gc", "--dry-run")
+	text, code = runPravo(rt, t, e.dir, "--json", "protect", "gc", "--dry-run")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -156,11 +158,11 @@ func TestProtectGCOfAStateOfFormatTwo(t *testing.T) {
 
 	// The first collection marks and deletes nothing, and so does one inside the
 	// settle interval.
-	text, code = runPravo(t, e.dir, "protect", "gc")
+	text, code = runPravo(rt, t, e.dir, "protect", "gc")
 	if code != 0 || !strings.Contains(text, "Marked 3 records that no pointer names. A collection at least 15m later deletes the ones that are still unnamed.") || len(e.recKeys()) != 5 || !e.hasMarks() {
 		t.Fatalf("the first run: exit %d, %d records\n%s", code, len(e.recKeys()), text)
 	}
-	text, code = runPravo(t, e.dir, "protect", "gc")
+	text, code = runPravo(rt, t, e.dir, "protect", "gc")
 	if code != 0 || !strings.Contains(text, "Kept 3 records that no pointer names: marked less than 15m ago.") || len(e.recKeys()) != 5 {
 		t.Fatalf("a run inside the settle interval: exit %d, %d records\n%s", code, len(e.recKeys()), text)
 	}
@@ -170,70 +172,72 @@ func TestProtectGCOfAStateOfFormatTwo(t *testing.T) {
 	state.GCSettle = 0
 	t.Cleanup(func() { state.GCSettle = settled })
 	snapshot, puts = e.bucketText(), e.puts()
-	text, code = runPravo(t, e.dir, "protect", "gc", "--dry-run")
+	text, code = runPravo(rt, t, e.dir, "protect", "gc", "--dry-run")
 	if code != 0 || !strings.Contains(text, "Would delete 3 records older than 24h (") || e.bucketText() != snapshot || e.puts() != puts {
 		t.Fatalf("dry run after the settle: exit %d, changed %v\n%s", code, e.bucketText() != snapshot, text)
 	}
-	text, code = runPravo(t, e.dir, "--json", "protect", "gc", "--dry-run")
+	text, code = runPravo(rt, t, e.dir, "--json", "protect", "gc", "--dry-run")
 	doc = gcDoc{}
 	if err := json.Unmarshal([]byte(text), &doc); code != 0 || err != nil || doc.Records.Deleted != 3 || doc.Records.Marked != 0 || doc.Settle != 0 {
 		t.Fatalf("exit %d, %v: %+v\n%s", code, err, doc, text)
 	}
 
-	text, code = runPravo(t, e.dir, "protect", "gc")
+	text, code = runPravo(rt, t, e.dir, "protect", "gc")
 	if code != 0 || !strings.Contains(text, "Deleted 3 records older than 24h (") || len(e.recKeys()) != 2 {
 		t.Fatalf("exit %d, %d records\n%s", code, len(e.recKeys()), text)
 	}
 	if strings.Contains(e.bucketText(), "destroyed") {
 		t.Error("the record of the destroyed resource is still in the bucket")
 	}
-	text, code = runPravo(t, e.dir, "protect", "gc")
+	text, code = runPravo(rt, t, e.dir, "protect", "gc")
 	if code != 0 || !strings.Contains(text, "No record is garbage: a pointer names every record.") {
 		t.Fatalf("a second run: exit %d\n%s", code, text)
 	}
 	// The state is as it was.
-	if text, code = runPravo(t, e.dir, "protect", "status"); code != 0 || !strings.Contains(text, "off · format 2 · immutable records") {
+	if text, code = runPravo(rt, t, e.dir, "protect", "status"); code != 0 || !strings.Contains(text, "off · format 2 · immutable records") {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}
 
 	// A grace below the least is raised, and says so.
 	warned := withStderr(t, func() {
-		if text, code = runPravo(t, e.dir, "protect", "gc", "--older-than", "1s", "--dry-run"); code != 0 {
+		if text, code = runPravo(rt, t, e.dir, "protect", "gc", "--older-than", "1s", "--dry-run"); code != 0 {
 			t.Errorf("exit %d\n%s", code, text)
 		}
 	})
 	if !strings.Contains(warned, "Warning: --older-than 1s is below the least, 65s") {
 		t.Errorf("standard error: %q", warned)
 	}
-	if text, code = runPravo(t, e.dir, "protect", "gc", "--older-than", "soon"); code != 1 || !strings.Contains(text, "--older-than") {
+	if text, code = runPravo(rt, t, e.dir, "protect", "gc", "--older-than", "soon"); code != 1 || !strings.Contains(text, "--older-than") {
 		t.Errorf("a bad span: exit %d\n%s", code, text)
 	}
 }
 
 func TestProtectGCOfAStateWithNothingToCollect(t *testing.T) {
+	rt := &runContext{}
+
 	e := newS3Env(t, false)
-	text, code := runPravo(t, e.dir, "protect", "gc")
+	text, code := runPravo(rt, t, e.dir, "protect", "gc")
 	if code != 0 || !strings.Contains(text, "The state is empty: there is nothing to collect.") || len(e.f.Objects) != 0 {
 		t.Fatalf("an empty bucket: exit %d, %d objects\n%s", code, len(e.f.Objects), text)
 	}
 	st := e.store(t)
 	e.record(t, st, "net.vpc", secretA)
 	before := e.bucketText()
-	text, code = runPravo(t, e.dir, "protect", "gc")
+	text, code = runPravo(rt, t, e.dir, "protect", "gc")
 	if code != 0 || !strings.Contains(text, "The state is format 1: it keeps one object for each resource and has nothing to collect.") || e.bucketText() != before {
 		t.Fatalf("format 1: exit %d\n%s", code, text)
 	}
 }
 
 // removeDan takes dan out of the readers file and runs rewrap, with --all if asked.
-func (s *sealed) removeDan(t *testing.T, all bool) {
+func (s *sealed) removeDan(rt *runContext, t *testing.T, all bool) {
 	t.Helper()
 	s.readers(t, s.adaLine)
 	args := []string{"protect", "rewrap"}
 	if all {
 		args = append(args, "--all")
 	}
-	if text, code := runPravo(t, s.dir, args...); code != 0 {
+	if text, code := runPravo(rt, t, s.dir, args...); code != 0 {
 		t.Fatalf("%v: exit %d\n%s", args, code, text)
 	}
 }
@@ -277,28 +281,30 @@ func (e *s3Env) ageHistory(t *testing.T) {
 }
 
 func TestProtectGCDropsTheGroupOfARemovedReader(t *testing.T) {
-	s := sealedBucket(t)
-	s.removeDan(t, false)
+	rt := &runContext{}
+
+	s := sealedBucket(rt, t)
+	s.removeDan(rt, t, false)
 	s.ageHistory(t)
 
 	// The records are still in g1: it stays, and the command says what to do.
-	text, code := runPravo(t, s.dir, "protect", "gc")
+	text, code := runPravo(rt, t, s.dir, "protect", "gc")
 	if code != 0 || !strings.Contains(text, "Kept group g1: 2 records are sealed in it.") || !strings.Contains(text, "pravo protect rewrap --all") || fmt.Sprint(s.groups(t)) != "[g1 g2]" {
 		t.Fatalf("exit %d, groups %v\n%s", code, s.groups(t), text)
 	}
-	if text, code = runPravo(t, s.dir, "--json", "protect", "gc"); code != 0 || !strings.Contains(text, `"examined": true`) || !strings.Contains(text, `"records": 2`) {
+	if text, code = runPravo(rt, t, s.dir, "--json", "protect", "gc"); code != 0 || !strings.Contains(text, `"examined": true`) || !strings.Contains(text, `"records": 2`) {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 
-	s.removeDan(t, true)
+	s.removeDan(rt, t, true)
 	// A moment after the rewrap, a command that opened the state before it may still
 	// seal in g1, so g1 stays.
-	if text, code := runPravo(t, s.dir, "protect", "gc"); code != 0 || !strings.Contains(text, "Groups were kept: the readers or the records were changed") || fmt.Sprint(s.groups(t)) != "[g1 g2]" {
+	if text, code := runPravo(rt, t, s.dir, "protect", "gc"); code != 0 || !strings.Contains(text, "Groups were kept: the readers or the records were changed") || fmt.Sprint(s.groups(t)) != "[g1 g2]" {
 		t.Fatalf("gc right after the rewrap: exit %d, groups %v\n%s", code, s.groups(t), text)
 	}
 	s.ageHistory(t)
 	snapshot, puts := s.bucketText(), s.puts()
-	text, code = runPravo(t, s.dir, "protect", "gc", "--dry-run")
+	text, code = runPravo(rt, t, s.dir, "protect", "gc", "--dry-run")
 	if code != 0 || !strings.Contains(text, "Would drop group g1: nothing refers to it.") || s.bucketText() != snapshot || s.puts() != puts {
 		t.Fatalf("dry run: exit %d\n%s", code, text)
 	}
@@ -309,12 +315,12 @@ func TestProtectGCDropsTheGroupOfARemovedReader(t *testing.T) {
 	putIdentity(t, d, "dan", s.identityFile(t, "dan"))
 	t.Setenv("PRAVO_IDENTITY_DIR", d)
 	resetIdentityState(t)
-	text, code = runPravo(t, s.dir, "protect", "gc")
+	text, code = runPravo(rt, t, s.dir, "protect", "gc")
 	if code != 0 || !strings.Contains(text, "Groups were not looked at: identity dan is not a reader.") || fmt.Sprint(s.groups(t)) != "[g1 g2]" {
 		t.Fatalf("a removed reader: exit %d\n%s", code, text)
 	}
 	s.asNobody(t)
-	if text, code = runPravo(t, s.dir, "protect", "gc"); code != 0 || !strings.Contains(text, "Groups were not looked at: no identity found.") {
+	if text, code = runPravo(rt, t, s.dir, "protect", "gc"); code != 0 || !strings.Contains(text, "Groups were not looked at: no identity found.") {
 		t.Fatalf("no identity: exit %d\n%s", code, text)
 	}
 	t.Setenv("PRAVO_IDENTITY_DIR", s.ids)
@@ -322,20 +328,20 @@ func TestProtectGCDropsTheGroupOfARemovedReader(t *testing.T) {
 
 	// The readers file and the state must agree, as for any writer.
 	s.readers(t, s.adaLine, s.danLine)
-	if text, code = runPravo(t, s.dir, "protect", "gc"); code != 5 || !strings.Contains(text, "differ") || fmt.Sprint(s.groups(t)) != "[g1 g2]" {
+	if text, code = runPravo(rt, t, s.dir, "protect", "gc"); code != 5 || !strings.Contains(text, "differ") || fmt.Sprint(s.groups(t)) != "[g1 g2]" {
 		t.Fatalf("a readers file that differs: exit %d\n%s", code, text)
 	}
 	s.readers(t, s.adaLine)
 
-	text, code = runPravo(t, s.dir, "protect", "gc")
+	text, code = runPravo(rt, t, s.dir, "protect", "gc")
 	if code != 0 || !strings.Contains(text, "Dropped group g1: nothing refers to it.") || fmt.Sprint(s.groups(t)) != "[g2]" {
 		t.Fatalf("exit %d, groups %v\n%s", code, s.groups(t), text)
 	}
-	if text, code = runPravo(t, s.dir, "protect", "gc"); code != 0 || !strings.Contains(text, "No group needs to be dropped") {
+	if text, code = runPravo(rt, t, s.dir, "protect", "gc"); code != 0 || !strings.Contains(text, "No group needs to be dropped") {
 		t.Fatalf("a second run: exit %d\n%s", code, text)
 	}
 	// Ada reads everything; dan opens nothing, with the key he had.
-	if text, code = runPravo(t, s.dir, "state", "show", "net.vpc"); code != 0 || !strings.Contains(text, secretA) {
+	if text, code = runPravo(rt, t, s.dir, "state", "show", "net.vpc"); code != 0 || !strings.Contains(text, secretA) {
 		t.Fatalf("ada: exit %d\n%s", code, text)
 	}
 	for _, secret := range []string{secretA, secretB} {
@@ -345,15 +351,17 @@ func TestProtectGCDropsTheGroupOfARemovedReader(t *testing.T) {
 	}
 	t.Setenv("PRAVO_IDENTITY_DIR", d)
 	resetIdentityState(t)
-	if text, code = runPravo(t, s.dir, "state", "show", "net.vpc"); code != 5 {
+	if text, code = runPravo(rt, t, s.dir, "state", "show", "net.vpc"); code != 5 {
 		t.Errorf("dan: exit %d\n%s", code, text)
 	}
 }
 
 // The groups are looked at while nothing runs; the records are collected anyway.
 func TestProtectGCOfGroupsNeedsTheStateAtRest(t *testing.T) {
-	s := sealedBucket(t)
-	s.removeDan(t, true)
+	rt := &runContext{}
+
+	s := sealedBucket(rt, t)
+	s.removeDan(rt, t, true)
 	s.ageHistory(t)
 	st, err := state.OpenBackendWith(context.Background(), s.backend(t), state.Options{Identity: s.ada})
 	if err != nil {
@@ -367,11 +375,11 @@ func TestProtectGCOfGroupsNeedsTheStateAtRest(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshot := s.bucketText()
-	text, code := runPravo(t, s.dir, "protect", "gc")
+	text, code := runPravo(rt, t, s.dir, "protect", "gc")
 	if code != 4 || !strings.Contains(text, "the groups were not looked at: not ready: 1 transaction is running and 1 lock is held") || s.bucketText() != snapshot {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
-	text, code = runPravo(t, s.dir, "--json", "protect", "gc")
+	text, code = runPravo(rt, t, s.dir, "--json", "protect", "gc")
 	if code != 4 || !strings.Contains(text, `"skipped": "not ready`) {
 		t.Fatalf("as JSON: exit %d\n%s", code, text)
 	}
@@ -381,7 +389,7 @@ func TestProtectGCOfGroupsNeedsTheStateAtRest(t *testing.T) {
 	if err := txn.Finish("applied", "", false); err != nil {
 		t.Fatal(err)
 	}
-	if text, code = runPravo(t, s.dir, "protect", "gc"); code != 0 || !strings.Contains(text, "Dropped group g1") {
+	if text, code = runPravo(rt, t, s.dir, "protect", "gc"); code != 0 || !strings.Contains(text, "Dropped group g1") {
 		t.Fatalf("at rest: exit %d\n%s", code, text)
 	}
 }
@@ -389,14 +397,16 @@ func TestProtectGCOfGroupsNeedsTheStateAtRest(t *testing.T) {
 // The readers file is the one that PRAVO_ACCESS_DIR names, and a file that differs
 // from the state stops the part that changes meta.json.
 func TestProtectGCHonoursTheAccessDirectory(t *testing.T) {
-	s := sealedBucket(t)
-	s.removeDan(t, true)
+	rt := &runContext{}
+
+	s := sealedBucket(rt, t)
+	s.removeDan(rt, t, true)
 	s.ageHistory(t)
 	other := filepath.Join(t.TempDir(), "access")
 	writeReaders(t, other, s.adaLine, s.danLine)
 	t.Setenv("PRAVO_ACCESS_DIR", other)
 	planted := s.plantOldRecord(t)
-	text, code := runPravo(t, s.dir, "protect", "gc")
+	text, code := runPravo(rt, t, s.dir, "protect", "gc")
 	if code != 5 || !strings.Contains(text, "differ") || fmt.Sprint(s.groups(t)) != "[g1 g2]" {
 		t.Fatalf("a file that differs: exit %d, groups %v\n%s", code, s.groups(t), text)
 	}
@@ -407,7 +417,7 @@ func TestProtectGCHonoursTheAccessDirectory(t *testing.T) {
 	settled := state.GCSettle
 	state.GCSettle = 0
 	t.Cleanup(func() { state.GCSettle = settled })
-	text, code = runPravo(t, s.dir, "protect", "gc")
+	text, code = runPravo(rt, t, s.dir, "protect", "gc")
 	if code != 5 || fmt.Sprint(s.groups(t)) != "[g1 g2]" {
 		t.Fatalf("a file that differs, again: exit %d, groups %v\n%s", code, s.groups(t), text)
 	}
@@ -415,14 +425,14 @@ func TestProtectGCHonoursTheAccessDirectory(t *testing.T) {
 		t.Errorf("the old record is still there, or not reported:\n%s", text)
 	}
 	writeReaders(t, other, s.adaLine)
-	text, code = runPravo(t, s.dir, "--json", "protect", "gc")
+	text, code = runPravo(rt, t, s.dir, "--json", "protect", "gc")
 	if code != 0 || !strings.Contains(text, `"dropped": [`) || fmt.Sprint(s.groups(t)) != "[g2]" {
 		t.Fatalf("a file that matches: exit %d, groups %v\n%s", code, s.groups(t), text)
 	}
 	// A readers file that is missing stops the command, as it stops any command that
 	// writes a sealed state.
 	t.Setenv("PRAVO_ACCESS_DIR", filepath.Join(t.TempDir(), "none"))
-	if text, code = runPravo(t, s.dir, "protect", "gc"); code != 5 || !strings.Contains(text, "readers file was not found") {
+	if text, code = runPravo(rt, t, s.dir, "protect", "gc"); code != 5 || !strings.Contains(text, "readers file was not found") {
 		t.Fatalf("no readers file: exit %d\n%s", code, text)
 	}
 }

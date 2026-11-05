@@ -23,8 +23,8 @@ import (
 const opportunisticGC = pravo.OpportunisticGC
 
 // planCommands are the subcommands of "pravo plan" that work on stored plans.
-func planCommands() []*cobra.Command {
-	return []*cobra.Command{planListCmd(), planShowCmd(), planPullCmd(), planApproveCmd(), planGCCmd()}
+func planCommands(rt *runContext) []*cobra.Command {
+	return []*cobra.Command{planListCmd(rt), planShowCmd(rt), planPullCmd(rt), planApproveCmd(rt), planGCCmd(rt)}
 }
 
 // parseSpan reads a length of time: a number and a unit, as in 90m, 36h or 7d.
@@ -47,16 +47,16 @@ func parseSpan(flag, v string) (time.Duration, error) {
 // openPlanStore loads the specification, only to find the state, and opens the
 // plan store in it. Nothing is installed or evaluated beyond the specification.
 // write opens the state for changes; otherwise nothing is created or changed.
-func openPlanStore(ctx context.Context, write bool) (*state.Store, *engine.PlanStore, error) {
-	root, err := loadRoot()
+func openPlanStore(rt *runContext, ctx context.Context, write bool) (*state.Store, *engine.PlanStore, error) {
+	root, err := loadRoot(rt)
 	if err != nil {
 		return nil, nil, err
 	}
 	var st *state.Store
 	if write {
-		st, err = openState(ctx, root)
+		st, err = openState(rt, ctx, root)
 	} else {
-		st, err = openStateReadOnly(ctx, root)
+		st, err = openStateReadOnly(rt, ctx, root)
 	}
 	if err != nil {
 		return nil, nil, err
@@ -136,19 +136,19 @@ func expiry(m *engine.PlanMeta) string {
 	return "expires in " + engine.DurationText(d)
 }
 
-func statusText(s engine.PlanStatus) string {
+func statusText(rt *runContext, s engine.PlanStatus) string {
 	switch s {
 	case engine.PlanPending:
-		return out.C(ui.Green, string(s))
+		return rt.out.C(ui.Green, string(s))
 	case engine.PlanPartial, engine.PlanPartlyStale:
-		return out.C(ui.Yellow, string(s))
+		return rt.out.C(ui.Yellow, string(s))
 	case engine.PlanStale, engine.PlanExpired:
-		return out.C(ui.Red, string(s))
+		return rt.out.C(ui.Red, string(s))
 	}
-	return out.C(ui.Dim, string(s))
+	return rt.out.C(ui.Dim, string(s))
 }
 
-func planListCmd() *cobra.Command {
+func planListCmd(rt *runContext) *cobra.Command {
 	var pending, all bool
 	var touching string
 	cmd := &cobra.Command{
@@ -170,7 +170,7 @@ plan is applied.`,
 			if pending && all {
 				return errors.New("--pending and --all exclude each other")
 			}
-			st, ps, err := openPlanStore(cmd.Context(), false)
+			st, ps, err := openPlanStore(rt, cmd.Context(), false)
 			if err != nil {
 				return err
 			}
@@ -188,7 +188,7 @@ plan is applied.`,
 					shown = append(shown, e)
 				}
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				list := make([]storedPlanJSON, 0, len(shown))
 				for _, e := range shown {
 					list = append(list, storedPlanView(e))
@@ -202,16 +202,16 @@ plan is applied.`,
 				}
 				return emitJSON(doc)
 			}
-			defer warnUnreadable(skipped)
-			defer warnUnsealed(unsealed)
+			defer warnUnreadable(rt, skipped)
+			defer warnUnsealed(rt, unsealed)
 			if len(shown) == 0 {
 				switch {
 				case touching != "":
-					out.Println("No stored plan changes " + touching + ".")
+					rt.out.Println("No stored plan changes " + touching + ".")
 				case len(entries) > 0:
-					out.Println("No stored plan can be applied. \"pravo plan list --all\" lists the others.")
+					rt.out.Println("No stored plan can be applied. \"pravo plan list --all\" lists the others.")
 				default:
-					out.Println("No plans are stored. \"pravo plan --store\" stores one.")
+					rt.out.Println("No plans are stored. \"pravo plan --store\" stores one.")
 				}
 				return nil
 			}
@@ -238,7 +238,7 @@ plan is applied.`,
 				if r := m.Reservation; r != nil && r.Until.After(time.Now()) && e.Status.Open() {
 					note += "; reserved until " + r.Until.Local().Format("15:04")
 				}
-				out.Printf("%s  %s  %-*s  %-*s  %-*s  %s\n", m.ID, pad(statusText(e.Status), string(e.Status), statusWidth), width, ui.Safe(m.Author), ageWidth, since(m.Created), countWidth, counts(m), out.C(ui.Dim, note))
+				rt.out.Printf("%s  %s  %-*s  %-*s  %-*s  %s\n", m.ID, pad(statusText(rt, e.Status), string(e.Status), statusWidth), width, ui.Safe(m.Author), ageWidth, since(m.Created), countWidth, counts(m), rt.out.C(ui.Dim, note))
 			}
 			return nil
 		},
@@ -276,17 +276,17 @@ func unsealedPlans(entries []*engine.PlanEntry) []string {
 }
 
 // warnUnsealed says which stored plans are not sealed in a sealed state.
-func warnUnsealed(ids []string) {
+func warnUnsealed(rt *runContext, ids []string) {
 	if len(ids) == 0 {
 		return
 	}
-	out.Warning(fmt.Sprintf("stored before the state was sealed and not sealed: %s. Anyone who can read the bucket can read their values; \"pravo protect rewrap --all\" seals the plans that nothing uses", strings.Join(ids, ", ")))
+	rt.out.Warning(fmt.Sprintf("stored before the state was sealed and not sealed: %s. Anyone who can read the bucket can read their values; \"pravo protect rewrap --all\" seals the plans that nothing uses", strings.Join(ids, ", ")))
 }
 
 // warnUnreadable says which stored plans a listing could not read, and why.
-func warnUnreadable(skipped []engine.SkippedPlan) {
+func warnUnreadable(rt *runContext, skipped []engine.SkippedPlan) {
 	for _, sk := range skipped {
-		out.Warning(fmt.Sprintf("%s is not listed: %v", sk.ID, sk.Err))
+		rt.out.Warning(fmt.Sprintf("%s is not listed: %v", sk.ID, sk.Err))
 	}
 }
 
@@ -299,21 +299,21 @@ func pad(coloured, plain string, width int) string {
 	return coloured
 }
 
-func planShowCmd() *cobra.Command {
+func planShowCmd(rt *runContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "show <plan-id>",
 		Short: "Print a plan stored in the state",
 		Args:  cobra.ExactArgs(1),
 		Long:  "Prints a stored plan as \"pravo show\" prints a plan file, after a header that says who made it, when it expires and how to apply it. Give the -t and -T that the plan was made with.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return showStored(cmd, args[0])
+			return showStored(rt, cmd, args[0])
 		},
 	}
-	addWithholdFlag(cmd)
+	addWithholdFlag(rt, cmd)
 	return cmd
 }
 
-func planPullCmd() *cobra.Command {
+func planPullCmd(rt *runContext) *cobra.Command {
 	return &cobra.Command{
 		Use:   "pull <plan-id> <file>",
 		Short: "Write a stored plan to a plan file",
@@ -323,7 +323,7 @@ changes already applied from it marked. The file can be applied, shown and sent
 to someone, like any plan file. Applying the file records its progress in the
 file and not in the state.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, ps, err := openPlanStore(cmd.Context(), false)
+			_, ps, err := openPlanStore(rt, cmd.Context(), false)
 			if err != nil {
 				return err
 			}
@@ -334,8 +334,8 @@ file and not in the state.`,
 			if err := ps.Pull(cmd.Context(), id, args[1]); err != nil {
 				return err
 			}
-			if !flags.JSON {
-				out.Printf("Wrote %s to %s. To apply exactly these actions, run:\n  pravo apply %s\n", id, args[1], args[1])
+			if !rt.flags.JSON {
+				rt.out.Printf("Wrote %s to %s. To apply exactly these actions, run:\n  pravo apply %s\n", id, args[1], args[1])
 			} else {
 				return emitJSON(map[string]any{"id": id, "planfile": args[1]})
 			}
@@ -357,7 +357,7 @@ func approveRefusal(s engine.PlanStatus) string {
 	return "cannot be applied"
 }
 
-func planApproveCmd() *cobra.Command {
+func planApproveCmd(rt *runContext) *cobra.Command {
 	var webhook string
 	cmd := &cobra.Command{
 		Use:   "approve <plan-id>",
@@ -372,7 +372,7 @@ but its approval counts only where the policy sets self. Give the -t and -T that
 a plan.approved event is POSTed to that URL.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			st, ps, err := openPlanStore(ctx, true)
+			st, ps, err := openPlanStore(rt, ctx, true)
 			if err != nil {
 				return err
 			}
@@ -380,8 +380,8 @@ a plan.approved event is POSTed to that URL.`,
 				return errors.New("the state is not sealed: an approval is a signature (pravo protect init --encrypt)")
 			}
 			// An approval of a reader never counts, so it is not signed.
-			if root, err := loadRoot(); err == nil {
-				if msg, code := roleProblem(readersOf(root), st, protect.RoleWriter, "approve a plan"); msg != "" {
+			if root, err := loadRoot(rt); err == nil {
+				if msg, code := roleProblem(readersOf(rt, root), st, protect.RoleWriter, "approve a plan"); msg != "" {
 					return engine.WithCode(code, errors.New(msg))
 				}
 			}
@@ -405,14 +405,14 @@ a plan.approved event is POSTed to that URL.`,
 			if webhook != "" {
 				dir, _ := filepath.Abs(".")
 				ev := planEvent{Event: eventApproved, By: obj.Signature.Signer, Plan: &planEventPlan{ID: id}}
-				if err := sendPlanEvent(ctx, webhook, dir, ev); err != nil {
+				if err := sendPlanEvent(rt, ctx, webhook, dir, ev); err != nil {
 					return err
 				}
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				return emitJSON(map[string]any{"id": id, "approved_by": obj.Signature.Signer, "at": obj.At})
 			}
-			out.Printf("Approved %s as %s.\n", id, safeName(obj.Signature.Signer))
+			rt.out.Printf("Approved %s as %s.\n", id, safeName(obj.Signature.Signer))
 			return nil
 		},
 	}
@@ -420,7 +420,7 @@ a plan.approved event is POSTed to that URL.`,
 	return cmd
 }
 
-func planGCCmd() *cobra.Command {
+func planGCCmd(rt *runContext) *cobra.Command {
 	var dryRun bool
 	var olderThan string
 	cmd := &cobra.Command{
@@ -453,7 +453,7 @@ small collection of its own.`,
 				}
 				opts.OlderThan = d
 			}
-			st, ps, err := openPlanStore(cmd.Context(), false)
+			st, ps, err := openPlanStore(rt, cmd.Context(), false)
 			if err != nil {
 				return err
 			}
@@ -465,20 +465,20 @@ small collection of its own.`,
 					return err
 				}
 				if len(keys) > 0 {
-					if st, ps, err = openPlanStore(cmd.Context(), true); err != nil {
+					if st, ps, err = openPlanStore(rt, cmd.Context(), true); err != nil {
 						return err
 					}
 				}
 			}
-			opts.DryRun, opts.Owner, opts.Check = dryRun, collector(st), engine.PlanCheckFor(st)
+			opts.DryRun, opts.Owner, opts.Check = dryRun, collector(rt, st), engine.PlanCheckFor(st)
 			res, err := ps.GC(cmd.Context(), opts)
 			if err != nil {
 				return err
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				return emitJSON(res)
 			}
-			printGC(res)
+			printGC(rt, res)
 			return nil
 		},
 	}
@@ -488,15 +488,15 @@ small collection of its own.`,
 }
 
 // collector names this process in the claims that it makes on plans.
-func collector(st *state.Store) string { return pravo.ClaimOwner(st, flags.Actor) }
+func collector(rt *runContext, st *state.Store) string { return pravo.ClaimOwner(st, rt.flags.Actor) }
 
-func printGC(res *engine.GCResult) {
+func printGC(rt *runContext, res *engine.GCResult) {
 	verb, none := "Removed", "No stored plan needs to be removed."
 	if res.DryRun {
 		verb = "Would remove"
 	}
 	if len(res.Removed) == 0 && len(res.Marked) == 0 && len(res.Kept) == 0 {
-		out.Println(none)
+		rt.out.Println(none)
 		return
 	}
 	list := func(items []engine.GCItem) {
@@ -505,11 +505,11 @@ func printGC(res *engine.GCResult) {
 			if who == "" {
 				who = "-"
 			}
-			out.Printf("  %s  %-10s %s\n", it.ID, ui.Safe(who), ui.Safe(it.Reason))
+			rt.out.Printf("  %s  %-10s %s\n", it.ID, ui.Safe(who), ui.Safe(it.Reason))
 		}
 	}
 	if len(res.Removed) > 0 {
-		out.Printf("%s %s:\n", verb, plural(len(res.Removed), "stored plan", "stored plans"))
+		rt.out.Printf("%s %s:\n", verb, plural(len(res.Removed), "stored plan", "stored plans"))
 		list(res.Removed)
 	}
 	if len(res.Marked) > 0 {
@@ -518,9 +518,9 @@ func printGC(res *engine.GCResult) {
 			noun, pronoun = "plan", "it"
 		}
 		if res.DryRun {
-			out.Printf("%d %s can no longer be applied; a collection would mark %s, and one that runs %s after it would remove %s:\n", len(res.Marked), noun, pronoun, engine.DurationText(engine.DefaultStaleGrace), pronoun)
+			rt.out.Printf("%d %s can no longer be applied; a collection would mark %s, and one that runs %s after it would remove %s:\n", len(res.Marked), noun, pronoun, engine.DurationText(engine.DefaultStaleGrace), pronoun)
 		} else {
-			out.Printf("%d %s can no longer be applied; a collection that runs %s later removes %s:\n", len(res.Marked), noun, engine.DurationText(engine.DefaultStaleGrace), pronoun)
+			rt.out.Printf("%d %s can no longer be applied; a collection that runs %s later removes %s:\n", len(res.Marked), noun, engine.DurationText(engine.DefaultStaleGrace), pronoun)
 		}
 		list(res.Marked)
 	}
@@ -529,7 +529,7 @@ func printGC(res *engine.GCResult) {
 		if len(res.Kept) == 1 {
 			be = "is"
 		}
-		out.Printf("Kept %s that would be removed but %s in use:\n", plural(len(res.Kept), "plan", "plans"), be)
+		rt.out.Printf("Kept %s that would be removed but %s in use:\n", plural(len(res.Kept), "plan", "plans"), be)
 		list(res.Kept)
 	}
 }
@@ -582,7 +582,7 @@ func planWorth(plan *engine.Plan) bool { return plan.HasWrites() }
 
 // warnOverlaps tells who else has a plan that changes the same resources. It
 // only tells: the plans are not touched.
-func warnOverlaps(overlaps []engine.Overlap) {
+func warnOverlaps(rt *runContext, overlaps []engine.Overlap) {
 	names := func(addrs []string) string {
 		if len(addrs) > 4 {
 			return strings.Join(addrs[:4], ", ") + fmt.Sprintf(", and %d more", len(addrs)-4)
@@ -601,22 +601,22 @@ func warnOverlaps(overlaps []engine.Overlap) {
 		if len(o.ReadBy) > 0 {
 			parts = append(parts, fmt.Sprintf("reads %s, which this plan changes", names(o.ReadBy)))
 		}
-		out.Warning(fmt.Sprintf("%s by %s (%s) %s", m.ID, ui.Safe(m.Author), since(m.Created), strings.Join(parts, "; ")))
+		rt.out.Warning(fmt.Sprintf("%s by %s (%s) %s", m.ID, ui.Safe(m.Author), since(m.Created), strings.Join(parts, "; ")))
 	}
 }
 
 // printStored says where the plan is stored and how to apply it.
-func printStored(sp *storedPlan) {
-	out.Println()
-	warnOverlaps(sp.Overlaps)
-	out.Printf("Stored the plan as %s; unless it is applied it is removed after %s. To apply exactly these actions, run:\n  %s\n",
-		out.C(ui.Bold, sp.Meta.ID), engine.SpanText(sp.Meta.Expires.Sub(sp.Meta.Created)), sp.Meta.ApplyCommand())
+func printStored(rt *runContext, sp *storedPlan) {
+	rt.out.Println()
+	warnOverlaps(rt, sp.Overlaps)
+	rt.out.Printf("Stored the plan as %s; unless it is applied it is removed after %s. To apply exactly these actions, run:\n  %s\n",
+		rt.out.C(ui.Bold, sp.Meta.ID), engine.SpanText(sp.Meta.Expires.Sub(sp.Meta.Created)), sp.Meta.ApplyCommand())
 	if n := len(sp.Removed); n > 0 {
 		was := "were"
 		if n == 1 {
 			was = "was"
 		}
-		out.Println(out.C(ui.Dim, fmt.Sprintf("Removed %s that %s no longer needed.", plural(n, "stored plan", "stored plans"), was)))
+		rt.out.Println(rt.out.C(ui.Dim, fmt.Sprintf("Removed %s that %s no longer needed.", plural(n, "stored plan", "stored plans"), was)))
 	}
 }
 
@@ -628,9 +628,9 @@ func readStored(ctx context.Context, s *session, ref, verb string) (*pravo.Store
 }
 
 // showStored prints a stored plan.
-func showStored(cmd *cobra.Command, ref string) error {
+func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 	ctx := cmd.Context()
-	s, err := newSession(ctx, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
+	s, err := newSession(rt, ctx, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
 	if err != nil {
 		return err
 	}
@@ -640,7 +640,7 @@ func showStored(cmd *cobra.Command, ref string) error {
 		return err
 	}
 	pf, entry := rd.File, rd.Entry
-	eng := s.engine(engine.Options{})
+	eng := s.engine(rt, engine.Options{})
 	plan, err := eng.LoadPlan(pf)
 	var stale *engine.ErrStalePlan
 	if errors.As(err, &stale) {
@@ -648,19 +648,19 @@ func showStored(cmd *cobra.Command, ref string) error {
 	} else if err != nil {
 		return err
 	}
-	sigs, sigNote := storedPlanSignatures(ctx, s, entry.Meta.ID)
-	if flags.Markdown {
-		v := eng.NewView(plan, engine.ViewOptions{Redact: flags.Withhold})
+	sigs, sigNote := storedPlanSignatures(rt, ctx, s, entry.Meta.ID)
+	if rt.flags.Markdown {
+		v := eng.NewView(plan, engine.ViewOptions{Redact: rt.flags.Withhold})
 		v.Actor, v.Reason, v.GitRevision = pf.Actor, pf.Reason, pf.GitRevision
 		m := entry.Meta
 		opts := engine.MarkdownOptions{Title: "Stored plan " + m.ID, Refused: ""}
 		if sigNote == "" && sigs != nil {
 			opts.Notes = append(opts.Notes, "Signed: "+planSigsText(sigs))
 		}
-		if text := storedPlanApprovals(ctx, s, m.ID); text != "" {
+		if text := storedPlanApprovals(rt, ctx, s, m.ID); text != "" {
 			opts.Notes = append(opts.Notes, "Approved: "+text)
 		}
-		opts.Notes = append(opts.Notes, "Status: "+statusText(entry.Status)+".")
+		opts.Notes = append(opts.Notes, "Status: "+statusText(rt, entry.Status)+".")
 		switch {
 		case stale != nil:
 			opts.Notes = append(opts.Notes, "**This plan can no longer be applied:** "+strings.Join(stale.Reasons, "; "))
@@ -674,8 +674,8 @@ func showStored(cmd *cobra.Command, ref string) error {
 		}
 		return emitMarkdown(v.Markdown(opts))
 	}
-	if flags.JSON {
-		v := eng.NewView(plan, engine.ViewOptions{Redact: flags.Withhold})
+	if rt.flags.JSON {
+		v := eng.NewView(plan, engine.ViewOptions{Redact: rt.flags.Withhold})
 		v.Created, v.Actor, v.Reason, v.GitRevision = pf.Created, pf.Actor, pf.Reason, pf.GitRevision
 		v.Reservation = pf.Reservation
 		doc := map[string]any{"plan_id": entry.Meta.ID, "stored": storedPlanView(entry), "stale": stale, "plan": v}
@@ -685,53 +685,53 @@ func showStored(cmd *cobra.Command, ref string) error {
 		return emitJSON(doc)
 	}
 	m := entry.Meta
-	out.Printf("%s %s by %s, %s (%s)", out.C(ui.Bold, "Stored plan"), m.ID, ui.Safe(m.Author), since(m.Created), statusText(entry.Status))
-	out.Println()
+	rt.out.Printf("%s %s by %s, %s (%s)", rt.out.C(ui.Bold, "Stored plan"), m.ID, ui.Safe(m.Author), since(m.Created), statusText(rt, entry.Status))
+	rt.out.Println()
 	if m.Reason != "" {
-		out.Printf("  reason:  %s\n", ui.Safe(m.Reason))
+		rt.out.Printf("  reason:  %s\n", ui.Safe(m.Reason))
 	}
-	out.Printf("  command: %s\n", ui.Safe(m.CommandText()))
+	rt.out.Printf("  command: %s\n", ui.Safe(m.CommandText()))
 	if m.GitRevision != "" {
-		out.Printf("  git:     %s\n", ui.Safe(m.GitRevision))
+		rt.out.Printf("  git:     %s\n", ui.Safe(m.GitRevision))
 	}
 	if sigNote != "" {
-		out.Printf("  signed:  %s\n", out.C(ui.Dim, sigNote))
+		rt.out.Printf("  signed:  %s\n", rt.out.C(ui.Dim, sigNote))
 	} else if sigs != nil {
-		out.Printf("  signed:  %s\n", planSigsText(sigs))
+		rt.out.Printf("  signed:  %s\n", planSigsText(sigs))
 	}
-	if text := storedPlanApprovals(ctx, s, entry.Meta.ID); text != "" {
-		out.Printf("  approved: %s\n", text)
+	if text := storedPlanApprovals(rt, ctx, s, entry.Meta.ID); text != "" {
+		rt.out.Printf("  approved: %s\n", text)
 	}
 	if entry.Status.Open() || entry.Status == engine.PlanStale {
-		out.Printf("  %s\n", expiry(m))
+		rt.out.Printf("  %s\n", expiry(m))
 	}
 	if n := entry.AppliedCount(); n > 0 {
-		out.Printf("  %d of %d changes applied\n", n, len(m.Changes))
+		rt.out.Printf("  %d of %d changes applied\n", n, len(m.Changes))
 	}
 	if r := m.Reservation; r != nil && r.Until.After(time.Now()) {
-		out.Printf("  reserved until %s: %s\n", r.Until.Local().Format(time.RFC3339), strings.Join(r.Addrs, ", "))
+		rt.out.Printf("  reserved until %s: %s\n", r.Until.Local().Format(time.RFC3339), strings.Join(r.Addrs, ", "))
 	}
 	collecting := entry.Progress.BeingCollected(time.Now())
 	switch {
 	case collecting:
 		// a collection holds the plan: an apply is refused until the claim lapses, so no command is offered
 	case entry.Status == engine.PlanPartlyStale:
-		out.Printf("  apply:   %s\n", entry.ApplyLiveCommand())
+		rt.out.Printf("  apply:   %s\n", entry.ApplyLiveCommand())
 	case entry.Status.Open():
-		out.Printf("  apply:   %s\n", m.ApplyCommand())
+		rt.out.Printf("  apply:   %s\n", m.ApplyCommand())
 	}
 	if collecting {
-		out.Warning("a collection is removing this plan, so it cannot be applied; make it again with \"pravo plan --store\"")
+		rt.out.Warning("a collection is removing this plan, so it cannot be applied; make it again with \"pravo plan --store\"")
 	}
 	switch {
 	case entry.Status == engine.PlanPartlyStale:
-		printConflicts(entry, stale)
+		printConflicts(rt, entry, stale)
 	case stale != nil:
-		out.Warning("this plan can no longer be applied: " + strings.Join(stale.Reasons, "; "))
+		rt.out.Warning("this plan can no longer be applied: " + strings.Join(stale.Reasons, "; "))
 	case len(entry.Reasons) > 0:
-		out.Warning("this plan can no longer be applied: " + strings.Join(entry.Reasons, "; "))
+		rt.out.Warning("this plan can no longer be applied: " + strings.Join(entry.Reasons, "; "))
 	}
-	out.RenderPlan(plan)
+	rt.out.RenderPlan(plan)
 	return nil
 }
 
@@ -740,8 +740,8 @@ func showStored(cmd *cobra.Command, ref string) error {
 // changed when it is loaded as a whole; what it adds to the conflicts, such as a
 // configuration that changed, keeps the rest of the plan from being applied from
 // here as well.
-func printConflicts(entry *engine.PlanEntry, stale *engine.ErrStalePlan) {
-	out.Warning(fmt.Sprintf("%d of %d unapplied changes conflict with the state and are left out of the command above:", len(entry.Conflicts), entry.Unapplied()))
+func printConflicts(rt *runContext, entry *engine.PlanEntry, stale *engine.ErrStalePlan) {
+	rt.out.Warning(fmt.Sprintf("%d of %d unapplied changes conflict with the state and are left out of the command above:", len(entry.Conflicts), entry.Unapplied()))
 	addrs := make([]string, 0, len(entry.Conflicts))
 	for addr := range entry.Conflicts {
 		addrs = append(addrs, addr)
@@ -751,7 +751,7 @@ func printConflicts(entry *engine.PlanEntry, stale *engine.ErrStalePlan) {
 	for _, addr := range addrs {
 		for _, r := range entry.Conflicts[addr] {
 			known[r] = true
-			out.Printf("  - %s\n", r)
+			rt.out.Printf("  - %s\n", r)
 		}
 	}
 	if stale == nil {
@@ -764,19 +764,19 @@ func printConflicts(entry *engine.PlanEntry, stale *engine.ErrStalePlan) {
 		}
 	}
 	if len(others) > 0 {
-		out.Warning("this plan can no longer be applied from here: " + strings.Join(others, "; "))
+		rt.out.Warning("this plan can no longer be applied from here: " + strings.Join(others, "; "))
 	}
 }
 
 // applyStored applies a plan that is stored in the state. The checks are those of
 // a plan file; besides them the plan must not have expired.
-func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []string, webhook string, allowCreate []string) error {
+func applyStored(rt *runContext, cmd *cobra.Command, ref, refresh string, full bool, only []string, webhook string, allowCreate []string) error {
 	ctx := cmd.Context()
 	streamEvents = true
 	if cmd.Flags().Changed("refresh") || full {
 		return errors.New("-refresh and -full do not apply to a stored plan")
 	}
-	s, err := newSession(ctx, sessionOptions{install: true, schemas: true, loadState: true})
+	s, err := newSession(rt, ctx, sessionOptions{install: true, schemas: true, loadState: true})
 	if err != nil {
 		return err
 	}
@@ -784,14 +784,14 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 	o := pravo.ApplyStoredOptions{
 		Only: only,
 		Tune: func(o *engine.Options) {
-			s.readersInto(o)
+			s.readersInto(rt, o)
 			o.AllowCreate = allowCreate
 		},
 		Selected: func(id string, selected, left int) {
-			out.Printf("Applying %d of %d remaining changes from %s.\n", selected, left, id)
+			rt.out.Printf("Applying %d of %d remaining changes from %s.\n", selected, left, id)
 		},
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		o.Event = func(ev engine.Event) { emitLine(ev) }
 	}
 	res, err := s.ws.ApplyStored(ctx, ref, o)
@@ -803,24 +803,24 @@ func applyStored(cmd *cobra.Command, ref, refresh string, full bool, only []stri
 		if err != nil {
 			ev.Event, ev.Reason = eventRefused, err.Error()
 		}
-		if hookErr := sendPlanEvent(ctx, webhook, s.ws.Root().Dir, ev); hookErr != nil && err == nil {
+		if hookErr := sendPlanEvent(rt, ctx, webhook, s.ws.Root().Dir, ev); hookErr != nil && err == nil {
 			err = hookErr
 		}
 	}
 	if res != nil {
 		if res.Partial != nil {
-			reportPartial(res.Partial, res.ID)
+			reportPartial(rt, res.Partial, res.ID)
 		}
 		if err == nil {
 			switch {
-			case res.NothingLeft && flags.JSON:
+			case res.NothingLeft && rt.flags.JSON:
 				emitLine(map[string]any{"kind": "apply", "phase": "done", "message": "nothing left to apply", "plan": res.ID})
 			case res.NothingLeft:
-				out.Println(out.C(ui.Bold+ui.Green, "No changes.") + " The saved plan has nothing left to apply.")
+				rt.out.Println(rt.out.C(ui.Bold+ui.Green, "No changes.") + " The saved plan has nothing left to apply.")
 			default:
-				reportApply(res.Result, res.Destroy, "plan", res.ID, res.Again, res.Left)
+				reportApply(rt, res.Result, res.Destroy, "plan", res.ID, res.Again, res.Left)
 				if res.Result != nil && res.Result.Deferred > 0 && !res.Destroy {
-					return storeFollowUp(ctx, s, res.ID, res.Result.Deferred)
+					return storeFollowUp(rt, ctx, s, res.ID, res.Result.Deferred)
 				}
 			}
 		}

@@ -92,8 +92,8 @@ func emitMarkdown(text string) error {
 }
 
 // checkMarkdown refuses --markdown with --json: stdout carries one of them.
-func checkMarkdown() error {
-	if flags.Markdown && flags.JSON {
+func checkMarkdown(rt *runContext) error {
+	if rt.flags.Markdown && rt.flags.JSON {
 		return errors.New("--markdown and --json both write stdout: give one of them")
 	}
 	return nil
@@ -124,7 +124,7 @@ func exitCodeOf(err error) int {
 
 // ---------- pravo schema ----------
 
-func schemaCmd() *cobra.Command {
+func schemaCmd(rt *runContext) *cobra.Command {
 	var required, discovery bool
 	cmd := &cobra.Command{
 		Use:   "schema <type> [<type>...]",
@@ -149,12 +149,12 @@ specification. With --json the definitions are returned as {"type":
 			if targets[0].src != nil {
 				// Every type names its provider: no specification is needed.
 				var cleanup func()
-				if s, cleanup, err = rootlessSession(cmd.Context(), targets); err != nil {
+				if s, cleanup, err = rootlessSession(rt, cmd.Context(), targets); err != nil {
 					return err
 				}
 				defer cleanup()
 			} else {
-				if s, err = newSession(cmd.Context(), sessionOptions{install: true}); err != nil {
+				if s, err = newSession(rt, cmd.Context(), sessionOptions{install: true}); err != nil {
 					var none *config.NoSpecificationError
 					if errors.As(err, &none) {
 						err = fmt.Errorf("%w\n\nhint: this directory has no specification. To print a type without one, name its provider: pravo schema hashicorp/random/random_pet", err)
@@ -187,7 +187,7 @@ specification. With --json the definitions are returned as {"type":
 				}
 				results[t.arg] = text
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				return emitJSON(results)
 			}
 			for _, arg := range args {
@@ -198,7 +198,7 @@ specification. With --json the definitions are returned as {"type":
 	}
 	cmd.Flags().BoolVar(&required, "required", false, "show only required attributes")
 	cmd.Flags().BoolVar(&discovery, "discovery", false, "show the discovery of a type that the provider can list")
-	addTagFlags(cmd)
+	addTagFlags(rt, cmd)
 	return cmd
 }
 
@@ -297,7 +297,7 @@ func requiredOnly(s *schema.Schema) *schema.Schema {
 
 // ---------- pravo why ----------
 
-func whyCmd() *cobra.Command {
+func whyCmd(rt *runContext) *cobra.Command {
 	var refresh string
 	cmd := &cobra.Command{
 		Use:   "why <addr> [<addr>...]",
@@ -308,7 +308,7 @@ func whyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: true})
+			s, err := newSession(rt, cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: true})
 			if err != nil {
 				return err
 			}
@@ -317,33 +317,33 @@ func whyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if flags.JSON {
+			if rt.flags.JSON {
 				return emitJSON(all)
 			}
 			for _, ex := range all {
 				if !ex.Found {
-					out.Printf("%s: %s\n", out.C(ui.Bold, ex.Addr), ex.Reasons[0])
+					rt.out.Printf("%s: %s\n", rt.out.C(ui.Bold, ex.Addr), ex.Reasons[0])
 					continue
 				}
-				out.Printf("%s: %s\n", out.C(ui.Bold, ex.Addr), ex.Action)
+				rt.out.Printf("%s: %s\n", rt.out.C(ui.Bold, ex.Addr), ex.Action)
 				for _, r := range ex.Reasons {
-					out.Printf("  - %s\n", r)
+					rt.out.Printf("  - %s\n", r)
 				}
 				if len(ex.Dependents) > 0 {
-					out.Printf("  reaches: %s\n", strings.Join(ex.Dependents, ", "))
+					rt.out.Printf("  reaches: %s\n", strings.Join(ex.Dependents, ", "))
 				}
 			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&refresh, "refresh", "age", "when to read real state: age, expired, false or all")
-	addTagFlags(cmd)
+	addTagFlags(rt, cmd)
 	return cmd
 }
 
 // ---------- pravo drift ----------
 
-func driftCmd() *cobra.Command {
+func driftCmd(rt *runContext) *cobra.Command {
 	var webhook, ttlText string
 	var due, makePlan, store, noWrite bool
 	var limit int
@@ -375,7 +375,7 @@ The plan holds the pending changes of the specification too: apply it with
 instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 (a policy refused the plan). Exit code 2 still means drift was found.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := checkMarkdown(); err != nil {
+			if err := checkMarkdown(rt); err != nil {
 				return err
 			}
 			if due && (makePlan || store) {
@@ -404,13 +404,13 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 				return fmt.Errorf("--limit %d: want a number above zero", limit)
 			}
 			stateInMemory = noWrite
-			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: true})
+			s, err := newSession(rt, cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: true})
 			if err != nil {
 				return err
 			}
 			defer s.close()
 			if due {
-				return driftDue(cmd, s, limit, webhook)
+				return driftDue(rt, cmd, s, limit, webhook)
 			}
 			report, planned, err := s.ws.DriftPlanned(cmd.Context())
 			if err != nil {
@@ -418,7 +418,7 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 			}
 			var proposal *driftProposal
 			if makePlan {
-				if proposal, err = proposeFix(cmd.Context(), s, report, planned, store, ttl, webhook); err != nil {
+				if proposal, err = proposeFix(rt, cmd.Context(), s, report, planned, store, ttl, webhook); err != nil {
 					return err
 				}
 			} else if webhook != "" {
@@ -426,11 +426,11 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 					return err
 				}
 			}
-			if flags.Markdown {
+			if rt.flags.Markdown {
 				if err := emitMarkdown(driftMarkdown(report, proposal)); err != nil {
 					return err
 				}
-			} else if flags.JSON {
+			} else if rt.flags.JSON {
 				if proposal != nil {
 					err = emitJSON(proposal)
 				} else {
@@ -440,30 +440,30 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 					return err
 				}
 			} else if len(report.Drifted) == 0 {
-				out.Println(out.C(ui.Bold+ui.Green, "No drift.") + fmt.Sprintf(" %d resources refreshed; %d pending changes from the specification.", report.Refreshed, report.Pending))
+				rt.out.Println(rt.out.C(ui.Bold+ui.Green, "No drift.") + fmt.Sprintf(" %d resources refreshed; %d pending changes from the specification.", report.Refreshed, report.Pending))
 			} else {
-				out.Printf("%s %d of %d resources changed outside pravo:\n", out.C(ui.Bold+ui.Yellow, "Drift."), len(report.Drifted), report.Refreshed)
+				rt.out.Printf("%s %d of %d resources changed outside pravo:\n", rt.out.C(ui.Bold+ui.Yellow, "Drift."), len(report.Drifted), report.Refreshed)
 				for _, d := range report.Drifted {
 					action := d.Action
 					if d.Note != "" && d.Gone {
 						action = "rewrite" // the file exists with other content: the plan writes it again
 					}
-					out.Printf("  %s: %s\n", out.C(ui.Bold, d.Addr), action)
+					rt.out.Printf("  %s: %s\n", rt.out.C(ui.Bold, d.Addr), action)
 					for _, r := range d.Reasons {
-						out.Printf("    - %s\n", r)
+						rt.out.Printf("    - %s\n", r)
 					}
 					if d.Note != "" {
-						out.Printf("    - %s\n", d.Note)
+						rt.out.Printf("    - %s\n", d.Note)
 					}
 				}
 				if proposal == nil && noWrite {
-					out.Println("Nothing was marked (--no-write), so pravo plan does not show these; run pravo drift without --no-write to mark them first.")
+					rt.out.Println("Nothing was marked (--no-write), so pravo plan does not show these; run pravo drift without --no-write to mark them first.")
 				} else if proposal == nil {
-					out.Println("Run pravo plan to see what puts them back, or pravo apply to do it.")
+					rt.out.Println("Run pravo plan to see what puts them back, or pravo apply to do it.")
 				}
 			}
-			if proposal != nil && !flags.JSON && !flags.Markdown {
-				proposal.print()
+			if proposal != nil && !rt.flags.JSON && !rt.flags.Markdown {
+				proposal.print(rt)
 			}
 			if len(report.Drifted) > 0 {
 				return engine.WithCode(engine.ExitChanges, errSilent)
@@ -478,14 +478,14 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 	cmd.Flags().BoolVar(&due, "due", false, "read only the records that are older than their refresh age, oldest first, and plan nothing")
 	cmd.Flags().BoolVar(&noWrite, "no-write", false, "report drift and leave the state as it is: nothing refreshed is written and no mark is set")
 	cmd.Flags().IntVar(&limit, "limit", 0, "with --due: read at most this many records")
-	cmd.Flags().BoolVar(&flags.Markdown, "markdown", false, "print the report as Markdown for an issue or a comment: names and actions, never values")
-	addTagFlags(cmd)
+	cmd.Flags().BoolVar(&rt.flags.Markdown, "markdown", false, "print the report as Markdown for an issue or a comment: names and actions, never values")
+	addTagFlags(rt, cmd)
 	return cmd
 }
 
 // driftDue is "pravo drift --due": the records past their refresh age are read
 // and the report lists what differs.
-func driftDue(cmd *cobra.Command, s *session, limit int, webhook string) error {
+func driftDue(rt *runContext, cmd *cobra.Command, s *session, limit int, webhook string) error {
 	report, err := s.ws.DriftDue(cmd.Context(), limit)
 	if err != nil {
 		return err
@@ -497,18 +497,18 @@ func driftDue(cmd *cobra.Command, s *session, limit int, webhook string) error {
 		}
 	}
 	switch {
-	case flags.Markdown:
+	case rt.flags.Markdown:
 		if err := emitMarkdown(dueMarkdown(rep)); err != nil {
 			return err
 		}
-	case flags.JSON:
+	case rt.flags.JSON:
 		if err := emitJSON(report); err != nil {
 			return err
 		}
 	case len(rep.Drifted) == 0:
-		out.Println(out.C(ui.Bold+ui.Green, "No drift.") + " " + dueSummary(rep))
+		rt.out.Println(rt.out.C(ui.Bold+ui.Green, "No drift.") + " " + dueSummary(rep))
 	default:
-		out.Printf("%s %d of %d %s changed outside pravo. %s\n", out.C(ui.Bold+ui.Yellow, "Drift."), len(rep.Drifted), len(rep.Read), recordNoun(len(rep.Read)), dueSummary(rep))
+		rt.out.Printf("%s %d of %d %s changed outside pravo. %s\n", rt.out.C(ui.Bold+ui.Yellow, "Drift."), len(rep.Drifted), len(rep.Read), recordNoun(len(rep.Read)), dueSummary(rep))
 		for _, d := range rep.Drifted {
 			what := "the real state differs from the state"
 			if d.Gone {
@@ -517,7 +517,7 @@ func driftDue(cmd *cobra.Command, s *session, limit int, webhook string) error {
 					what += "; " + d.Note
 				}
 			}
-			out.Printf("  %s: %s\n", out.C(ui.Bold, d.Addr), what)
+			rt.out.Printf("  %s: %s\n", rt.out.C(ui.Bold, d.Addr), what)
 		}
 	}
 	if len(rep.Drifted) > 0 {
@@ -630,7 +630,7 @@ func checkPrefix(t schemaTarget, sources []registry.Source) error {
 // rootlessSession installs and starts the providers that the targets name, in
 // a root that is a temporary directory: nothing is written to the working
 // directory, and no specification is read.
-func rootlessSession(ctx context.Context, targets []schemaTarget) (*session, func(), error) {
+func rootlessSession(rt *runContext, ctx context.Context, targets []schemaTarget) (*session, func(), error) {
 	dir, err := os.MkdirTemp("", "pravo-schema-")
 	if err != nil {
 		return nil, nil, err
@@ -639,7 +639,7 @@ func rootlessSession(ctx context.Context, targets []schemaTarget) (*session, fun
 	for _, t := range targets {
 		root.Providers[t.local] = &config.ProviderReq{LocalName: t.local, Source: *t.src, Implied: true, Protocol: config.ProtocolTfplugin}
 	}
-	s, err := newSession(ctx, sessionOptions{install: true, root: root})
+	s, err := newSession(rt, ctx, sessionOptions{install: true, root: root})
 	if err != nil {
 		os.RemoveAll(dir)
 		return nil, nil, err

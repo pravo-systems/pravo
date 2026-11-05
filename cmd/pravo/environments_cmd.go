@@ -21,7 +21,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/ui"
 )
 
-func environmentsCmd() *cobra.Command {
+func environmentsCmd(rt *runContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "environments",
 		Aliases: []string{"envs"},
@@ -39,24 +39,24 @@ this directory stands in each. The last line is the next command to type.
 An environment whose settings or state cannot be read here (a variable this shell does not set, a
 bucket these credentials cannot read) is shown as such, and the others still are.`,
 		Args: noArgs,
-		RunE: func(cmd *cobra.Command, args []string) error { return showEnvironments(cmd) },
+		RunE: func(cmd *cobra.Command, args []string) error { return showEnvironments(rt, cmd) },
 	}
 	pf := cmd.PersistentFlags()
-	pf.StringVar(&flags.AccessDir, "access-dir", "", accessDirUsage)
-	pf.StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
-	addEnvFlag(pf)
-	pf.BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
-	cmd.AddCommand(environmentsDiffCmd(), environmentsRecordCmd())
+	pf.StringVar(&rt.flags.AccessDir, "access-dir", "", accessDirUsage)
+	pf.StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
+	addEnvFlag(rt, pf)
+	pf.BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
+	cmd.AddCommand(environmentsDiffCmd(rt), environmentsRecordCmd(rt))
 	return cmd
 }
 
 // loadAnyEnvironment loads the specification for the environment that -t names, else for its
 // default, else for the first of the promotion flow: what a command that looks at every environment
 // needs of it is the same in each (the release, the promotion flow).
-func loadAnyEnvironment() (*config.Root, error) {
-	tags := flags.Tags
+func loadAnyEnvironment(rt *runContext) (*config.Root, error) {
+	tags := rt.flags.Tags
 	if _, ok := config.EnvironmentOf(tags); !ok {
-		list, err := config.ReadEnvironmentSettings(".", config.LoadOptions{Tags: tags, SysTags: flags.SysTags, Env: environment()})
+		list, err := config.ReadEnvironmentSettings(".", config.LoadOptions{Tags: tags, SysTags: rt.flags.SysTags, Env: environment()})
 		if err != nil {
 			return nil, engine.WithCode(engine.ExitInvalid, err)
 		}
@@ -71,10 +71,10 @@ func loadAnyEnvironment() (*config.Root, error) {
 		}
 		tags = config.WithEnvironment(tags, name)
 	}
-	saved := flags.Tags
-	flags.Tags = tags
-	defer func() { flags.Tags = saved }()
-	root, err := loadRoot()
+	saved := rt.flags.Tags
+	rt.flags.Tags = tags
+	defer func() { rt.flags.Tags = saved }()
+	root, err := loadRoot(rt)
 	if err != nil {
 		return nil, err
 	}
@@ -128,9 +128,9 @@ type envRow struct {
 	gate      *engine.GateCheck
 }
 
-func showEnvironments(cmd *cobra.Command) error {
+func showEnvironments(rt *runContext, cmd *cobra.Command) error {
 	ctx := cmd.Context()
-	root, err := loadAnyEnvironment()
+	root, err := loadAnyEnvironment(rt)
 	if err != nil {
 		return err
 	}
@@ -138,17 +138,17 @@ func showEnvironments(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	rows := readEnvironmentRows(ctx, root, rel)
+	rows := readEnvironmentRows(rt, ctx, root, rel)
 	next := nextStep(root, rows)
-	if flags.JSON {
+	if rt.flags.JSON {
 		envs := make([]environmentJSON, len(rows))
 		for i, r := range rows {
 			envs[i] = r.j
 		}
 		return emitJSON(map[string]any{"flow": config.FlowText(root.Environments), "release": releaseJSON(root, rel), "environments": envs, "next": next})
 	}
-	out.Println(config.FlowText(root.Environments))
-	out.Println()
+	rt.out.Println(config.FlowText(root.Environments))
+	rt.out.Println()
 	table := [][]string{{"ENV", "FOLLOWS", "RUNS", "GIT", "SINCE", "BY", ""}}
 	for _, r := range rows {
 		row := []string{r.j.Name, strings.Join(r.j.After, ", "), "-", "", "", "", status(r)}
@@ -164,10 +164,10 @@ func showEnvironments(cmd *cobra.Command) error {
 		}
 		table = append(table, row)
 	}
-	printTable(table, -1)
-	out.Println()
-	out.Printf("This directory: %s\n", strings.TrimSpace(engine.ShortID(rel.Fingerprint)+" "+engine.TagFlags(root.Tags)))
-	out.Printf("Next: %s\n", next)
+	printTable(rt, table, -1)
+	rt.out.Println()
+	rt.out.Printf("This directory: %s\n", strings.TrimSpace(engine.ShortID(rel.Fingerprint)+" "+engine.TagFlags(root.Tags)))
+	rt.out.Printf("Next: %s\n", next)
 	return nil
 }
 
@@ -221,12 +221,12 @@ func status(r envRow) string {
 }
 
 // readEnvironmentRows reads the state of each environment in the order of the promotion flow.
-func readEnvironmentRows(ctx context.Context, root *config.Root, rel engine.Release) []envRow {
+func readEnvironmentRows(rt *runContext, ctx context.Context, root *config.Root, rel engine.Release) []envRow {
 	envs := &environmentsOf{root: root}
 	rows := make([]envRow, 0, len(root.Environments))
 	runs := map[string]bool{}
 	for _, env := range root.Environments {
-		s := envs.open(ctx, env.Name)
+		s := envs.open(rt, ctx, env.Name)
 		r := envRow{j: environmentJSON{Name: env.Name, After: env.After, Default: env.Default, Sealed: s.Sealed}}
 		if r.j.After == nil {
 			r.j.After = []string{}
@@ -261,7 +261,7 @@ func readEnvironmentRows(ctx context.Context, root *config.Root, rel engine.Rele
 		}
 		after := s.after()
 		if !r.runs && r.j.Release == "" && len(after) > 0 && s.Err == nil && !s.Missing && s.Sealed {
-			g := engine.GateReader{State: s.st, Environment: env.Name, Readers: s.rf.Readers, Vouched: s.Vouched, Upstream: envs.readers, Now: time.Now()}
+			g := engine.GateReader{State: s.st, Environment: env.Name, Readers: s.rf.Readers, Vouched: s.Vouched, Upstream: func(env string) (engine.Judges, error) { return envs.readers(rt, env) }, Now: time.Now()}
 			c := g.Check(ctx, after, s.Record, rel)
 			r.gate = &c
 			if c.Met {
@@ -304,7 +304,7 @@ func stepCommand(root *config.Root, rows []envRow, i int) string {
 
 // ---------- environments record ----------
 
-func environmentsRecordCmd() *cobra.Command {
+func environmentsRecordCmd(rt *runContext) *cobra.Command {
 	return &cobra.Command{
 		Use:   "record",
 		Short: "Make the record of an environment in its state say what the specification says",
@@ -320,19 +320,19 @@ For a specification that declares no environments any more, it records that the 
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			root, err := loadRoot()
+			root, err := loadRoot(rt)
 			if err != nil {
 				return err
 			}
 			if stateMissing(ctx, root) {
 				return engine.WithCode(engine.ExitRefused, errors.New("there is no state here yet, and the first apply records what it serves"))
 			}
-			st, err := openStateStore(ctx, root)
+			st, err := openStateStore(rt, ctx, root)
 			if err != nil {
 				return err
 			}
 			defer st.Close()
-			rf := readersOf(root)
+			rf := readersOf(rt, root)
 			eff, rs, rolesErr := rf.withRoles(st)
 			pin := ""
 			if rolesErr == nil && rs.Source == "state" && st.Sealer() != nil {
@@ -363,7 +363,7 @@ For a specification that declares no environments any more, it records that the 
 				}
 			}
 			if engine.RecordProblem(root, rec) == "" && (rec != nil || next.Name == "") && (rec == nil || rec.RolesPin == next.RolesPin || next.Name == "") {
-				out.Println("The record already says what the specification says: " + recordText(rec) + ".")
+				rt.out.Println("The record already says what the specification says: " + recordText(rec) + ".")
 				return nil
 			}
 			if rec != nil {
@@ -386,7 +386,7 @@ For a specification that declares no environments any more, it records that the 
 				}
 				return secretErr(err)
 			}
-			out.Println("Recorded: " + recordText(&next) + ".")
+			rt.out.Println("Recorded: " + recordText(&next) + ".")
 			return nil
 		},
 	}
@@ -404,7 +404,7 @@ func recordText(rec *state.EnvironmentRecord) string {
 
 // ---------- environments diff ----------
 
-func environmentsDiffCmd() *cobra.Command {
+func environmentsDiffCmd(rt *runContext) *cobra.Command {
 	return &cobra.Command{
 		Use:   "diff <environment> <environment>",
 		Short: "Compare what the specification declares in two environments",
@@ -416,7 +416,7 @@ only at apply, such as the id of another resource, is shown as such.`,
 		Example: "  pravo environments diff staging prod -t image=1.4",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return diffEnvironments(cmd, args[0], args[1])
+			return diffEnvironments(rt, cmd, args[0], args[1])
 		},
 	}
 }
@@ -432,11 +432,11 @@ type declared struct {
 
 const unknownValue = "(known at apply)"
 
-func declaredIn(ctx context.Context, env string) (*declared, error) {
-	saved := flags.Tags
-	flags.Tags = config.WithEnvironment(flags.Tags, env)
-	defer func() { flags.Tags = saved }()
-	s, err := newSession(ctx, sessionOptions{install: true, schemas: true})
+func declaredIn(rt *runContext, ctx context.Context, env string) (*declared, error) {
+	saved := rt.flags.Tags
+	rt.flags.Tags = config.WithEnvironment(rt.flags.Tags, env)
+	defer func() { rt.flags.Tags = saved }()
+	s, err := newSession(rt, ctx, sessionOptions{install: true, schemas: true})
 	if err != nil {
 		return nil, err
 	}
@@ -536,19 +536,19 @@ type resourceDiff struct {
 	Fields  []fieldDiff `json:"fields,omitempty"`
 }
 
-func diffEnvironments(cmd *cobra.Command, a, b string) error {
+func diffEnvironments(rt *runContext, cmd *cobra.Command, a, b string) error {
 	ctx := cmd.Context()
 	if a == b {
 		return engine.WithCode(engine.ExitInvalid, errors.New("name two different environments"))
 	}
-	if _, ok := config.EnvironmentOf(flags.Tags); ok {
+	if _, ok := config.EnvironmentOf(rt.flags.Tags); ok {
 		return engine.WithCode(engine.ExitInvalid, errors.New("the environments are the arguments of diff, without --env"))
 	}
-	da, err := declaredIn(ctx, a)
+	da, err := declaredIn(rt, ctx, a)
 	if err != nil {
 		return err
 	}
-	db, err := declaredIn(ctx, b)
+	db, err := declaredIn(rt, ctx, b)
 	if err != nil {
 		return err
 	}
@@ -612,40 +612,40 @@ func diffEnvironments(cmd *cobra.Command, a, b string) error {
 		}
 		diffs = append(diffs, resourceDiff{Address: addr, Fields: fds})
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		if diffs == nil {
 			diffs = []resourceDiff{}
 		}
 		return emitJSON(map[string]any{"a": a, "b": b, "resources": diffs, "same": same})
 	}
 	if len(diffs) == 0 {
-		out.Printf("%s and %s declare the same %d resources, with the same values.\n", a, b, same)
+		rt.out.Printf("%s and %s declare the same %d resources, with the same values.\n", a, b, same)
 		return nil
 	}
-	out.Printf("Comparing %s with %s:\n\n", a, b)
+	rt.out.Printf("Comparing %s with %s:\n\n", a, b)
 	for _, d := range diffs {
 		switch d.Only {
 		case a:
-			out.Printf("  %s %s  %s\n", out.C(ui.Red, "-"), d.Address, out.C(ui.Dim, "only in "+a))
+			rt.out.Printf("  %s %s  %s\n", rt.out.C(ui.Red, "-"), d.Address, rt.out.C(ui.Dim, "only in "+a))
 		case b:
-			out.Printf("  %s %s  %s\n", out.C(ui.Green, "+"), d.Address, out.C(ui.Dim, "only in "+b))
+			rt.out.Printf("  %s %s  %s\n", rt.out.C(ui.Green, "+"), d.Address, rt.out.C(ui.Dim, "only in "+b))
 		default:
-			out.Printf("  %s %s\n", out.C(ui.Yellow, "~"), d.Address)
+			rt.out.Printf("  %s %s\n", rt.out.C(ui.Yellow, "~"), d.Address)
 			for _, f := range d.Fields {
 				if f.Sensitive {
-					out.Printf("      %s: %s\n", f.Path, out.C(ui.Dim, "differs (sensitive)"))
+					rt.out.Printf("      %s: %s\n", f.Path, rt.out.C(ui.Dim, "differs (sensitive)"))
 					continue
 				}
-				out.Printf("      %s: %s → %s\n", f.Path, shown(f.A), shown(f.B))
+				rt.out.Printf("      %s: %s → %s\n", f.Path, shown(f.A), shown(f.B))
 			}
 		}
 	}
-	out.Println()
+	rt.out.Println()
 	noun := "resources differ"
 	if len(diffs) == 1 {
 		noun = "resource differs"
 	}
-	out.Printf("%d %s; %d %s the same.\n", len(diffs), noun, same, map[bool]string{true: "is", false: "are"}[same == 1])
+	rt.out.Printf("%d %s; %d %s the same.\n", len(diffs), noun, same, map[bool]string{true: "is", false: "are"}[same == 1])
 	return nil
 }
 

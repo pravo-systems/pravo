@@ -13,10 +13,12 @@ import (
 // The viewer says what approvals a stored plan still needs, counted as the apply counts
 // them, and who approved it: the key that stored the plan does not count, a writer's does.
 func TestServeSaysWhatApprovalsAStoredPlanNeeds(t *testing.T) {
+	rt := &runContext{}
+
 	rule := "{summary: destroy: 0} | {summary: destroy: >0, approvals: {min: 1}}"
 	rules := map[string]string{"second_opinion": rule}
-	r := newPolicyRoot(t, rules, "a")
-	if text, code := r.apply(t); code != 0 {
+	r := newPolicyRoot(rt, t, rules, "a")
+	if text, code := r.apply(rt, t); code != 0 {
 		t.Fatalf("storing the policy: exit %d\n%s", code, text)
 	}
 	_, dan := person(t, r.ids, "dan")
@@ -24,19 +26,19 @@ func TestServeSaysWhatApprovalsAStoredPlanNeeds(t *testing.T) {
 	ada := r.ada.AsReader().String()
 	access := filepath.Join(r.dir, ".pravo", "access")
 	writeReaders(t, access, ada, dan, eve)
-	if text, code := runPravo(t, r.dir, "protect", "rewrap", "--yes"); code != 0 {
+	if text, code := runPravo(rt, t, r.dir, "protect", "rewrap", "--yes"); code != 0 {
 		t.Fatalf("rewrap: exit %d\n%s", code, text)
 	}
 	writeReaders(t, access, ada+" role:admin", dan+" role:writer", eve+" role:writer")
 	r.declare(t, rules) // a is destroyed by the next plan
-	text, code := runPravo(t, r.dir, "--identity", "dan", "plan", "--store")
+	text, code := runPravo(rt, t, r.dir, "--identity", "dan", "plan", "--store")
 	id := regexp.MustCompile(`plan-[0-9a-f]+`).FindString(text)
 	if code != 0 || id == "" {
 		t.Fatalf("plan --store: exit %d\n%s", code, text)
 	}
 	approvals := func(t *testing.T) *serve.PlanApprovals {
 		t.Helper()
-		info, stop := runServe(t, r.dir, "--identity", "ada")
+		info, stop := runServe(rt, t, r.dir, "--identity", "ada")
 		defer func() {
 			if err := stop(); err != nil {
 				t.Error(err)
@@ -56,14 +58,14 @@ func TestServeSaysWhatApprovalsAStoredPlanNeeds(t *testing.T) {
 		t.Errorf("need %+v", n)
 	}
 	// The key that stored the plan does not count.
-	if text, code := runPravo(t, r.dir, "--identity", "dan", "plan", "approve", id); code != 0 {
+	if text, code := runPravo(rt, t, r.dir, "--identity", "dan", "plan", "approve", id); code != 0 {
 		t.Fatalf("dan approves: exit %d\n%s", code, text)
 	}
 	ap = approvals(t)
 	if ap == nil || len(ap.Items) != 1 || ap.Items[0].Signer != "dan" || ap.Items[0].Role != "writer" || len(ap.Needs) != 1 || ap.Needs[0].Have != 0 || ap.Needs[0].Met {
 		t.Fatalf("approved by its author: %+v", ap)
 	}
-	if text, code := runPravo(t, r.dir, "--identity", "eve", "plan", "approve", id); code != 0 {
+	if text, code := runPravo(rt, t, r.dir, "--identity", "eve", "plan", "approve", id); code != 0 {
 		t.Fatalf("eve approves: exit %d\n%s", code, text)
 	}
 	ap = approvals(t)

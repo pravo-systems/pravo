@@ -26,8 +26,8 @@ const readersFileName = "readers.txt"
 // maxReadersFileSize is the most that is read of a readers file.
 const maxReadersFileSize = 64 << 10
 
-func addAccessDirFlag(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&flags.AccessDir, "access-dir", "", "directory of the readers file (default .pravo/access); $PRAVO_ACCESS_DIR")
+func addAccessDirFlag(rt *runContext, cmd *cobra.Command) {
+	cmd.Flags().StringVar(&rt.flags.AccessDir, "access-dir", "", "directory of the readers file (default .pravo/access); $PRAVO_ACCESS_DIR")
 }
 
 // readersFile is what was found of the readers file.
@@ -92,8 +92,8 @@ func loadReadersFile(rootDir, flagDir string) readersFile {
 
 // readersOf finds the readers file of the root: --access-dir, $PRAVO_ACCESS_DIR, then
 // $settings.access.dir, then the directories loadReadersFile looks in.
-func readersOf(root *config.Root) readersFile {
-	return loadReadersFileFrom(root.Dir, flags.AccessDir, root.AccessDir)
+func readersOf(rt *runContext, root *config.Root) readersFile {
+	return loadReadersFileFrom(root.Dir, rt.flags.AccessDir, root.AccessDir)
 }
 
 // loadReadersFileFrom is loadReadersFile with the directory that the settings name, which

@@ -34,9 +34,6 @@ import (
 // Version is the pravo version string.
 var Version = "0.1.0-dev"
 
-// out prints the output of the command that runs.
-var out *ui.Printer
-
 // cmdSpan is the span of the running command; ended in main.
 var (
 	cmdSpan  trace.Span
@@ -45,6 +42,8 @@ var (
 )
 
 func main() {
+	rt := &runContext{}
+
 	os.Args = normaliseArgs(os.Args)
 	interrupt := &engine.Interrupt{}
 	ctx, cancel := context.WithCancel(engine.WithInterrupt(context.Background(), interrupt))
@@ -64,21 +63,21 @@ func main() {
 	shutdownTelemetry := telemetry.Setup(ctx, Version, env.OS())
 	// A trace started by the caller (a CI job, the MCP server) continues here.
 	ctx = telemetry.ParentFromEnv(ctx, environment())
-	root := newRootCmd()
+	root := newRootCmd(rt)
 	err := root.ExecuteContext(ctx)
 	stopProgress()
 	plugin.CleanupClients()
 	code := 0
 	if err != nil {
-		if out == nil {
-			out = ui.NewPrinter(os.Stderr, false)
+		if rt.out == nil {
+			rt.out = ui.NewPrinter(os.Stderr, false)
 		}
 		code = exitCodeOf(err)
 		if !errors.Is(err, errSilent) {
-			if flags.JSON {
+			if rt.flags.JSON {
 				emitLine(map[string]any{"kind": "error", "code": code, "message": err.Error()})
 			}
-			out.Error(err)
+			rt.out.Error(err)
 		}
 	}
 	finishCommand(ctx, err, code)
@@ -179,16 +178,16 @@ func operations(n int) string {
 }
 
 // startCommand opens the command's span; called once the command is known.
-func startCommand(cmd *cobra.Command) {
+func startCommand(rt *runContext, cmd *cobra.Command) {
 	runningCommand = cmd
 	cmdName = cmd.CommandPath()
 	cmdStart = time.Now()
 	ctx, span := telemetry.Tracer().Start(cmd.Context(), cmdName, trace.WithSpanKind(trace.SpanKindServer), trace.WithAttributes(
 		attribute.String("pravo.command", cmdName),
 		attribute.String("pravo.version", Version),
-		attribute.String("pravo.actor", flags.Actor),
-		attribute.String("pravo.reason", flags.Reason),
-		attribute.Bool("pravo.json", flags.JSON),
+		attribute.String("pravo.actor", rt.flags.Actor),
+		attribute.String("pravo.reason", rt.flags.Reason),
+		attribute.Bool("pravo.json", rt.flags.JSON),
 		attribute.String("pravo.command_line", serve.ScrubCommand(commandLine(os.Args))),
 	))
 	cmdSpan = span
@@ -311,17 +310,17 @@ func flagError(cmd *cobra.Command, err error) error {
 	return err
 }
 
-func newRootCmd() *cobra.Command {
+func newRootCmd(rt *runContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "pravo",
 		Short:         "Infrastructure as code with CUE and the OpenTofu provider ecosystem",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			defer startCommand(cmd) // after the flags that the span records are resolved
+			defer startCommand(rt, cmd) // after the flags that the span records are resolved
 			e := env.OS()
-			plog.Configure(flags.Verbose, e.Get("PRAVO_LOG"))
-			if flags.Verbose >= 2 && e.Get("PRAVO_LOG") == "" {
+			plog.Configure(rt.flags.Verbose, e.Get("PRAVO_LOG"))
+			if rt.flags.Verbose >= 2 && e.Get("PRAVO_LOG") == "" {
 				e = e.With("PRAVO_LOG", "debug") // the providers' own log, too
 			}
 			setEnvironment(e)
@@ -329,47 +328,47 @@ func newRootCmd() *cobra.Command {
 			if err := applyParallelism(e); err != nil {
 				return err
 			}
-			if flags.JSON || flags.Markdown {
+			if rt.flags.JSON || rt.flags.Markdown {
 				// Human output moves to stderr; stdout carries JSON or Markdown only.
-				out = ui.NewPrinter(os.Stderr, true)
+				rt.out = ui.NewPrinter(os.Stderr, true)
 			} else {
-				out = ui.NewPrinter(os.Stdout, colourOff(flags.NoColor))
+				rt.out = ui.NewPrinter(os.Stdout, colourOff(rt.flags.NoColor))
 			}
 			if answersOnStdout(cmd) {
-				out.Warnings = os.Stderr
+				rt.out.Warnings = os.Stderr
 			}
-			if spinner != nil && flags.Verbose == 0 && showsProgress(cmd) {
+			if spinner != nil && rt.flags.Verbose == 0 && showsProgress(cmd) {
 				// The status line gives way to whatever the command prints.
-				out.Out = spinner.Guard(out.Out)
-				spinner.Start(!colourOff(flags.NoColor))
+				rt.out.Out = spinner.Guard(rt.out.Out)
+				spinner.Start(!colourOff(rt.flags.NoColor))
 			}
-			if flags.Actor == "" {
-				flags.Actor = e.Get("PRAVO_ACTOR")
+			if rt.flags.Actor == "" {
+				rt.flags.Actor = e.Get("PRAVO_ACTOR")
 			}
-			if flags.Reason == "" {
-				flags.Reason = e.Get("PRAVO_REASON")
+			if rt.flags.Reason == "" {
+				rt.flags.Reason = e.Get("PRAVO_REASON")
 			}
-			if flags.Dir != "" {
-				if err := os.Chdir(flags.Dir); err != nil {
+			if rt.flags.Dir != "" {
+				if err := os.Chdir(rt.flags.Dir); err != nil {
 					return err
 				}
 			}
-			return foldEnvFlag(cmd)
+			return foldEnvFlag(rt, cmd)
 		},
 	}
 	pf := cmd.PersistentFlags()
-	pf.StringVarP(&flags.Dir, "chdir", "C", "", "run as if started in this directory")
-	pf.BoolVar(&flags.NoColor, "no-color", false, "disable coloured output")
-	pf.CountVarP(&flags.Verbose, "verbose", "v", "log what pravo decides and does to stderr; -vv adds finer detail and the providers' own log ($PRAVO_LOG=debug|trace)")
-	pf.BoolVar(&flags.JSON, "json", false, "machine-readable output on stdout (progress goes to stderr)")
-	pf.StringVar(&flags.Actor, "actor", "", "a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)")
-	pf.StringVar(&flags.Reason, "reason", "", "why; recorded on transactions and plans ($PRAVO_REASON)")
-	pf.StringVar(&flags.Identity, "identity", "", identityUsage)
+	pf.StringVarP(&rt.flags.Dir, "chdir", "C", "", "run as if started in this directory")
+	pf.BoolVar(&rt.flags.NoColor, "no-color", false, "disable coloured output")
+	pf.CountVarP(&rt.flags.Verbose, "verbose", "v", "log what pravo decides and does to stderr; -vv adds finer detail and the providers' own log ($PRAVO_LOG=debug|trace)")
+	pf.BoolVar(&rt.flags.JSON, "json", false, "machine-readable output on stdout (progress goes to stderr)")
+	pf.StringVar(&rt.flags.Actor, "actor", "", "a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)")
+	pf.StringVar(&rt.flags.Reason, "reason", "", "why; recorded on transactions and plans ($PRAVO_REASON)")
+	pf.StringVar(&rt.flags.Identity, "identity", "", identityUsage)
 	cmd.AddCommand(
-		initCmd(), planCmd(), applyCmd(), destroyCmd(), showCmd(), outputCmd(), stateCmd(), importCmd(), discoverCmd(),
-		providersCmd(), genCmd(), validateCmd(), evalCmd(), fmtCmd(), versionCmd(),
-		schemaCmd(), whyCmd(), driftCmd(), mcpCmd(), modCmd(), serveCmd(), skillCmd(), idCmd(), protectCmd(), policyCmd(), secretCmd(),
-		promoteCmd(), environmentsCmd(),
+		initCmd(rt), planCmd(rt), applyCmd(rt), destroyCmd(rt), showCmd(rt), outputCmd(rt), stateCmd(rt), importCmd(rt), discoverCmd(rt),
+		providersCmd(rt), genCmd(rt), validateCmd(rt), evalCmd(rt), fmtCmd(), versionCmd(),
+		schemaCmd(rt), whyCmd(rt), driftCmd(rt), mcpCmd(rt), modCmd(rt), serveCmd(rt), skillCmd(rt), idCmd(rt), protectCmd(rt), policyCmd(rt), secretCmd(rt),
+		promoteCmd(rt), environmentsCmd(rt),
 	)
 	cmd.SetFlagErrorFunc(flagError)
 	return cmd
@@ -381,24 +380,24 @@ const (
 	envUsage     = "work on the environment `NAME` of $environments; --env prod is -t env=prod"
 )
 
-func addTagFlags(cmd *cobra.Command) {
-	cmd.Flags().StringArrayVarP(&flags.Tags, "tag", "t", nil, tagUsage)
-	cmd.Flags().BoolVarP(&flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
-	addEnvFlag(cmd.Flags())
+func addTagFlags(rt *runContext, cmd *cobra.Command) {
+	cmd.Flags().StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
+	cmd.Flags().BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
+	addEnvFlag(rt, cmd.Flags())
 }
 
 // addEnvFlag binds --env, which every command that takes -t takes too.
-func addEnvFlag(fs *pflag.FlagSet) {
-	fs.StringVar(&flags.Env, "env", "", envUsage)
+func addEnvFlag(rt *runContext, fs *pflag.FlagSet) {
+	fs.StringVar(&rt.flags.Env, "env", "", envUsage)
 }
 
 // foldEnvFlag puts --env NAME into the tags as env=NAME, so that everything after reads
 // one list, as if -t env=NAME were given. -t env= naming another environment is refused.
-func foldEnvFlag(cmd *cobra.Command) error {
+func foldEnvFlag(rt *runContext, cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("env") {
 		return nil
 	}
-	name := flags.Env
+	name := rt.flags.Env
 	if name == "" || strings.ContainsAny(name, "= \t") {
 		msg := fmt.Sprintf("--env takes the name of an environment, such as --env prod, not %q", name)
 		if strings.Contains(name, "=") && cmd.Name() == "exec" && cmd.HasParent() && cmd.Parent().Name() == "secret" {
@@ -406,10 +405,10 @@ func foldEnvFlag(cmd *cobra.Command) error {
 		}
 		return engine.WithCode(engine.ExitInvalid, errors.New(msg))
 	}
-	if given, ok := config.EnvironmentOf(flags.Tags); ok && given != name {
+	if given, ok := config.EnvironmentOf(rt.flags.Tags); ok && given != name {
 		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("--env %s and -t %s=%s name two environments: give one", name, config.EnvTag, given))
 	}
-	flags.Tags = config.WithEnvironment(flags.Tags, name)
+	rt.flags.Tags = config.WithEnvironment(rt.flags.Tags, name)
 	return nil
 }
 

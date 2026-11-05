@@ -1,5 +1,7 @@
 package main
 
+import "github.com/pravo-systems/pravo/internal/ui"
+
 // rootFlags holds the values of the flags of the command that runs. The root
 // command binds the global ones; the commands that read the readers file bind
 // AccessDir. They are one value, so that a caller that runs a command in
@@ -30,4 +32,9 @@ type rootFlags struct {
 	AccessDir string
 }
 
-var flags rootFlags
+// runContext is what a command that runs works with: its flags and the printer of its output.
+// It is made once for a run and handed to every function that needs it.
+type runContext struct {
+	flags rootFlags
+	out   *ui.Printer
+}

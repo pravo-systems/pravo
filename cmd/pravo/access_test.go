@@ -38,7 +38,9 @@ func writeReaders(t *testing.T, accessDir string, lines ...string) string {
 }
 
 func TestLoadReadersFileFindsTheFileInTheRoot(t *testing.T) {
-	isolateIdentities(t)
+	rt := &runContext{}
+
+	isolateIdentities(rt, t)
 	root := t.TempDir()
 	lines := readerLines(t, "ada", "dan")
 	p := writeReaders(t, filepath.Join(root, ".pravo", "access"), lines[0], "# the second reader", lines[1]+" # on call", "")
@@ -52,7 +54,9 @@ func TestLoadReadersFileFindsTheFileInTheRoot(t *testing.T) {
 }
 
 func TestLoadReadersFileSearchesTheParentsUpToTheRepository(t *testing.T) {
-	isolateIdentities(t)
+	rt := &runContext{}
+
+	isolateIdentities(rt, t)
 	top := t.TempDir()
 	if err := os.Mkdir(filepath.Join(top, ".git"), 0o755); err != nil {
 		t.Fatal(err)
@@ -103,7 +107,9 @@ func TestLoadReadersFileSearchesTheParentsUpToTheRepository(t *testing.T) {
 }
 
 func TestLoadReadersFileDirectoryOrder(t *testing.T) {
-	isolateIdentities(t)
+	rt := &runContext{}
+
+	isolateIdentities(rt, t)
 	root := t.TempDir()
 	byDefault := writeReaders(t, filepath.Join(root, ".pravo", "access"), readerLines(t, "ada")...)
 	byEnv := writeReaders(t, filepath.Join(root, "from-env"), readerLines(t, "bob")...)
@@ -127,7 +133,9 @@ func TestLoadReadersFileDirectoryOrder(t *testing.T) {
 }
 
 func TestReadersFileErrorsCarryALineAndAReasonAndNeverTheLine(t *testing.T) {
-	isolateIdentities(t)
+	rt := &runContext{}
+
+	isolateIdentities(rt, t)
 	good := readerLines(t, "ada", "dan")
 	fields := strings.Fields(good[0])
 	// The first line is good and the second is the one that is wrong.
@@ -176,7 +184,9 @@ func TestReadersFileErrorsCarryALineAndAReasonAndNeverTheLine(t *testing.T) {
 }
 
 func TestReadersFileSizeBound(t *testing.T) {
-	isolateIdentities(t)
+	rt := &runContext{}
+
+	isolateIdentities(rt, t)
 	root := t.TempDir()
 	dir := filepath.Join(root, ".pravo", "access")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -196,10 +206,12 @@ func TestReadersFileSizeBound(t *testing.T) {
 }
 
 func TestReadersFileThroughALink(t *testing.T) {
+	rt := &runContext{}
+
 	if runtime.GOOS == "windows" {
 		t.Skip("links need privileges on Windows")
 	}
-	isolateIdentities(t)
+	isolateIdentities(rt, t)
 	root := t.TempDir()
 	dir := filepath.Join(root, ".pravo", "access")
 	if err := os.MkdirAll(dir, 0o755); err != nil {

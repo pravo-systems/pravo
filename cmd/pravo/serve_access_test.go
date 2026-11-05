@@ -123,6 +123,8 @@ func protectionOf(p state.Protection, locked bool, id viewerIdentity) func(acces
 // Every command that the page offers to copy names a command and flags that this
 // build has. The state is made to look like each state in turn.
 func TestViewerSuggestsOnlyRealCommands(t *testing.T) {
+	rt := &runContext{}
+
 	m, readers := protectedMeta(t, "ada", "dan", "eve")
 	adaKey := readers[0].Key.String()
 	reader := state.You{State: "reader", Name: "ada", Key: adaKey}
@@ -200,7 +202,7 @@ func TestViewerSuggestsOnlyRealCommands(t *testing.T) {
 			if len(a.Suggestions) == 0 {
 				t.Fatalf("no suggestions in a state of %q", a.State)
 			}
-			root := newRootCmd()
+			root := newRootCmd(rt)
 			// The commands exist once the id and protect commands are in this build; a
 			// build without them has nothing to check a suggestion against.
 			real := findSub(root, "protect") != nil && findSub(root, "id") != nil
@@ -227,7 +229,7 @@ func TestViewerSuggestsOnlyRealCommands(t *testing.T) {
 			}
 		})
 	}
-	if checked < 20 && findSub(newRootCmd(), "protect") != nil {
+	if checked < 20 && findSub(newRootCmd(rt), "protect") != nil {
 		t.Errorf("only %d pravo commands were checked", checked)
 	}
 	for _, id := range []string{"seal", "check-downgrade", "finish", "identity", "rewrap", "add-reader", "remove-reader", "set-recovery", "fix-recovery", "reseal", "prune", "status"} {
@@ -334,6 +336,8 @@ func TestAccessFactsHoldNoSecret(t *testing.T) {
 
 // resolve opens the identity once, and only a state that is sealed asks for one.
 func TestViewerResolvesTheIdentityOnce(t *testing.T) {
+	rt := &runContext{}
+
 	reset := func() {
 		taken.mu.Lock()
 		taken.loaded, taken.identity, taken.passphrase = nil, "", ""
@@ -342,9 +346,9 @@ func TestViewerResolvesTheIdentityOnce(t *testing.T) {
 	reset()
 	t.Cleanup(reset)
 	var said bytes.Buffer
-	saved := out
-	out = ui.NewPrinter(&said, true)
-	t.Cleanup(func() { out = saved })
+	saved := rt.out
+	rt.out = ui.NewPrinter(&said, true)
+	t.Cleanup(func() { rt.out = saved })
 	idDir := t.TempDir()
 	t.Setenv("PRAVO_IDENTITY_DIR", idDir)
 	t.Setenv("PRAVO_IDENTITY", "")
@@ -358,7 +362,7 @@ func TestViewerResolvesTheIdentityOnce(t *testing.T) {
 
 	// None found: the viewer goes on, locked.
 	v := &viewerState{}
-	if err := v.resolve(); err != nil {
+	if err := v.resolve(rt); err != nil {
 		t.Fatalf("no identity: %v", err)
 	}
 	if id, locked, resolved := v.identity(); id != nil || locked || !resolved {
@@ -368,13 +372,13 @@ func TestViewerResolvesTheIdentityOnce(t *testing.T) {
 		t.Errorf("the viewer did not say it has no identity: %q", said.String())
 	}
 	// A name that is not there is an error: the person asked for it.
-	if err := (&viewerState{name: "nobody"}).resolve(); err == nil {
+	if err := (&viewerState{name: "nobody"}).resolve(rt); err == nil {
 		t.Error("an identity that does not exist was accepted")
 	}
 	// "none" asks for nothing and needs no directory.
 	t.Setenv("PRAVO_IDENTITY_DIR", filepath.Join(idDir, "missing"))
 	none := &viewerState{name: "none"}
-	if err := none.resolve(); err != nil {
+	if err := none.resolve(rt); err != nil {
 		t.Fatal(err)
 	}
 	if id, _, resolved := none.identity(); id != nil || !resolved {
@@ -396,7 +400,7 @@ func TestViewerResolvesTheIdentityOnce(t *testing.T) {
 	}
 	reset()
 	lockedV := &viewerState{}
-	if err := lockedV.resolve(); err != nil {
+	if err := lockedV.resolve(rt); err != nil {
 		t.Fatalf("a sealed identity and no passphrase: %v", err)
 	}
 	if got, locked, _ := lockedV.identity(); got != nil || !locked {
@@ -410,7 +414,7 @@ func TestViewerResolvesTheIdentityOnce(t *testing.T) {
 	t.Setenv("PRAVO_PASSPHRASE", "correct horse battery")
 	opened := &viewerState{}
 	for range 3 {
-		if err := opened.resolve(); err != nil {
+		if err := opened.resolve(rt); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -421,14 +425,14 @@ func TestViewerResolvesTheIdentityOnce(t *testing.T) {
 	reset()
 	t.Setenv("PRAVO_PASSPHRASE", "")
 	late := &viewerState{listening: true}
-	if err := late.resolve(); err != nil {
+	if err := late.resolve(rt); err != nil {
 		t.Fatalf("a sealed identity after the server listens: %v", err)
 	}
 	if got, locked, _ := late.identity(); got != nil || !locked {
 		t.Errorf("after the server listens: %v locked %v", got, locked)
 	}
 	reset()
-	if err := (&viewerState{listening: true, name: "nobody"}).resolve(); err != nil {
+	if err := (&viewerState{listening: true, name: "nobody"}).resolve(rt); err != nil {
 		t.Errorf("an identity that is not there, after the server listens: %v", err)
 	}
 	t.Setenv("PRAVO_PASSPHRASE", "not the passphrase")
@@ -436,7 +440,7 @@ func TestViewerResolvesTheIdentityOnce(t *testing.T) {
 	// A wrong passphrase is an error before anything listens.
 	reset()
 	t.Setenv("PRAVO_PASSPHRASE", "not the passphrase")
-	if err := (&viewerState{}).resolve(); err == nil {
+	if err := (&viewerState{}).resolve(rt); err == nil {
 		t.Error("a wrong passphrase was accepted")
 	}
 	opened.close()
@@ -449,6 +453,8 @@ func TestViewerResolvesTheIdentityOnce(t *testing.T) {
 }
 
 func TestServeFlagsOfTheAccessView(t *testing.T) {
+	rt := &runContext{}
+
 	t.Setenv("PRAVO_IDENTITY_DIR", filepath.Join(t.TempDir(), "none-here"))
 	t.Setenv("PRAVO_IDENTITY", "")
 	dir := specDir(t, map[string]string{"main.cue": "package estate\n\nsize: 3\n"})
@@ -462,7 +468,7 @@ func TestServeFlagsOfTheAccessView(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{{"--identity", "none", "--access-dir", "elsewhere"}, {"--access-dir", "elsewhere"}} {
-		info, stop := runServe(t, dir, args...)
+		info, stop := runServe(rt, t, dir, args...)
 		var a serve.Access
 		if err := json.Unmarshal(fetch(t, info, "/api/access"), &a); err != nil {
 			t.Fatal(err)
@@ -481,10 +487,12 @@ func TestServeFlagsOfTheAccessView(t *testing.T) {
 // without a key, and the viewer says the identity is not a reader. The state package
 // refuses such an identity, which this stands in for.
 func TestViewerOpensLockedForAnIdentityThatIsNotAReader(t *testing.T) {
+	rt := &runContext{}
+
 	var said bytes.Buffer
-	saved := out
-	out = ui.NewPrinter(&said, true)
-	t.Cleanup(func() { out = saved })
+	saved := rt.out
+	rt.out = ui.NewPrinter(&said, true)
+	t.Cleanup(func() { rt.out = saved })
 	dir := t.TempDir()
 	if _, err := state.Open(dir); err != nil {
 		t.Fatal(err)
@@ -503,7 +511,7 @@ func TestViewerOpensLockedForAnIdentityThatIsNotAReader(t *testing.T) {
 		without++
 		return state.OpenBackend(ctx, b)
 	}}
-	st, err := v.openWith(context.Background(), &state.LocalBackend{Dir: dir}, gus)
+	st, err := v.openWith(rt, context.Background(), &state.LocalBackend{Dir: dir}, gus)
 	if err != nil || st == nil {
 		t.Fatalf("an identity that is not a reader: %v", err)
 	}
@@ -521,14 +529,14 @@ func TestViewerOpensLockedForAnIdentityThatIsNotAReader(t *testing.T) {
 	v.openStore = func(context.Context, state.Backend, state.Options) (*state.Store, error) {
 		return nil, os.ErrPermission
 	}
-	if _, err := v.openWith(context.Background(), &state.LocalBackend{Dir: dir}, gus); err == nil {
+	if _, err := v.openWith(rt, context.Background(), &state.LocalBackend{Dir: dir}, gus); err == nil {
 		t.Error("an error of the store was swallowed")
 	}
 	// And an identity that is a reader clears the mark.
 	v.openStore = func(ctx context.Context, b state.Backend, o state.Options) (*state.Store, error) {
 		return state.OpenBackend(ctx, b)
 	}
-	if _, err := v.openWith(context.Background(), &state.LocalBackend{Dir: dir}, gus); err != nil || v.who().refused {
+	if _, err := v.openWith(rt, context.Background(), &state.LocalBackend{Dir: dir}, gus); err != nil || v.who().refused {
 		t.Errorf("a reader: %v %+v", err, v.who())
 	}
 }

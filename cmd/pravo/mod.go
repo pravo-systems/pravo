@@ -24,7 +24,7 @@ import (
 // (github.com/<owner> modules live on ghcr.io/<owner>/cue); publish adds
 // pre-flight checks; list and verify report what a root loads.
 
-func modCmd() *cobra.Command {
+func modCmd(rt *runContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mod",
 		Short: "Create, fetch and publish CUE modules for sharing",
@@ -42,17 +42,17 @@ Modules under github.com/<owner> are fetched from, and published to,
 ghcr.io/<owner>/cue unless CUE_REGISTRY says otherwise.`,
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			args = extractGlobals(args)
+			args = extractGlobals(rt, args)
 			if len(args) == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "help" {
 				return cmd.Help()
 			}
 			switch args[0] {
 			case "publish":
-				return modPublish(cmd.Context(), args[1:])
+				return modPublish(rt, cmd.Context(), args[1:])
 			case "list":
-				return modList()
+				return modList(rt)
 			case "verify":
-				return modVerify()
+				return modVerify(rt)
 			}
 			return runCueMod(cmd.Context(), args)
 		},
@@ -62,20 +62,20 @@ ghcr.io/<owner>/cue unless CUE_REGISTRY says otherwise.`,
 
 // extractGlobals takes pravo's own global flags out of args (the mod command
 // passes everything else to CUE untouched) and applies them.
-func extractGlobals(args []string) []string {
+func extractGlobals(rt *runContext, args []string) []string {
 	var rest []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
 		case a == "--json" || a == "-json":
-			flags.JSON = true
+			rt.flags.JSON = true
 		case a == "--no-color" || a == "-no-color":
-			flags.NoColor = true
+			rt.flags.NoColor = true
 		case (a == "--actor" || a == "-actor") && i+1 < len(args):
-			flags.Actor = args[i+1]
+			rt.flags.Actor = args[i+1]
 			i++
 		case (a == "--reason" || a == "-reason") && i+1 < len(args):
-			flags.Reason = args[i+1]
+			rt.flags.Reason = args[i+1]
 			i++
 		case (a == "-C" || a == "--chdir") && i+1 < len(args):
 			_ = os.Chdir(args[i+1])
@@ -84,10 +84,10 @@ func extractGlobals(args []string) []string {
 			rest = append(rest, a)
 		}
 	}
-	if flags.JSON {
-		out = ui.NewPrinter(os.Stderr, true)
+	if rt.flags.JSON {
+		rt.out = ui.NewPrinter(os.Stderr, true)
 	} else {
-		out = ui.NewPrinter(os.Stdout, colourOff(flags.NoColor))
+		rt.out = ui.NewPrinter(os.Stdout, colourOff(rt.flags.NoColor))
 	}
 	return rest
 }
@@ -127,7 +127,7 @@ func gitOutput(dir string, args ...string) (string, error) {
 }
 
 // modPublish publishes the module in the current directory.
-func modPublish(ctx context.Context, args []string) error {
+func modPublish(rt *runContext, ctx context.Context, args []string) error {
 	if len(args) != 1 || !strings.HasPrefix(args[0], "v") {
 		return errors.New("usage: pravo mod publish <version>, for example v1.2.0")
 	}
@@ -161,18 +161,18 @@ func modPublish(ctx context.Context, args []string) error {
 		}
 	}
 	if len(mf.Deps) > 0 {
-		out.Printf("%s %d dependencies pinned in cue.mod/module.cue\n", out.C(ui.Dim, "Checked:"), len(mf.Deps))
+		rt.out.Printf("%s %d dependencies pinned in cue.mod/module.cue\n", rt.out.C(ui.Dim, "Checked:"), len(mf.Deps))
 	}
 	if err := runCueMod(ctx, []string{"publish", version}); err != nil {
 		return err
 	}
 	if owner, name, ok := ghcrLocation(path); ok && strings.Contains(os.Getenv("CUE_REGISTRY"), "ghcr.io/"+owner) {
 		pkg := url.PathEscape(config.RegistryPrefix + "/" + path)
-		out.Println()
-		out.Printf("Stored as ghcr.io/%s/%s/%s:%s\n", owner, config.RegistryPrefix, path, version)
-		out.Printf("A first push is private. To let others use %s without credentials, open\n", name)
-		out.Printf("  https://github.com/users/%s/packages/container/package/%s\n", owner, strings.ReplaceAll(pkg, "/", "%2F"))
-		out.Println("-> Package settings -> Danger Zone -> Change visibility -> Public. (GitHub offers no API for this; it can take minutes to show.)")
+		rt.out.Println()
+		rt.out.Printf("Stored as ghcr.io/%s/%s/%s:%s\n", owner, config.RegistryPrefix, path, version)
+		rt.out.Printf("A first push is private. To let others use %s without credentials, open\n", name)
+		rt.out.Printf("  https://github.com/users/%s/packages/container/package/%s\n", owner, strings.ReplaceAll(pkg, "/", "%2F"))
+		rt.out.Println("-> Package settings -> Danger Zone -> Change visibility -> Public. (GitHub offers no API for this; it can take minutes to show.)")
 	}
 	return nil
 }
@@ -187,12 +187,12 @@ func ghcrLocation(path string) (owner, name string, ok bool) {
 	return "", "", false
 }
 
-func modList() error {
-	root, err := loadRoot()
+func modList(rt *runContext) error {
+	root, err := loadRoot(rt)
 	if err != nil {
 		return err
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		list := []map[string]string{}
 		for _, m := range root.Modules {
 			list = append(list, map[string]string{"module": m.Path, "version": m.Version, "hash": m.Hash})
@@ -200,20 +200,20 @@ func modList() error {
 		return emitJSON(list)
 	}
 	if len(root.Modules) == 0 {
-		out.Println("No dependency modules are loaded.")
+		rt.out.Println("No dependency modules are loaded.")
 	}
 	for _, m := range root.Modules {
-		out.Printf("%s  %s  %s\n", out.C(ui.Bold, m.Path), m.Version, out.C(ui.Dim, m.Hash))
+		rt.out.Printf("%s  %s  %s\n", rt.out.C(ui.Bold, m.Path), m.Version, rt.out.C(ui.Dim, m.Hash))
 	}
 	if root.SharedModule() {
 		rel, _ := filepath.Rel(root.Dir, root.ModRoot)
-		out.Printf("%s the module root is %s; packages in it are part of the specification and are covered by saved-plan fingerprints.\n", out.C(ui.Dim, "Note:"), rel)
+		rt.out.Printf("%s the module root is %s; packages in it are part of the specification and are covered by saved-plan fingerprints.\n", rt.out.C(ui.Dim, "Note:"), rel)
 	}
 	return nil
 }
 
-func modVerify() error {
-	root, err := loadRoot()
+func modVerify(rt *runContext) error {
+	root, err := loadRoot(rt)
 	if err != nil {
 		return err
 	}
@@ -241,7 +241,7 @@ func modVerify() error {
 		}
 	}
 	sort.Strings(problems)
-	if flags.JSON {
+	if rt.flags.JSON {
 		if problems == nil {
 			problems = []string{}
 		}
@@ -254,11 +254,11 @@ func modVerify() error {
 		return nil
 	}
 	if len(problems) == 0 {
-		out.Println(out.C(ui.Bold+ui.Green, "Verified.") + fmt.Sprintf(" %d modules match %s.", len(root.Modules), engine.LockFileName))
+		rt.out.Println(rt.out.C(ui.Bold+ui.Green, "Verified.") + fmt.Sprintf(" %d modules match %s.", len(root.Modules), engine.LockFileName))
 		return nil
 	}
 	for _, p := range problems {
-		out.Printf("  - %s\n", p)
+		rt.out.Printf("  - %s\n", p)
 	}
 	return engine.WithCode(engine.ExitRefused, fmt.Errorf("%d module(s) do not match the lock", len(problems)))
 }

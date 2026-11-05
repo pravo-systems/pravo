@@ -117,7 +117,9 @@ func noAgent(t *testing.T) {
 }
 
 func TestIDNewCanSealTheIdentityUnderTheSSHAgent(t *testing.T) {
-	ids := isolateIdentities(t)
+	rt := &runContext{}
+
+	ids := isolateIdentities(rt, t)
 	var ag testAgent
 	pub := ag.add(t, "pravo")
 	ag.use(t)
@@ -127,7 +129,7 @@ func TestIDNewCanSealTheIdentityUnderTheSSHAgent(t *testing.T) {
 		return nil, os.ErrInvalid
 	}
 
-	text, code := runPravo(t, dir, "id", "new", "--name", "ada-mac", "--unlock", "agent")
+	text, code := runPravo(rt, t, dir, "id", "new", "--name", "ada-mac", "--unlock", "agent")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -166,7 +168,7 @@ func TestIDNewCanSealTheIdentityUnderTheSSHAgent(t *testing.T) {
 
 	t.Run("id show reads the public parts and never calls the agent", func(t *testing.T) {
 		noAgent(t)
-		text, code := runPravo(t, dir, "id", "show", "--name", "ada-mac")
+		text, code := runPravo(rt, t, dir, "id", "show", "--name", "ada-mac")
 		if code != 0 {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -176,7 +178,7 @@ func TestIDNewCanSealTheIdentityUnderTheSSHAgent(t *testing.T) {
 		if want := "  reader   " + reader.Key.String() + "  sealed under ssh-agent key " + fp + "\n"; !strings.Contains(text, want) {
 			t.Errorf("the output lacks %q:\n%s", want, text)
 		}
-		text, code = runPravo(t, dir, "--json", "id", "show", "--name", "ada-mac")
+		text, code = runPravo(rt, t, dir, "--json", "id", "show", "--name", "ada-mac")
 		var shown struct {
 			Sealed bool
 			Unlock map[string]string
@@ -186,7 +188,7 @@ func TestIDNewCanSealTheIdentityUnderTheSSHAgent(t *testing.T) {
 		}
 	})
 	t.Run("as JSON", func(t *testing.T) {
-		text, code := runPravo(t, dir, "--json", "id", "new", "--name", "ada-json", "--unlock", "agent")
+		text, code := runPravo(rt, t, dir, "--json", "id", "new", "--name", "ada-json", "--unlock", "agent")
 		var made struct {
 			Unlock map[string]string
 		}
@@ -197,7 +199,9 @@ func TestIDNewCanSealTheIdentityUnderTheSSHAgent(t *testing.T) {
 }
 
 func TestIDNewUnlockAgentChoosesAKeyOfTheAgent(t *testing.T) {
-	ids := isolateIdentities(t)
+	rt := &runContext{}
+
+	ids := isolateIdentities(rt, t)
 	var ag testAgent
 	github := ag.add(t, "GitHub key")
 	pravo := ag.add(t, "pravo ada")
@@ -205,7 +209,7 @@ func TestIDNewUnlockAgentChoosesAKeyOfTheAgent(t *testing.T) {
 	dir := t.TempDir()
 
 	t.Run("several keys and no choice", func(t *testing.T) {
-		text, code := runPravo(t, dir, "id", "new", "--name", "ada-mac", "--unlock", "agent")
+		text, code := runPravo(rt, t, dir, "id", "new", "--name", "ada-mac", "--unlock", "agent")
 		for _, want := range []string{"several ssh-ed25519 keys", "--agent-key", protect.SSHFingerprint(github), "GitHub key", protect.SSHFingerprint(pravo), "pravo ada"} {
 			if !strings.Contains(text, want) {
 				t.Errorf("the output lacks %q:\n%s", want, text)
@@ -222,19 +226,19 @@ func TestIDNewUnlockAgentChoosesAKeyOfTheAgent(t *testing.T) {
 		}
 	})
 	t.Run("by part of the comment", func(t *testing.T) {
-		text, code := runPravo(t, dir, "id", "new", "--name", "ada-mac", "--unlock", "agent", "--agent-key", "pravo")
+		text, code := runPravo(rt, t, dir, "id", "new", "--name", "ada-mac", "--unlock", "agent", "--agent-key", "pravo")
 		if code != 0 || !strings.Contains(text, "sealed under ssh-agent key "+protect.SSHFingerprint(pravo)) {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 	t.Run("by fingerprint", func(t *testing.T) {
-		text, code := runPravo(t, dir, "id", "new", "--name", "ada-gh", "--unlock", "agent", "--agent-key", protect.SSHFingerprint(github))
+		text, code := runPravo(rt, t, dir, "id", "new", "--name", "ada-gh", "--unlock", "agent", "--agent-key", protect.SSHFingerprint(github))
 		if code != 0 || !strings.Contains(text, "sealed under ssh-agent key "+protect.SSHFingerprint(github)) {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 	t.Run("a key the agent does not hold", func(t *testing.T) {
-		text, code := runPravo(t, dir, "id", "new", "--name", "ada-x", "--unlock", "agent", "--agent-key", "work")
+		text, code := runPravo(rt, t, dir, "id", "new", "--name", "ada-x", "--unlock", "agent", "--agent-key", "work")
 		if code != 1 || !strings.Contains(text, `matches "work"`) || !strings.Contains(text, "GitHub key") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -242,7 +246,9 @@ func TestIDNewUnlockAgentChoosesAKeyOfTheAgent(t *testing.T) {
 }
 
 func TestIDNewUnlockRefusals(t *testing.T) {
-	ids := isolateIdentities(t)
+	rt := &runContext{}
+
+	ids := isolateIdentities(rt, t)
 	t.Setenv("PRAVO_PASSPHRASE", testPass)
 	dir := t.TempDir()
 	var ag testAgent
@@ -258,20 +264,20 @@ func TestIDNewUnlockRefusals(t *testing.T) {
 		"a job":                   {[]string{"--ci", "--out", filepath.Join(t.TempDir(), "bot.identity"), "--unlock", "agent"}, "--unlock agent is for a person"},
 	} {
 		args := append([]string{"id", "new", "--name", "ada"}, tc.args...)
-		if text, code := runPravo(t, dir, args...); code != 1 || !strings.Contains(text, tc.want) {
+		if text, code := runPravo(rt, t, dir, args...); code != 1 || !strings.Contains(text, tc.want) {
 			t.Errorf("%s: exit %d\n%s", name, code, text)
 		}
 	}
 	t.Run("an agent that is not there", func(t *testing.T) {
 		noAgent(t)
-		text, code := runPravo(t, dir, "id", "new", "--name", "ada", "--unlock", "agent")
+		text, code := runPravo(rt, t, dir, "id", "new", "--name", "ada", "--unlock", "agent")
 		if code != 1 || !strings.Contains(text, "ssh-agent is not reachable") {
 			t.Errorf("exit %d\n%s", code, text)
 		}
 	})
 	t.Run("an agent that holds no key", func(t *testing.T) {
 		(&testAgent{}).use(t)
-		text, code := runPravo(t, dir, "id", "new", "--name", "ada", "--unlock", "agent")
+		text, code := runPravo(rt, t, dir, "id", "new", "--name", "ada", "--unlock", "agent")
 		if code != 1 || !strings.Contains(text, "holds no ssh-ed25519 key") {
 			t.Errorf("exit %d\n%s", code, text)
 		}
@@ -280,11 +286,11 @@ func TestIDNewUnlockRefusals(t *testing.T) {
 		t.Error("an identity was written by a refused command")
 	}
 	t.Run("an identity that exists is found before the agent is asked", func(t *testing.T) {
-		if text, code := runPravo(t, dir, "id", "new", "--name", "ada"); code != 0 {
+		if text, code := runPravo(rt, t, dir, "id", "new", "--name", "ada"); code != 0 {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 		before := ag.signCount()
-		text, code := runPravo(t, dir, "id", "new", "--name", "ada", "--unlock", "agent")
+		text, code := runPravo(rt, t, dir, "id", "new", "--name", "ada", "--unlock", "agent")
 		if code != 1 || !strings.Contains(text, "identity ada already exists") || ag.signCount() != before {
 			t.Errorf("exit %d, %d signatures more\n%s", code, ag.signCount()-before, text)
 		}
@@ -292,7 +298,9 @@ func TestIDNewUnlockRefusals(t *testing.T) {
 }
 
 func TestResolveIdentityOpensAnIdentityUnderTheAgentWithoutAskingForAPassphrase(t *testing.T) {
-	dir := isolateIdentities(t)
+	rt := &runContext{}
+
+	dir := isolateIdentities(rt, t)
 	var ag testAgent
 	pub := ag.add(t, "pravo")
 	ag.use(t)
@@ -336,8 +344,10 @@ func TestResolveIdentityOpensAnIdentityUnderTheAgentWithoutAskingForAPassphrase(
 // beside the one with a passphrase. Either opens the state, and the passphrase one
 // stays as the way back when the agent is gone.
 func TestASecondIdentityUnderTheAgentReadsTheStateOfTheFirst(t *testing.T) {
+	rt := &runContext{}
+
 	requireSealing(t)
-	isolateIdentities(t)
+	isolateIdentities(rt, t)
 	t.Setenv("PRAVO_PASSPHRASE", testPass)
 	t.Setenv("PRAVO_IDENTITY_DIR", filepath.Join(t.TempDir(), "ids"))
 	dir := specDir(t, map[string]string{"main.cue": "package t\n"})
@@ -348,7 +358,7 @@ func TestASecondIdentityUnderTheAgentReadsTheStateOfTheFirst(t *testing.T) {
 	step := func(args ...string) (string, int) {
 		t.Helper()
 		resetIdentityState(t)
-		return runPravo(t, dir, args...)
+		return runPravo(rt, t, dir, args...)
 	}
 	made, code := step("id", "new", "--name", "ada")
 	if code != 0 {

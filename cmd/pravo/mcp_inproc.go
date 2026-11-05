@@ -16,10 +16,10 @@ import (
 
 // inprocess runs the tool inside the server and returns its text and exit
 // code in the form of runSelf.
-func inprocess(ctx context.Context, in map[string]any, run func(ctx context.Context, in map[string]any) (string, error)) (string, int) {
-	saved := flags.Tags
-	flags.Tags = listArg(in, "tags")
-	defer func() { flags.Tags = saved }()
+func inprocess(rt *runContext, ctx context.Context, in map[string]any, run func(ctx context.Context, in map[string]any) (string, error)) (string, int) {
+	saved := rt.flags.Tags
+	rt.flags.Tags = listArg(in, "tags")
+	defer func() { rt.flags.Tags = saved }()
 	text, err := run(ctx, in)
 	if err != nil {
 		code := exitCodeOf(err)
@@ -29,21 +29,21 @@ func inprocess(ctx context.Context, in map[string]any, run func(ctx context.Cont
 	return strings.TrimSpace(text), 0
 }
 
-func readStateValues(ctx context.Context) (*state.Store, error) {
-	root, err := loadRoot()
+func readStateValues(rt *runContext, ctx context.Context) (*state.Store, error) {
+	root, err := loadRoot(rt)
 	if err != nil {
 		return nil, err
 	}
-	return openStateValues(ctx, root)
+	return openStateValues(rt, ctx, root)
 }
 
-func runStateQuery(ctx context.Context, in map[string]any) (string, error) {
-	st, err := readStateValues(ctx)
+func runStateQuery(rt *runContext, ctx context.Context, in map[string]any) (string, error) {
+	st, err := readStateValues(rt, ctx)
 	if err != nil {
 		return "", err
 	}
 	// An agent reads the state as the viewer shows it: sensitive values withheld.
-	snap, _, err := redactedSnapshot(ctx, st)
+	snap, _, err := redactedSnapshot(rt, ctx, st)
 	if err != nil {
 		return "", err
 	}
@@ -55,8 +55,8 @@ func runStateQuery(ctx context.Context, in map[string]any) (string, error) {
 	return string(b), err
 }
 
-func runDependents(ctx context.Context, in map[string]any) (string, error) {
-	st, err := readStateValues(ctx)
+func runDependents(rt *runContext, ctx context.Context, in map[string]any) (string, error) {
+	st, err := readStateValues(rt, ctx)
 	if err != nil {
 		return "", err
 	}

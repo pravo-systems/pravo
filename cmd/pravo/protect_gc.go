@@ -13,7 +13,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
-func protectGCCmd() *cobra.Command {
+func protectGCCmd(rt *runContext) *cobra.Command {
 	var (
 		olderThan string
 		dryRun    bool
@@ -63,11 +63,11 @@ included.`,
 				}
 				grace = d
 			}
-			p, err := newProtectRun(cmd)
+			p, err := newProtectRun(rt, cmd)
 			if err != nil {
 				return err
 			}
-			return p.gc(grace, dryRun)
+			return p.gc(rt, grace, dryRun)
 		},
 	}
 	f := cmd.Flags()
@@ -77,19 +77,19 @@ included.`,
 	return cmd
 }
 
-func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
+func (p *protectRun) gc(rt *runContext, grace time.Duration, dryRun bool) error {
 	b, err := p.backend(false)
 	if err != nil {
 		return err
 	}
 	if _, err := b.Get(p.ctx, "meta.json"); errors.Is(err, state.ErrNotFound) {
-		return gcFormatOne(0, "The state is empty: there is nothing to collect.")
+		return gcFormatOne(rt, 0, "The state is empty: there is nothing to collect.")
 	} else if err != nil {
 		return err
 	}
-	st, id, idErr, err := p.open(b, !dryRun, true)
+	st, id, idErr, err := p.open(rt, b, !dryRun, true)
 	if errors.Is(err, state.ErrUntrusted) {
-		return reportUntrusted(err)
+		return reportUntrusted(rt, err)
 	}
 	if err != nil {
 		return err
@@ -102,7 +102,7 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 	prot := st.Protection()
 	switch {
 	case prot.Format < state.FormatImmutable:
-		return gcFormatOne(prot.Format, fmt.Sprintf("The state is format %d: it keeps one object for each resource and has nothing to collect.", prot.Format))
+		return gcFormatOne(rt, prot.Format, fmt.Sprintf("The state is format %d: it keeps one object for each resource and has nothing to collect.", prot.Format))
 	case prot.State == "migrating":
 		return state.ErrSealing
 	case prot.State == "unsealing":
@@ -110,7 +110,7 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 	}
 	// A state that is not sealed in a repository that lists readers may have been
 	// downgraded in the bucket: a collection that deletes is a writer, as any other.
-	if rf := readersOf(p.root); expectsSealed(prot, rf) {
+	if rf := readersOf(rt, p.root); expectsSealed(prot, rf) {
 		problem := downgradeProblem(rf)
 		if !dryRun {
 			return engine.WithCode(engine.ExitRefused, errors.New(problem))
@@ -135,7 +135,7 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 				skipped = "no identity found"
 			}
 		default:
-			if groupsErr = checkReadersFile(p.root, st, !dryRun); groupsErr == nil {
+			if groupsErr = checkReadersFile(rt, p.root, st, !dryRun); groupsErr == nil {
 				groupsErr = atRest(st)
 			}
 			if groupsErr != nil {
@@ -158,7 +158,7 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 	if res.Raised {
 		fmt.Fprintf(os.Stderr, "Warning: --older-than %s is below the least, %s, which keeps the record of a writer that opened the state before a rewrap. Using %s.\n", graceText(grace), graceText(res.Grace), graceText(res.Grace))
 	}
-	if flags.JSON {
+	if rt.flags.JSON {
 		if err := emitJSON(gcJSON(prot.Format, prot.Sealed != nil, res, groups, skipped)); err != nil {
 			return err
 		}
@@ -166,7 +166,7 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 		if groupsErr != nil {
 			skipped = "" // the error says it
 		}
-		printGCReport(res, prot.State == "sealed", groups, skipped)
+		printGCReport(rt, res, prot.State == "sealed", groups, skipped)
 	}
 	if groupsErr != nil {
 		return fmt.Errorf("the groups were not looked at: %w", groupsErr)
@@ -175,11 +175,11 @@ func (p *protectRun) gc(grace time.Duration, dryRun bool) error {
 }
 
 // gcFormatOne reports a state with no records to collect.
-func gcFormatOne(format int, line string) error {
-	if flags.JSON {
+func gcFormatOne(rt *runContext, format int, line string) error {
+	if rt.flags.JSON {
 		return emitJSON(map[string]any{"format": format, "records": map[string]any{"listed": 0, "deleted": 0}, "note": strings.TrimSuffix(line, ".")})
 	}
-	out.Println(line)
+	rt.out.Println(line)
 	return nil
 }
 
@@ -220,7 +220,7 @@ func gcJSON(format int, sealed bool, res state.GCResult, examined bool, skipped 
 	return doc
 }
 
-func printGCReport(res state.GCResult, sealed, groups bool, skipped string) {
+func printGCReport(rt *runContext, res state.GCResult, sealed, groups bool, skipped string) {
 	verb, mark, none := "Deleted", "Marked", "No record is garbage: a pointer names every record."
 	if res.DryRun {
 		verb, mark = "Would delete", "Would mark"
@@ -228,17 +228,17 @@ func printGCReport(res state.GCResult, sealed, groups bool, skipped string) {
 	age, settle := graceText(res.Grace), graceText(res.Settle)
 	switch {
 	case res.Deleted > 0:
-		out.Printf("%s %s older than %s (%s)\n", verb, counted(res.Deleted, "record", "records"), age, bytesText(res.Bytes))
+		rt.out.Printf("%s %s older than %s (%s)\n", verb, counted(res.Deleted, "record", "records"), age, bytesText(res.Bytes))
 	case res.Unnamed > 0 && res.Marked == 0 && res.Settling == 0:
-		out.Printf("No record is older than %s: %s that no pointer names %s kept.\n", age, counted(res.Unnamed, "record", "records"), isAre(res.Unnamed))
+		rt.out.Printf("No record is older than %s: %s that no pointer names %s kept.\n", age, counted(res.Unnamed, "record", "records"), isAre(res.Unnamed))
 	case res.Unnamed == 0 && len(res.Foreign) == 0:
-		out.Println(none)
+		rt.out.Println(none)
 	}
 	if res.Marked > 0 {
-		out.Printf("%s %s that no pointer names. A collection at least %s later deletes the ones that are still unnamed.\n", mark, counted(res.Marked, "record", "records"), settle)
+		rt.out.Printf("%s %s that no pointer names. A collection at least %s later deletes the ones that are still unnamed.\n", mark, counted(res.Marked, "record", "records"), settle)
 	}
 	if res.Settling > 0 {
-		out.Printf("Kept %s that no pointer names: marked less than %s ago.\n", counted(res.Settling, "record", "records"), settle)
+		rt.out.Printf("Kept %s that no pointer names: marked less than %s ago.\n", counted(res.Settling, "record", "records"), settle)
 	}
 	if kept := res.Young + res.Unknown; (res.Deleted > 0 || res.Marked > 0 || res.Settling > 0) && kept > 0 {
 		var why []string
@@ -248,14 +248,14 @@ func printGCReport(res state.GCResult, sealed, groups bool, skipped string) {
 		if res.Unknown > 0 {
 			why = append(why, fmt.Sprintf("%d whose age is not recorded", res.Unknown))
 		}
-		out.Printf("Kept %s that no pointer names: %s\n", counted(kept, "record", "records"), strings.Join(why, ", "))
+		rt.out.Printf("Kept %s that no pointer names: %s\n", counted(kept, "record", "records"), strings.Join(why, ", "))
 	}
 	if n := len(res.Foreign); n > 0 {
 		list := res.Foreign
 		if len(list) > listedNames {
 			list = list[:listedNames]
 		}
-		out.Printf("Left alone %s that do not match their names: %s. pravo did not write them.\n",
+		rt.out.Printf("Left alone %s that do not match their names: %s. pravo did not write them.\n",
 			counted(n, "object in rec/", "objects in rec/"), strings.Join(list, " "))
 	}
 	if !sealed {
@@ -263,15 +263,15 @@ func printGCReport(res state.GCResult, sealed, groups bool, skipped string) {
 	}
 	switch {
 	case skipped != "":
-		out.Println("Groups were not looked at: " + skipped + ".")
+		rt.out.Println("Groups were not looked at: " + skipped + ".")
 		return
 	case res.GroupsRefused != "":
-		out.Println("Groups were kept: " + printable(res.GroupsRefused) + ".")
+		rt.out.Println("Groups were kept: " + printable(res.GroupsRefused) + ".")
 		return
 	case !groups:
 		return
 	case len(res.Groups) == 0:
-		out.Println("No group needs to be dropped: the state has only its current group.")
+		rt.out.Println("No group needs to be dropped: the state has only its current group.")
 		return
 	}
 	drop, rewrap, later := "Dropped", false, false
@@ -281,9 +281,9 @@ func printGCReport(res state.GCResult, sealed, groups bool, skipped string) {
 	for _, g := range res.Groups {
 		switch {
 		case g.Dropped:
-			out.Printf("%s group %s: nothing refers to it.\n", drop, g.ID)
+			rt.out.Printf("%s group %s: nothing refers to it.\n", drop, g.ID)
 		default:
-			out.Printf("Kept group %s: %s.\n", g.ID, groupRefs(g, age))
+			rt.out.Printf("Kept group %s: %s.\n", g.ID, groupRefs(g, age))
 			if g.Records > 0 || g.Outputs || g.Plans > 0 || g.Summaries > 0 {
 				rewrap = true
 			}
@@ -293,10 +293,10 @@ func printGCReport(res state.GCResult, sealed, groups bool, skipped string) {
 		}
 	}
 	if rewrap {
-		out.Println("pravo protect rewrap --all seals records, outputs, stored plans and the texts of errors again under the current group.")
+		rt.out.Println("pravo protect rewrap --all seals records, outputs, stored plans and the texts of errors again under the current group.")
 	}
 	if later {
-		out.Printf("A record that no pointer names is kept until it is older than %s. Run pravo protect gc again then.\n", age)
+		rt.out.Printf("A record that no pointer names is kept until it is older than %s. Run pravo protect gc again then.\n", age)
 	}
 }
 

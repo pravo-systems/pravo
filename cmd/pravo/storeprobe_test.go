@@ -99,14 +99,16 @@ func TestCheckHTTPStore(t *testing.T) {
 }
 
 func TestProbeS3PrintsEachCheck(t *testing.T) {
+	rt := &runContext{}
+
 	t.Setenv("PRAVO_HOME", t.TempDir())
 	var buf bytes.Buffer
-	prev := out
-	out = ui.NewPrinter(&buf, true)
-	t.Cleanup(func() { out = prev })
+	prev := rt.out
+	rt.out = ui.NewPrinter(&buf, true)
+	t.Cleanup(func() { rt.out = prev })
 
 	root, _ := probeRoot(t, false)
-	if err := probeS3(context.Background(), root); err != nil {
+	if err := probeS3(rt, context.Background(), root); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"create only (If-None-Match)", "ok", "concurrent creates", "honours the conditional requests"} {
@@ -120,11 +122,11 @@ func TestProbeS3PrintsEachCheck(t *testing.T) {
 
 	buf.Reset()
 	root, _ = probeRoot(t, true)
-	if err := probeS3(context.Background(), root); err == nil || !strings.Contains(buf.String(), "FAILED") {
+	if err := probeS3(rt, context.Background(), root); err == nil || !strings.Contains(buf.String(), "FAILED") {
 		t.Errorf("a store that ignores a condition: error %v, output:\n%s", err, buf.String())
 	}
 	local := &config.Root{}
-	if err := probeS3(context.Background(), local); err == nil {
+	if err := probeS3(rt, context.Background(), local); err == nil {
 		t.Error("a local state was probed")
 	}
 }

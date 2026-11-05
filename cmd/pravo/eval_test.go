@@ -9,7 +9,7 @@ import (
 )
 
 // run executes pravo eval in dir and returns what it printed.
-func runEval(t *testing.T, dir string, args ...string) (string, error) {
+func runEval(rt *runContext, t *testing.T, dir string, args ...string) (string, error) {
 	t.Helper()
 	old, _ := os.Getwd()
 	if err := os.Chdir(dir); err != nil { //nolint:usetesting // see the deferred Chdir
@@ -19,7 +19,7 @@ func runEval(t *testing.T, dir string, args ...string) (string, error) {
 	r, w, _ := os.Pipe()
 	stdout := os.Stdout
 	os.Stdout = w
-	cmd := evalCmd()
+	cmd := evalCmd(rt)
 	cmd.SetArgs(args)
 	cmd.SilenceUsage, cmd.SilenceErrors = true, true
 	err := cmd.Execute()
@@ -30,6 +30,8 @@ func runEval(t *testing.T, dir string, args ...string) (string, error) {
 }
 
 func TestEvalPrintsTheEvaluatedValue(t *testing.T) {
+	rt := &runContext{}
+
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "cue.mod"), 0o755)
 	os.WriteFile(filepath.Join(dir, "cue.mod", "module.cue"), []byte("module: \"x.dev/learn\"\nlanguage: version: \"v0.14.0\"\n"), 0o644)
@@ -47,7 +49,7 @@ env:   *"dev" | "prod" @tag(env)
 open:  #Bucket & {name: "x"}
 `), 0o644)
 
-	out, err := runEval(t, dir)
+	out, err := runEval(rt, t, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,13 +61,13 @@ open:  #Bucket & {name: "x"}
 	if strings.Contains(out, "for s in") || strings.HasPrefix(out, "{") {
 		t.Errorf("comprehensions are expanded and the root has no braces:\n%s", out)
 	}
-	if out, _ := runEval(t, dir, "-e", "logs.tags.team"); strings.TrimSpace(out) != `"platform"` {
+	if out, _ := runEval(rt, t, dir, "-e", "logs.tags.team"); strings.TrimSpace(out) != `"platform"` {
 		t.Errorf("-e printed %q", out)
 	}
-	if out, _ := runEval(t, dir, "-e", "len(sizes)"); strings.TrimSpace(out) != "2" {
+	if out, _ := runEval(rt, t, dir, "-e", "len(sizes)"); strings.TrimSpace(out) != "2" {
 		t.Errorf("-e on an expression printed %q", out)
 	}
-	if _, err := runEval(t, dir, "-c"); err == nil || !strings.Contains(err.Error(), "not concrete") {
+	if _, err := runEval(rt, t, dir, "-c"); err == nil || !strings.Contains(err.Error(), "not concrete") {
 		t.Errorf("-c must refuse the incomplete value: %v", err)
 	}
 }

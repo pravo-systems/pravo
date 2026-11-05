@@ -66,9 +66,9 @@ type sessionOptions struct {
 // loadRoot loads and evaluates the specification in the working directory. An
 // error from loading or evaluating it exits with ExitInvalid, in every
 // command.
-func loadRoot() (*config.Root, error) {
+func loadRoot(rt *runContext) (*config.Root, error) {
 	ctx, end := setupSpan("load specification")
-	root, err := config.Load(".", config.LoadOptions{Tags: flags.Tags, SysTags: flags.SysTags, Context: ctx, Env: environment()})
+	root, err := config.Load(".", config.LoadOptions{Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Context: ctx, Env: environment()})
 	end(err)
 	if err != nil {
 		return nil, engine.WithCode(engine.ExitInvalid, err)
@@ -82,7 +82,7 @@ func setupSpan(name string, attrs ...attribute.KeyValue) (context.Context, func(
 	return telemetry.Span(commandContext(), "setup "+name, attrs...)
 }
 
-func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
+func newSession(rt *runContext, ctx context.Context, opts sessionOptions) (*session, error) {
 	mode := pravo.StateNone
 	switch {
 	case opts.loadState && opts.readOnlyState:
@@ -94,22 +94,22 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 	ws, err := pravo.Open(ctx, pravo.Config{
 		EngineDefaults: func(o *engine.Options) {
 			if s != nil {
-				s.readersInto(o)
+				s.readersInto(rt, o)
 			}
 		},
-		Tags: flags.Tags, SysTags: flags.SysTags, Env: environment(), Root: opts.root,
+		Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Env: environment(), Root: opts.root,
 		Install: opts.install, Upgrade: opts.upgrade, Schemas: opts.schemas, State: mode, RelockModules: opts.relockModules,
-		Actor: flags.Actor, Reason: flags.Reason, Args: os.Args[1:],
+		Actor: rt.flags.Actor, Reason: rt.flags.Reason, Args: os.Args[1:],
 		OpenState: func(ctx context.Context, root *config.Root, mode pravo.StateMode) (*state.Store, error) {
 			if mode == pravo.StateRead {
-				return openStateValues(ctx, root)
+				return openStateValues(rt, ctx, root)
 			}
 			var st *state.Store
 			var err error
 			if opts.planning {
-				st, err = openStateForPlan(ctx, root)
+				st, err = openStateForPlan(rt, ctx, root)
 			} else {
-				st, err = openState(ctx, root)
+				st, err = openState(rt, ctx, root)
 			}
 			if err != nil {
 				return nil, err
@@ -118,7 +118,7 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 			// a writer would give a record that a reader sealed the signature of its own
 			// transaction. The state commands do not come through here: they are how a
 			// record like that is removed.
-			if err := checkBoundRecords(root, st); err != nil {
+			if err := checkBoundRecords(rt, root, st); err != nil {
 				st.Close()
 				return nil, err
 			}
@@ -130,10 +130,10 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 		// none named like the user, the one whose reader key has a lock in it is
 		// chosen, as it is for the state of this root.
 		Identity: func(readers []protect.ReaderPublic) (*protect.Identity, error) {
-			return resolveIdentity(identityOptions{Name: flags.Identity, Prompt: identityPrompt, Readers: readers})
+			return resolveIdentity(identityOptions{Name: rt.flags.Identity, Prompt: identityPrompt, Readers: readers})
 		},
-		Log:      func(msg string) { out.Println(msg) },
-		Progress: func(format string, args ...any) { out.Printf(format+"\n", args...) },
+		Log:      func(msg string) { rt.out.Println(msg) },
+		Progress: func(format string, args ...any) { rt.out.Printf(format+"\n", args...) },
 	})
 	if err != nil {
 		return nil, err
@@ -143,7 +143,7 @@ func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
 		s.value = s.root.Value
 	}
 	if !opts.regenerates {
-		s.warnStaleSchemas()
+		s.warnStaleSchemas(rt)
 	}
 	return s, nil
 }
@@ -158,10 +158,10 @@ func (s *session) close() {
 	s.ws.Close()
 }
 
-func (s *session) engine(opts engine.Options) *engine.Engine {
-	opts.Actor, opts.Reason = flags.Actor, flags.Reason
-	s.readersInto(&opts)
-	if flags.JSON && streamEvents && opts.Event == nil {
+func (s *session) engine(rt *runContext, opts engine.Options) *engine.Engine {
+	opts.Actor, opts.Reason = rt.flags.Actor, rt.flags.Reason
+	s.readersInto(rt, &opts)
+	if rt.flags.JSON && streamEvents && opts.Event == nil {
 		// Only commands that change things stream events; plan-like
 		// commands print a single document.
 		opts.Event = func(ev engine.Event) { emitLine(ev) }
@@ -171,8 +171,8 @@ func (s *session) engine(opts engine.Options) *engine.Engine {
 
 // readersInto gives the options the readers that judge signatures, and the vouched
 // transactions of the roles in the state.
-func (s *session) readersInto(opts *engine.Options) {
-	rf := readersOf(s.root)
+func (s *session) readersInto(rt *runContext, opts *engine.Options) {
+	rf := readersOf(rt, s.root)
 	// The roles that decide are those in the state when the readers file pins them. A chain
 	// that does not verify was refused when the state was opened.
 	if eff, rs, err := rf.withRoles(s.state); err == nil {
@@ -190,20 +190,20 @@ func (s *session) readersInto(opts *engine.Options) {
 		if s.envs == nil {
 			s.envs = &environmentsOf{root: s.root}
 		}
-		opts.UpstreamReaders = s.envs.readers
+		opts.UpstreamReaders = func(env string) (engine.Judges, error) { return s.envs.readers(rt, env) }
 	}
 }
 
 // openState opens the configured state backend.
-func openState(ctx context.Context, root *config.Root) (*state.Store, error) {
-	return openStateStore(ctx, root)
+func openState(rt *runContext, ctx context.Context, root *config.Root) (*state.Store, error) {
+	return openStateStore(rt, ctx, root)
 }
 
 // openStateStore opens the state of the root for a command that writes it. A
 // sealed state needs the identity of a reader and a readers file that matches
 // the state.
-func openStateStore(ctx context.Context, root *config.Root) (*state.Store, error) {
-	st, _, err := openStateAs(ctx, root, true, false, false)
+func openStateStore(rt *runContext, ctx context.Context, root *config.Root) (*state.Store, error) {
+	st, _, err := openStateAs(rt, ctx, root, true, false, false)
 	return st, err
 }
 
@@ -211,8 +211,8 @@ func openStateStore(ctx context.Context, root *config.Root) (*state.Store, error
 // state opens it as openState does. A reader gets the same state with its writes held
 // in memory: the plan refreshes what it reads and leaves the bucket as it found it, and
 // only a stored plan is written. See Role in internal/protect.
-func openStateForPlan(ctx context.Context, root *config.Root) (*state.Store, error) {
-	st, _, err := openStateAs(ctx, root, true, false, true)
+func openStateForPlan(rt *runContext, ctx context.Context, root *config.Root) (*state.Store, error) {
+	st, _, err := openStateAs(rt, ctx, root, true, false, true)
 	return st, err
 }
 
@@ -228,7 +228,7 @@ var stateInMemory bool
 // command that needs values gets the refusal of a store that is not read, unless
 // allowLocked is set. A command that writes also needs a readers
 // file that matches the state; one that reads only warns.
-func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, planning bool) (st *state.Store, why *noKey, err error) {
+func openStateAs(rt *runContext, ctx context.Context, root *config.Root, write, allowLocked, planning bool) (st *state.Store, why *noKey, err error) {
 	// A sealed state is opened once: the store asks which identity to open it with when
 	// it has read meta.json, and the answer, or why there is none, is kept here.
 	var (
@@ -240,12 +240,12 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 		so := pravo.StoreOptions{
 			Write: write, Overlay: overlay || stateInMemory, Identity: id, Env: environment(),
 			CheckConditions: func(ctx context.Context, b state.Backend) error { return checkStoreConditions(ctx, root, b) },
-			Warn:            func(msg string) { out.Warning(msg) },
+			Warn:            func(msg string) { rt.out.Warning(msg) },
 		}
 		if id == nil {
 			so.Choose = func(readers []pravo.ReaderPublic) (*protect.Identity, error) {
 				choseID = true
-				chosen, idErr = resolveIdentity(identityOptions{Name: flags.Identity, Prompt: identityPrompt, Readers: readers})
+				chosen, idErr = resolveIdentity(identityOptions{Name: rt.flags.Identity, Prompt: identityPrompt, Readers: readers})
 				return chosen, idErr
 			}
 		}
@@ -256,8 +256,8 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 	// not exist yet is not one. Whether it exists is looked at before the open, which
 	// would make it, in format 1.
 	missing, overlay := false, false
-	if rf := readersOf(root); rf.Found && stateMissing(ctx, root) {
-		problem := missingStateProblemOf(ctx, root, rf)
+	if rf := readersOf(rt, root); rf.Found && stateMissing(ctx, root) {
+		problem := missingStateProblemOf(rt, ctx, root, rf)
 		if write {
 			return nil, nil, engine.WithCode(engine.ExitRefused, errors.New(problem))
 		}
@@ -271,13 +271,13 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 		return st, nil, nil // an empty state, read and not created
 	}
 	if !choseID && !st.Locked() {
-		return st, nil, checkReadersFile(root, st, write)
+		return st, nil, checkReadersFile(rt, root, st, write)
 	}
 	// The state is sealed.
 	id := chosen
 	if choseID && idErr == nil && !st.Locked() {
 		// A reader who plans works on the state in memory.
-		if msg, _ := roleProblem(readersOf(root), st, protect.RoleWriter, ""); write && planning && msg != "" {
+		if msg, _ := roleProblem(readersOf(rt, root), st, protect.RoleWriter, ""); write && planning && msg != "" {
 			st.Close()
 			if st, err = open(id, true); err != nil {
 				return nil, nil, err
@@ -288,23 +288,23 @@ func openStateAs(ctx context.Context, root *config.Root, write, allowLocked, pla
 	if st.Locked() {
 		why = &noKey{id: id, err: idErr}
 		if !allowLocked {
-			return nil, why, engine.WithCode(engine.ExitRefused, why.error(root))
+			return nil, why, engine.WithCode(engine.ExitRefused, why.error(rt, root))
 		}
 		if idErr != nil && !errors.Is(idErr, errNoIdentity) {
 			fmt.Fprintln(stderr(), "Warning: "+idErr.Error())
 		}
 	}
 	if write && !st.Locked() {
-		bindRecordsOf(root, st)
+		bindRecordsOf(rt, root, st)
 	}
-	return st, why, checkReadersFile(root, st, write && !st.Locked() && !overlay)
+	return st, why, checkReadersFile(rt, root, st, write && !st.Locked() && !overlay)
 }
 
 // bindRecordsOf makes a command that writes without an engine (state mv, import) sign the
 // records it writes into a state with roles, as the engine does: otherwise protect status
 // takes them for records from before the roles.
-func bindRecordsOf(root *config.Root, st *state.Store) {
-	if eff, _, err := readersOf(root).withRoles(st); err == nil {
+func bindRecordsOf(rt *runContext, root *config.Root, st *state.Store) {
+	if eff, _, err := readersOf(rt, root).withRoles(st); err == nil {
 		st.BindRecords(protect.RolesOn(eff.Readers))
 	}
 }
@@ -365,8 +365,8 @@ type noKey struct {
 	err error
 }
 
-func (k *noKey) error(root *config.Root) error {
-	return notReaderError(readersOf(root), k.id, k.err)
+func (k *noKey) error(rt *runContext, root *config.Root) error {
+	return notReaderError(readersOf(rt, root), k.id, k.err)
 }
 
 // remoteBackend opens the bucket or the server that the root keeps its state on.
@@ -379,14 +379,14 @@ func remoteBackend(ctx context.Context, root *config.Root) (state.Backend, error
 // created: opening a store otherwise makes the directory and writes its
 // metadata. A sealed state that cannot be opened with an identity is returned
 // locked (see state.Store.Locked); commands that need values check for that.
-func openStateReadOnly(ctx context.Context, root *config.Root) (*state.Store, error) {
-	st, _, err := openStateReadOnlyWhy(ctx, root)
+func openStateReadOnly(rt *runContext, ctx context.Context, root *config.Root) (*state.Store, error) {
+	st, _, err := openStateReadOnlyWhy(rt, ctx, root)
 	return st, err
 }
 
-func openStateReadOnlyWhy(ctx context.Context, root *config.Root) (*state.Store, *noKey, error) {
+func openStateReadOnlyWhy(rt *runContext, ctx context.Context, root *config.Root) (*state.Store, *noKey, error) {
 	began := time.Now()
-	st, why, err := openStateAs(ctx, root, false, true, false)
+	st, why, err := openStateAs(rt, ctx, root, false, true, false)
 	if err == nil {
 		plog.Debug(ctx, "state opened for reading", "backend", pravo.BackendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", took(began))
 	}
@@ -395,13 +395,13 @@ func openStateReadOnlyWhy(ctx context.Context, root *config.Root) (*state.Store,
 
 // openStateValues is openStateReadOnly for a command that prints values: a
 // locked store is refused.
-func openStateValues(ctx context.Context, root *config.Root) (*state.Store, error) {
-	st, why, err := openStateReadOnlyWhy(ctx, root)
+func openStateValues(rt *runContext, ctx context.Context, root *config.Root) (*state.Store, error) {
+	st, why, err := openStateReadOnlyWhy(rt, ctx, root)
 	if err != nil {
 		return nil, err
 	}
 	if st.Locked() {
-		return nil, engine.WithCode(engine.ExitRefused, why.error(root))
+		return nil, engine.WithCode(engine.ExitRefused, why.error(rt, root))
 	}
 	return st, nil
 }
@@ -436,7 +436,7 @@ func genPackage(src registry.Source) (importPath, pkgName string) {
 // writeGenerated writes the generated CUE packages under cue.mod/gen: one
 // per provider, holding every definition the provider offers, and
 // pravo.dev/pravo with the settings schema. Specifications import them.
-func (s *session) writeGenerated(verbose bool) error {
+func (s *session) writeGenerated(rt *runContext, verbose bool) error {
 	root := s.root
 	modDir, ok := root.ModuleDir()
 	if !ok {
@@ -448,11 +448,11 @@ func (s *session) writeGenerated(verbose bool) error {
 		if _, err := pravo.WriteIfChanged(filepath.Join(modDir, "module.cue"), []byte(content)); err != nil {
 			return err
 		}
-		out.Printf("Created %s\n", filepath.Join("cue.mod", "module.cue"))
+		rt.out.Printf("Created %s\n", filepath.Join("cue.mod", "module.cue"))
 		root.ModRoot = root.Dir
 	} else if root.SharedModule() && verbose {
 		rel, _ := filepath.Rel(root.Dir, root.ModRoot)
-		out.Printf("Using the module at %s\n", rel)
+		rt.out.Printf("Using the module at %s\n", rel)
 	}
 	locals := make([]string, 0, len(s.schemas))
 	for l := range s.schemas {
@@ -482,7 +482,7 @@ func (s *session) writeGenerated(verbose bool) error {
 			if !changed {
 				verb = "Up to date"
 			}
-			out.Printf("%s %s (%d resource types, %d data sources, %d ephemeral, %d functions)\n", verb, filepath.Join("cue.mod", "gen", filepath.FromSlash(importPath)), len(ps.SortedResourceNames()), len(ps.SortedDataSourceNames()), len(ps.SortedEphemeralNames()), len(ps.SortedFunctionNames()))
+			rt.out.Printf("%s %s (%d resource types, %d data sources, %d ephemeral, %d functions)\n", verb, filepath.Join("cue.mod", "gen", filepath.FromSlash(importPath)), len(ps.SortedResourceNames()), len(ps.SortedDataSourceNames()), len(ps.SortedEphemeralNames()), len(ps.SortedFunctionNames()))
 		}
 	}
 	pdir := filepath.Join(modDir, "gen", "pravo.dev", "pravo")
@@ -496,7 +496,7 @@ func (s *session) writeGenerated(verbose bool) error {
 // warnStaleSchemas tells the user when a generated provider package was made
 // from a different provider version than the one now selected: the
 // definitions a specification is checked against would be out of date.
-func (s *session) warnStaleSchemas() {
+func (s *session) warnStaleSchemas(rt *runContext) {
 	modDir, ok := s.root.ModuleDir()
 	if !ok {
 		return
@@ -513,7 +513,7 @@ func (s *session) warnStaleSchemas() {
 		first, _, _ := strings.Cut(string(b), "\n")
 		want := fmt.Sprintf("// Provider %s v%s", rp.Req.Source.String(), rp.Version)
 		if first != want {
-			out.Warning(fmt.Sprintf("the generated schema for provider %s was made from a different version than the selected v%s; run \"pravo init\" to refresh it", local, rp.Version))
+			rt.out.Warning(fmt.Sprintf("the generated schema for provider %s was made from a different version than the selected v%s; run \"pravo init\" to refresh it", local, rp.Version))
 		}
 	}
 }
@@ -521,8 +521,8 @@ func (s *session) warnStaleSchemas() {
 // checkBoundRecords refuses a sealed state, in a repository whose readers file gives roles,
 // that holds a record which no verified transaction of a writer names (see
 // state.Store.VerifyRecords). It checks every record, reading each transaction once.
-func checkBoundRecords(root *config.Root, st *state.Store) error {
-	rf := readersOf(root)
+func checkBoundRecords(rt *runContext, root *config.Root, st *state.Store) error {
+	rf := readersOf(rt, root)
 	if !rf.Found || rf.Err != nil || st.Locked() || !isSealed(st.Protection()) {
 		return nil
 	}

@@ -13,7 +13,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/ui"
 )
 
-func protectStatusCmd() *cobra.Command {
+func protectStatusCmd(rt *runContext) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show whether the state is sealed, to whom, and whether it verifies",
@@ -26,23 +26,23 @@ It writes nothing.
 It exits with 7 if a record does not match its name.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			p, err := newProtectRun(cmd)
+			p, err := newProtectRun(rt, cmd)
 			if err != nil {
 				return err
 			}
-			return p.status()
+			return p.status(rt)
 		},
 	}
 }
 
-func (p *protectRun) status() error {
+func (p *protectRun) status(rt *runContext) error {
 	b, err := p.backend(false)
 	if err != nil {
 		return err
 	}
-	st, id, idErr, err := p.open(b, false, true)
+	st, id, idErr, err := p.open(rt, b, false, true)
 	if errors.Is(err, state.ErrUntrusted) {
-		return reportUntrusted(err)
+		return reportUntrusted(rt, err)
 	}
 	if err != nil {
 		return err
@@ -65,7 +65,7 @@ func (p *protectRun) status() error {
 	if err := r.check(); err != nil {
 		return err
 	}
-	if err := r.emit(); err != nil {
+	if err := r.emit(rt); err != nil {
 		return err
 	}
 	return r.verdict()
@@ -289,12 +289,12 @@ func (r *statusReport) checkSignatures() error {
 
 // emit prints the report, as one JSON document or as the rows and the untrusted
 // objects under them.
-func (r *statusReport) emit() error {
+func (r *statusReport) emit(rt *runContext) error {
 	p, prot, rf, sealed, none, expects := r.p, r.prot, r.rf, r.sealed, r.none, r.expects
 	erf, rstat, st := r.erf, r.rstat, r.st
 	sigs, recs, secs, lostPolicies, envProblem := r.sigs, r.recs, r.secs, r.lostPolicies, r.envProblem
 	ver, interrupted, rows, recoveryFileState := r.ver, r.interrupted, r.rows, r.recoveryFileState
-	if flags.JSON {
+	if rt.flags.JSON {
 		doc := map[string]any{"state": prot.State, "format": prot.Format, "store": p.location(), "records": prot.Records,
 			"readers": protectedNames(prot), "checked": ver.Checked, "untrusted": ver.Bad, "unsettled": len(interrupted)}
 		if none {
@@ -335,30 +335,30 @@ func (r *statusReport) emit() error {
 		}
 	} else {
 		for _, r := range rows {
-			out.Printf("%-12s %s\n", r[0], r[1])
+			rt.out.Printf("%-12s %s\n", r[0], r[1])
 		}
 		for _, bad := range ver.Bad {
-			out.Println(out.C(ui.Red, "Untrusted: "+printable(bad)+" does not match its name"))
+			rt.out.Println(rt.out.C(ui.Red, "Untrusted: "+printable(bad)+" does not match its name"))
 		}
 		if sigs != nil {
 			for _, id := range sigs.Bad {
-				out.Println(out.C(ui.Red, "Untrusted: txn/"+printable(id)+".json has a signature that does not verify"))
+				rt.out.Println(rt.out.C(ui.Red, "Untrusted: txn/"+printable(id)+".json has a signature that does not verify"))
 			}
 		}
 		for _, m := range lostPolicies {
-			out.Println(out.C(ui.Red, "Untrusted: "+printable(m.Error())))
+			rt.out.Println(rt.out.C(ui.Red, "Untrusted: "+printable(m.Error())))
 		}
 		if envProblem != nil {
-			out.Println(out.C(ui.Red, "Untrusted: "+printable(envProblem.Error())))
+			rt.out.Println(rt.out.C(ui.Red, "Untrusted: "+printable(envProblem.Error())))
 		}
 		if recs != nil {
 			for _, pr := range recs.Problems {
-				out.Println(out.C(ui.Red, "Untrusted: "+printable(pr.Addr)+": "+printable(pr.Why)))
+				rt.out.Println(rt.out.C(ui.Red, "Untrusted: "+printable(pr.Addr)+": "+printable(pr.Why)))
 			}
 		}
 		if secs != nil {
 			for _, pr := range secs.Problems {
-				out.Println(out.C(ui.Red, "Untrusted: "+secretProblemText(pr)))
+				rt.out.Println(rt.out.C(ui.Red, "Untrusted: "+secretProblemText(pr)))
 			}
 		}
 	}
