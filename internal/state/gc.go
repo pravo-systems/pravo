@@ -242,43 +242,104 @@ func (s *Store) GC(ctx context.Context, o GCOptions) (GCResult, error) {
 	if o.Now != nil {
 		now = o.Now
 	}
+	m, err := s.gcCheck(ctx, o)
+	if err != nil {
+		return res, err
+	}
+	wantGroups := o.Groups && m.Sealed != nil
+
+	named, read, err := s.gcListRecords(ctx, wantGroups, &res)
+	if err != nil {
+		return res, err
+	}
+	byKey, err := s.gcReadHeads(ctx, read, named)
+	if err != nil {
+		return res, err
+	}
+
+	// The marks of the earlier collections. A record is garbage when it is older
+	// than the grace by its own times and an earlier collection found it unnamed
+	// at least the settle interval ago. The first look marks it.
+	marks, err := s.readMarks(ctx)
+	if err != nil {
+		return res, err
+	}
+	seen := map[string]bool{}       // the records that are unnamed now
+	added := map[string]time.Time{} // the marks this collection makes
+	garbage := gcClassify(&res, read, named, byKey, marks, seen, added, now())
+
+	gone := map[string]bool{}
+	var firstErr error
+	if len(garbage) > 0 {
+		// The pointers as they are now: a writer that named one of these since the
+		// listing keeps it.
+		fresh, err := s.namedRecords()
+		if err != nil {
+			return res, err
+		}
+		firstErr = s.gcDelete(ctx, o.DryRun, garbage, fresh, byKey, gone, &res)
+		named = fresh
+	}
+	// The marks are written after the delete: a collection that stops between the
+	// two has deleted only records that an earlier one had marked.
+	if !o.DryRun {
+		for k := range named { // a pointer names it now
+			delete(seen, k)
+		}
+		if err := s.writeMarks(ctx, seen, added, gone); err != nil {
+			firstErr = errors.Join(firstErr, err)
+		}
+	}
+	if firstErr != nil {
+		return res, firstErr
+	}
+	if !wantGroups {
+		return res, nil
+	}
+	return res, s.gcGroups(ctx, o, &res, m, named, byKey, gone)
+}
+
+// gcCheck reads meta.json and refuses a state that cannot be collected, or an ask for
+// dropping groups that cannot be met.
+func (s *Store) gcCheck(ctx context.Context, o GCOptions) (*meta, error) {
 	m, err := readMeta(ctx, s.b)
 	switch {
 	case err != nil:
-		return res, fmt.Errorf("reading meta.json of the state at %s: %w", s.b.Name(), err)
+		return nil, fmt.Errorf("reading meta.json of the state at %s: %w", s.b.Name(), err)
 	case m.Lineage != s.Lineage():
-		return res, fmt.Errorf("the lineage of the state at %s changed since it was opened", s.b.Name())
+		return nil, fmt.Errorf("the lineage of the state at %s changed since it was opened", s.b.Name())
 	case m.Format < FormatImmutable:
-		return res, ErrNoRecords
+		return nil, ErrNoRecords
 	case m.Migration != nil && m.Migration.Unseal:
-		return res, ErrUnsealing
+		return nil, ErrUnsealing
 	case m.Migration != nil:
-		return res, ErrSealing
+		return nil, ErrSealing
 	}
-	wantGroups := o.Groups && m.Sealed != nil
 	if o.Groups {
 		if s.Locked() {
-			return res, fmt.Errorf("dropping groups needs a reader: %w", ErrNotReader)
+			return nil, fmt.Errorf("dropping groups needs a reader: %w", ErrNotReader)
 		}
 		if o.Plans == nil {
-			return res, errors.New("dropping groups needs the count of the stored plans")
+			return nil, errors.New("dropping groups needs the count of the stored plans")
 		}
 		if err := s.checkAtRest(); err != nil {
-			return res, err
+			return nil, err
 		}
 	}
+	return m, nil
+}
 
+// gcListRecords lists the records, counts the ones a pointer names, and returns the keys to read.
+func (s *Store) gcListRecords(ctx context.Context, wantGroups bool, res *GCResult) (named map[string]bool, read []string, err error) {
 	listed, err := s.b.List(ctx, "rec")
 	if err != nil {
-		return res, err
+		return nil, nil, err
 	}
 	keys := slices.DeleteFunc(slices.Clone(listed), func(k string) bool { return !validRecKey(k) })
-	named, err := s.namedRecords()
-	if err != nil {
-		return res, err
+	if named, err = s.namedRecords(); err != nil {
+		return nil, nil, err
 	}
 	res.Listed = len(keys)
-	var read []string
 	for _, k := range keys {
 		if named[k] {
 			res.Named++
@@ -289,7 +350,11 @@ func (s *Store) GC(ctx context.Context, o GCOptions) (GCResult, error) {
 			read = append(read, k)
 		}
 	}
+	return named, read, nil
+}
 
+// gcReadHeads reads the head of each record to read.
+func (s *Store) gcReadHeads(ctx context.Context, read []string, named map[string]bool) (map[string]*recHead, error) {
 	heads := make([]*recHead, len(read))
 	var (
 		mu       sync.Mutex
@@ -309,29 +374,21 @@ func (s *Store) GC(ctx context.Context, o GCOptions) (GCResult, error) {
 		heads[i] = h
 	})
 	if firstErr != nil {
-		return res, firstErr
+		return nil, firstErr
 	}
 	if err := ctx.Err(); err != nil {
-		return res, err
+		return nil, err
 	}
 	byKey := make(map[string]*recHead, len(read))
 	for i, k := range read {
 		byKey[k] = heads[i]
 	}
+	return byKey, nil
+}
 
-	// The marks of the earlier collections. A record is garbage when it is older
-	// than the grace by its own times and an earlier collection found it unnamed
-	// at least the settle interval ago. The first look marks it.
-	marks, err := s.readMarks(ctx)
-	if err != nil {
-		return res, err
-	}
-	var (
-		garbage []string
-		seen    = map[string]bool{}      // the records that are unnamed now
-		added   = map[string]time.Time{} // the marks this collection makes
-		at      = now()
-	)
+// gcClassify counts the records that no pointer names, and returns the ones that are garbage.
+// It adds the unnamed records to seen and the marks to make to added.
+func gcClassify(res *GCResult, read []string, named map[string]bool, byKey map[string]*recHead, marks map[string]time.Time, seen map[string]bool, added map[string]time.Time, at time.Time) (garbage []string) {
 	for _, k := range read {
 		h := byKey[k]
 		if named[k] || h.missing {
@@ -362,67 +419,48 @@ func (s *Store) GC(ctx context.Context, o GCOptions) (GCResult, error) {
 			}
 		}
 	}
+	return garbage
+}
 
-	gone := map[string]bool{}
-	if len(garbage) > 0 {
-		// The pointers as they are now: a writer that named one of these since the
-		// listing keeps it.
-		fresh, err := s.namedRecords()
-		if err != nil {
-			return res, err
+// gcDelete deletes the garbage that no pointer names now, and puts the keys that are gone in
+// gone. It returns the errors of the deletes.
+func (s *Store) gcDelete(ctx context.Context, dryRun bool, garbage []string, fresh map[string]bool, byKey map[string]*recHead, gone map[string]bool, res *GCResult) error {
+	var (
+		mu       sync.Mutex
+		firstErr error
+		deleted  atomic.Int64
+		size     atomic.Int64
+	)
+	s.each(len(garbage), func(i int) {
+		k := garbage[i]
+		if ctx.Err() != nil || fresh[k] {
+			return
 		}
-		var (
-			deleted atomic.Int64
-			size    atomic.Int64
-		)
-		s.each(len(garbage), func(i int) {
-			k := garbage[i]
-			if ctx.Err() != nil || fresh[k] {
-				return
-			}
-			h := byKey[k]
-			if o.DryRun {
-				deleted.Add(1)
-				size.Add(int64(h.size))
-				mu.Lock()
-				gone[k] = true
-				mu.Unlock()
-				return
-			}
-			ok, err := s.b.DeleteIf(ctx, k, func(cur []byte) bool { return bytes.Equal(cur, h.data) })
+		h := byKey[k]
+		if dryRun {
+			deleted.Add(1)
+			size.Add(int64(h.size))
 			mu.Lock()
-			defer mu.Unlock()
-			switch {
-			case errors.Is(err, ErrNotFound):
-				gone[k] = true // someone else deleted it
-			case err != nil:
-				firstErr = errors.Join(firstErr, fmt.Errorf("deleting %s: %w", k, err))
-			case ok:
-				deleted.Add(1)
-				size.Add(int64(h.size))
-				gone[k] = true
-			}
-		})
-		res.Deleted, res.Bytes = int(deleted.Load()), size.Load()
-		named = fresh
-	}
-	// The marks are written after the delete: a collection that stops between the
-	// two has deleted only records that an earlier one had marked.
-	if !o.DryRun {
-		for k := range named { // a pointer names it now
-			delete(seen, k)
+			gone[k] = true
+			mu.Unlock()
+			return
 		}
-		if err := s.writeMarks(ctx, seen, added, gone); err != nil {
-			firstErr = errors.Join(firstErr, err)
+		ok, err := s.b.DeleteIf(ctx, k, func(cur []byte) bool { return bytes.Equal(cur, h.data) })
+		mu.Lock()
+		defer mu.Unlock()
+		switch {
+		case errors.Is(err, ErrNotFound):
+			gone[k] = true // someone else deleted it
+		case err != nil:
+			firstErr = errors.Join(firstErr, fmt.Errorf("deleting %s: %w", k, err))
+		case ok:
+			deleted.Add(1)
+			size.Add(int64(h.size))
+			gone[k] = true
 		}
-	}
-	if firstErr != nil {
-		return res, firstErr
-	}
-	if !wantGroups {
-		return res, nil
-	}
-	return res, s.gcGroups(ctx, o, &res, m, named, byKey, gone)
+	})
+	res.Deleted, res.Bytes = int(deleted.Load()), size.Load()
+	return firstErr
 }
 
 // gcMarks is the contents of gc/marks.json.
