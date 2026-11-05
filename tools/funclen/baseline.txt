@@ -27,8 +27,7 @@ internal/config/providers.go Root.resolveProviders 136
 internal/config/providers.go ScanProviders 104
 internal/convert/fromtf.go fillValue 105
 internal/convert/refs.go analyse 191
-internal/engine/apply.go Engine.applyRun 225
-internal/engine/apply.go Engine.applyTask 168
+internal/engine/apply.go Engine.applyRun 108
 internal/engine/engine.go Engine.planRun 116
 internal/engine/graph.go Engine.run 107
 internal/engine/orphans.go inReverse 122
