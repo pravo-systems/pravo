@@ -449,7 +449,7 @@ func (s *session) writeGenerated(verbose bool) error {
 		}
 		name := strings.NewReplacer(" ", "-", "_", "-").Replace(strings.ToLower(filepath.Base(root.Dir)))
 		content := fmt.Sprintf("module: %q\nlanguage: version: \"v0.14.0\"\n", "pravo.local/"+name)
-		if err := os.WriteFile(filepath.Join(modDir, "module.cue"), []byte(content), 0o644); err != nil {
+		if _, err := pravo.WriteIfChanged(filepath.Join(modDir, "module.cue"), []byte(content)); err != nil {
 			return err
 		}
 		out.Printf("Created %s\n", filepath.Join("cue.mod", "module.cue"))
