@@ -192,4 +192,6 @@ The page runs nothing and writes nothing. It shows each command, and a button co
 pravo discover --all && pravo discover show --exit-code
 ```
 
+A key that reads and does not write (a reader of a state with roles) runs the check in one command, `pravo discover --all --exit-code`: the run is held in memory and the state keeps nothing of it.
+
 Acknowledge what is allowed, and the check passes. [Run pravo in a pipeline](ci.md) shows how to run a command from one.

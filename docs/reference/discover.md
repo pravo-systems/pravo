@@ -29,10 +29,13 @@ A discovery that fails does not stop the others. Its error is printed, its last 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--all` | off | Run every discovery. Not with names. |
+| `--exit-code` | off | Exit 2 when an object of the discoveries it ran is unmanaged. |
 | `-t`, `--tag key=value` | none | Inject a value for an `@tag()` field. Repeatable. |
 | `-T`, `--inject-vars` | off | Inject the system variables of CUE. |
 
 With `--json` it prints one document, the one of `show --json` for the discoveries it ran.
+
+A reader of a state with roles may run it, since it only lists. The run is shown and held in memory, as a reader's plan is, and the state keeps nothing of it, so the line `Not kept` says so. A later `show` reads the last run of a writer. `--exit-code` makes the run itself the check, with no `show` after it.
 
 ## pravo discover show
 
@@ -50,7 +53,7 @@ For each discovery it prints the name, the type and the provider instance, the s
 
 `pravo discover adopt NAME ID [--read]` prints the CUE of a resource that adopts one object of the last run: a struct of the type of the discovery, built through its provider, with `$import` set to the identity of the object, the attributes the provider listed it by. `ID` is the id that the listing shows, or the whole identity. Nothing is written to the specification or the state.
 
-Without `--read` the resource has the import and nothing else. With it the provider is asked for the object, as a plan of an `$import` asks, and the attributes it has are written into the resource: the ones that are not computed alone, no null, no write-only attribute. A sensitive attribute is named in a comment and its value is not written. The result is laid out as `pravo fmt` does.
+Without `--read` the resource has the import and nothing else. With it the provider is asked for the object, as a plan of an `$import` asks, and the attributes it has are written into the resource: the ones that are not computed alone, no null, no write-only attribute, no `id`, and no optional string that the provider reads as `""` because it has no value for it. A sensitive attribute is named in a comment and its value is not written. The result is laid out as `pravo fmt` does.
 
 The identity is written as the provider gave it, whatever it is made of, and no id has to be found. An attribute that is null is left out, since the provider fills it in. An object that is managed is refused. An object that a resource already adopts is printed with a note.
 

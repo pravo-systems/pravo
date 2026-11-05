@@ -12,6 +12,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/plugin"
+	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -569,5 +570,29 @@ func TestDiscoverConfiguresTheProviderFromTheState(t *testing.T) {
 	}
 	if h2.fake.called("ListResource") != 0 {
 		t.Error("the provider listed with a configuration that was not known")
+	}
+}
+
+// A provider reads an optional string it has no value for as "", and the id of a resource is
+// not set in a specification: neither is written into an adopting resource.
+func TestRenderAdoptionLeavesOutEmptyStringsAndTheId(t *testing.T) {
+	blk := &schema.Block{Attributes: []*schema.Attribute{
+		{Name: "id", Optional: true, Computed: true},
+		{Name: "bucket", Optional: true, Computed: true},
+		{Name: "bucket_prefix", Optional: true, Computed: true},
+		{Name: "name", Required: true},
+	}}
+	str := func(s string) tftypes.Value { return tftypes.NewValue(tftypes.String, s) }
+	st := tftypes.NewValue(tftypes.Object{AttributeTypes: map[string]tftypes.Type{
+		"id": tftypes.String, "bucket": tftypes.String, "bucket_prefix": tftypes.String, "name": tftypes.String,
+	}}, map[string]tftypes.Value{"id": str("b1"), "bucket": str("b1"), "bucket_prefix": str(""), "name": str("")})
+	got := RenderAdoption(blk, st)
+	for _, bad := range []string{"id:", "bucket_prefix"} {
+		if strings.Contains(got, bad) {
+			t.Errorf("the adoption holds %q:\n%s", bad, got)
+		}
+	}
+	if !strings.Contains(got, `bucket: "b1"`) || !strings.Contains(got, `name:`) {
+		t.Errorf("the adoption lost a field:\n%s", got)
 	}
 }
