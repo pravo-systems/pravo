@@ -367,91 +367,152 @@ func readShare(path string) (protect.Share, error) {
 	return s, nil
 }
 
-func (p *protectRun) recover(files []string, newSpec string, all, yes bool) error {
-	if len(files) == 0 {
-		return errors.New("pass the share files, one --share for each")
-	}
-	var newRec *protect.Recovery
-	var newShares []protect.Share
-	if newSpec != "" {
-		var err error
-		if newRec, newShares, err = newRecovery(newSpec); err != nil {
-			return err
-		}
-	}
-	if err := p.rf.require(); err != nil {
-		return err
-	}
-	b, err := p.backend(true)
-	if err != nil {
-		return err
-	}
-	locked, err := state.OpenBackendWith(p.ctx, b, state.Options{})
-	if errors.Is(err, state.ErrUntrusted) {
-		return reportUntrusted(err)
-	}
-	if err != nil {
-		return err
-	}
-	prot := locked.Protection()
-	switch {
-	case prot.State == "unsealing":
-		return errors.New("an unseal is in progress; finish it with pravo protect unseal --share FILE, which opens the state with the shares")
-	case prot.State != "sealed" || prot.Sealed == nil:
-		return errors.New("the state is not sealed; there is nothing to recover")
-	case prot.Sealed.Recovery == nil:
-		return errors.New("the state has no recovery recipient; it was sealed without one, and only a reader can open it")
-	}
-	shares := make([]protect.Share, 0, len(files))
-	for _, f := range files {
-		s, err := readShare(f)
-		if err != nil {
-			return engine.WithCode(engine.ExitRefused, err)
-		}
-		shares = append(shares, s)
-	}
-	rk, err := prot.Sealed.Recovery.Open(shares)
-	if err != nil {
-		return engine.WithCode(engine.ExitRefused, err)
-	}
-	id := protect.RecoveryIdentity(rk)
-	defer id.Close()
+// recoverRun is what a recovery works with once the shares have rebuilt the recovery key.
+type recoverRun struct {
+	p          *protectRun
+	backend    state.Backend
+	locked     *state.Store // the state opened without a key
+	prot       state.Protection
+	id         *protect.Identity // the recovery key
+	shares     int
+	newRec     *protect.Recovery // the recovery that replaces this one, with its shares
+	newShares  []protect.Share
+	resetRoles bool // the roles are stored again, with the recovering key as an admin
+}
 
-	if newRec != nil {
+func (p *protectRun) recover(files []string, newSpec string, all, yes bool) error {
+	rr, err := p.openForRecovery(files, newSpec)
+	if err != nil {
+		return err
+	}
+	defer rr.id.Close()
+	if rr.newRec != nil {
 		// Before the prompt: the shares in use are often in the very directory the new ones go to.
 		if err := sharesDirFree(); err != nil {
 			return err
 		}
 	}
-	added, removed := readersDiff(prot, p.rf)
-	names := nameList(readerNames(p.rf.Readers))
-	// A state that holds roles keeps them pinned by the repository, and every admin of them
-	// may be gone with their keys. Recovery is break-glass: it stores the roles again, from
-	// the readers file, with the recovering key as an admin.
-	resetRoles := false
-	if chain, err := locked.RolesChain(p.ctx); err != nil {
+	added, removed := readersDiff(rr.prot, p.rf)
+	if err := rr.checkRoles(); err != nil {
+		return err
+	}
+	rr.describe(all, added, removed)
+	if ok, err := confirm("Proceed?", yes); err != nil {
+		return err
+	} else if !ok {
+		return errors.New("protect recover cancelled; nothing was written")
+	}
+	if all {
+		if err := atRest(rr.locked); err != nil {
+			return err
+		}
+	}
+	res, rcf, began, err := rr.rewrap(all)
+	if err != nil {
+		return err
+	}
+	if rr.newRec != nil {
+		if err := writeRecoveryFile(rcf, rr.newRec); err != nil {
+			return fmt.Errorf("the new recovery is in the state, but %s could not be written: %w. Write this line to it:\n%s", rcf.shown(), err, rr.newRec.Line())
+		}
+	}
+	var rolesInfo *recoveredRoles
+	if rr.resetRoles {
+		if rolesInfo, err = p.recoverRoles(rr.backend); err != nil {
+			return err
+		}
+	}
+	return rr.report(res, rcf, rolesInfo, all, began)
+}
+
+// openForRecovery opens the state without a key, checks that it can be recovered, and rebuilds
+// the recovery key from the shares.
+func (p *protectRun) openForRecovery(files []string, newSpec string) (*recoverRun, error) {
+	if len(files) == 0 {
+		return nil, errors.New("pass the share files, one --share for each")
+	}
+	rr := &recoverRun{p: p}
+	if newSpec != "" {
+		var err error
+		if rr.newRec, rr.newShares, err = newRecovery(newSpec); err != nil {
+			return nil, err
+		}
+	}
+	if err := p.rf.require(); err != nil {
+		return nil, err
+	}
+	b, err := p.backend(true)
+	if err != nil {
+		return nil, err
+	}
+	rr.backend = b
+	rr.locked, err = state.OpenBackendWith(p.ctx, b, state.Options{})
+	if errors.Is(err, state.ErrUntrusted) {
+		return nil, reportUntrusted(err)
+	}
+	if err != nil {
+		return nil, err
+	}
+	rr.prot = rr.locked.Protection()
+	switch {
+	case rr.prot.State == "unsealing":
+		return nil, errors.New("an unseal is in progress; finish it with pravo protect unseal --share FILE, which opens the state with the shares")
+	case rr.prot.State != "sealed" || rr.prot.Sealed == nil:
+		return nil, errors.New("the state is not sealed; there is nothing to recover")
+	case rr.prot.Sealed.Recovery == nil:
+		return nil, errors.New("the state has no recovery recipient; it was sealed without one, and only a reader can open it")
+	}
+	shares := make([]protect.Share, 0, len(files))
+	for _, f := range files {
+		s, err := readShare(f)
+		if err != nil {
+			return nil, engine.WithCode(engine.ExitRefused, err)
+		}
+		shares = append(shares, s)
+	}
+	rr.shares = len(shares)
+	rk, err := rr.prot.Sealed.Recovery.Open(shares)
+	if err != nil {
+		return nil, engine.WithCode(engine.ExitRefused, err)
+	}
+	rr.id = protect.RecoveryIdentity(rk)
+	return rr, nil
+}
+
+// checkRoles decides whether the roles are stored again. A state that holds roles keeps them
+// pinned by the repository, and every admin of them may be gone with their keys. Recovery is
+// break-glass: it stores the roles again, from the readers file, with the recovering key as an
+// admin.
+func (rr *recoverRun) checkRoles() error {
+	p := rr.p
+	if chain, err := rr.locked.RolesChain(p.ctx); err != nil {
 		if p.rf.Pin == "" {
 			return engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
 		}
-		resetRoles = true // a chain that does not verify is replaced, as the pin was lost with it
+		rr.resetRoles = true // a chain that does not verify is replaced, as the pin was lost with it
 	} else if chain.Head() != nil || p.rf.Pin != "" {
-		resetRoles = true
+		rr.resetRoles = true
 	}
-	if resetRoles && !protect.RolesOn(p.rf.Readers) {
+	if rr.resetRoles && !protect.RolesOn(p.rf.Readers) {
 		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the state holds roles, and %s gives none. Add role:reader, role:writer or role:admin to its lines; your own line gets role:admin.", p.rf.shown()))
 	}
-	if resetRoles && !hasAdmin(p.rf.Readers, p.rf.Readers) {
+	if rr.resetRoles && !hasAdmin(p.rf.Readers, p.rf.Readers) {
 		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("the state holds roles, and %s lists no admin. Give your own line role:admin: recovery stores the roles again with your key as an admin.", p.rf.shown()))
 	}
-	out.Printf("Recovery key rebuilt from %s.\n", plural(len(shares), "share", "shares"))
-	out.Printf("%-8s %s  (%s)\n", "Readers", p.rf.shown(), names)
+	return nil
+}
+
+// describe says what the recovery will do.
+func (rr *recoverRun) describe(all bool, added, removed []string) {
+	p := rr.p
+	out.Printf("Recovery key rebuilt from %s.\n", plural(rr.shares, "share", "shares"))
+	out.Printf("%-8s %s  (%s)\n", "Readers", p.rf.shown(), nameList(readerNames(p.rf.Readers)))
 	out.Println("This will:")
 	n := 1
 	step := func(s string) { out.Printf("  %d  %s\n", n, s); n++ }
-	switch {
-	case len(added) == 0 && len(removed) == 0:
+	if len(added) == 0 && len(removed) == 0 {
 		step("keep the readers as they are: the file and the state agree")
-	default:
+	} else {
 		if len(added) > 0 {
 			step("lock the data keys for " + nameList(added))
 		}
@@ -462,67 +523,56 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 	if all {
 		step("seal every record, the outputs and the stored plans again under the new key")
 	}
-	if resetRoles {
+	if rr.resetRoles {
 		step("store the roles again as version 1, with your key as an admin, and pin them in " + p.rf.shown() + " (the admins of the old roles may be gone)")
 	}
-	if newRec != nil {
-		step(fmt.Sprintf("replace the recovery key: %d new shares, any %d rebuild it, and the old shares open nothing written from now on", newRec.N, newRec.K))
+	if rr.newRec != nil {
+		step(fmt.Sprintf("replace the recovery key: %d new shares, any %d rebuild it, and the old shares open nothing written from now on", rr.newRec.N, rr.newRec.K))
 	}
-	if ok, err := confirm("Proceed?", yes); err != nil {
-		return err
-	} else if !ok {
-		return errors.New("protect recover cancelled; nothing was written")
-	}
-	if all {
-		if err := atRest(locked); err != nil {
-			return err
-		}
-	}
+}
+
+// rewrap opens the state with the recovery key and brings its keys in line with the readers file.
+func (rr *recoverRun) rewrap(all bool) (res state.RewrapResult, rcf recoveryFile, began time.Time, err error) {
+	p, newRec := rr.p, rr.newRec
 	var removeShares func()
 	if newRec != nil {
-		if removeShares, err = writeShares(newShares); err != nil {
-			return err
+		if removeShares, err = writeShares(rr.newShares); err != nil {
+			return res, rcf, began, err
 		}
 	}
-	rcf := loadRecoveryFile(p.rf)
-	st, err := state.OpenBackendWith(p.ctx, b, state.Options{Identity: id})
+	rcf = loadRecoveryFile(p.rf)
+	st, err := state.OpenBackendWith(p.ctx, rr.backend, state.Options{Identity: rr.id})
 	if err != nil {
 		p.afterFailure(newRec, removeShares, rcf)
-		return err
+		return res, rcf, began, err
 	}
-	began := time.Now()
+	began = time.Now()
 	// The recovery key opens the state until the recovery is replaced: the records are
 	// sealed again first, and the replacement is a step of its own.
 	first := state.RewrapOptions{Readers: p.rf.Readers, All: all, By: protect.RecoveryName, Plans: engine.NewPlanStoreFor(st).ResealAll}
 	if newRec != nil && !all {
-		first.Recovery, first.GuardRecovery, first.RecoveryWas = newRec, true, prot.Sealed.Recovery
+		first.Recovery, first.GuardRecovery, first.RecoveryWas = newRec, true, rr.prot.Sealed.Recovery
 	}
-	res, err := st.Rewrap(p.ctx, first)
+	res, err = st.Rewrap(p.ctx, first)
 	if err == nil && newRec != nil && all {
 		_, err = st.Rewrap(p.ctx, state.RewrapOptions{Readers: p.rf.Readers, By: protect.RecoveryName, Recovery: newRec,
-			GuardRecovery: true, RecoveryWas: prot.Sealed.Recovery})
+			GuardRecovery: true, RecoveryWas: rr.prot.Sealed.Recovery})
 	}
 	if err != nil {
 		p.afterFailure(newRec, removeShares, rcf)
 		if errors.Is(err, state.ErrRecoveryChanged) {
-			return engine.WithCode(engine.ExitStale, errors.New("another command changed the recovery of the state while this ran, so this recovery was not set and its shares were removed; run it again"))
+			return res, rcf, began, engine.WithCode(engine.ExitStale, errors.New("another command changed the recovery of the state while this ran, so this recovery was not set and its shares were removed; run it again"))
 		}
 		if errors.Is(err, state.ErrChanged) {
-			return engine.WithCode(engine.ExitStale, errors.New("meta.json changed while recovering; run it again"))
-		}
-		return err
-	}
-	if newRec != nil {
-		if err := writeRecoveryFile(rcf, newRec); err != nil {
-			return fmt.Errorf("the new recovery is in the state, but %s could not be written: %w. Write this line to it:\n%s", rcf.shown(), err, newRec.Line())
+			return res, rcf, began, engine.WithCode(engine.ExitStale, errors.New("meta.json changed while recovering; run it again"))
 		}
 	}
-	var rolesInfo *recoveredRoles
-	if resetRoles {
-		if rolesInfo, err = p.recoverRoles(b); err != nil {
-			return err
-		}
-	}
+	return res, rcf, began, err
+}
+
+// report says what the recovery did.
+func (rr *recoverRun) report(res state.RewrapResult, rcf recoveryFile, rolesInfo *recoveredRoles, all bool, began time.Time) error {
+	newRec := rr.newRec
 	if flags.JSON {
 		j := map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup,
 			"resealed": res.Resealed, "recovery_replaced": newRec != nil}
@@ -542,30 +592,35 @@ func (p *protectRun) recover(files []string, newSpec string, all, yes bool) erro
 		out.Printf("Sealed %s again in %s.\n", counted(res.Resealed, "record", "records"), elapsed(time.Since(began)))
 	}
 	if rolesInfo != nil {
-		out.Printf("Stored the roles again as version 1, with %s as an admin. Commit %s: it holds the new %s line.\n", rolesInfo.Admin, p.rf.shown(), protect.RolesGenesisKey)
-		if rolesInfo.Record {
-			out.Println("The record of the environment pinned the old roles; it pins the new ones now.")
-		}
-		if rolesInfo.Withdrawals > 0 {
-			if rolesInfo.Withdrawals == 1 {
-				out.Println("1 release withdrawn by an admin of the old roles stays in force; an admin promotes it again to lift it.")
-			} else {
-				out.Printf("%d releases withdrawn by admins of the old roles stay in force; an admin promotes them again to lift them.\n", rolesInfo.Withdrawals)
-			}
-		}
-		if rolesInfo.WithdrawalsLost != "" {
-			out.Println(out.C(ui.Yellow, "Withdrawals could not be carried over: "+rolesInfo.WithdrawalsLost+". A release that an admin withdrew is open to a writer again; withdraw it again with pravo promote ENV --revoke."))
-		}
-		if len(rolesInfo.Others) > 0 {
-			out.Printf("The readers file also gives admin to %s.\n", nameList(rolesInfo.Others))
-		}
+		rr.p.reportRecoveredRoles(rolesInfo)
 	}
 	if newRec != nil {
-		printShares(newRec, newShares, rcf)
+		printShares(newRec, rr.newShares, rcf)
 	} else {
 		out.Println(out.C(ui.Yellow, "The recovery key was rebuilt on this machine. Replace it: pravo protect rewrap --recovery K/N"))
 	}
 	return nil
+}
+
+// reportRecoveredRoles says what became of the roles.
+func (p *protectRun) reportRecoveredRoles(rolesInfo *recoveredRoles) {
+	out.Printf("Stored the roles again as version 1, with %s as an admin. Commit %s: it holds the new %s line.\n", rolesInfo.Admin, p.rf.shown(), protect.RolesGenesisKey)
+	if rolesInfo.Record {
+		out.Println("The record of the environment pinned the old roles; it pins the new ones now.")
+	}
+	if rolesInfo.Withdrawals > 0 {
+		if rolesInfo.Withdrawals == 1 {
+			out.Println("1 release withdrawn by an admin of the old roles stays in force; an admin promotes it again to lift it.")
+		} else {
+			out.Printf("%d releases withdrawn by admins of the old roles stay in force; an admin promotes them again to lift them.\n", rolesInfo.Withdrawals)
+		}
+	}
+	if rolesInfo.WithdrawalsLost != "" {
+		out.Println(out.C(ui.Yellow, "Withdrawals could not be carried over: "+rolesInfo.WithdrawalsLost+". A release that an admin withdrew is open to a writer again; withdraw it again with pravo promote ENV --revoke."))
+	}
+	if len(rolesInfo.Others) > 0 {
+		out.Printf("The readers file also gives admin to %s.\n", nameList(rolesInfo.Others))
+	}
 }
 
 // recoveredRoles is what recover stored as the roles of the state.

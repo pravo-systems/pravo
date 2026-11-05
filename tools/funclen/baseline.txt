@@ -11,7 +11,6 @@ cmd/pravo/id.go runIDNew 143
 cmd/pravo/planstore.go showStored 106
 cmd/pravo/protect_init.go protectRun.init 145
 cmd/pravo/protect_rewrap.go protectRun.rewrap 117
-cmd/pravo/recovery.go protectRun.recover 200
 cmd/pravo/serve.go serveCmd 118
 cmd/pravo/statecmd.go stateCmd 122
 cmd/pravo/statecmd.go stateLogCmd 114
@@ -44,7 +43,6 @@ internal/serve/templates.go model.buildTemplates 127
 internal/serve/templates.go templateInputs 101
 internal/serve/templates_inputs.go model.choicesOf 102
 internal/serve/traces.go Server.traces 104
-internal/state/gc.go Store.GC 191
 internal/state/gc.go Store.gcGroups 164
 internal/state/records_bound.go Store.verifyRecords 170
 internal/state/seal_upgrade.go Store.Rewrap 120
