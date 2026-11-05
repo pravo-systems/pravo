@@ -2,8 +2,6 @@ package pravo
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"os"
 
 	"github.com/pravo-systems/pravo/internal/config"
@@ -81,7 +79,7 @@ func openStore(ctx context.Context, root *config.Root, o StoreOptions) (*state.S
 				b = state.OverlayBackend(b, "plans")
 			}
 		} else {
-			b = &readOnlyBackend{Backend: b}
+			b = state.ReadOnly(b)
 		}
 		return state.OpenBackendWith(ctx, b, so)
 	case o.Write && o.Overlay:
@@ -93,7 +91,7 @@ func openStore(ctx context.Context, root *config.Root, o StoreOptions) (*state.S
 	if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
 		return state.Open(path) // says that the path is a file
 	}
-	return state.OpenBackendWith(ctx, &readOnlyBackend{Backend: &state.LocalBackend{Dir: path}}, so)
+	return state.OpenBackendWith(ctx, state.ReadOnly(&state.LocalBackend{Dir: path}), so)
 }
 
 // RemoteBackend opens the bucket or the server that the root keeps its state on.
@@ -102,52 +100,8 @@ func RemoteBackend(ctx context.Context, root *Root, e env.Env) (Backend, error) 
 	return engine.RemoteBackend(ctx, root.State, e)
 }
 
-// readOnlyBackend refuses every write but one. The store writes its metadata
-// when the location has none; that write is kept in memory, so that an empty
-// location reads as an empty state.
-type readOnlyBackend struct {
-	state.Backend
-	meta []byte
-}
-
-const metaKey = "meta.json"
-
-func (b *readOnlyBackend) Get(ctx context.Context, key string) ([]byte, error) {
-	data, err := b.Backend.Get(ctx, key)
-	if key == metaKey && errors.Is(err, state.ErrNotFound) && b.meta != nil {
-		return b.meta, nil
-	}
-	return data, err
-}
-
-func (b *readOnlyBackend) Put(ctx context.Context, key string, data []byte) error {
-	if key == metaKey {
-		b.meta = data
-		return nil
-	}
-	return b.refuse()
-}
-
-func (b *readOnlyBackend) PutIfAbsent(ctx context.Context, key string, data []byte) (bool, error) {
-	return false, b.refuse()
-}
-
-func (b *readOnlyBackend) Delete(ctx context.Context, key string) error { return b.refuse() }
-
-func (b *readOnlyBackend) DeleteIf(ctx context.Context, key string, match func(current []byte) bool) (bool, error) {
-	return false, b.refuse()
-}
-
-func (b *readOnlyBackend) ReplaceIf(ctx context.Context, key string, update func(current []byte) ([]byte, bool)) (bool, error) {
-	return false, b.refuse()
-}
-
-func (b *readOnlyBackend) refuse() error {
-	return fmt.Errorf("the state at %s is open for reading and is not changed", b.Name())
-}
-
 // ReadOnlyBackend wraps a backend so that it refuses every write. The one
 // exception is its metadata: the store writes meta.json when the location has
 // none, and that write is kept in memory so that an empty location reads as an
 // empty state.
-func ReadOnlyBackend(b Backend) Backend { return &readOnlyBackend{Backend: b} }
+func ReadOnlyBackend(b Backend) Backend { return state.ReadOnly(b) }
