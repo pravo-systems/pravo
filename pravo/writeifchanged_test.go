@@ -22,7 +22,7 @@ func TestWriteIfChangedIsNotSeenHalfWritten(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 300; i++ {
+		for i := range 300 {
 			data := a
 			if i%2 == 0 {
 				data = b
