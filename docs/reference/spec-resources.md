@@ -173,7 +173,7 @@ pravo plan
 ```text out
 Configuration does not load yet; generating schemas for the declared providers first.
 Providers:
-  kubernetes = hashicorp/kubernetes v3.4.0
+  kubernetes = hashicorp/kubernetes v3.5.0
 Up to date cue.mod/gen/pravo.dev/providers/hashicorp/kubernetes (81 resource types, 27 data sources, 2 ephemeral, 3 functions)
 
 pravo has been initialised. Run "pravo plan" to see what it would do.
