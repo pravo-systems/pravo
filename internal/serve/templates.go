@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -565,176 +566,48 @@ type TemplatePolicyItem struct {
 var labelOK = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$`)
 
 // templateTryHandler answers GET /api/templates/try?template=NAME&at=PATH&name=LABEL&v.FIELD=EXPR...
+// tryInput is what the form of a template try sent, read and checked.
+type tryInput struct {
+	tpl       *TemplateEntry
+	label     string
+	atSels    []cue.Selector
+	values    map[string]string // the CUE expression of each input
+	problems  []TemplateProblem
+	secrets   []TemplateSecret
+	decls     []string // the declarations of the secrets
+	alias     string   // the name the specification imports pravo as
+	hasImport bool
+}
+
+// tryError is a request that is refused with an HTTP status.
+type tryError struct {
+	status int
+	msg    string
+}
+
 func (s *Server) templateTryHandler(w http.ResponseWriter, r *http.Request, m *model) {
 	began := time.Now()
-	q := r.URL.Query()
-	cat := m.templates()
-	if !cat.SpecOK {
-		writeError(w, http.StatusConflict, "The specification does not load, so no template is known.")
+	in, terr := s.readTry(m, r.URL.Query())
+	if terr != nil {
+		writeError(w, terr.status, terr.msg)
 		return
 	}
-	var tpl *TemplateEntry
-	for i := range cat.Templates {
-		if cat.Templates[i].Name == q.Get("template") {
-			tpl = &cat.Templates[i]
-		}
-	}
-	if tpl == nil {
-		writeError(w, http.StatusNotFound, "no such template")
-		return
-	}
-	label := q.Get("name")
-	if !labelOK.MatchString(label) {
-		writeError(w, http.StatusBadRequest, "name is required: letters, digits, dashes and dots, up to 63")
-		return
-	}
-	at := q.Get("at")
-	var atSels []cue.Selector
-	if at != "" {
-		p := cue.ParsePath(at)
-		if len(at) > 256 || p.Err() != nil || len(p.Selectors()) > 8 {
-			writeError(w, http.StatusBadRequest, "at is not a path of the specification")
-			return
-		}
-		for _, sel := range p.Selectors() {
-			if sel.LabelType() != cue.StringLabel {
-				writeError(w, http.StatusBadRequest, "at is not a path of the specification")
-				return
-			}
-		}
-		atSels = p.Selectors()
-	}
-	known := map[string]bool{}
-	for _, in := range tpl.Inputs {
-		known[in.Name] = true
-	}
-	values := map[string]string{}
-	var problems []TemplateProblem
-	for key, vs := range q {
-		field, ok := strings.CutPrefix(key, "v.")
-		if !ok || len(vs) == 0 || strings.TrimSpace(vs[0]) == "" {
-			continue
-		}
-		if !known[field] {
-			writeError(w, http.StatusBadRequest, "the template has no input "+strconv.Quote(clip(field, 60)))
-			return
-		}
-		if in := tpl.input(field); in != nil && in.Secret {
-			// A secret input never takes a value: the form sends where it is read from (s.FIELD), and the value
-			// is neither read nor echoed, so that it cannot reach the code that the answer offers.
-			problems = append(problems, TemplateProblem{Field: field, Message: "a secret input takes no value: say where it is read from (s." + field + ")"})
-			continue
-		}
-		if len(vs[0]) > maxTemplateExpr {
-			writeError(w, http.StatusBadRequest, "the value of "+field+" is too long")
-			return
-		}
-		if _, err := parser.ParseExpr("input", vs[0]); err != nil {
-			problems = append(problems, TemplateProblem{Field: field, Message: "not CUE: " + headline(cueerrors.Details(err, nil))})
-			continue
-		}
-		values[field] = vs[0]
-	}
-
-	// The inputs that are secrets: the form sends where the secret comes from and its name, never a value.
-	alias, hasImport := "pravo", false
-	if tpl.File != "" {
-		if b, err := os.ReadFile(filepath.Join(s.opts.Dir, filepath.FromSlash(tpl.File))); err == nil && len(b) < 1<<20 {
-			if a, ok := importOf(string(b), pravoPath); ok {
-				alias, hasImport = a, true
-			}
-		}
-	}
-	var secrets []TemplateSecret
-	var decls []string
-	for key, vs := range q {
-		field, ok := strings.CutPrefix(key, "s.")
-		if !ok || len(vs) == 0 || strings.TrimSpace(vs[0]) == "" {
-			continue
-		}
-		in := tpl.input(field)
-		if in == nil || !in.Secret {
-			writeError(w, http.StatusBadRequest, "the template has no secret input "+strconv.Quote(clip(field, 60)))
-			return
-		}
-		source, name := "state", strings.TrimSpace(vs[0])
-		if q.Get("sk."+field) == "env" {
-			source = "env"
-		}
-		if (source == "state" && !secretNameOK.MatchString(name)) || (source == "env" && !envNameOK.MatchString(name)) {
-			problems = append(problems, TemplateProblem{Field: field, Message: "not a name a " + map[string]string{"state": "secret", "env": "variable"}[source] + " can have"})
-			continue
-		}
-		sec, decl, expr := secretDecl(alias, label, in, source, name)
-		if _, taken := m.spec.byPath[sec.Decl]; taken {
-			problems = append(problems, TemplateProblem{Field: "@label", Message: "The secret would be declared as " + sec.Decl + ", which the specification already has. Another name avoids it."})
-			continue
-		}
-		if source == "state" {
-			if m.secs == nil || !m.secs.Sealed {
-				problems = append(problems, TemplateProblem{Field: field, Message: "The state is not sealed, so it cannot keep a secret. Read it from an environment variable, or seal the state."})
-				continue
-			}
-			for _, e := range m.secs.Secrets {
-				if e.Name == name && e.Status == "set" {
-					sec.Exists = true
-				}
-			}
-			sec.Command = "pravo secret set " + name
-		}
-		values[field] = expr
-		secrets = append(secrets, sec)
-		note := "// " + in.Name + " is read from the secret " + name + " of the state."
-		if source == "state" && !sec.Exists {
-			note = "// " + in.Name + " reads the secret " + name + ".\n// Set it before the apply: " + sec.Command
-		} else if source == "env" {
-			note = "// " + in.Name + " is read from the environment variable " + name + "\n// when pravo runs."
-		}
-		decls = append(decls, note+"\n"+decl)
-	}
-	sort.Slice(secrets, func(i, j int) bool { return secrets[i].Input < secrets[j].Input })
-	sort.Strings(decls)
-
-	// A value that the template offers choices for must be one of them, as far as the state knows them.
-	for _, in := range tpl.Inputs {
-		raw, ok := values[in.Name]
-		if !ok || in.Choices == "" || len(problems) > 0 {
-			continue
-		}
-		var want string
-		if json.Unmarshal([]byte(raw), &want) != nil {
-			continue
-		}
-		ch := m.choicesOf(in.Name, in.Choices)
-		if ch.State != "ok" {
-			continue
-		}
-		found := false
-		for _, c := range ch.Items {
-			if c.Value == want {
-				found = true
-			}
-		}
-		if !found {
-			problems = append(problems, TemplateProblem{Field: in.Name, Message: strconv.Quote(want) + " is not one of the values that " + ch.Node + " holds"})
-		}
-	}
-
+	tpl, label, atSels, values, problems, secrets := in.tpl, in.label, in.atSels, in.values, in.problems, in.secrets
 	target := cue.MakePath(append(append([]cue.Selector{}, atSels...), cue.Str(label))...)
 	out := &TemplateTry{Version: APIVersion, Template: tpl.Name, File: tpl.File, Address: target.String(), State: "valid", Problems: []TemplateProblem{}, Creates: []TemplateCreate{}, Secrets: secrets}
-	body := templateSnippet(tpl, atSels, label, values, decls)
+	body := templateSnippet(tpl, atSels, label, values, in.decls)
 	importLine := ""
 	if len(secrets) > 0 {
-		importLine = "import " + importName(alias) + "\"" + pravoPath + "\"\n"
+		importLine = "import " + importName(in.alias) + "\"" + pravoPath + "\"\n"
 	}
 	out.Snippet = body
-	if importLine != "" && !hasImport {
+	if importLine != "" && !in.hasImport {
 		out.Snippet = importLine + "\n" + body
 	}
 	if len(problems) == 0 {
-		for _, in := range tpl.Inputs {
-			if _, ok := values[in.Name]; in.Required && !ok {
-				problems = append(problems, TemplateProblem{Field: in.Name, Message: "needs a value"})
+		for _, inp := range tpl.Inputs {
+			if _, ok := values[inp.Name]; inp.Required && !ok {
+				problems = append(problems, TemplateProblem{Field: inp.Name, Message: "needs a value"})
 			}
 		}
 		if len(problems) > 0 {
@@ -762,10 +635,187 @@ func (s *Server) templateTryHandler(w http.ResponseWriter, r *http.Request, m *m
 		writeJSON(w, http.StatusOK, out)
 		return
 	}
+	s.previewTry(m, out, importLine+body)
+	out.Took = time.Since(began).Milliseconds()
+	writeJSON(w, http.StatusOK, out)
+}
 
+// readTry reads and checks the query of a template try.
+func (s *Server) readTry(m *model, q url.Values) (*tryInput, *tryError) {
+	cat := m.templates()
+	if !cat.SpecOK {
+		return nil, &tryError{http.StatusConflict, "The specification does not load, so no template is known."}
+	}
+	in := &tryInput{values: map[string]string{}, alias: "pravo"}
+	for i := range cat.Templates {
+		if cat.Templates[i].Name == q.Get("template") {
+			in.tpl = &cat.Templates[i]
+		}
+	}
+	if in.tpl == nil {
+		return nil, &tryError{http.StatusNotFound, "no such template"}
+	}
+	in.label = q.Get("name")
+	if !labelOK.MatchString(in.label) {
+		return nil, &tryError{http.StatusBadRequest, "name is required: letters, digits, dashes and dots, up to 63"}
+	}
+	var terr *tryError
+	if in.atSels, terr = tryPath(q.Get("at")); terr != nil {
+		return nil, terr
+	}
+	if terr = in.readValues(q); terr != nil {
+		return nil, terr
+	}
+	// The inputs that are secrets: the form sends where the secret comes from and its name, never a value.
+	if in.tpl.File != "" {
+		if b, err := os.ReadFile(filepath.Join(s.opts.Dir, filepath.FromSlash(in.tpl.File))); err == nil && len(b) < 1<<20 {
+			if a, ok := importOf(string(b), pravoPath); ok {
+				in.alias, in.hasImport = a, true
+			}
+		}
+	}
+	if terr = in.readSecrets(m, q); terr != nil {
+		return nil, terr
+	}
+	in.checkChoices(m)
+	return in, nil
+}
+
+// tryPath reads the path of the specification that the template goes under.
+func tryPath(at string) ([]cue.Selector, *tryError) {
+	if at == "" {
+		return nil, nil
+	}
+	bad := &tryError{http.StatusBadRequest, "at is not a path of the specification"}
+	p := cue.ParsePath(at)
+	if len(at) > 256 || p.Err() != nil || len(p.Selectors()) > 8 {
+		return nil, bad
+	}
+	for _, sel := range p.Selectors() {
+		if sel.LabelType() != cue.StringLabel {
+			return nil, bad
+		}
+	}
+	return p.Selectors(), nil
+}
+
+// readValues reads the v.FIELD values of the form: each is a CUE expression.
+func (in *tryInput) readValues(q url.Values) *tryError {
+	known := map[string]bool{}
+	for _, i := range in.tpl.Inputs {
+		known[i.Name] = true
+	}
+	for key, vs := range q {
+		field, ok := strings.CutPrefix(key, "v.")
+		if !ok || len(vs) == 0 || strings.TrimSpace(vs[0]) == "" {
+			continue
+		}
+		if !known[field] {
+			return &tryError{http.StatusBadRequest, "the template has no input " + strconv.Quote(clip(field, 60))}
+		}
+		if i := in.tpl.input(field); i != nil && i.Secret {
+			// A secret input never takes a value: the form sends where it is read from (s.FIELD), and the value
+			// is neither read nor echoed, so that it cannot reach the code that the answer offers.
+			in.problems = append(in.problems, TemplateProblem{Field: field, Message: "a secret input takes no value: say where it is read from (s." + field + ")"})
+			continue
+		}
+		if len(vs[0]) > maxTemplateExpr {
+			return &tryError{http.StatusBadRequest, "the value of " + field + " is too long"}
+		}
+		if _, err := parser.ParseExpr("input", vs[0]); err != nil {
+			in.problems = append(in.problems, TemplateProblem{Field: field, Message: "not CUE: " + headline(cueerrors.Details(err, nil))})
+			continue
+		}
+		in.values[field] = vs[0]
+	}
+	return nil
+}
+
+// readSecrets reads the s.FIELD secrets of the form: where each is read from, never a value.
+func (in *tryInput) readSecrets(m *model, q url.Values) *tryError {
+	for key, vs := range q {
+		field, ok := strings.CutPrefix(key, "s.")
+		if !ok || len(vs) == 0 || strings.TrimSpace(vs[0]) == "" {
+			continue
+		}
+		inp := in.tpl.input(field)
+		if inp == nil || !inp.Secret {
+			return &tryError{http.StatusBadRequest, "the template has no secret input " + strconv.Quote(clip(field, 60))}
+		}
+		source, name := "state", strings.TrimSpace(vs[0])
+		if q.Get("sk."+field) == "env" {
+			source = "env"
+		}
+		if (source == "state" && !secretNameOK.MatchString(name)) || (source == "env" && !envNameOK.MatchString(name)) {
+			in.problems = append(in.problems, TemplateProblem{Field: field, Message: "not a name a " + map[string]string{"state": "secret", "env": "variable"}[source] + " can have"})
+			continue
+		}
+		sec, decl, expr := secretDecl(in.alias, in.label, inp, source, name)
+		if _, taken := m.spec.byPath[sec.Decl]; taken {
+			in.problems = append(in.problems, TemplateProblem{Field: "@label", Message: "The secret would be declared as " + sec.Decl + ", which the specification already has. Another name avoids it."})
+			continue
+		}
+		if source == "state" {
+			if m.secs == nil || !m.secs.Sealed {
+				in.problems = append(in.problems, TemplateProblem{Field: field, Message: "The state is not sealed, so it cannot keep a secret. Read it from an environment variable, or seal the state."})
+				continue
+			}
+			for _, e := range m.secs.Secrets {
+				if e.Name == name && e.Status == "set" {
+					sec.Exists = true
+				}
+			}
+			sec.Command = "pravo secret set " + name
+		}
+		in.values[field] = expr
+		in.secrets = append(in.secrets, sec)
+		note := "// " + inp.Name + " is read from the secret " + name + " of the state."
+		if source == "state" && !sec.Exists {
+			note = "// " + inp.Name + " reads the secret " + name + ".\n// Set it before the apply: " + sec.Command
+		} else if source == "env" {
+			note = "// " + inp.Name + " is read from the environment variable " + name + "\n// when pravo runs."
+		}
+		in.decls = append(in.decls, note+"\n"+decl)
+	}
+	sort.Slice(in.secrets, func(i, j int) bool { return in.secrets[i].Input < in.secrets[j].Input })
+	sort.Strings(in.decls)
+	return nil
+}
+
+// checkChoices checks that a value that the template offers choices for is one of them, as far
+// as the state knows them.
+func (in *tryInput) checkChoices(m *model) {
+	for _, inp := range in.tpl.Inputs {
+		raw, ok := in.values[inp.Name]
+		if !ok || inp.Choices == "" || len(in.problems) > 0 {
+			continue
+		}
+		var want string
+		if json.Unmarshal([]byte(raw), &want) != nil {
+			continue
+		}
+		ch := m.choicesOf(inp.Name, inp.Choices)
+		if ch.State != "ok" {
+			continue
+		}
+		found := false
+		for _, c := range ch.Items {
+			if c.Value == want {
+				found = true
+			}
+		}
+		if !found {
+			in.problems = append(in.problems, TemplateProblem{Field: inp.Name, Message: strconv.Quote(want) + " is not one of the values that " + ch.Node + " holds"})
+		}
+	}
+}
+
+// previewTry loads the specification with the snippet added, and says what it would create and
+// what the policies make of it.
+func (s *Server) previewTry(m *model, out *TemplateTry, snippet string) {
 	s.tplMu.Lock()
 	lo := config.LoadOptions{Tags: s.opts.Tags, SysTags: s.opts.SysTags, Env: s.opts.Env,
-		Extra: map[string]string{previewFile: "package " + m.spec.root.PkgName + "\n\n" + importLine + body}}
+		Extra: map[string]string{previewFile: "package " + m.spec.root.PkgName + "\n\n" + snippet}}
 	root, err := config.Load(s.opts.Dir, lo)
 	s.tplMu.Unlock()
 	if err != nil {
@@ -773,8 +823,6 @@ func (s *Server) templateTryHandler(w http.ResponseWriter, r *http.Request, m *m
 		// specification says, and a value that merely equals a sensitive string is not one.
 		out.State = "invalid"
 		out.Problems = append(out.Problems, templateProblems(m.scrubText(errorText(err)), out.Address)...)
-		out.Took = time.Since(began).Milliseconds()
-		writeJSON(w, http.StatusOK, out)
 		return
 	}
 	var changes []engine.ChangeView
@@ -790,8 +838,6 @@ func (s *Server) templateTryHandler(w http.ResponseWriter, r *http.Request, m *m
 		}
 	}
 	out.Policy = s.previewPolicies(m, changes)
-	out.Took = time.Since(began).Milliseconds()
-	writeJSON(w, http.StatusOK, out)
 }
 
 // templateSnippet is the CUE of an instance: the path, the definition and the values that were given.
