@@ -329,6 +329,7 @@ Compatibility: the package is v0 and unstable. Its types that alias internal one
 | `tools/sitegen/` | Builds the site from `docs/` and `site/`. Flags and files are in `tools/sitegen/README.md`; the HTML it writes is specified in `tools/sitegen/HTML.md`. |
 | `tools/sitegen/contrast/` | Reads the colour tokens of `site/assets/style.css` and checks every text and interface colour pair in both themes. |
 | `tools/skillgen/` | Builds `skills/pravo/references` from `docs/`, checks that the repository holds what it would build, and packs the skill as `pravo-skill.zip` for a release. See `tools/skillgen/README.md`. |
+| `tools/funclen/` | A test that no function of `cmd`, `internal` or `pravo` is longer than 100 lines. The functions that already are sit in `baseline.txt` with their length and may only get shorter. |
 | `tools/capture/` | Runs the examples in the documentation and compares their output with the pages. A page can start `fakes3` or `fakeoci` through `services` and set variables through `env`. See `tools/capture/README.md`. |
 | `tools/hclcheck/` | Runs every `hcl` listing of `docs/` and `site/demos/` through `tofu fmt`, `init` and `validate`; `claims.sh` checks the statements about OpenTofu behaviour. See `tools/hclcheck/README.md`. |
 | `tools/fakes3/` | `go run ./tools/fakes3 -addr 127.0.0.1:9000` serves an in-memory bucket for the `s3` state backend. |
