@@ -178,3 +178,32 @@ func TestUnreadableSigningKeysAreRefused(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// A provider that is on disk already gets the same lock entry as one that is installed:
+// the checksum is the signed one, and the key that signed it comes with it.
+func TestChecksumSignedGivesTheKeyThatSigned(t *testing.T) {
+	k := newKey(t)
+	c, src, real := signedServer(t, sigCase{keyOf: k, signer: k})
+	sum, signer, err := c.ChecksumSigned(context.Background(), src, "1.0.0", CurrentPlatform())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := strings.ToUpper(hex.EncodeToString(k.PrimaryKey.Fingerprint)); signer != want || sum != real {
+		t.Errorf("sum %s signer %s, want %s and %s", sum, signer, real, want)
+	}
+}
+
+func TestChecksumSignedRefusesAListThatDoesNotVerify(t *testing.T) {
+	c, src, _ := signedServer(t, sigCase{keyOf: newKey(t), signer: newKey(t)})
+	if sum, _, err := c.ChecksumSigned(context.Background(), src, "1.0.0", CurrentPlatform()); err == nil || sum != "" || !strings.Contains(err.Error(), "does not verify") {
+		t.Errorf("sum %q err %v", sum, err)
+	}
+	c, src, _ = signedServer(t, sigCase{}, "PRAVO_REQUIRE_SIGNED=1")
+	if _, _, err := c.ChecksumSigned(context.Background(), src, "1.0.0", CurrentPlatform()); err == nil || !strings.Contains(err.Error(), "PRAVO_REQUIRE_SIGNED") {
+		t.Errorf("err = %v", err)
+	}
+	c, src, real := signedServer(t, sigCase{})
+	if sum, signer, err := c.ChecksumSigned(context.Background(), src, "1.0.0", CurrentPlatform()); err != nil || signer != "" || sum != real {
+		t.Errorf("an unsigned registry: sum %q signer %q err %v", sum, signer, err)
+	}
+}

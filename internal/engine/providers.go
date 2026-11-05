@@ -258,10 +258,22 @@ func (m *Providers) Resolve(ctx context.Context, lock *Lock, upgrade, install bo
 			plat := registry.CurrentPlatform()
 			if e, ok := lock.Providers[req.Source.String()]; !ok || e.Version != ver || e.Hashes[plat.String()] == "" {
 				cctx, end := setup(ctx, "checksum provider "+local)
-				sum, err := m.Registry.Checksum(cctx, req.Source, ver, plat)
+				sum, signer, err := m.Registry.ChecksumSigned(cctx, req.Source, ver, plat)
 				end(err)
 				if err == nil {
 					rp.Hash = "sha256:" + sum
+					// What an install would have recorded: the key that signed the list, and the same
+					// refusal when the lock file pins another one.
+					if want := lock.Providers[req.Source.String()]; want != nil && want.Version == ver && want.Hashes[SignerKey] != "" && want.Hashes[SignerKey] != signer {
+						got := signer
+						if got == "" {
+							got = "no signature"
+						}
+						return fmt.Errorf("provider %s v%s: the checksum list was signed by %s, but %s pins the key %s. The registry changed its signing key or stopped signing. If that is expected, remove the %q line from the lock file and run \"pravo init\"", req.Source.Display(), ver, got, LockFileName, want.Hashes[SignerKey], SignerKey)
+					}
+					rp.Signer, rp.recordSigner = signer, signer != ""
+				} else {
+					plog.Debug(ctx, "the checksum of an installed provider was not recorded", "provider", local, "error", err.Error())
 				}
 			}
 		}

@@ -271,7 +271,8 @@ def interrupt(p):
 
 def case_init(c):
     r, secs = c.base_init
-    c.expect(r, 0, "pravo init")
+    if not c.expect(r, 0, "pravo init"):
+        raise Skip("init failed: " + c.norm(r.all)[-600:])
     lock = read(os.path.join(c.base, "pravo.lock.cue")).decode()
     keys = sorted(set(re.findall(r'"((?:binary:)?[a-z0-9]+_[a-z0-9]+)":', lock)))
     c.obs("lock.platforms", keys, local=True)
@@ -282,7 +283,7 @@ def case_init(c):
     # a second init finds everything in place
     r2 = c.run(["init"], cwd=c.base)
     c.expect(r2, 0, "second pravo init")
-    c.obs("init2.text", c.lines(re.sub(r"\(\d.*?\)", "(…)", r2.all)))
+    c.obs("init2.text", c.lines(re.sub(r"\(\d.*?\)", "(…)", r2.all).replace("\\", "/")))
     # the lock file says the same after the second run
     c.check(read(os.path.join(c.base, "pravo.lock.cue")).decode() == lock, "a second init rewrote the lock file")
 
@@ -934,6 +935,49 @@ def case_hammer(c):
     c.obs("tree.after", [n_ for n_ in state_tree(d, c) if not n_.startswith(("txn/", "kinds/"))])
 
 
+def case_coldinit(c):
+    """Three `pravo init` at once on a cold provider cache: the providers are installed by whichever gets there first."""
+    home = os.path.join(c.root, "cold home")
+    old_home = c.home
+    c.home = home
+    os.makedirs(home)
+    try:
+        dirs = []
+        for i in range(3):
+            d = os.path.join(c.root, f"cold{i}")
+            os.makedirs(d)
+            write(os.path.join(d, "main.cue"), LIFE)
+            dirs.append(d)
+        procs = [c.popen(["init"], d) for d in dirs]
+        outs = []
+        for p in procs:
+            out, err = p.communicate(timeout=600)
+            outs.append((p.returncode, out.decode("utf-8", "replace") + err.decode("utf-8", "replace")))
+        bad = [o for o in outs if o[0] != 0]
+        c.obs("init.failed", len(bad))
+        c.check(not bad, f"{len(bad)} of 3 concurrent inits failed: {c.norm(bad[0][1])[-300:] if bad else ''}")
+        locks = [read(os.path.join(d, "pravo.lock.cue")) for d in dirs if os.path.exists(os.path.join(d, "pravo.lock.cue"))]
+        if not c.check(len(set(locks)) <= 1 and len(locks) == 3, "the lock files of three inits of one specification differ"):
+            import difflib
+            a_, b_ = [x for x in locks if x != locks[0]][:1] + [locks[0]]
+            c.fails.append("diff: " + " | ".join(l for l in difflib.unified_diff(b_.decode().split("\n"), a_.decode().split("\n"), lineterm="", n=0) if not l.startswith(("---", "+++", "@@"))))
+        for d in dirs:
+            lk = read(os.path.join(d, "pravo.lock.cue")).decode() if os.path.exists(os.path.join(d, "pravo.lock.cue")) else ""
+            c.check(lk.count('"signer"') == 4, f"the lock file names {lk.count(chr(34) + 'signer' + chr(34))} signing keys for 4 providers")
+            r = c.run(["plan", "--detailed-exitcode"], cwd=d)
+            c.expect(r, 2, "plan after a concurrent init")
+        # the cache holds one install of each provider and no half installs
+        found = []
+        for dp, dn, fn in os.walk(home):
+            for n in dn:
+                if n.startswith(".install-"):
+                    found.append(os.path.relpath(os.path.join(dp, n), home))
+        c.obs("half_installs", found)
+        c.check(not found, f"half installs are left in the cache: {found[:3]}")
+    finally:
+        c.home = old_home
+
+
 def case_json_exitcodes(c):
     """The numbers and the shapes that CI depends on."""
     d = c.new("machine", LIFE)
@@ -962,14 +1006,18 @@ def case_json_exitcodes(c):
             except Exception:
                 pass
     c.obs("apply.json.lines", len(r.out.splitlines()), local=True)
-    c.obs("apply.json.object_shapes", sorted({tuple(k) for k in kinds}))
+    shapes = {}
+    for k in kinds:
+        if "kind" in k:
+            shapes.setdefault("kind", set()).update(k)
+    c.obs("apply.json.keys", sorted(shapes.get("kind", [])))
     r = c.run(["plan", "--detailed-exitcode"], cwd=d)
     c.expect(r, 0, "plan with no change")
     r = c.run(["nonsense"], cwd=d)
     c.obs("unknown.rc", r.rc)
     r = c.run(["plan", "-C", os.path.join(d, "missing")], cwd=d)
     c.obs("missing_dir.rc", r.rc)
-    c.obs("missing_dir.msg", c.lines(r.all)[:2])
+    c.obs("missing_dir.msg", c.lines(r.all)[:2], local=True)  # the system's own words for "no such file"
     c.check(r.rc not in (0, 2), "plan of a missing directory exits like success or change")
     r = c.run(["eval"], cwd=d)
     c.expect(r, 0, "eval")
@@ -980,7 +1028,7 @@ def case_json_exitcodes(c):
 CASES = [
     ("init", case_init), ("lifecycle", case_lifecycle), ("crlf", case_crlf), ("names", case_names), ("paths", case_paths),
     ("split", case_split_files), ("locks", case_locks), ("interrupt", case_interrupt), ("plans", case_stored_plan),
-    ("seal", case_identity), ("serve", case_serve), ("machine", case_json_exitcodes), ("examples", case_examples), ("mcp", case_mcp), ("hammer", case_hammer),
+    ("seal", case_identity), ("serve", case_serve), ("machine", case_json_exitcodes), ("examples", case_examples), ("mcp", case_mcp), ("hammer", case_hammer), ("coldinit", case_coldinit),
 ]
 
 

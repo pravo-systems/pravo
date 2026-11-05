@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1545,9 +1546,20 @@ func fmtCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				formatted, err := format.Source(src)
+				// A file keeps the line ending it has: git on Windows checks files out with CRLF, and
+				// a formatter that wants LF would call every file of such a checkout unformatted, and
+				// rewrite it all, on every run.
+				crlf := firstLineEndingIsCRLF(src)
+				in := src
+				if crlf {
+					in = bytes.ReplaceAll(src, []byte("\r\n"), []byte("\n"))
+				}
+				formatted, err := format.Source(in)
 				if err != nil {
 					return fmt.Errorf("%s: %w", f, err)
+				}
+				if crlf {
+					formatted = bytes.ReplaceAll(formatted, []byte("\n"), []byte("\r\n"))
 				}
 				if string(formatted) != string(src) {
 					if !check {
@@ -1567,6 +1579,13 @@ func fmtCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&check, "check", false, "write nothing: print the files that are not formatted and exit with code 2 if there are any")
 	return cmd
+}
+
+// firstLineEndingIsCRLF says whether the first line break of src is CR LF, which is the ending
+// that the whole file is taken to use.
+func firstLineEndingIsCRLF(src []byte) bool {
+	i := bytes.IndexByte(src, '\n')
+	return i > 0 && src[i-1] == '\r'
 }
 
 // parsePlatforms reads a comma-separated os_arch list; empty means the
