@@ -186,6 +186,11 @@ class Ctx:
         write(os.path.join(b, "main.cue"), LIFE)
         t0 = time.time()
         r = self.run(["init"], cwd=b, timeout=600)
+        for _ in range(2):  # GitHub answers a 504 now and then, after pravo's own tries: that is not what is measured here
+            if r.rc == 0 or "504" not in r.all and "502" not in r.all and "503" not in r.all:
+                break
+            time.sleep(20)
+            r = self.run(["init"], cwd=b, timeout=600)
         self.base_init = (r, time.time() - t0)
         self.base = b
         return r
@@ -959,7 +964,7 @@ def case_coldinit(c):
         locks = [read(os.path.join(d, "pravo.lock.cue")) for d in dirs if os.path.exists(os.path.join(d, "pravo.lock.cue"))]
         if not c.check(len(set(locks)) <= 1 and len(locks) == 3, "the lock files of three inits of one specification differ"):
             import difflib
-            a_, b_ = [x for x in locks if x != locks[0]][:1] + [locks[0]]
+            a_, b_ = ([x for x in locks if x != locks[0]][:1] + [locks[0]])[:2] if len(locks) > 1 else (b"", b"")
             c.fails.append("diff: " + " | ".join(l for l in difflib.unified_diff(b_.decode().split("\n"), a_.decode().split("\n"), lineterm="", n=0) if not l.startswith(("---", "+++", "@@"))))
         for d in dirs:
             lk = read(os.path.join(d, "pravo.lock.cue")).decode() if os.path.exists(os.path.join(d, "pravo.lock.cue")) else ""
