@@ -47,14 +47,60 @@ func (p *protectRun) status() error {
 	if err != nil {
 		return err
 	}
-	prot := st.Protection()
-	rows := [][2]string{}
-	add := func(k, v string) { rows = append(rows, [2]string{k, v}) }
-	sealed := prot.State == "sealed" || prot.State == "migrating" || prot.State == "unsealing"
+	r := &statusReport{p: p, st: st, prot: st.Protection(), rf: p.rf}
+	r.sealed = r.prot.State == "sealed" || r.prot.State == "migrating" || r.prot.State == "unsealing"
 	// A state that does not exist yet is read as an empty one of format 1, and
 	// nothing is created. What is true of it is that there is none.
 	_, metaErr := b.Get(p.ctx, metaKey)
-	none := errors.Is(metaErr, state.ErrNotFound) && prot.Records == 0 && !sealed
+	r.none = errors.Is(metaErr, state.ErrNotFound) && r.prot.Records == 0 && !r.sealed
+	r.describeSeal()
+	r.expects = expectsSealed(r.prot, r.rf)
+	if r.expects && !r.none {
+		r.rows[len(r.rows)-1][1] += " · the repository expects a sealed state"
+	}
+	r.add("Store", p.location())
+	r.describeReaders()
+	r.describeYou(id, idErr)
+	r.describeRecovery()
+	if err := r.check(); err != nil {
+		return err
+	}
+	if err := r.emit(); err != nil {
+		return err
+	}
+	return r.verdict()
+}
+
+// statusReport is what "protect status" learns about a store, in the order it
+// learns it: the rows it prints, and the facts that the JSON document and the exit
+// code are made of.
+type statusReport struct {
+	p    *protectRun
+	st   *state.Store
+	prot state.Protection
+	rows [][2]string
+
+	sealed, none, expects bool
+	rf, erf               readersFile
+	rstat                 state.RolesStatus
+	recoveryFileState     string
+
+	txns         []state.Transaction
+	recs         *state.RecordVerdict
+	secs         *state.SecretVerdict
+	lostPolicies []state.MissingPolicy
+	envProblem   error
+	sigs         *sigCounts
+	interrupted  map[string]bool
+	ver          state.VerifyResult
+}
+
+func (r *statusReport) add(k, v string) { r.rows = append(r.rows, [2]string{k, v}) }
+
+// describeSeal adds the row that says whether the state is sealed.
+func (r *statusReport) describeSeal() {
+	p, prot, none := r.p, r.prot, r.none
+	add := r.add
 	switch {
 	case none:
 		if p.rf.Found {
@@ -90,12 +136,12 @@ func (p *protectRun) status() error {
 	default:
 		add("Sealed", fmt.Sprintf("off · format %d", prot.Format))
 	}
-	rf := p.rf
-	expects := expectsSealed(prot, rf)
-	if expects && !none {
-		rows[len(rows)-1][1] += " · the repository expects a sealed state"
-	}
-	add("Store", p.location())
+}
+
+// describeReaders adds the row for the readers file.
+func (r *statusReport) describeReaders() {
+	prot, rf, sealed := r.prot, r.rf, r.sealed
+	add := r.add
 	switch {
 	case !rf.Found:
 		add("Readers", fmt.Sprintf("file not found (looked in %s)", rf.shownDir()))
@@ -111,6 +157,12 @@ func (p *protectRun) status() error {
 			add("Readers", differsText(added, removed))
 		}
 	}
+}
+
+// describeYou adds the row that says who the caller is to the store.
+func (r *statusReport) describeYou(id *protect.Identity, idErr error) {
+	prot, sealed := r.prot, r.sealed
+	add := r.add
 	if sealed {
 		switch {
 		case prot.You.State == "reader":
@@ -123,12 +175,24 @@ func (p *protectRun) status() error {
 			add("You", "not a reader of this state (no identity found)")
 		}
 	}
-	recoveryFileState := ""
+}
+
+// describeRecovery adds the row for the recovery key.
+func (r *statusReport) describeRecovery() {
+	prot, rf := r.prot, r.rf
+	add := r.add
 	if prot.State == "sealed" && (prot.Sealed.Recovery != nil || loadRecoveryFile(rf).Found) {
 		var text string
-		text, recoveryFileState = recoveryStatusText(prot, rf)
+		text, r.recoveryFileState = recoveryStatusText(prot, rf)
 		add("Recovery", text)
 	}
+}
+
+// check reads the roles, the records, the secrets, the policies and the pointers of
+// the store, and adds a row for each.
+func (r *statusReport) check() error {
+	p, st, prot, rf := r.p, r.st, r.prot, r.rf
+	add := r.add
 	txns, err := st.Transactions()
 	if err != nil {
 		return err
@@ -186,6 +250,16 @@ func (p *protectRun) status() error {
 			add("Environment", "the record does not verify")
 		}
 	}
+	r.txns, r.erf, r.rstat, r.recs, r.secs, r.lostPolicies, r.envProblem = txns, erf, rstat, recs, secs, lostPolicies, envProblem
+	return r.checkSignatures()
+}
+
+// checkSignatures counts the signatures of the transactions, finds the ones that a
+// crash left unsettled and verifies every object against its name.
+func (r *statusReport) checkSignatures() error {
+	p, st, prot, rf, txns := r.p, r.st, r.prot, r.rf, r.txns
+	add := r.add
+	var err error
 	var sigs *sigCounts
 	if prot.Sealed != nil {
 		if readers, ok := attributionReaders(rf); ok {
@@ -209,6 +283,17 @@ func (p *protectRun) status() error {
 	if err != nil {
 		return err
 	}
+	r.sigs, r.interrupted, r.ver = sigs, interrupted, ver
+	return nil
+}
+
+// emit prints the report, as one JSON document or as the rows and the untrusted
+// objects under them.
+func (r *statusReport) emit() error {
+	p, prot, rf, sealed, none, expects := r.p, r.prot, r.rf, r.sealed, r.none, r.expects
+	erf, rstat, st := r.erf, r.rstat, r.st
+	sigs, recs, secs, lostPolicies, envProblem := r.sigs, r.recs, r.secs, r.lostPolicies, r.envProblem
+	ver, interrupted, rows, recoveryFileState := r.ver, r.interrupted, r.rows, r.recoveryFileState
 	if flags.JSON {
 		doc := map[string]any{"state": prot.State, "format": prot.Format, "store": p.location(), "records": prot.Records,
 			"readers": protectedNames(prot), "checked": ver.Checked, "untrusted": ver.Bad, "unsettled": len(interrupted)}
@@ -277,6 +362,12 @@ func (p *protectRun) status() error {
 			}
 		}
 	}
+	return nil
+}
+
+// verdict is the error that a report with untrusted parts ends with.
+func (r *statusReport) verdict() error {
+	ver, sigs, envProblem, lostPolicies, recs, secs := r.ver, r.sigs, r.envProblem, r.lostPolicies, r.recs, r.secs
 	if len(ver.Bad) > 0 {
 		return fmt.Errorf("%w: %s", state.ErrUntrusted, plural(len(ver.Bad), "object does", "objects do")+" not match")
 	}
