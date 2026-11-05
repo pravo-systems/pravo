@@ -120,8 +120,13 @@ func ReadLock(dir string) (*Lock, error) {
 	return l, nil
 }
 
-// Write renders the lock file.
+// Write renders the lock file into dir.
 func (l *Lock) Write(dir string) error {
+	return os.WriteFile(filepath.Join(dir, LockFileName), []byte(l.Render()), 0o644)
+}
+
+// Render is the text of the lock file.
+func (l *Lock) Render() string {
 	keys := make([]string, 0, len(l.Providers))
 	for k := range l.Providers {
 		keys = append(keys, k)
@@ -159,5 +164,5 @@ func (l *Lock) Write(dir string) error {
 		e := l.Modules[k]
 		fmt.Fprintf(&b, "modules: %s: {\n\tversion: %s\n\thash:    %s\n}\n", strconv.Quote(k), strconv.Quote(e.Version), strconv.Quote(e.Hash))
 	}
-	return os.WriteFile(filepath.Join(dir, LockFileName), []byte(b.String()), 0o644)
+	return b.String()
 }

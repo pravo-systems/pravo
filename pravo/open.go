@@ -18,6 +18,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/filelock"
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
@@ -371,29 +372,41 @@ func GitRevision(dir string) string {
 // WriteLock writes the lock file in the layout that "pravo fmt" leaves it in,
 // so that formatting it changes nothing.
 func WriteLock(l *Lock, dir string) error {
-	if err := l.Write(dir); err != nil {
-		return err
-	}
-	path := filepath.Join(dir, engine.LockFileName)
-	src, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	formatted, err := format.Source(src)
+	formatted, err := format.Source([]byte(l.Render()))
 	if err != nil {
 		return fmt.Errorf("%s: %w", engine.LockFileName, err)
 	}
-	_, err = WriteIfChanged(path, formatted)
+	_, err = WriteIfChanged(filepath.Join(dir, engine.LockFileName), formatted)
 	return err
 }
 
 // WriteIfChanged writes data to path unless the file already has exactly that
-// content, and reports whether it wrote.
+// content, and reports whether it wrote. The file is replaced in one step, so a
+// command that reads it while another writes it sees the old text or the new,
+// never half of it.
 func WriteIfChanged(path string, data []byte) (bool, error) {
 	if old, err := os.ReadFile(path); err == nil && bytes.Equal(old, data) {
 		return false, nil
 	}
-	return true, os.WriteFile(path, data, 0o644)
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return true, err
+	}
+	name := tmp.Name()
+	_, err = tmp.Write(data)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(name, 0o644)
+	}
+	if err == nil {
+		err = filelock.Rename(name, path)
+	}
+	if err != nil {
+		os.Remove(name)
+	}
+	return true, err
 }
 
 func lockString(l *engine.Lock) string {
