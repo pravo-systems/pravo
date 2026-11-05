@@ -11,6 +11,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/plugin"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
 	"github.com/pravo-systems/pravo/pravo"
@@ -21,7 +22,7 @@ import (
 const maxShown = 20
 
 func discoverCmd() *cobra.Command {
-	var all bool
+	var all, exitCode bool
 	cmd := &cobra.Command{
 		Use:   "discover [<name>...]",
 		Short: "Find the objects that exist and no resource of the specification manages",
@@ -41,6 +42,10 @@ ones whose scope changed since they ran, since what they found answers another
 question. With --all it runs every discovery again, and with names it runs
 those. A discovery lists and manages nothing: no plan or apply reads it.
 
+A reader of a state with roles may run it: the run is held in memory, shown, and
+not kept, since a reader changes nothing. With --exit-code the command exits 2
+when an object it listed is unmanaged, which is the check for a schedule.
+
 Use "pravo discover show" to read what the last runs found, and "pravo
 discover adopt" to write the resource that adopts an object.`,
 		Args: cobra.ArbitraryArgs,
@@ -48,7 +53,7 @@ discover adopt" to write the resource that adopts an object.`,
 			if all && len(args) > 0 {
 				return errors.New("--all runs every discovery; name some or give --all, not both")
 			}
-			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true})
+			s, err := newSession(cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: true})
 			if err != nil {
 				return err
 			}
@@ -89,12 +94,27 @@ discover adopt" to write the resource that adopts an object.`,
 					}
 				}
 			}
+			if msg, _ := roleProblem(readersOf(s.root), s.state, protect.RoleWriter, ""); msg != "" && !flags.JSON {
+				out.Printf("Not kept: your identity is a reader, so this run is shown and not stored.\n")
+			}
 			if failed > 0 {
 				return fmt.Errorf("%s failed", plural(failed, "discovery", "discoveries"))
+			}
+			if exitCode {
+				unmanaged := 0
+				for _, d := range chosen {
+					if v := rep.View(d.Name); v != nil {
+						unmanaged += v.Counts[engine.Unmanaged]
+					}
+				}
+				if unmanaged > 0 {
+					return engine.WithCode(engine.ExitChanges, fmt.Errorf("%s unmanaged", plural(unmanaged, "object is", "objects are")))
+				}
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&exitCode, "exit-code", false, "exit 2 when an object that was listed is unmanaged")
 	cmd.Flags().BoolVar(&all, "all", false, "run every discovery, not only the ones that have not run or whose scope changed")
 	addTagFlags(cmd)
 	cmd.AddCommand(discoverShowCmd(), discoverAdoptCmd())

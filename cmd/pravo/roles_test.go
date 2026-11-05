@@ -386,3 +386,42 @@ func TestAReaderMayAskWhy(t *testing.T) {
 		}
 	}
 }
+
+// A reader may run a discovery, which only lists: the run is shown and held in memory, the
+// state keeps nothing of it, and --exit-code makes it a check for a schedule.
+func TestAReaderRunsADiscoveryWithoutWritingTheState(t *testing.T) {
+	newDemoProvider(t, demoObject{"srv-web-old", "web-old", "eu"})
+	s := plannableBucket(t)
+	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
+	spec := "package t\n\nimport demo \"pravo.dev/providers/demo/demo\"\n\n" +
+		`$settings: state: {backend: "s3", bucket: "northwind-state", prefix: "prod", region: "eu-west-1", endpoint: "` + s.url + `", path_style: true, access_key: "test", secret_key: "test"}` + "\n" +
+		"$demo: demo.#Provider & {$path: " + fmt.Sprintf("%q", demoBinary) + "}\n" +
+		"vms: $demo.#Discovery.demo_server & {region: \"eu\"}\n"
+	mustWrite(t, s.dir, "main.cue", spec)
+	if text, code := runPravo(t, s.dir, "--identity", "ada", "init"); code != 0 {
+		t.Fatalf("init exited %d:\n%s", code, text)
+	}
+	before := s.objects()
+
+	text, code := runPravo(t, s.dir, "--identity", "dan", "discover", "--exit-code")
+	if code != 2 {
+		t.Fatalf("a reader's discover --exit-code: exit %d, want 2\n%s", code, text)
+	}
+	contains(t, text, "1 unmanaged", "srv-web-old", "Not kept")
+	for k, v := range s.objects() {
+		if old, ok := before[k]; !ok || old != v {
+			t.Errorf("the discovery of a reader wrote %s", k)
+		}
+	}
+
+	// A writer's run is kept, and says nothing of the kind.
+	text, code = runPravo(t, s.dir, "--identity", "ada", "discover")
+	if code != 0 {
+		t.Fatalf("a writer's discover: exit %d\n%s", code, text)
+	}
+	lacks(t, text, "Not kept")
+	text, code = runPravo(t, s.dir, "--identity", "dan", "discover", "show", "--exit-code")
+	if code != 2 {
+		t.Fatalf("show after a writer's run: exit %d\n%s", code, text)
+	}
+}

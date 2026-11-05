@@ -94,6 +94,8 @@ func RenderAdoption(blk *schema.Block, st tftypes.Value) string {
 	if st.As(&m) != nil {
 		return ""
 	}
+	// The id of a resource is the provider's name for the object, which a specification does not set.
+	delete(m, "id")
 	var b strings.Builder
 	writeFields(&b, "\t", shape{attrs: blk.Attributes, blocks: blk.BlockTypes}, m)
 	return b.String()
@@ -138,6 +140,10 @@ func writeFields(b *strings.Builder, indent string, sh shape, m map[string]tftyp
 		if a := sh.attribute(n); a != nil {
 			switch {
 			case a.Computed && !a.Optional && !a.Required, a.WriteOnly:
+				continue
+			case !a.Required && isEmptyString(v):
+				// A provider reads an optional string it has no value for as "", and a
+				// specification that wrote it down would set it (and conflict with its pair).
 				continue
 			case a.Sensitive:
 				fmt.Fprintf(b, "%s// %s is sensitive: write its value yourself.\n", indent, n)
@@ -223,4 +229,10 @@ func FormatCUE(src string) string {
 		return src
 	}
 	return string(out)
+}
+
+// isEmptyString reports whether v is the string "".
+func isEmptyString(v tftypes.Value) bool {
+	var s string
+	return v.Type().Is(tftypes.String) && v.As(&s) == nil && s == ""
 }
