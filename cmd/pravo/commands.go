@@ -1529,7 +1529,8 @@ that declares none, so it also serves to try out CUE.
 }
 
 func fmtCmd() *cobra.Command {
-	return &cobra.Command{
+	var check bool
+	cmd := &cobra.Command{
 		Use:   "fmt",
 		Short: "Format the CUE files in the current directory",
 		Args:  noArgs,
@@ -1538,6 +1539,7 @@ func fmtCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			unformatted := 0
 			for _, f := range files {
 				src, err := os.ReadFile(f)
 				if err != nil {
@@ -1548,15 +1550,23 @@ func fmtCmd() *cobra.Command {
 					return fmt.Errorf("%s: %w", f, err)
 				}
 				if string(formatted) != string(src) {
-					if err := os.WriteFile(f, formatted, 0o644); err != nil {
-						return err
+					if !check {
+						if err := os.WriteFile(f, formatted, 0o644); err != nil {
+							return err
+						}
 					}
+					unformatted++
 					fmt.Println(f)
 				}
+			}
+			if check && unformatted > 0 {
+				return engine.WithCode(engine.ExitChanges, fmt.Errorf("%d file(s) are not formatted: run pravo fmt", unformatted))
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&check, "check", false, "write nothing: print the files that are not formatted and exit with code 2 if there are any")
+	return cmd
 }
 
 // parsePlatforms reads a comma-separated os_arch list; empty means the

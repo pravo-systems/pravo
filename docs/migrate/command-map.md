@@ -34,7 +34,7 @@ A pravo command takes the same place in a pipeline as the tofu command it replac
 | `tofu show` (state) | `pravo state list`, `pravo state show addr` | One record at a time. |
 | `tofu output` | `pravo output [name]` | `--json` for JSON. A string prints quoted. |
 | `tofu console` | `pravo eval -e EXPR` | `pravo eval` prints the whole evaluated specification. `-c` fails unless every value is concrete. |
-| `tofu fmt` | `pravo fmt` | Formats the `.cue` files of the current directory. It has no flags. |
+| `tofu fmt` | `pravo fmt` | Formats the `.cue` files of the current directory. `--check` writes nothing and exits with code 2 when a file would change. |
 | `tofu graph` | `pravo state graph` | `--dot` prints Graphviz. |
 | `tofu import addr id` | `pravo import addr id` | The declaration `$import: "id"` does the same in the specification. |
 | `tofu refresh` | None | `pravo drift` reads every resource and reports drift. `pravo drift --due --limit N` reads the oldest records past their refresh age. `pravo plan -refresh=all` refreshes every record. |
