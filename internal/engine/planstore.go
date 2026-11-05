@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
@@ -548,14 +549,27 @@ type PlanStore struct {
 
 // NewPlanStore returns the plan store of a state backend. It seals nothing: use
 // NewPlanStoreFor for a state that may be sealed.
-func NewPlanStore(b state.Backend) *PlanStore { return &PlanStore{B: b, Now: time.Now} }
+func NewPlanStore(b state.Backend) *PlanStore { return &PlanStore{B: b, Now: clockNow} }
 
 // NewPlanStoreFor returns the plan store of a state. If the state is sealed, the
 // plans that the store writes are sealed to the readers of the state, and a store
 // whose key does not open them lists them from their summaries and fails with
 // state.ErrNotReader when asked for what a plan holds.
 func NewPlanStoreFor(st *state.Store) *PlanStore {
-	return &PlanStore{B: st.Backend(), Now: time.Now, st: st}
+	return &PlanStore{B: st.Backend(), Now: clockNow, st: st}
+}
+
+// clockSkew is added to the time the stored plans see. A test moves it forward to let a plan
+// expire without waiting for it.
+var clockSkew atomic.Int64
+
+func clockNow() time.Time { return time.Now().Add(time.Duration(clockSkew.Load())) }
+
+// SkewClock moves the clock of the stored plans forward by d, and returns the function that
+// puts it back. It is for tests of what happens when a plan has expired.
+func SkewClock(d time.Duration) (undo func()) {
+	clockSkew.Add(int64(d))
+	return func() { clockSkew.Add(-int64(d)) }
 }
 
 func (ps *PlanStore) now() time.Time {

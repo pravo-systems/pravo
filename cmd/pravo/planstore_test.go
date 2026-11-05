@@ -298,7 +298,7 @@ func TestApplyingOnePlanMakesTheOtherStale(t *testing.T) {
 func TestAPlanThatExpiredIsNotApplied(t *testing.T) {
 	dir, _ := pendingDir(t)
 	id := storePlanAs(t, dir, "alice", "--ttl", "1ms")
-	time.Sleep(20 * time.Millisecond)
+	t.Cleanup(engine.SkewClock(time.Second))
 	text, code := runPravo(t, dir, "apply", id)
 	if code != int(engine.ExitStale) || !strings.Contains(text, id+" expired") {
 		t.Errorf("exit %d:\n%s", code, text)
@@ -329,7 +329,7 @@ func TestAPlanThatExpiredIsNotApplied(t *testing.T) {
 func TestOlderThanAndOpportunisticCollection(t *testing.T) {
 	dir, _ := pendingDir(t)
 	old := storePlanAs(t, dir, "alice")
-	time.Sleep(30 * time.Millisecond)
+	undo := engine.SkewClock(time.Second)
 	if text, code := runPravo(t, dir, "plan", "gc", "--older-than", "1h"); code != 0 || !strings.Contains(text, "No stored plan needs to be removed.") {
 		t.Errorf("exit %d:\n%s", code, text)
 	}
@@ -340,8 +340,9 @@ func TestOlderThanAndOpportunisticCollection(t *testing.T) {
 		t.Errorf("exit %d:\n%s", code, text)
 	}
 	// A plan that is stored removes the plans that expired.
+	undo()
 	gone := storePlanAs(t, dir, "alice", "--ttl", "1ms")
-	time.Sleep(20 * time.Millisecond)
+	t.Cleanup(engine.SkewClock(time.Second))
 	text, code := runPravo(t, dir, "--actor", "bob", "plan", "--store")
 	if code != 0 || !strings.Contains(text, "Removed 1 stored plan that was no longer needed.") {
 		t.Errorf("exit %d:\n%s", code, text)
@@ -509,7 +510,7 @@ func TestAnAppliedPlanHasNothingLeftAfterItsTTL(t *testing.T) {
 	if text, code := runPravo(t, dir, "apply", id); code != 0 {
 		t.Fatalf("apply exited %d:\n%s", code, text)
 	}
-	time.Sleep(2200 * time.Millisecond)
+	t.Cleanup(engine.SkewClock(2200 * time.Millisecond))
 	text, code := runPravo(t, dir, "apply", id)
 	if code != 0 || !strings.Contains(text, "nothing left to apply") {
 		t.Errorf("exit %d:\n%s", code, text)
@@ -746,7 +747,7 @@ func TestAStoredPlanNeedsTheSystemTagsItWasMadeWith(t *testing.T) {
 // "plan --store" removes at most a few plans on its way.
 func TestOpportunisticCollectionIsBounded(t *testing.T) {
 	if testing.Short() {
-		t.Skip("stores thirty plans and waits for them to expire")
+		t.Skip("stores thirty plans")
 	}
 	dir, _ := pendingDir(t)
 	const stored = opportunisticGC + 5
@@ -756,7 +757,7 @@ func TestOpportunisticCollectionIsBounded(t *testing.T) {
 	if got := len(planObjects(t, dir)); got != 2*stored {
 		t.Fatalf("%d objects of %d plans (the plans expired while they were stored?)", got, stored)
 	}
-	time.Sleep(6500 * time.Millisecond)
+	t.Cleanup(engine.SkewClock(6500 * time.Millisecond))
 	text, code := runPravo(t, dir, "--actor", "bob", "plan", "--store")
 	want := "Removed " + plural(opportunisticGC, "stored plan", "stored plans") + " that were no longer needed."
 	if code != 0 || !strings.Contains(text, want) {
