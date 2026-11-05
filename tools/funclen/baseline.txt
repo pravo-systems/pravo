@@ -12,7 +12,7 @@ cmd/pravo/id.go runIDNew 143
 cmd/pravo/mcp.go mcpTools 186
 cmd/pravo/planstore.go showStored 106
 cmd/pravo/protect_init.go protectRun.init 145
-cmd/pravo/protect_rewrap.go protectRun.rewrap 199
+cmd/pravo/protect_rewrap.go protectRun.rewrap 117
 cmd/pravo/recovery.go protectRun.recover 200
 cmd/pravo/serve.go serveCmd 118
 cmd/pravo/statecmd.go stateCmd 122

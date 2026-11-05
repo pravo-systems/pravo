@@ -109,8 +109,8 @@ func (p *protectRun) unseal(yes, removeFiles bool, shareFiles []string) error {
 	default:
 		return p.notSealed(&prot, removeFiles, yes, "The state is not sealed.")
 	}
-	if st.Locked() || prot.You.State != "reader" {
-		return engine.WithCode(engine.ExitRefused, notReaderError(p.rf, id, idErr))
+	if err := p.requireReader(st, prot, id, idErr); err != nil {
+		return err
 	}
 	if err := atRest(st); err != nil {
 		return err

@@ -109,8 +109,8 @@ func (p *protectRun) rolesTarget() (*rolesRun, error) {
 	if prot.State != "sealed" {
 		return nil, errors.New("the state is not sealed; see pravo protect check")
 	}
-	if st.Locked() || prot.You.State != "reader" {
-		return nil, engine.WithCode(engine.ExitRefused, notReaderError(p.rf, id, idErr))
+	if err := p.requireReader(st, prot, id, idErr); err != nil {
+		return nil, err
 	}
 	chain, err := st.RolesChain(p.ctx)
 	if err != nil {

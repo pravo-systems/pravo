@@ -61,6 +61,14 @@ func (rf readersFile) require() error {
 	return nil
 }
 
+// requireReader refuses (exit 5) when the key that opened the state is not a reader of it.
+func (p *protectRun) requireReader(st *state.Store, prot state.Protection, id *protect.Identity, idErr error) error {
+	if st.Locked() || prot.You.State != "reader" {
+		return engine.WithCode(engine.ExitRefused, notReaderError(p.rf, id, idErr))
+	}
+	return nil
+}
+
 // notReaderError is the refusal to open the values of a sealed state: exit 5.
 func notReaderError(rf readersFile, id *protect.Identity, idErr error) error {
 	why := "no identity found"
