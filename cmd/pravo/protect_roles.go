@@ -66,37 +66,62 @@ many would stop counting. Do not use it for a key that may be compromised.`,
 }
 
 func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning bool, readd []string) error {
-	if err := p.rf.require(); err != nil {
+	rr, err := p.rolesTarget()
+	if err != nil {
 		return err
 	}
+	pl, err := p.planRoles(rr, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning, readd)
+	if err != nil {
+		return err
+	}
+	return p.storeRoles(rr, pl, p.describeRoleChanges(rr, pl), yes)
+}
+
+// rolesRun is the store that "protect roles" works on and the roles it holds now.
+type rolesRun struct {
+	st           *state.Store
+	prot         state.Protection
+	chain        *state.RolesChain
+	head         *state.RolesVersion
+	before       []protect.Reader
+	beforeFormer []protect.FormerKey
+}
+
+// rolesTarget opens the store for "protect roles" and checks that the caller may
+// store roles in it: the state is sealed, the caller reads it, the roles in it are
+// the ones the readers file pins, and the caller is an admin of the roles that decide.
+func (p *protectRun) rolesTarget() (*rolesRun, error) {
+	if err := p.rf.require(); err != nil {
+		return nil, err
+	}
 	if !protect.RolesOn(p.rf.Readers) {
-		return engine.WithCode(engine.ExitInvalid, fmt.Errorf("%s gives no roles. Add role:reader, role:writer or role:admin to the lines of the readers first.", p.rf.shown()))
+		return nil, engine.WithCode(engine.ExitInvalid, fmt.Errorf("%s gives no roles. Add role:reader, role:writer or role:admin to the lines of the readers first.", p.rf.shown()))
 	}
 	b, err := p.backend(true)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	st, id, idErr, err := p.open(b, true, true)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	prot := st.Protection()
 	if prot.State != "sealed" {
-		return errors.New("the state is not sealed; see pravo protect check")
+		return nil, errors.New("the state is not sealed; see pravo protect check")
 	}
 	if st.Locked() || prot.You.State != "reader" {
-		return engine.WithCode(engine.ExitRefused, notReaderError(p.rf, id, idErr))
+		return nil, engine.WithCode(engine.ExitRefused, notReaderError(p.rf, id, idErr))
 	}
 	chain, err := st.RolesChain(p.ctx)
 	if err != nil {
-		return engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
+		return nil, engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
 	}
 	head := chain.Head()
 	switch {
 	case head == nil && p.rf.Pin != "":
-		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%w: %s pins the roles of the state, and the state has none", state.ErrUntrusted, p.rf.shown()))
+		return nil, engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%w: %s pins the roles of the state, and the state has none", state.ErrUntrusted, p.rf.shown()))
 	case head != nil && p.rf.Pin != "" && chain.Versions[0].Digest() != p.rf.Pin:
-		return engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%w: the first roles in the state are not the ones %s pins", state.ErrUntrusted, p.rf.shown()))
+		return nil, engine.WithCode(engine.ExitUntrusted, fmt.Errorf("%w: the first roles in the state are not the ones %s pins", state.ErrUntrusted, p.rf.shown()))
 	}
 	// The signer is an admin of the roles that decide now: the head of the chain, or the file
 	// for the first version.
@@ -109,22 +134,42 @@ func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRu
 		if ok {
 			got = article(role)
 		}
-		return engine.WithCode(engine.ExitRefused, fmt.Errorf("your identity is %s in %s, and an admin is needed to store the roles.", got, whose))
+		return nil, engine.WithCode(engine.ExitRefused, fmt.Errorf("your identity is %s in %s, and an admin is needed to store the roles.", got, whose))
 	}
 	var before []protect.Reader
 	var beforeFormer []protect.FormerKey
 	if head != nil {
 		before, beforeFormer = head.Set, head.Former
 	}
+	return &rolesRun{st: st, prot: prot, chain: chain, head: head, before: before, beforeFormer: beforeFormer}, nil
+}
+
+// rolesPlan is what "protect roles" is about to store: the roles that follow from the
+// readers file and the roles in the state, and the vouches that carry over what keys that
+// leave the writers signed.
+type rolesPlan struct {
+	next                            []protect.Reader
+	nextFormer                      []protect.FormerKey
+	seen                            []string
+	counts                          map[string]int
+	vouches, txnVouches, envVouches []protect.Vouch
+	withdrawn                       []protect.Vouch
+	text                            string
+}
+
+// planRoles works out the roles to store, and refuses the ones that would lock the admins
+// out or cut off a running command.
+func (p *protectRun) planRoles(rr *rolesRun, adoptUnsigned, vouchNotes, allowNoAdmin, allowRunning bool, readd []string) (*rolesPlan, error) {
+	st, prot, chain, before, beforeFormer := rr.st, rr.prot, rr.chain, rr.before, rr.beforeFormer
 	// Keys that signed transactions and that no one lists are recorded as former: they are
 	// members who left before the roles were stored. A key that is not recorded here is
 	// refused from then on, so what is recorded is shown.
 	seen, counts, err := unlistedSigners(st, p.rf.Readers, before, beforeFormer)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := formerListed(beforeFormer, p.rf.Readers, nil, readd); err != nil {
-		return err
+		return nil, err
 	}
 	next, nextFormer := protect.NextRoles(p.rf.Readers, before, beforeFormer, seen)
 	if !allowNoAdmin && !hasAdmin(next, p.rf.Readers) {
@@ -137,16 +182,16 @@ func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRu
 		if len(demoted) == 0 {
 			demoted = []string{"the admins"}
 		}
-		return engine.WithCode(engine.ExitRefused, noAdminError(demoted, "demotes or removes"))
+		return nil, engine.WithCode(engine.ExitRefused, noAdminError(demoted, "demotes or removes"))
 	}
 	if !allowNoAdmin && prot.Sealed != nil && !adminReadsState(next, p.rf.Readers, prot.Sealed.Status(p.rf.Readers).Missing) {
-		return engine.WithCode(engine.ExitRefused, errors.New("no admin in these roles can read the state yet: the admin in the readers file has no lock in the state. Hand the role over in two steps: list the new admin next to the old one, run pravo protect rewrap and then pravo protect roles, and only then remove the old key (rewrap again). Or pass --allow-no-admin (a recovery set is then the only way back)."))
+		return nil, engine.WithCode(engine.ExitRefused, errors.New("no admin in these roles can read the state yet: the admin in the readers file has no lock in the state. Hand the role over in two steps: list the new admin next to the old one, run pravo protect rewrap and then pravo protect roles, and only then remove the old key (rewrap again). Or pass --allow-no-admin (a recovery set is then the only way back)."))
 	}
 	if running, err := runningLeavers(st, before, next); err != nil {
-		return err
+		return nil, err
 	} else if len(running) > 0 {
 		if !allowRunning {
-			return engine.WithCode(engine.ExitLocked, runningLeaversError(running))
+			return nil, engine.WithCode(engine.ExitLocked, runningLeaversError(running))
 		}
 		if !flags.JSON {
 			out.Printf("Warning: %s. What it writes from now on is signed by a key that is not a writer and stays refused (exit 7). To trust it, make the key a writer again, store the roles, and demote it again once the transaction has ended.\n", describeRunning(running))
@@ -154,13 +199,13 @@ func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRu
 	}
 	vouches, err := newVouches(p.ctx, st, chain, before, next, seen, adoptUnsigned)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// A withdrawal only restricts, so those that an admin signed stay in force when that key is
 	// demoted or leaves, with no flag.
 	withdrawn, err := withdrawalVouches(p.ctx, st, chain, before, next)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	isWithdrawal := map[string]bool{}
 	for _, v := range withdrawn {
@@ -168,7 +213,7 @@ func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRu
 	}
 	envVouches, left, err := environmentVouches(p.ctx, st, chain, before, beforeFormer, next, seen, vouchNotes, isWithdrawal)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	txnVouches := vouches
 	vouches = append(append(append([]protect.Vouch(nil), vouches...), envVouches...), withdrawn...)
@@ -176,6 +221,14 @@ func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRu
 		out.Printf("Warning: %s of keys that leave the writers will stop counting, so the environments after this one refuse this release until a current writer applies it again. If the keys are safe, run this with --vouch-notes to carry them over. Do not, if a key may be compromised. A withdrawal by an admin who is demoted or leaves keeps holding either way.\n", plural(left, "run note or promotion", "run notes and promotions"))
 	}
 	text := protect.FormatRolesSet(next, nextFormer, vouches)
+	return &rolesPlan{next: next, nextFormer: nextFormer, seen: seen, counts: counts, vouches: vouches, txnVouches: txnVouches, envVouches: envVouches, withdrawn: withdrawn, text: text}, nil
+}
+
+// describeRoleChanges lists what storing the plan changes, one line each, for the person
+// who confirms it.
+func (p *protectRun) describeRoleChanges(rr *rolesRun, pl *rolesPlan) []string {
+	st, before, next, seen, counts := rr.st, rr.before, pl.next, pl.seen, pl.counts
+	txnVouches, envVouches, withdrawn := pl.txnVouches, pl.envVouches, pl.withdrawn
 	changes := roleChanges(before, next)
 	for _, fp := range seen {
 		changes = append(changes, fmt.Sprintf("%s: signed %s and is in no list: recorded as former", fp, plural(counts[fp], "transaction", "transactions")))
@@ -243,6 +296,13 @@ func (p *protectRun) roles(yes, adoptUnsigned, vouchNotes, allowNoAdmin, allowRu
 		}
 		changes = append(changes, fmt.Sprintf("%s: vouched for %s (what the environments after this one read from them stays valid)", who, plural(envVouched[k], "run note or promotion", "run notes and promotions")))
 	}
+	return changes
+}
+
+// storeRoles confirms the plan, stores it as the next version of the roles and pins its
+// first version in the readers file.
+func (p *protectRun) storeRoles(rr *rolesRun, pl *rolesPlan, changes []string, yes bool) error {
+	st, head, chain, next, nextFormer, vouches, text := rr.st, rr.head, rr.chain, pl.next, pl.nextFormer, pl.vouches, pl.text
 	seq := 1
 	if head != nil {
 		seq = head.Seq + 1
