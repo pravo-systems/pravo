@@ -15,7 +15,7 @@ keywords: "cue vet cue eval cue fmt validate"
 |---|---|---|---|
 | `pravo validate` | Evaluates the specification and checks it against the generated definitions. Prints a summary. | no, once `pravo init` has cached the schema | nothing |
 | `pravo eval` | Prints the evaluated value, as `cue eval` does. Fills in the recorded state. | no | nothing |
-| `pravo fmt` | Formats the `.cue` files of the current directory in place. | no | the files that change |
+| `pravo fmt` | Formats the `.cue` files of the current directory in place, or with `--check` only reports which would change. | no | the files that change |
 | `pravo gen` | Rewrites the packages under `cue.mod/gen` from the cached schemas, and generates a package that an import names and that does not exist yet. | no | `cue.mod/gen` |
 
 `validate` and `eval` also work on plain CUE that declares no provider and imports no generated package. Imports of the CUE standard library are fine. The file needs a `package` clause, and no `pravo init` is needed. Taught in [eval and validate](../learn/eval-and-validate.md), [A1, Your data is already CUE](../learn/a01-your-data-is-already-cue.md) and [B1, Providers and resources](../learn/b01-providers-and-resources.md).
@@ -242,7 +242,7 @@ number | null
 
 ### pravo fmt
 
-`fmt` rewrites the `.cue` files of the current directory in the style of `cue fmt`. It prints the name of each file that changed and prints nothing for a file that is formatted. It does not descend into subdirectories.
+`fmt` rewrites the `.cue` files of the current directory in the style of `cue fmt`. It prints the name of each file that changed and prints nothing for a file that is formatted. It does not descend into subdirectories. With `--check` it writes nothing: it prints the files that are not formatted and exits with code 2 if there are any, which is the test for a pipeline.
 
 ```cue file=messy.cue
 package demo

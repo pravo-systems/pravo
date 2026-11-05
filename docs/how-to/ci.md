@@ -529,7 +529,7 @@ A job that fails leaves a log, and a job that is slow leaves a number. `PRAVO_TR
 The commands of this page, in the jobs that run them:
 
 ```text
-pull request   pravo init; test -z "$(pravo fmt)"; pravo validate
+pull request   pravo init; pravo fmt --check; pravo validate
                PRAVO_REPLAY=recordings pravo plan --json > plan.json
 plan job       pravo plan -out change.plan --reason "$REV"
                or, with a shared state: pravo plan --store --json --reason "$REV" | jq -r .stored.id
