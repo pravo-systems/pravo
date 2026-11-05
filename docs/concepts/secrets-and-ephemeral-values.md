@@ -260,7 +260,7 @@ The kind is chosen where the variable is declared.
 
 ### Secrets of the sealed state
 
-A `pravo.#Secret` is an ephemeral value that comes from the [sealed state](signatures-and-roles.md#what-is-sealed) of the root instead of the environment of the process. [`pravo secret set`](../reference/secret.md) keeps it there as a named secret with numbered versions, sealed to the same readers as the records. A run reads the latest version when it starts, or the version that `version` names, and stops before any provider starts when the secret is missing or was removed. The same rules decide where the value may go: provider configuration, a write-only attribute and another ephemeral resource.
+A `pravo.#Secret` is an ephemeral value that comes from the [sealed state](signatures-and-roles.md#what-is-sealed) of the root instead of the environment of the process. [`pravo secret set`](../reference/secret.md) keeps it there as a named secret with numbered versions, sealed to the same readers as the records. A run reads the latest version when it starts, or the version that `version` names, and stops before any provider starts when the secret is missing or was removed. The same rules decide where the value may go: provider configuration, a write-only attribute and another ephemeral resource. A `local_file` has no write-only attribute, so a secret cannot feed its `content`; to put a secret in a file, use `local_sensitive_file` with `source`, as [A secret in a file](../how-to/secrets.md#a-secret-in-a-file) shows.
 
 ```cue
 db_password: pravo.#Secret & {name: "prod/db_password"}

@@ -456,7 +456,9 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 						out.Printf("    - %s\n", d.Note)
 					}
 				}
-				if proposal == nil {
+				if proposal == nil && noWrite {
+					out.Println("Nothing was marked (--no-write), so pravo plan does not show these; run pravo drift without --no-write to mark them first.")
+				} else if proposal == nil {
 					out.Println("Run pravo plan to see what puts them back, or pravo apply to do it.")
 				}
 			}
