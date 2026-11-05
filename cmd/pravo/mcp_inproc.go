@@ -16,7 +16,7 @@ import (
 
 // inprocess runs the tool inside the server and returns its text and exit
 // code in the form of runSelf.
-func inprocess(rt *runContext, ctx context.Context, in map[string]any, run func(ctx context.Context, in map[string]any) (string, error)) (string, int) {
+func inprocess(ctx context.Context, rt *runContext, in map[string]any, run func(ctx context.Context, in map[string]any) (string, error)) (string, int) {
 	saved := rt.flags.Tags
 	rt.flags.Tags = listArg(in, "tags")
 	defer func() { rt.flags.Tags = saved }()
@@ -29,21 +29,21 @@ func inprocess(rt *runContext, ctx context.Context, in map[string]any, run func(
 	return strings.TrimSpace(text), 0
 }
 
-func readStateValues(rt *runContext, ctx context.Context) (*state.Store, error) {
+func readStateValues(ctx context.Context, rt *runContext) (*state.Store, error) {
 	root, err := loadRoot(rt)
 	if err != nil {
 		return nil, err
 	}
-	return openStateValues(rt, ctx, root)
+	return openStateValues(ctx, rt, root)
 }
 
-func runStateQuery(rt *runContext, ctx context.Context, in map[string]any) (string, error) {
-	st, err := readStateValues(rt, ctx)
+func runStateQuery(ctx context.Context, rt *runContext, in map[string]any) (string, error) {
+	st, err := readStateValues(ctx, rt)
 	if err != nil {
 		return "", err
 	}
 	// An agent reads the state as the viewer shows it: sensitive values withheld.
-	snap, _, err := redactedSnapshot(rt, ctx, st)
+	snap, _, err := redactedSnapshot(ctx, rt, st)
 	if err != nil {
 		return "", err
 	}
@@ -55,8 +55,8 @@ func runStateQuery(rt *runContext, ctx context.Context, in map[string]any) (stri
 	return string(b), err
 }
 
-func runDependents(rt *runContext, ctx context.Context, in map[string]any) (string, error) {
-	st, err := readStateValues(rt, ctx)
+func runDependents(ctx context.Context, rt *runContext, in map[string]any) (string, error) {
+	st, err := readStateValues(ctx, rt)
 	if err != nil {
 		return "", err
 	}

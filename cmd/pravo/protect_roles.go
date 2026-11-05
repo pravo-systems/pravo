@@ -197,7 +197,7 @@ func (p *protectRun) planRoles(rt *runContext, rr *rolesRun, adoptUnsigned, vouc
 			rt.out.Printf("Warning: %s. What it writes from now on is signed by a key that is not a writer and stays refused (exit 7). To trust it, make the key a writer again, store the roles, and demote it again once the transaction has ended.\n", describeRunning(running))
 		}
 	}
-	vouches, err := newVouches(rt, p.ctx, st, chain, before, next, seen, adoptUnsigned)
+	vouches, err := newVouches(p.ctx, rt, st, chain, before, next, seen, adoptUnsigned)
 	if err != nil {
 		return nil, err
 	}
@@ -451,7 +451,7 @@ const maxVouches = 5000
 // a writer in next, when the key was a writer in before, when there were no roles yet, or when
 // the key is one of seen, which the admin has just been shown. A transaction that an earlier
 // version vouched for is left out.
-func newVouches(rt *runContext, ctx context.Context, st *state.Store, chain *state.RolesChain, before, next []protect.Reader, seen []string, adoptUnsigned bool) ([]protect.Vouch, error) {
+func newVouches(ctx context.Context, rt *runContext, st *state.Store, chain *state.RolesChain, before, next []protect.Reader, seen []string, adoptUnsigned bool) ([]protect.Vouch, error) {
 	live, err := st.LiveSigners(ctx)
 	if err != nil {
 		return nil, err

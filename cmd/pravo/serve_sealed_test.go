@@ -83,7 +83,7 @@ func TestServeReadsASealedState(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			before := digestDir(t, dir)
-			info, stop := runServe(rt, t, dir, "--identity", c.identity)
+			info, stop := runServe(t, rt, dir, "--identity", c.identity)
 			var a serve.Access
 			if err := json.Unmarshal(fetch(t, info, "/api/access"), &a); err != nil {
 				t.Fatal(err)
@@ -151,7 +151,7 @@ func TestServeReadsAnImmutableState(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := digestDir(t, dir)
-	info, stop := runServe(rt, t, dir)
+	info, stop := runServe(t, rt, dir)
 	var a serve.Access
 	if err := json.Unmarshal(fetch(t, info, "/api/access"), &a); err != nil {
 		t.Fatal(err)

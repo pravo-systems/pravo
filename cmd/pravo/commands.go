@@ -42,15 +42,15 @@ func initCmd(rt *runContext) *cobra.Command {
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			root, _, err := loadOrGenerate(rt, ctx, upgrade, false)
+			root, _, err := loadOrGenerate(ctx, rt, upgrade, false)
 			var none *config.NoSpecificationError
 			if errors.As(err, &none) {
-				return initWithoutSpecification(rt, ctx, upgrade)
+				return initWithoutSpecification(ctx, rt, upgrade)
 			}
 			if err != nil {
 				return err
 			}
-			s, err := newSession(rt, ctx, sessionOptions{install: true, upgrade: upgrade, schemas: true, root: root, relockModules: true, regenerates: true})
+			s, err := newSession(ctx, rt, sessionOptions{install: true, upgrade: upgrade, schemas: true, root: root, relockModules: true, regenerates: true})
 			if err != nil {
 				return err
 			}
@@ -84,7 +84,7 @@ func initCmd(rt *runContext) *cobra.Command {
 // packages, and load again. A package that only an imported module needs shows
 // up as a load error, so repeat with what the error names. With report set,
 // each package written is listed.
-func loadOrGenerate(rt *runContext, ctx context.Context, upgrade, report bool) (root *config.Root, generated bool, err error) {
+func loadOrGenerate(ctx context.Context, rt *runContext, upgrade, report bool) (root *config.Root, generated bool, err error) {
 	root, loadErr := loadRoot(rt)
 	var none *config.NoSpecificationError
 	if errors.As(loadErr, &none) {
@@ -112,7 +112,7 @@ func loadOrGenerate(rt *runContext, ctx context.Context, upgrade, report bool) (
 		if round == 0 {
 			rt.out.Println(rt.out.C(ui.Yellow, "Configuration does not load yet; generating schemas for the declared providers first."))
 		}
-		bs, err := newSession(rt, ctx, sessionOptions{install: true, upgrade: upgrade, schemas: true, root: settings, regenerates: true})
+		bs, err := newSession(ctx, rt, sessionOptions{install: true, upgrade: upgrade, schemas: true, root: settings, regenerates: true})
 		if err != nil {
 			return nil, generated, err
 		}
@@ -152,12 +152,12 @@ func loadOrGenerate(rt *runContext, ctx context.Context, upgrade, report bool) (
 
 // initWithoutSpecification initialises a directory that holds no CUE file yet:
 // it creates the module and says what to write next.
-func initWithoutSpecification(rt *runContext, ctx context.Context, upgrade bool) error {
+func initWithoutSpecification(ctx context.Context, rt *runContext, upgrade bool) error {
 	settings, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Env: environment()})
 	if err != nil {
 		return engine.WithCode(engine.ExitInvalid, err)
 	}
-	bs, err := newSession(rt, ctx, sessionOptions{install: true, upgrade: upgrade, schemas: true, root: settings, regenerates: true})
+	bs, err := newSession(ctx, rt, sessionOptions{install: true, upgrade: upgrade, schemas: true, root: settings, regenerates: true})
 	if err != nil {
 		return err
 	}
@@ -177,14 +177,14 @@ func genCmd(rt *runContext) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// A package that the imports name and that does not exist yet is
 			// generated, as init does.
-			root, generated, err := loadOrGenerate(rt, cmd.Context(), false, true)
+			root, generated, err := loadOrGenerate(cmd.Context(), rt, false, true)
 			if err != nil {
 				return err
 			}
 			if generated {
 				return nil // every package was written, and listed, on the way
 			}
-			s, err := newSession(rt, cmd.Context(), sessionOptions{install: true, schemas: true, root: root, regenerates: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, root: root, regenerates: true})
 			if err != nil {
 				return err
 			}
@@ -225,13 +225,13 @@ func planCmd(rt *runContext) *cobra.Command {
 					return fmt.Errorf("--ttl %s: want a length of time above zero", ttlText)
 				}
 			}
-			s, err := newSession(rt, cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: reserve == 0})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, planning: reserve == 0})
 			if err != nil {
 				return err
 			}
 			defer s.close()
 			eng := s.engine(rt, engine.Options{Refresh: mode, Destroy: destroy, Full: full, Reserve: reserve, Replace: replace})
-			noteUnnamed(rt, cmd.Context(), s.root, s.state)
+			noteUnnamed(cmd.Context(), rt, s.root, s.state)
 			plan, err := eng.Plan(cmd.Context())
 			if err != nil {
 				return err
@@ -375,12 +375,12 @@ func showCmd(rt *runContext) *cobra.Command {
 			if isStoredRef(args[0]) {
 				return showStored(rt, cmd, args[0])
 			}
-			pf, err := readPlanFile(rt, cmd.Context(), args[0])
+			pf, err := readPlanFile(cmd.Context(), rt, args[0])
 			if err != nil {
 				return err
 			}
 			rt.flags.Tags, rt.flags.SysTags = pf.Tags, pf.SysTags
-			s, err := newSession(rt, cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
 			if err != nil {
 				return err
 			}
@@ -435,12 +435,12 @@ func showCmd(rt *runContext) *cobra.Command {
 // state, so the state is opened to find the key. The tags that select the state are
 // inside the seal, so they are given again, as they are for a stored plan, and must be
 // those the plan was made with.
-func readPlanFile(rt *runContext, ctx context.Context, path string) (*engine.PlanFile, error) {
+func readPlanFile(ctx context.Context, rt *runContext, path string) (*engine.PlanFile, error) {
 	sealed, err := engine.PlanFileSealed(path)
 	if err != nil || !sealed {
 		return engine.ReadPlanFile(path)
 	}
-	s, err := newSession(rt, ctx, sessionOptions{loadState: true, readOnlyState: true})
+	s, err := newSession(ctx, rt, sessionOptions{loadState: true, readOnlyState: true})
 	if err != nil {
 		return nil, err
 	}
@@ -561,12 +561,12 @@ func applySaved(rt *runContext, cmd *cobra.Command, path, refresh string, full b
 	if cmd.Flags().Changed("refresh") || full {
 		return errors.New("-refresh and -full do not apply to a saved plan")
 	}
-	pf, err := readPlanFile(rt, ctx, path)
+	pf, err := readPlanFile(ctx, rt, path)
 	if err != nil {
 		return err
 	}
 	rt.flags.Tags, rt.flags.SysTags = pf.Tags, pf.SysTags
-	s, err := newSession(rt, ctx, sessionOptions{install: true, schemas: true, loadState: true})
+	s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true})
 	if err != nil {
 		return err
 	}
@@ -600,7 +600,7 @@ func applySaved(rt *runContext, cmd *cobra.Command, path, refresh string, full b
 	if err != nil || res == nil || res.Deferred == 0 {
 		return err
 	}
-	return saveFollowUp(rt, ctx, s, path, res.Deferred)
+	return saveFollowUp(ctx, rt, s, path, res.Deferred)
 }
 
 // applyPlanFile applies what is left of a plan that was saved, in a file or in
@@ -717,7 +717,7 @@ func runApply(rt *runContext, cmd *cobra.Command, refresh string, full, autoAppr
 	if err != nil {
 		return err
 	}
-	s, err := newSession(rt, ctx, sessionOptions{install: true, schemas: true, loadState: true})
+	s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true})
 	if err != nil {
 		return err
 	}
@@ -799,7 +799,7 @@ func runApply(rt *runContext, cmd *cobra.Command, refresh string, full, autoAppr
 			return nil
 		}
 		// What the deferred changes waited for is known now: plan them, and ask again.
-		if eng, plan, err = followUp(rt, ctx, s, opts, res.Deferred); err != nil || plan == nil {
+		if eng, plan, err = followUp(ctx, rt, s, opts, res.Deferred); err != nil || plan == nil {
 			return err
 		}
 		if !plan.HasWrites() {
@@ -956,7 +956,7 @@ func outputCmd(rt *runContext) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			st, err := openStateValues(rt, cmd.Context(), root)
+			st, err := openStateValues(cmd.Context(), rt, root)
 			if err != nil {
 				return err
 			}
@@ -989,12 +989,12 @@ func importCmd(rt *runContext) *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			s, err := newSession(rt, ctx, sessionOptions{install: true, schemas: true, loadState: true})
+			s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true})
 			if err != nil {
 				return err
 			}
 			defer s.close()
-			if err := refuseOtherEnvironment(rt, ctx, s.root, s.state); err != nil {
+			if err := refuseOtherEnvironment(ctx, rt, s.root, s.state); err != nil {
 				return err
 			}
 			res := s.root.Resource(args[0])
@@ -1077,7 +1077,7 @@ func providersCmd(rt *runContext) *cobra.Command {
 		Short: "List the providers the configuration requires",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			s, err := newSession(rt, cmd.Context(), sessionOptions{install: false, loadState: true, readOnlyState: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: false, loadState: true, readOnlyState: true})
 			if err != nil {
 				return err
 			}
@@ -1117,7 +1117,7 @@ func providersCmd(rt *runContext) *cobra.Command {
 	cmd.AddCommand(&cobra.Command{
 		Use: "schema <local-name>", Short: "Print a provider's full schema as CUE", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			s, err := newSession(rt, cmd.Context(), sessionOptions{install: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true})
 			if err != nil {
 				return err
 			}
@@ -1152,7 +1152,7 @@ Platforms default to linux and darwin on amd64 and arm64.`,
 			if err != nil {
 				return err
 			}
-			s, err := newSession(rt, cmd.Context(), sessionOptions{install: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true})
 			if err != nil {
 				return err
 			}
@@ -1244,7 +1244,7 @@ func validateCmd(rt *runContext) *cobra.Command {
 					return validateEnvironments(rt, cmd, list)
 				}
 			}
-			s, err := newSession(rt, cmd.Context(), sessionOptions{install: true, schemas: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true})
 			if err != nil {
 				return engine.WithCode(engine.ExitInvalid, err)
 			}
@@ -1344,7 +1344,7 @@ func validateEnvironments(rt *runContext, cmd *cobra.Command, list []config.Envi
 			r.Settings = firstLine(es.Err)
 		}
 		err := func() error {
-			s, err := newSession(rt, cmd.Context(), sessionOptions{install: true, schemas: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true})
 			if err != nil {
 				return err
 			}
@@ -1442,7 +1442,7 @@ that declares none, so it also serves to try out CUE.
   pravo eval -t env=prod           inject a value for an @tag() field`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			s, err := newSession(rt, cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
 			if err != nil {
 				return err
 			}

@@ -149,12 +149,12 @@ specification. With --json the definitions are returned as {"type":
 			if targets[0].src != nil {
 				// Every type names its provider: no specification is needed.
 				var cleanup func()
-				if s, cleanup, err = rootlessSession(rt, cmd.Context(), targets); err != nil {
+				if s, cleanup, err = rootlessSession(cmd.Context(), rt, targets); err != nil {
 					return err
 				}
 				defer cleanup()
 			} else {
-				if s, err = newSession(rt, cmd.Context(), sessionOptions{install: true}); err != nil {
+				if s, err = newSession(cmd.Context(), rt, sessionOptions{install: true}); err != nil {
 					var none *config.NoSpecificationError
 					if errors.As(err, &none) {
 						err = fmt.Errorf("%w\n\nhint: this directory has no specification. To print a type without one, name its provider: pravo schema hashicorp/random/random_pet", err)
@@ -308,7 +308,7 @@ func whyCmd(rt *runContext) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			s, err := newSession(rt, cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, planning: true})
 			if err != nil {
 				return err
 			}
@@ -404,7 +404,7 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 				return fmt.Errorf("--limit %d: want a number above zero", limit)
 			}
 			stateInMemory = noWrite
-			s, err := newSession(rt, cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, planning: true})
 			if err != nil {
 				return err
 			}
@@ -418,7 +418,7 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 			}
 			var proposal *driftProposal
 			if makePlan {
-				if proposal, err = proposeFix(rt, cmd.Context(), s, report, planned, store, ttl, webhook); err != nil {
+				if proposal, err = proposeFix(cmd.Context(), rt, s, report, planned, store, ttl, webhook); err != nil {
 					return err
 				}
 			} else if webhook != "" {
@@ -630,7 +630,7 @@ func checkPrefix(t schemaTarget, sources []registry.Source) error {
 // rootlessSession installs and starts the providers that the targets name, in
 // a root that is a temporary directory: nothing is written to the working
 // directory, and no specification is read.
-func rootlessSession(rt *runContext, ctx context.Context, targets []schemaTarget) (*session, func(), error) {
+func rootlessSession(ctx context.Context, rt *runContext, targets []schemaTarget) (*session, func(), error) {
 	dir, err := os.MkdirTemp("", "pravo-schema-")
 	if err != nil {
 		return nil, nil, err
@@ -639,7 +639,7 @@ func rootlessSession(rt *runContext, ctx context.Context, targets []schemaTarget
 	for _, t := range targets {
 		root.Providers[t.local] = &config.ProviderReq{LocalName: t.local, Source: *t.src, Implied: true, Protocol: config.ProtocolTfplugin}
 	}
-	s, err := newSession(rt, ctx, sessionOptions{install: true, root: root})
+	s, err := newSession(ctx, rt, sessionOptions{install: true, root: root})
 	if err != nil {
 		os.RemoveAll(dir)
 		return nil, nil, err

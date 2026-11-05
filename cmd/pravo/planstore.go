@@ -47,16 +47,16 @@ func parseSpan(flag, v string) (time.Duration, error) {
 // openPlanStore loads the specification, only to find the state, and opens the
 // plan store in it. Nothing is installed or evaluated beyond the specification.
 // write opens the state for changes; otherwise nothing is created or changed.
-func openPlanStore(rt *runContext, ctx context.Context, write bool) (*state.Store, *engine.PlanStore, error) {
+func openPlanStore(ctx context.Context, rt *runContext, write bool) (*state.Store, *engine.PlanStore, error) {
 	root, err := loadRoot(rt)
 	if err != nil {
 		return nil, nil, err
 	}
 	var st *state.Store
 	if write {
-		st, err = openState(rt, ctx, root)
+		st, err = openState(ctx, rt, root)
 	} else {
-		st, err = openStateReadOnly(rt, ctx, root)
+		st, err = openStateReadOnly(ctx, rt, root)
 	}
 	if err != nil {
 		return nil, nil, err
@@ -170,7 +170,7 @@ plan is applied.`,
 			if pending && all {
 				return errors.New("--pending and --all exclude each other")
 			}
-			st, ps, err := openPlanStore(rt, cmd.Context(), false)
+			st, ps, err := openPlanStore(cmd.Context(), rt, false)
 			if err != nil {
 				return err
 			}
@@ -323,7 +323,7 @@ changes already applied from it marked. The file can be applied, shown and sent
 to someone, like any plan file. Applying the file records its progress in the
 file and not in the state.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, ps, err := openPlanStore(rt, cmd.Context(), false)
+			_, ps, err := openPlanStore(cmd.Context(), rt, false)
 			if err != nil {
 				return err
 			}
@@ -372,7 +372,7 @@ but its approval counts only where the policy sets self. Give the -t and -T that
 a plan.approved event is POSTed to that URL.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			st, ps, err := openPlanStore(rt, ctx, true)
+			st, ps, err := openPlanStore(ctx, rt, true)
 			if err != nil {
 				return err
 			}
@@ -405,7 +405,7 @@ a plan.approved event is POSTed to that URL.`,
 			if webhook != "" {
 				dir, _ := filepath.Abs(".")
 				ev := planEvent{Event: eventApproved, By: obj.Signature.Signer, Plan: &planEventPlan{ID: id}}
-				if err := sendPlanEvent(rt, ctx, webhook, dir, ev); err != nil {
+				if err := sendPlanEvent(ctx, rt, webhook, dir, ev); err != nil {
 					return err
 				}
 			}
@@ -453,7 +453,7 @@ small collection of its own.`,
 				}
 				opts.OlderThan = d
 			}
-			st, ps, err := openPlanStore(rt, cmd.Context(), false)
+			st, ps, err := openPlanStore(cmd.Context(), rt, false)
 			if err != nil {
 				return err
 			}
@@ -465,7 +465,7 @@ small collection of its own.`,
 					return err
 				}
 				if len(keys) > 0 {
-					if st, ps, err = openPlanStore(rt, cmd.Context(), true); err != nil {
+					if st, ps, err = openPlanStore(cmd.Context(), rt, true); err != nil {
 						return err
 					}
 				}
@@ -630,7 +630,7 @@ func readStored(ctx context.Context, s *session, ref, verb string) (*pravo.Store
 // showStored prints a stored plan.
 func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 	ctx := cmd.Context()
-	s, err := newSession(rt, ctx, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
+	s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
 	if err != nil {
 		return err
 	}
@@ -648,7 +648,7 @@ func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 	} else if err != nil {
 		return err
 	}
-	sigs, sigNote := storedPlanSignatures(rt, ctx, s, entry.Meta.ID)
+	sigs, sigNote := storedPlanSignatures(ctx, rt, s, entry.Meta.ID)
 	if rt.flags.Markdown {
 		v := eng.NewView(plan, engine.ViewOptions{Redact: rt.flags.Withhold})
 		v.Actor, v.Reason, v.GitRevision = pf.Actor, pf.Reason, pf.GitRevision
@@ -657,7 +657,7 @@ func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 		if sigNote == "" && sigs != nil {
 			opts.Notes = append(opts.Notes, "Signed: "+planSigsText(sigs))
 		}
-		if text := storedPlanApprovals(rt, ctx, s, m.ID); text != "" {
+		if text := storedPlanApprovals(ctx, rt, s, m.ID); text != "" {
 			opts.Notes = append(opts.Notes, "Approved: "+text)
 		}
 		opts.Notes = append(opts.Notes, "Status: "+statusText(rt, entry.Status)+".")
@@ -699,7 +699,7 @@ func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 	} else if sigs != nil {
 		rt.out.Printf("  signed:  %s\n", planSigsText(sigs))
 	}
-	if text := storedPlanApprovals(rt, ctx, s, entry.Meta.ID); text != "" {
+	if text := storedPlanApprovals(ctx, rt, s, entry.Meta.ID); text != "" {
 		rt.out.Printf("  approved: %s\n", text)
 	}
 	if entry.Status.Open() || entry.Status == engine.PlanStale {
@@ -776,7 +776,7 @@ func applyStored(rt *runContext, cmd *cobra.Command, ref, refresh string, full b
 	if cmd.Flags().Changed("refresh") || full {
 		return errors.New("-refresh and -full do not apply to a stored plan")
 	}
-	s, err := newSession(rt, ctx, sessionOptions{install: true, schemas: true, loadState: true})
+	s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true})
 	if err != nil {
 		return err
 	}
@@ -803,7 +803,7 @@ func applyStored(rt *runContext, cmd *cobra.Command, ref, refresh string, full b
 		if err != nil {
 			ev.Event, ev.Reason = eventRefused, err.Error()
 		}
-		if hookErr := sendPlanEvent(rt, ctx, webhook, s.ws.Root().Dir, ev); hookErr != nil && err == nil {
+		if hookErr := sendPlanEvent(ctx, rt, webhook, s.ws.Root().Dir, ev); hookErr != nil && err == nil {
 			err = hookErr
 		}
 	}
@@ -820,7 +820,7 @@ func applyStored(rt *runContext, cmd *cobra.Command, ref, refresh string, full b
 			default:
 				reportApply(rt, res.Result, res.Destroy, "plan", res.ID, res.Again, res.Left)
 				if res.Result != nil && res.Result.Deferred > 0 && !res.Destroy {
-					return storeFollowUp(rt, ctx, s, res.ID, res.Result.Deferred)
+					return storeFollowUp(ctx, rt, s, res.ID, res.Result.Deferred)
 				}
 			}
 		}

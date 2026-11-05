@@ -39,7 +39,7 @@ func stateCmd(rt *runContext) *cobra.Command {
 		if err != nil {
 			return nil, err
 		}
-		return openState(rt, commandContext(), root)
+		return openState(commandContext(), rt, root)
 	}
 	// loadEdit is load for a subcommand that changes the records, as an apply does: a state
 	// whose record serves another environment is refused, as an apply is.
@@ -48,11 +48,11 @@ func stateCmd(rt *runContext) *cobra.Command {
 		if err != nil {
 			return nil, err
 		}
-		st, err := openState(rt, commandContext(), root)
+		st, err := openState(commandContext(), rt, root)
 		if err != nil {
 			return nil, err
 		}
-		if err := refuseOtherEnvironment(rt, commandContext(), root, st); err != nil {
+		if err := refuseOtherEnvironment(commandContext(), rt, root, st); err != nil {
 			st.Close()
 			return nil, err
 		}
@@ -65,7 +65,7 @@ func stateCmd(rt *runContext) *cobra.Command {
 		if err != nil {
 			return nil, err
 		}
-		return openStateReadOnly(rt, commandContext(), root)
+		return openStateReadOnly(commandContext(), rt, root)
 	}
 	// loadValues is loadRead for a subcommand that prints values: a sealed state
 	// is refused to a user who is not one of its readers.
@@ -74,7 +74,7 @@ func stateCmd(rt *runContext) *cobra.Command {
 		if err != nil {
 			return nil, err
 		}
-		return openStateValues(rt, commandContext(), root)
+		return openStateValues(commandContext(), rt, root)
 	}
 	// whole is a loader that also refuses a state with a pointer gone, as plan and drift do:
 	// a listing that lacks a resource would read as the truth.
@@ -179,7 +179,7 @@ func stateShowCmd(rt *runContext, loadValues func() (*state.Store, error)) *cobr
 				return notInState(args[0])
 			}
 			if redact {
-				snap, n, err := redactedSnapshot(rt, cmd.Context(), st)
+				snap, n, err := redactedSnapshot(cmd.Context(), rt, st)
 				if err != nil {
 					return err
 				}
@@ -478,7 +478,7 @@ func stateProbeCmd(rt *runContext) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return probeS3(rt, commandContext(), root)
+			return probeS3(commandContext(), rt, root)
 		},
 	}
 }
@@ -588,7 +588,7 @@ Examples:
 			}
 			var res *pravo.QueryResult
 			if redact {
-				snap, _, rerr := redactedSnapshot(rt, cmd.Context(), st)
+				snap, _, rerr := redactedSnapshot(cmd.Context(), rt, st)
 				if rerr != nil {
 					return rerr
 				}

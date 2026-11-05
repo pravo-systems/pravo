@@ -68,9 +68,9 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			v := &viewerState{name: rt.flags.Identity, dir: dir, accessDir: loadReadersFile(dir, rt.flags.AccessDir).Dir, explicitAccess: explicit}
 			defer v.close()
 			opts := serve.Options{Dir: dir, Env: environment(), Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Version: Version, Protection: v.protection, AccessDir: explicit, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, SecretRules: v.secretRules, VerifyPlan: v.verifyPlan}
-			opts.OpenState = func(ctx context.Context, root *config.Root) (*state.Store, error) { return v.open(rt, ctx, root) }
+			opts.OpenState = func(ctx context.Context, root *config.Root) (*state.Store, error) { return v.open(ctx, rt, root) }
 			opts.Environments = func(ctx context.Context, root *config.Root) (*serve.Environments, error) {
-				return viewerEnvironments(rt, ctx, root)
+				return viewerEnvironments(ctx, rt, root)
 			}
 			if err := servePlan(rt, &opts, planFile); err != nil {
 				return err
@@ -283,7 +283,7 @@ func (v *viewerState) setRefused(on bool) (changed bool) {
 // openWith opens the store read-only with the identity. An identity that is not a
 // reader of the state is not an error for the viewer: the store opens without a
 // key, which lists the resources and shows no value.
-func (v *viewerState) openWith(rt *runContext, ctx context.Context, b state.Backend, id *protect.Identity) (*state.Store, error) {
+func (v *viewerState) openWith(ctx context.Context, rt *runContext, b state.Backend, id *protect.Identity) (*state.Store, error) {
 	open := v.openStore
 	if open == nil {
 		open = state.OpenBackendWith
@@ -350,7 +350,7 @@ func (v *viewerState) resolve(rt *runContext, readers ...protect.ReaderPublic) e
 // open opens the state for reading. The first look is without a key: only a state
 // that turns out to be sealed asks for the identity, so that a plain state never
 // asks for a passphrase.
-func (v *viewerState) open(rt *runContext, ctx context.Context, root *config.Root) (*state.Store, error) {
+func (v *viewerState) open(ctx context.Context, rt *runContext, root *config.Root) (*state.Store, error) {
 	v.mu.Lock()
 	v.root = root
 	v.mu.Unlock()
@@ -370,7 +370,7 @@ func (v *viewerState) open(rt *runContext, ctx context.Context, root *config.Roo
 	}
 	began := time.Now()
 	id, _, resolved := v.identity()
-	st, err := v.openWith(rt, ctx, b, id)
+	st, err := v.openWith(ctx, rt, b, id)
 	if err != nil {
 		return nil, err
 	}
@@ -379,7 +379,7 @@ func (v *viewerState) open(rt *runContext, ctx context.Context, root *config.Roo
 			return nil, err
 		}
 		if id, _, _ = v.identity(); id != nil {
-			if st, err = v.openWith(rt, ctx, b, id); err != nil {
+			if st, err = v.openWith(ctx, rt, b, id); err != nil {
 				return nil, err
 			}
 		}
@@ -647,12 +647,12 @@ func (v *viewerState) readersFile() readersFile {
 
 // viewerEnvironments reads the promotion flow for the Environments page of the viewer, as "pravo
 // environments" does: without a key, writing nothing.
-func viewerEnvironments(rt *runContext, ctx context.Context, root *config.Root) (*serve.Environments, error) {
+func viewerEnvironments(ctx context.Context, rt *runContext, root *config.Root) (*serve.Environments, error) {
 	rel, err := engine.ReleaseOf(root)
 	if err != nil {
 		return nil, err
 	}
-	rows := readEnvironmentRows(rt, ctx, root, rel)
+	rows := readEnvironmentRows(ctx, rt, root, rel)
 	next := nextStep(root, rows)
 	doc := &serve.Environments{Next: next, Release: serve.EnvironmentRelease{Fingerprint: rel.Fingerprint, Tags: []string{}}, Environments: []serve.EnvironmentEntry{}}
 	for name := range rel.Tags {

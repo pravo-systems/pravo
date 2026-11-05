@@ -29,7 +29,7 @@ type serveInfo struct {
 // runServe starts "pravo serve" in this process and returns what it printed and
 // a function that ends it the way a signal does: the context of the command is
 // cancelled.
-func runServe(rt *runContext, t *testing.T, dir string, args ...string) (serveInfo, func() error) {
+func runServe(t *testing.T, rt *runContext, dir string, args ...string) (serveInfo, func() error) {
 	t.Helper()
 	wd, _ := os.Getwd()
 	t.Cleanup(func() { os.Chdir(wd) }) //nolint:usetesting // the directory is put back after each call, so that a relative path in the next call means what it meant in the first
@@ -195,10 +195,10 @@ func TestServeARealRoot(t *testing.T) {
 	}
 	dir := t.TempDir()
 	copyTree(t, filepath.Join("..", "..", "examples", "modules-and-data"), dir)
-	if text, code := runPravo(rt, t, dir, "init"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "init"); code != 0 {
 		t.Skipf("pravo init exited %d: %s", code, text)
 	}
-	if text, code := runPravo(rt, t, dir, "apply", "-auto-approve"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "apply", "-auto-approve"); code != 0 {
 		t.Skipf("pravo apply exited %d: %s", code, text)
 	}
 	secrets := secretsOf(t, dir)
@@ -209,12 +209,12 @@ func TestServeARealRoot(t *testing.T) {
 		t.Fatal("the example changed: nothing to edit")
 	}
 	os.WriteFile(filepath.Join(dir, "main.cue"), []byte(edited), 0o644)
-	if text, code := runPravo(rt, t, dir, "plan", "-out", "plan.pravo"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "plan", "-out", "plan.pravo"); code != 0 {
 		t.Fatalf("pravo plan exited %d: %s", code, text)
 	}
 	before := digestDir(t, dir)
 
-	info, stop := runServe(rt, t, dir, "--plan", "plan.pravo")
+	info, stop := runServe(t, rt, dir, "--plan", "plan.pravo")
 	if !strings.HasPrefix(info.URL, "http://127.0.0.1:") || !strings.Contains(info.URL, "?token="+info.Token) || info.Port == 0 {
 		t.Errorf("printed %+v", info)
 	}
@@ -289,22 +289,22 @@ func TestServeFlags(t *testing.T) {
 	rt := &runContext{}
 
 	dir := specDir(t, map[string]string{"main.cue": "package estate\n\nsize: 3\n"})
-	if text, code := runPravo(rt, t, dir, "serve", "--port", "70000", "--no-open"); code != 1 || !strings.Contains(text, "not a port number") {
+	if text, code := runPravo(t, rt, dir, "serve", "--port", "70000", "--no-open"); code != 1 || !strings.Contains(text, "not a port number") {
 		t.Errorf("a port out of range: exit %d %s", code, text)
 	}
-	if text, code := runPravo(rt, t, dir, "serve", "--plan", filepath.Join(dir, "missing.pravo"), "--no-open"); code != 1 || !strings.Contains(text, "missing.pravo") {
+	if text, code := runPravo(t, rt, dir, "serve", "--plan", filepath.Join(dir, "missing.pravo"), "--no-open"); code != 1 || !strings.Contains(text, "missing.pravo") {
 		t.Errorf("a plan that is not there: exit %d %s", code, text)
 	}
-	if text, code := runPravo(rt, t, dir, "serve", "stray"); code != 1 {
+	if text, code := runPravo(t, rt, dir, "serve", "stray"); code != 1 {
 		t.Errorf("a stray argument: exit %d %s", code, text)
 	}
 	// The default is a free port; a port that is taken is an error, not a hang.
-	info, _ := runServe(rt, t, dir)
+	info, _ := runServe(t, rt, dir)
 	if info.Port == 0 {
 		t.Fatal("no port")
 	}
 	fetch(t, info, "/api/ping")
-	if text, code := runPravo(rt, t, dir, "serve", "--port", itoa(info.Port), "--no-open"); code != 1 {
+	if text, code := runPravo(t, rt, dir, "serve", "--port", itoa(info.Port), "--no-open"); code != 1 {
 		t.Errorf("a port in use: exit %d %s", code, text)
 	}
 	// Nothing was made in a directory with a specification and no state.
@@ -345,7 +345,7 @@ func TestServeAStoredPlan(t *testing.T) {
 	ana := storeTestPlan(t, dir, "ana@acme", time.Now().Add(-time.Hour))
 	ben := storeTestPlan(t, dir, "ben@acme", time.Now())
 
-	info, stop := runServe(rt, t, dir, "--plan", ana[:len("plan-")+6])
+	info, stop := runServe(t, rt, dir, "--plan", ana[:len("plan-")+6])
 	var g serve.Graph
 	if err := json.Unmarshal(fetch(t, info, "/api/graph"), &g); err != nil {
 		t.Fatal(err)
@@ -369,7 +369,7 @@ func TestServeAStoredPlan(t *testing.T) {
 	}
 
 	// Without --plan the page lists the stored plans and lays none over the graph.
-	info, _ = runServe(rt, t, dir)
+	info, _ = runServe(t, rt, dir)
 	g = serve.Graph{}
 	json.Unmarshal(fetch(t, info, "/api/graph"), &g)
 	l = serve.PlanList{}
@@ -378,14 +378,14 @@ func TestServeAStoredPlan(t *testing.T) {
 		t.Errorf("without --plan: plan %+v, %d stored plans", g.Plan, len(l.Plans))
 	}
 
-	if text, code := runPravo(rt, t, dir, "serve", "--plan", "plan-ffffff", "--no-open"); code != 1 || !strings.Contains(text, "no such stored plan") {
+	if text, code := runPravo(t, rt, dir, "serve", "--plan", "plan-ffffff", "--no-open"); code != 1 || !strings.Contains(text, "no such stored plan") {
 		t.Errorf("an id that nothing stores: exit %d %s", code, text)
 	}
 	// A file with the form of an id is a plan file, as it is for pravo apply.
 	if err := os.WriteFile(filepath.Join(dir, ana), []byte("not a plan"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if text, code := runPravo(rt, t, dir, "serve", "--plan", ana, "--no-open"); code != 1 || !strings.Contains(text, "not a pravo plan file") {
+	if text, code := runPravo(t, rt, dir, "serve", "--plan", ana, "--no-open"); code != 1 || !strings.Contains(text, "not a pravo plan file") {
 		t.Errorf("a file that has the name of an id: exit %d %s", code, text)
 	}
 }

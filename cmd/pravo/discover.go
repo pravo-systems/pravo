@@ -53,7 +53,7 @@ discover adopt" to write the resource that adopts an object.`,
 			if all && len(args) > 0 {
 				return errors.New("--all runs every discovery; name some or give --all, not both")
 			}
-			s, err := newSession(rt, cmd.Context(), sessionOptions{install: true, schemas: true, loadState: true, planning: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, planning: true})
 			if err != nil {
 				return err
 			}
@@ -66,7 +66,7 @@ discover adopt" to write the resource that adopts an object.`,
 				return nil
 			}
 			// A run is kept in the state: not in the state of another environment.
-			if err := refuseOtherEnvironment(rt, cmd.Context(), s.root, s.state); err != nil {
+			if err := refuseOtherEnvironment(cmd.Context(), rt, s.root, s.state); err != nil {
 				return err
 			}
 			res, err := s.ws.Discover(cmd.Context(), pravo.DiscoverOptions{
@@ -168,7 +168,7 @@ object, so that a schedule can tell someone.`,
 			if err := checkMarkdown(rt); err != nil {
 				return err
 			}
-			s, err := newSession(rt, cmd.Context(), sessionOptions{loadState: true, readOnlyState: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{loadState: true, readOnlyState: true})
 			if err != nil {
 				return err
 			}
@@ -451,7 +451,7 @@ in a comment and not written. Nothing is recorded in the state.`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name, id := args[0], args[1]
-			s, err := newSession(rt, cmd.Context(), sessionOptions{install: read, schemas: read, loadState: true, readOnlyState: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: read, schemas: read, loadState: true, readOnlyState: true})
 			if err != nil {
 				return err
 			}

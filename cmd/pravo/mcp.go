@@ -225,7 +225,7 @@ func mcpStateTools(rt *runContext) []mcpTool {
 				}
 				return append(append([]string{"why"}, addrs...), tagArgs(in)...), nil
 			}},
-		{Name: "pravo_state_query", Description: "Evaluate a CUE expression over the state: resources (by address), edges and outputs.", run: func(ctx context.Context, in map[string]any) (string, error) { return runStateQuery(rt, ctx, in) },
+		{Name: "pravo_state_query", Description: "Evaluate a CUE expression over the state: resources (by address), edges and outputs.", run: func(ctx context.Context, in map[string]any) (string, error) { return runStateQuery(ctx, rt, in) },
 			InputSchema: mcpObject(map[string]any{"expression": map[string]any{"type": "string"}, "tags": tagsProp}, "expression"),
 			args: func(in map[string]any) ([]string, error) {
 				if err := positional("expression", strArg(in, "expression")); err != nil {
@@ -241,7 +241,7 @@ func mcpStateTools(rt *runContext) []mcpTool {
 				}
 				return append(append([]string{"state"}, tagArgs(in)...), "show", "--redact", strArg(in, "addr")), nil
 			}},
-		{Name: "pravo_dependents", Description: "Everything a change to the resource can reach: its blast radius.", run: func(ctx context.Context, in map[string]any) (string, error) { return runDependents(rt, ctx, in) },
+		{Name: "pravo_dependents", Description: "Everything a change to the resource can reach: its blast radius.", run: func(ctx context.Context, in map[string]any) (string, error) { return runDependents(ctx, rt, in) },
 			InputSchema: mcpObject(map[string]any{"addr": map[string]any{"type": "string"}, "tags": tagsProp}, "addr"),
 			args: func(in map[string]any) ([]string, error) {
 				if err := positional("addr", strArg(in, "addr")); err != nil {
@@ -333,13 +333,13 @@ not what the process around it may do.`,
 			// it runs inherit.
 			identityPrompt = false
 			defer func() { identityPrompt = true }()
-			return serveMCP(rt, cmd.Context(), os.Stdin, os.Stdout)
+			return serveMCP(cmd.Context(), rt, os.Stdin, os.Stdout)
 		},
 	}
 	return cmd
 }
 
-func serveMCP(rt *runContext, ctx context.Context, in io.Reader, outW io.Writer) error {
+func serveMCP(ctx context.Context, rt *runContext, in io.Reader, outW io.Writer) error {
 	tools := mcpTools(rt)
 	byName := map[string]mcpTool{}
 	for _, t := range tools {
@@ -411,9 +411,9 @@ func serveMCP(rt *runContext, ctx context.Context, in io.Reader, outW io.Writer)
 			var text string
 			var code int
 			if t.run != nil {
-				text, code = inprocess(rt, callCtx, p.Arguments, t.run)
+				text, code = inprocess(callCtx, rt, p.Arguments, t.run)
 			} else {
-				text, code = runSelf(rt, callCtx, cliArgs)
+				text, code = runSelf(callCtx, rt, cliArgs)
 			}
 			span.SetAttributes(attribute.Int("pravo.exit_code", code))
 			var callErr error
@@ -431,7 +431,7 @@ func serveMCP(rt *runContext, ctx context.Context, in io.Reader, outW io.Writer)
 
 // runSelf runs the pravo binary with --json in the current root, carrying
 // the actor and reason, and returns its stdout (falling back to stderr).
-func runSelf(rt *runContext, ctx context.Context, args []string) (string, int) {
+func runSelf(ctx context.Context, rt *runContext, args []string) (string, int) {
 	exe, err := os.Executable()
 	if err != nil {
 		return err.Error(), 1

@@ -8,7 +8,7 @@ import (
 
 // commandFor finds the command that args runs in the real command tree and makes
 // it the running one, with its flags parsed as a run would.
-func commandFor(rt *runContext, t *testing.T, args ...string) {
+func commandFor(t *testing.T, rt *runContext, args ...string) {
 	t.Helper()
 	root := newRootCmd(rt)
 	cmd, rest, err := root.Find(args)
@@ -26,7 +26,7 @@ func commandFor(rt *runContext, t *testing.T, args ...string) {
 func TestTheCommandTreeSaysWhichFlagsTakeAValue(t *testing.T) {
 	rt := &runContext{}
 
-	commandFor(rt, t, "apply", "--auto-approve")
+	commandFor(t, rt, "apply", "--auto-approve")
 	for _, c := range []struct {
 		name  string
 		short bool
@@ -81,7 +81,7 @@ func TestARealCommandLineSealsTheValuesOfItsValueFlags(t *testing.T) {
 		{"the double dash", []string{"state", "mv"}, []string{"state", "mv", "--actor", "ada", "--", "--actor", "b"}, "pravo state mv --actor " + tok + " -- --actor b"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			commandFor(rt, t, c.cmd...)
+			commandFor(t, rt, c.cmd...)
 			if got := state.RedactArgs(c.argv, tag); got != c.want {
 				t.Errorf("RedactArgs(%q)\n got %s\nwant %s", c.argv, got, c.want)
 			}

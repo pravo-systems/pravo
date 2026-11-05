@@ -17,7 +17,7 @@ known: $demo.#Resource.demo_server & {name: "known"}
 vms: $demo.#Discovery.demo_server & {region: "eu"}
 `
 
-func demoWorld(rt *runContext, t *testing.T) (*demoProvider, string) {
+func demoWorld(t *testing.T, rt *runContext) (*demoProvider, string) {
 	t.Helper()
 	p := newDemoProvider(t,
 		demoObject{"srv-web-old", "web-old", "eu"},
@@ -25,8 +25,8 @@ func demoWorld(rt *runContext, t *testing.T) (*demoProvider, string) {
 		demoObject{"srv-batch-2", "batch-2", "eu"},
 		demoObject{"srv-us-1", "us-one", "us"},
 	)
-	dir := demoEstate(rt, t, demoSpec)
-	if text, code := runPravo(rt, t, dir, "apply", "-auto-approve"); code != 0 {
+	dir := demoEstate(t, rt, demoSpec)
+	if text, code := runPravo(t, rt, dir, "apply", "-auto-approve"); code != 0 {
 		t.Fatalf("apply exited %d:\n%s", code, text)
 	}
 	return p, dir
@@ -38,15 +38,15 @@ func demoWorld(rt *runContext, t *testing.T) (*demoProvider, string) {
 func TestDiscoverLifecycle(t *testing.T) {
 	rt := &runContext{}
 
-	p, dir := demoWorld(rt, t)
+	p, dir := demoWorld(t, rt)
 
-	text, code := runPravo(rt, t, dir, "discover", "show")
+	text, code := runPravo(t, rt, dir, "discover", "show")
 	if code != 0 {
 		t.Fatalf("show exited %d:\n%s", code, text)
 	}
 	contains(t, text, "vms", "demo_server", "not run yet", "pravo discover vms")
 
-	text, code = runPravo(rt, t, dir, "discover")
+	text, code = runPravo(t, rt, dir, "discover")
 	if code != 0 {
 		t.Fatalf("discover exited %d:\n%s", code, text)
 	}
@@ -58,11 +58,11 @@ func TestDiscoverLifecycle(t *testing.T) {
 	}
 
 	// A discovery that is current is not run again.
-	text, code = runPravo(rt, t, dir, "discover")
+	text, code = runPravo(t, rt, dir, "discover")
 	if code != 0 || !strings.Contains(text, "Every discovery is current") || p.listCalls() != 1 {
 		t.Errorf("discover again exited %d, the provider listed %d times:\n%s", code, p.listCalls(), text)
 	}
-	if text, code := runPravo(rt, t, dir, "discover", "--all"); code != 0 || p.listCalls() != 2 {
+	if text, code := runPravo(t, rt, dir, "discover", "--all"); code != 0 || p.listCalls() != 2 {
 		t.Errorf("--all exited %d, the provider listed %d times:\n%s", code, p.listCalls(), text)
 	}
 
@@ -76,7 +76,7 @@ func TestDiscoverLifecycle(t *testing.T) {
 	}
 
 	// A script can tell.
-	if _, code := runPravo(rt, t, dir, "discover", "show", "--exit-code"); code != int(engine.ExitChanges) {
+	if _, code := runPravo(t, rt, dir, "discover", "show", "--exit-code"); code != int(engine.ExitChanges) {
 		t.Errorf("show --exit-code exited %d with objects unmanaged", code)
 	}
 
@@ -88,13 +88,13 @@ func TestDiscoverLifecycle(t *testing.T) {
 	acked := strings.Replace(string(spec), `{region: "eu"}`, "{region: \"eu\", $ack: ["+entry+"]}", 1)
 	mustWrite(t, dir, "main.cue", acked)
 	calls := p.listCalls()
-	text, _ = runPravo(rt, t, dir, "discover", "show")
+	text, _ = runPravo(t, rt, dir, "discover", "show")
 	contains(t, text, "1 unmanaged", "2 acknowledged", "UNMANAGED", "srv-web-old", "ACKNOWLEDGED", "srv-batch-1", "srv-batch-2", "the nightly jobs", "$ack[0]")
 	lacks(t, text, "scope changed")
 	if i, j := strings.Index(text, "UNMANAGED"), strings.Index(text, "ACKNOWLEDGED"); i < 0 || j < i {
 		t.Errorf("the objects that ask for adoption come first:\n%s", text)
 	}
-	if text, code := runPravo(rt, t, dir, "discover"); code != 0 || !strings.Contains(text, "Every discovery is current") || p.listCalls() != calls {
+	if text, code := runPravo(t, rt, dir, "discover"); code != 0 || !strings.Contains(text, "Every discovery is current") || p.listCalls() != calls {
 		t.Errorf("a changed acknowledgement ran the discovery again (%d calls, was %d): exit %d\n%s", p.listCalls(), calls, code, text)
 	}
 	var doc struct {
@@ -106,7 +106,7 @@ func TestDiscoverLifecycle(t *testing.T) {
 			} `json:"acks"`
 		} `json:"discoveries"`
 	}
-	jtext, _ := runPravo(rt, t, dir, "--json", "discover", "show")
+	jtext, _ := runPravo(t, rt, dir, "--json", "discover", "show")
 	if err := json.Unmarshal([]byte(jtext), &doc); err != nil || len(doc.Discoveries) != 1 || len(doc.Discoveries[0].Acks) != 1 ||
 		doc.Discoveries[0].Acks[0].Reason != "the nightly jobs" || doc.Discoveries[0].Acks[0].Covers != 2 {
 		t.Fatalf("show --json: %v\n%s", err, jtext)
@@ -114,10 +114,10 @@ func TestDiscoverLifecycle(t *testing.T) {
 
 	// The scope changes: the result answers the old one until it runs again.
 	mustWrite(t, dir, "main.cue", strings.Replace(acked, `region: "eu"`, `region: "us"`, 1))
-	text, _ = runPravo(rt, t, dir, "discover", "show")
+	text, _ = runPravo(t, rt, dir, "discover", "show")
 	contains(t, text, "the scope changed since the last run", "pravo discover vms")
 	before := p.listCalls()
-	text, code = runPravo(rt, t, dir, "discover")
+	text, code = runPravo(t, rt, dir, "discover")
 	if code != 0 || p.listCalls() != before+1 {
 		t.Fatalf("a changed scope did not run the discovery (%d): exit %d\n%s", p.listCalls(), code, text)
 	}
@@ -126,7 +126,7 @@ func TestDiscoverLifecycle(t *testing.T) {
 
 	// Taking the entry out of the specification withdraws it.
 	mustWrite(t, dir, "main.cue", strings.Replace(string(spec), `region: "eu"`, `region: "us"`, 1))
-	if text, _ := runPravo(rt, t, dir, "discover", "show"); !strings.Contains(text, "1 unmanaged") || strings.Contains(text, "ACKNOWLEDGED") {
+	if text, _ := runPravo(t, rt, dir, "discover", "show"); !strings.Contains(text, "1 unmanaged") || strings.Contains(text, "ACKNOWLEDGED") {
 		t.Errorf("%s", text)
 	}
 }
@@ -134,19 +134,19 @@ func TestDiscoverLifecycle(t *testing.T) {
 func TestDiscoverAdoptThenManage(t *testing.T) {
 	rt := &runContext{}
 
-	_, dir := demoWorld(rt, t)
-	if text, code := runPravo(rt, t, dir, "discover"); code != 0 {
+	_, dir := demoWorld(t, rt)
+	if text, code := runPravo(t, rt, dir, "discover"); code != 0 {
 		t.Fatalf("%d\n%s", code, text)
 	}
 
-	snippet, code := runPravo(rt, t, dir, "discover", "adopt", "vms", "srv-web-old")
+	snippet, code := runPravo(t, rt, dir, "discover", "adopt", "vms", "srv-web-old")
 	if code != 0 {
 		t.Fatalf("adopt exited %d:\n%s", code, snippet)
 	}
 	contains(t, snippet, "web_old: $demo.#Resource.demo_server & {", "$import: {", `id:     "srv-web-old"`, `region: "eu"`, "// Adopts the demo_server")
 
 	// With --read the provider says what the object is.
-	read, code := runPravo(rt, t, dir, "discover", "adopt", "vms", "srv-web-old", "--read")
+	read, code := runPravo(t, rt, dir, "discover", "adopt", "vms", "srv-web-old", "--read")
 	if code != 0 {
 		t.Fatalf("adopt --read exited %d:\n%s", code, read)
 	}
@@ -164,19 +164,19 @@ func TestDiscoverAdoptThenManage(t *testing.T) {
 	// the discovery knows that something is about to adopt it.
 	spec, _ := os.ReadFile(filepath.Join(dir, "main.cue"))
 	mustWrite(t, dir, "main.cue", string(spec)+"\n"+read)
-	text, _ := runPravo(rt, t, dir, "discover", "show")
+	text, _ := runPravo(t, rt, dir, "discover", "show")
 	contains(t, text, "1 adopting", "ADOPTING", "by web_old", "2 unmanaged")
 	lacks(t, text, "pravo discover adopt vms srv-web-old")
-	if text, code := runPravo(rt, t, dir, "plan"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "plan"); code != 0 {
 		t.Fatalf("plan exited %d:\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, dir, "apply", "-auto-approve"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "apply", "-auto-approve"); code != 0 {
 		t.Fatalf("apply exited %d:\n%s", code, text)
 	}
 	// Once it is a record, the object is managed.
-	text, _ = runPravo(rt, t, dir, "discover", "--all")
+	text, _ = runPravo(t, rt, dir, "discover", "--all")
 	contains(t, text, "2 managed", "2 unmanaged", "0 adopting")
-	if _, code := runPravo(rt, t, dir, "discover", "adopt", "vms", "srv-web-old"); code != int(engine.ExitInvalid) {
+	if _, code := runPravo(t, rt, dir, "discover", "adopt", "vms", "srv-web-old"); code != int(engine.ExitInvalid) {
 		t.Errorf("adopting what is managed exited %d", code)
 	}
 }
@@ -184,8 +184,8 @@ func TestDiscoverAdoptThenManage(t *testing.T) {
 func TestDiscoverJSON(t *testing.T) {
 	rt := &runContext{}
 
-	_, dir := demoWorld(rt, t)
-	text, code := runPravo(rt, t, dir, "--json", "discover")
+	_, dir := demoWorld(t, rt)
+	text, code := runPravo(t, rt, dir, "--json", "discover")
 	if code != 0 {
 		t.Fatal(text)
 	}
@@ -221,11 +221,11 @@ func TestDiscoverJSON(t *testing.T) {
 	if len(d.Items) != 3 || d.Items[0].Status != "unmanaged" || d.Items[0].Identity["region"] != "eu" {
 		t.Errorf("%+v", d.Items)
 	}
-	text, _ = runPravo(rt, t, dir, "--json", "discover", "show", "--managed")
+	text, _ = runPravo(t, rt, dir, "--json", "discover", "show", "--managed")
 	if err := json.Unmarshal([]byte(text), &doc); err != nil || len(doc.Discoveries[0].Items) != 4 {
 		t.Errorf("--managed lists the managed object too: %v\n%s", err, text)
 	}
-	text, code = runPravo(rt, t, dir, "--json", "discover", "adopt", "vms", "srv-batch-1")
+	text, code = runPravo(t, rt, dir, "--json", "discover", "adopt", "vms", "srv-batch-1")
 	var ad map[string]any
 	if code != 0 || json.Unmarshal([]byte(text), &ad) != nil || !strings.Contains(ad["snippet"].(string), "$import") || ad["identity"].(map[string]any)["id"] != "srv-batch-1" {
 		t.Errorf("adopt --json: %d\n%s", code, text)
@@ -235,23 +235,23 @@ func TestDiscoverJSON(t *testing.T) {
 func TestDiscoverFailureKeepsTheLastResult(t *testing.T) {
 	rt := &runContext{}
 
-	p, dir := demoWorld(rt, t)
-	if text, code := runPravo(rt, t, dir, "discover"); code != 0 {
+	p, dir := demoWorld(t, rt)
+	if text, code := runPravo(t, rt, dir, "discover"); code != 0 {
 		t.Fatal(text)
 	}
 	p.failWith("the API said no")
-	text, code := runPravo(rt, t, dir, "discover", "--all")
+	text, code := runPravo(t, rt, dir, "discover", "--all")
 	if code == 0 || !strings.Contains(text, "the API said no") || !strings.Contains(text, "1 discovery failed") {
 		t.Errorf("a provider that fails: exit %d\n%s", code, text)
 	}
-	text, _ = runPravo(rt, t, dir, "discover", "show")
+	text, _ = runPravo(t, rt, dir, "discover", "show")
 	contains(t, text, "3 unmanaged", "srv-web-old")
 }
 
 func TestDiscoverNamesAndMistakes(t *testing.T) {
 	rt := &runContext{}
 
-	_, dir := demoWorld(rt, t)
+	_, dir := demoWorld(t, rt)
 	for _, c := range []struct {
 		args []string
 		code int
@@ -262,21 +262,21 @@ func TestDiscoverNamesAndMistakes(t *testing.T) {
 		{[]string{"discover", "adopt", "vms", "x"}, int(engine.ExitInvalid), "has not run"},
 		{[]string{"discover", "--all", "vms"}, 1, "--all runs every discovery"},
 	} {
-		text, code := runPravo(rt, t, dir, c.args...)
+		text, code := runPravo(t, rt, dir, c.args...)
 		if code != c.code || !strings.Contains(text, c.want) {
 			t.Errorf("pravo %s: exit %d, want %d and %q:\n%s", strings.Join(c.args, " "), code, c.code, c.want, text)
 		}
 	}
-	if _, code := runPravo(rt, t, dir, "discover"); code != 0 {
+	if _, code := runPravo(t, rt, dir, "discover"); code != 0 {
 		t.Fatal("discover")
 	}
-	if text, code := runPravo(rt, t, dir, "discover", "adopt", "vms", "nope"); code != int(engine.ExitInvalid) || !strings.Contains(text, `did not find "nope"`) {
+	if text, code := runPravo(t, rt, dir, "discover", "adopt", "vms", "nope"); code != int(engine.ExitInvalid) || !strings.Contains(text, `did not find "nope"`) {
 		t.Errorf("%d\n%s", code, text)
 	}
 	// An $ack entry that covers everything is refused when the specification loads.
 	spec, _ := os.ReadFile(filepath.Join(dir, "main.cue"))
 	mustWrite(t, dir, "main.cue", strings.Replace(string(spec), `{region: "eu"}`, `{region: "eu", $ack: [{names: ["*"], reason: "x"}]}`, 1))
-	if text, code := runPravo(rt, t, dir, "discover", "show"); code != int(engine.ExitInvalid) || !strings.Contains(text, "matches everything") {
+	if text, code := runPravo(t, rt, dir, "discover", "show"); code != int(engine.ExitInvalid) || !strings.Contains(text, "matches everything") {
 		t.Errorf("%d\n%s", code, text)
 	}
 }
@@ -285,9 +285,9 @@ func TestSpecificationWithoutDiscoveries(t *testing.T) {
 	rt := &runContext{}
 
 	newDemoProvider(t)
-	dir := demoEstate(rt, t, `known: $demo.#Resource.demo_server & {name: "known"}`)
+	dir := demoEstate(t, rt, `known: $demo.#Resource.demo_server & {name: "known"}`)
 	for _, args := range [][]string{{"discover"}, {"discover", "show"}} {
-		if text, code := runPravo(rt, t, dir, args...); code != 0 || !strings.Contains(text, "no discoveries") {
+		if text, code := runPravo(t, rt, dir, args...); code != 0 || !strings.Contains(text, "no discoveries") {
 			t.Errorf("pravo %s: %d\n%s", strings.Join(args, " "), code, text)
 		}
 	}
@@ -297,14 +297,14 @@ func TestSchemaPrintsADiscovery(t *testing.T) {
 	rt := &runContext{}
 
 	newDemoProvider(t)
-	dir := demoEstate(rt, t, `known: $demo.#Resource.demo_server & {name: "known"}`)
-	text, code := runPravo(rt, t, dir, "schema", "--discovery", "demo/demo_server")
+	dir := demoEstate(t, rt, `known: $demo.#Resource.demo_server & {name: "known"}`)
+	text, code := runPravo(t, rt, dir, "schema", "--discovery", "demo/demo_server")
 	if code != 0 {
 		t.Fatalf("%d\n%s", code, text)
 	}
 	contains(t, text, "discovery demo_server", "#Discovery.demo_server", "region?:", `$kind:   "discovery"`)
 	lacks(t, text, "name:")
-	if text, code := runPravo(rt, t, dir, "schema", "--discovery", "demo/nope"); code == 0 {
+	if text, code := runPravo(t, rt, dir, "schema", "--discovery", "demo/nope"); code == 0 {
 		t.Errorf("a type that cannot be listed: %s", text)
 	}
 }
@@ -314,20 +314,20 @@ func TestSchemaPrintsADiscovery(t *testing.T) {
 func TestDiscoveriesAreNotPartOfAPlan(t *testing.T) {
 	rt := &runContext{}
 
-	p, dir := demoWorld(rt, t)
+	p, dir := demoWorld(t, rt)
 	calls := p.listCalls()
-	text, code := runPravo(rt, t, dir, "plan")
+	text, code := runPravo(t, rt, dir, "plan")
 	if code != 0 || !strings.Contains(text, "No changes") && !strings.Contains(text, "Plan: 0 to add") {
 		t.Fatalf("plan exited %d:\n%s", code, text)
 	}
 	lacks(t, text, "servers", "vms")
-	if text, code := runPravo(rt, t, dir, "validate"); code != 0 || !strings.Contains(text, "1 resources") {
+	if text, code := runPravo(t, rt, dir, "validate"); code != 0 || !strings.Contains(text, "1 resources") {
 		t.Errorf("validate counts a discovery as a resource or fails: %d\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, dir, "apply", "-auto-approve"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "apply", "-auto-approve"); code != 0 {
 		t.Fatalf("apply exited %d:\n%s", code, text)
 	}
-	if text, _ := runPravo(rt, t, dir, "state", "list"); strings.TrimSpace(text) != "known" {
+	if text, _ := runPravo(t, rt, dir, "state", "list"); strings.TrimSpace(text) != "known" {
 		t.Errorf("the state lists %q", text)
 	}
 	if p.listCalls() != calls {
@@ -341,11 +341,11 @@ func TestSpecificationOfOnlyADiscovery(t *testing.T) {
 	rt := &runContext{}
 
 	p := newDemoProvider(t, demoObject{"srv-1", "one", "eu"})
-	dir := demoEstate(rt, t, `vms: $demo.#Discovery.demo_server & {}`)
-	if text, code := runPravo(rt, t, dir, "plan"); code != 0 {
+	dir := demoEstate(t, rt, `vms: $demo.#Discovery.demo_server & {}`)
+	if text, code := runPravo(t, rt, dir, "plan"); code != 0 {
 		t.Fatalf("plan exited %d:\n%s", code, text)
 	}
-	text, code := runPravo(rt, t, dir, "discover")
+	text, code := runPravo(t, rt, dir, "discover")
 	if code != 0 {
 		t.Fatalf("discover exited %d:\n%s", code, text)
 	}
@@ -363,8 +363,8 @@ func TestDiscoverAdoptsAnObjectByItsIdentity(t *testing.T) {
 	p := newDemoProvider(t)
 	p.addBucket("shadow-assets", "eu-north-1")
 	p.addBucket("logs", "eu-north-1")
-	dir := demoEstate(rt, t, `buckets: $demo.#Discovery.demo_bucket & {region: "eu-north-1"}`)
-	text, code := runPravo(rt, t, dir, "discover")
+	dir := demoEstate(t, rt, `buckets: $demo.#Discovery.demo_bucket & {region: "eu-north-1"}`)
+	text, code := runPravo(t, rt, dir, "discover")
 	if code != 0 {
 		t.Fatalf("discover exited %d:\n%s", code, text)
 	}
@@ -372,7 +372,7 @@ func TestDiscoverAdoptsAnObjectByItsIdentity(t *testing.T) {
 	// The identity is all there is to call it by, and the display name stands for it.
 	contains(t, text, "account_id=000000000000,bucket=shadow-assets,region=eu-north-1")
 
-	read, code := runPravo(rt, t, dir, "discover", "adopt", "buckets", "account_id=000000000000,bucket=shadow-assets,region=eu-north-1", "--read")
+	read, code := runPravo(t, rt, dir, "discover", "adopt", "buckets", "account_id=000000000000,bucket=shadow-assets,region=eu-north-1", "--read")
 	if code != 0 {
 		t.Fatalf("adopt --read exited %d:\n%s", code, read)
 	}
@@ -386,39 +386,39 @@ func TestDiscoverAdoptsAnObjectByItsIdentity(t *testing.T) {
 	// the plan imports it by identity.
 	spec, _ := os.ReadFile(filepath.Join(dir, "main.cue"))
 	mustWrite(t, dir, "main.cue", string(spec)+"\n"+read)
-	if text, _ := runPravo(rt, t, dir, "discover", "show"); !strings.Contains(text, "1 adopting") || !strings.Contains(text, "by shadow_assets") {
+	if text, _ := runPravo(t, rt, dir, "discover", "show"); !strings.Contains(text, "1 adopting") || !strings.Contains(text, "by shadow_assets") {
 		t.Errorf("the discovery does not see the adoption:\n%s", text)
 	}
-	text, code = runPravo(rt, t, dir, "plan")
+	text, code = runPravo(t, rt, dir, "plan")
 	if code != 0 {
 		t.Fatalf("plan exited %d:\n%s", code, text)
 	}
 	contains(t, text, "shadow_assets will be imported from the identity", "bucket=shadow-assets", "1 to import")
 	// A plan writes nothing for it: no record, and the object is still being adopted, until an apply.
 	for i := range 2 {
-		if text, _ := runPravo(rt, t, dir, "state", "list"); strings.TrimSpace(text) != "" {
+		if text, _ := runPravo(t, rt, dir, "state", "list"); strings.TrimSpace(text) != "" {
 			t.Fatalf("a plan wrote a record (plan %d): %q", i+1, text)
 		}
-		if text, _ := runPravo(rt, t, dir, "discover", "show"); !strings.Contains(text, "1 adopting") {
+		if text, _ := runPravo(t, rt, dir, "discover", "show"); !strings.Contains(text, "1 adopting") {
 			t.Fatalf("the discovery does not see the object as adopting after a plan:\n%s", text)
 		}
 		if i == 0 {
-			if _, code := runPravo(rt, t, dir, "plan"); code != 0 {
+			if _, code := runPravo(t, rt, dir, "plan"); code != 0 {
 				t.Fatal("the second plan")
 			}
 		}
 	}
-	if text, code := runPravo(rt, t, dir, "apply", "-auto-approve"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "apply", "-auto-approve"); code != 0 {
 		t.Fatalf("apply exited %d:\n%s", code, text)
 	}
-	if text, _ := runPravo(rt, t, dir, "state", "list"); strings.TrimSpace(text) != "shadow_assets" {
+	if text, _ := runPravo(t, rt, dir, "state", "list"); strings.TrimSpace(text) != "shadow_assets" {
 		t.Errorf("the apply wrote %q", text)
 	}
 	// And a plan after it has nothing left to do.
-	if text, code := runPravo(rt, t, dir, "plan"); code != 0 || !strings.Contains(text, "No changes.") {
+	if text, code := runPravo(t, rt, dir, "plan"); code != 0 || !strings.Contains(text, "No changes.") {
 		t.Errorf("a plan after the apply: %d\n%s", code, text)
 	}
-	text, _ = runPravo(rt, t, dir, "discover", "--all")
+	text, _ = runPravo(t, rt, dir, "discover", "--all")
 	contains(t, text, "1 managed", "1 unmanaged", "0 adopting")
 	lacks(t, text, "shadow-assets")
 }
@@ -429,13 +429,13 @@ func TestValidateRejectsAValueThatIsNotConcrete(t *testing.T) {
 	rt := &runContext{}
 
 	newDemoProvider(t)
-	dir := demoEstate(rt, t, "size: string\nknown: $demo.#Resource.demo_server & {name: size}")
-	text, code := runPravo(rt, t, dir, "validate")
+	dir := demoEstate(t, rt, "size: string\nknown: $demo.#Resource.demo_server & {name: size}")
+	text, code := runPravo(t, rt, dir, "validate")
 	if code != 6 || !strings.Contains(text, "not concrete") {
 		t.Errorf("validate exited %d:\n%s", code, text)
 	}
-	dir = demoEstate(rt, t, "a: $demo.#Resource.demo_server & {name: \"a\"}\nb: $demo.#Resource.demo_server & {name: a.name}")
-	if text, code := runPravo(rt, t, dir, "validate"); code != 0 {
+	dir = demoEstate(t, rt, "a: $demo.#Resource.demo_server & {name: \"a\"}\nb: $demo.#Resource.demo_server & {name: a.name}")
+	if text, code := runPravo(t, rt, dir, "validate"); code != 0 {
 		t.Errorf("a reference to another resource is not an error: %d\n%s", code, text)
 	}
 }
@@ -447,13 +447,13 @@ func TestStrayTopLevelFieldAndIDNewName(t *testing.T) {
 
 	p := newDemoProvider(t)
 	_ = p
-	dir := demoEstate(rt, t, "known: $demo.#Resource.demo_server & {name: \"known\"}\n")
+	dir := demoEstate(t, rt, "known: $demo.#Resource.demo_server & {name: \"known\"}\n")
 	mustWrite(t, dir, "moved.cue", "package estate\n\n$moved: [{from: \"a\", to: \"b\"}]\n")
-	text, code := runPravo(rt, t, dir, "validate")
+	text, code := runPravo(t, rt, dir, "validate")
 	if code == 0 || !strings.Contains(text, "$moved") || !strings.Contains(text, `$from: "old"`) {
 		t.Fatalf("validate exited %d, want a refusal naming $moved:\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, dir, "id", "new", "dave")
+	text, code = runPravo(t, rt, dir, "id", "new", "dave")
 	if code == 0 || !strings.Contains(text, "pravo id new --name dave") {
 		t.Fatalf("id new dave exited %d:\n%s", code, text)
 	}

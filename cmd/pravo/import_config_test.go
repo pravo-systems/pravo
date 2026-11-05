@@ -17,10 +17,10 @@ func TestImportConfiguresTheProviderFromItsBlock(t *testing.T) {
 	p := newDemoProvider(t, demoObject{"srv-1", "web", "eu"})
 	spec := "package estate\n\nimport demo \"pravo.dev/providers/demo/demo\"\n\n$demo: demo.#Provider & {$path: " + fmt.Sprintf("%q", demoBinary) + ", token: \"tk-import-7\"}\nweb: $demo.#Resource.demo_server & {name: \"web\"}\n"
 	dir := specDir(t, map[string]string{"main.cue": spec})
-	if text, code := runPravo(rt, t, dir, "init"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "init"); code != 0 {
 		t.Fatalf("init exited %d:\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, dir, "import", "web", "srv-1"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "import", "web", "srv-1"); code != 0 {
 		t.Fatalf("import exited %d:\n%s", code, text)
 	}
 	b, err := os.ReadFile(filepath.Join(p.dir, "received"))

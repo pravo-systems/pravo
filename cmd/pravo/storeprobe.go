@@ -67,7 +67,7 @@ func rememberS3Store(root *config.Root) {
 // probeS3 runs the probe of the store that the root names, writes one line for
 // each check and remembers a store that passes. It ignores the verdict that is
 // remembered and PRAVO_S3_PROBE.
-func probeS3(rt *runContext, ctx context.Context, root *config.Root) error {
+func probeS3(ctx context.Context, rt *runContext, root *config.Root) error {
 	if !root.State.Remote() {
 		return errors.New("the state is not on a remote store: $settings.state.backend is neither \"s3\" nor \"http\"")
 	}

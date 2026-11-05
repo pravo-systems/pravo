@@ -153,55 +153,55 @@ func exitScenarios(rt *runContext) map[int][]exitScenario {
 	return map[int][]exitScenario{
 		0: {
 			{"validate", func(t *testing.T) (string, int) {
-				return runPravo(rt, t, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "validate")
+				return runPravo(t, rt, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "validate")
 			}, "Success!"},
 			{"plan with --detailed-exitcode and no changes", func(t *testing.T) (string, int) {
-				return runPravo(rt, t, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "plan", "--detailed-exitcode")
+				return runPravo(t, rt, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "plan", "--detailed-exitcode")
 			}, "No changes."},
 			{"plan without --detailed-exitcode and with changes", func(t *testing.T) (string, int) {
 				dir, _ := pendingDir(t)
-				return runPravo(rt, t, dir, "plan")
+				return runPravo(t, rt, dir, "plan")
 			}, "1 to destroy"},
 			{"drift with no drift", func(t *testing.T) (string, int) {
-				return runPravo(rt, t, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "drift")
+				return runPravo(t, rt, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "drift")
 			}, "No drift."},
 		},
 		1: {
 			{"a missing output", func(t *testing.T) (string, int) {
-				return runPravo(rt, t, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "output", "nope")
+				return runPravo(t, rt, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "output", "nope")
 			}, `output "nope" is not recorded`},
 			{"an unknown flag", func(t *testing.T) (string, int) {
-				return runPravo(rt, t, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "plan", "--nope")
+				return runPravo(t, rt, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "plan", "--nope")
 			}, "unknown flag: --nope"},
 			{"a stray argument", func(t *testing.T) (string, int) {
-				return runPravo(rt, t, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "plan", "stray")
+				return runPravo(t, rt, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "plan", "stray")
 			}, "takes no arguments"},
 			{"apply --json with changes and no --auto-approve", func(t *testing.T) (string, int) {
 				dir, _ := pendingDir(t)
-				return runPravo(rt, t, dir, "apply", "--json")
+				return runPravo(t, rt, dir, "apply", "--json")
 			}, "needs -auto-approve"},
 			{"an answer other than yes", func(t *testing.T) (string, int) {
 				dir, _ := pendingDir(t)
 				defer stdin(t, "no\n")()
-				return runPravo(rt, t, dir, "apply")
+				return runPravo(t, rt, dir, "apply")
 			}, "apply cancelled"},
 		},
 		2: {
 			{"plan --detailed-exitcode with changes", func(t *testing.T) (string, int) {
 				dir, _ := pendingDir(t)
-				return runPravo(rt, t, dir, "plan", "--detailed-exitcode")
+				return runPravo(t, rt, dir, "plan", "--detailed-exitcode")
 			}, "1 to destroy"},
 		},
 		3: {
 			{"a saved plan after the specification changed", func(t *testing.T) (string, int) {
 				dir := specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"})
-				if text, code := runPravo(rt, t, dir, "plan", "--out", "change.plan"); code != 0 {
+				if text, code := runPravo(t, rt, dir, "plan", "--out", "change.plan"); code != 0 {
 					t.Fatalf("plan --out exited %d:\n%s", code, text)
 				}
 				if err := os.WriteFile(filepath.Join(dir, "main.cue"), []byte("package infra\n\nsize: 4\n"), 0o644); err != nil {
 					t.Fatal(err)
 				}
-				return runPravo(rt, t, dir, "apply", "change.plan")
+				return runPravo(t, rt, dir, "apply", "change.plan")
 			}, "saved plan is stale"},
 		},
 		4: {
@@ -211,52 +211,52 @@ func exitScenarios(rt *runContext) map[int][]exitScenario {
 					t.Fatal(err)
 				}
 				defer st.Unlock("cfg")
-				return runPravo(rt, t, dir, "apply", "--auto-approve")
+				return runPravo(t, rt, dir, "apply", "--auto-approve")
 			}, "locked by"},
 			{"a plan while another actor has reserved the node", func(t *testing.T) (string, int) {
 				dir, _ := pendingDir(t)
-				if text, code := runPravo(rt, t, dir, "plan", "--reserve", "15m", "--actor", "ci"); code != 0 {
+				if text, code := runPravo(t, rt, dir, "plan", "--reserve", "15m", "--actor", "ci"); code != 0 {
 					t.Fatalf("plan --reserve exited %d:\n%s", code, text)
 				}
-				return runPravo(rt, t, dir, "plan", "--actor", "bob")
+				return runPravo(t, rt, dir, "plan", "--actor", "bob")
 			}, "reserved by ci"},
 		},
 		5: {
 			{"a plan that violates a policy", func(t *testing.T) (string, int) {
-				return runPravo(rt, t, policyInForce(rt, t, "summary: destroy: 0").dir, "plan")
+				return runPravo(t, rt, policyInForce(t, rt, "summary: destroy: 0").dir, "plan")
 			}, "violates the policy"},
 			{"a policy in a state that is not sealed", func(t *testing.T) (string, int) {
 				dir := specDir(t, map[string]string{"main.cue": "package infra\n\nimport \"pravo.dev/pravo\"\n\nno: pravo.#Policy & {rule: summary: destroy: 0}\n"})
-				if text, code := runPravo(rt, t, dir, "init"); code != 0 {
+				if text, code := runPravo(t, rt, dir, "init"); code != 0 {
 					t.Fatalf("init exited %d:\n%s", code, text)
 				}
-				return runPravo(rt, t, dir, "plan")
+				return runPravo(t, rt, dir, "plan")
 			}, "must be sealed"},
 			{"a module that does not match its lock", func(t *testing.T) (string, int) {
 				dir := specDir(t, map[string]string{
 					"main.cue":       "package infra\n\nsize: 3\n",
 					"pravo.lock.cue": "modules: \"example.com/x@v0\": {version: \"v0.1.0\", hash: \"h1:abc\"}\n",
 				})
-				return runPravo(rt, t, dir, "mod", "verify")
+				return runPravo(t, rt, dir, "mod", "verify")
 			}, "locked but no longer used"},
 		},
 		6: {
 			{"a conflict in the specification", func(t *testing.T) (string, int) {
-				return runPravo(rt, t, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 11\nsize: 3\n"}), "validate")
+				return runPravo(t, rt, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 11\nsize: 3\n"}), "validate")
 			}, "conflicting values"},
 			{"a syntax error", func(t *testing.T) (string, int) {
-				return runPravo(rt, t, specDir(t, map[string]string{"main.cue": "package infra\n\nx: [\n"}), "plan")
+				return runPravo(t, rt, specDir(t, map[string]string{"main.cue": "package infra\n\nx: [\n"}), "plan")
 			}, "Error:"},
 			{"a file outside the package", func(t *testing.T) (string, int) {
-				return runPravo(rt, t, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n", "other.cue": "package other\n"}), "eval")
+				return runPravo(t, rt, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n", "other.cue": "package other\n"}), "eval")
 			}, "the other files are package infra"},
 			{"a type of a provider that is not declared", func(t *testing.T) (string, int) {
-				return runPravo(rt, t, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "schema", "random_pet")
+				return runPravo(t, rt, specDir(t, map[string]string{"main.cue": "package infra\n\nsize: 3\n"}), "schema", "random_pet")
 			}, `no provider "random"`},
 		},
 		7: {
 			{"a record that does not match its name", func(t *testing.T) (string, int) {
-				return runPravo(rt, t, untrustedDir(t), "protect", "status")
+				return runPravo(t, rt, untrustedDir(t), "protect", "status")
 			}, "Untrusted: "},
 		},
 	}
@@ -341,7 +341,7 @@ func TestProcessExitStatus(t *testing.T) {
 		{good, []string{"validate"}, 0},
 		{good, []string{"output", "nope"}, 1},
 		{pending, []string{"plan", "--detailed-exitcode"}, 2},
-		{policyInForce(rt, t, "summary: destroy: 0").dir, []string{"plan", "--detailed-exitcode"}, 5},
+		{policyInForce(t, rt, "summary: destroy: 0").dir, []string{"plan", "--detailed-exitcode"}, 5},
 		{bad, []string{"validate"}, 6},
 	}
 	for _, c := range cases {

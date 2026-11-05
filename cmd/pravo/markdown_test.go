@@ -12,17 +12,17 @@ func TestDriftMarkdown(t *testing.T) {
 	rt := &runContext{}
 
 	prov := newDemoProvider(t)
-	dir := demoEstate(rt, t, "keep: $demo.#Resource.demo_server & {name: \"keep\"}\nlost: $demo.#Resource.demo_server & {name: \"lost\"}\n")
-	if text, code := runPravo(rt, t, dir, "apply", "--auto-approve"); code != 0 {
+	dir := demoEstate(t, rt, "keep: $demo.#Resource.demo_server & {name: \"keep\"}\nlost: $demo.#Resource.demo_server & {name: \"lost\"}\n")
+	if text, code := runPravo(t, rt, dir, "apply", "--auto-approve"); code != 0 {
 		t.Fatalf("apply exited %d:\n%s", code, text)
 	}
-	text, code := runPravo(rt, t, dir, "drift", "--markdown")
+	text, code := runPravo(t, rt, dir, "drift", "--markdown")
 	if code != 0 || !strings.HasPrefix(text, "### pravo drift: no drift\n") {
 		t.Fatalf("drift --markdown without drift exited %d:\n%s", code, text)
 	}
 
 	prov.remove("srv-lost")
-	text, code = runPravo(rt, t, dir, "drift", "--markdown")
+	text, code = runPravo(t, rt, dir, "drift", "--markdown")
 	if code != 2 {
 		t.Fatalf("drift --markdown exited %d:\n%s", code, text)
 	}
@@ -35,7 +35,7 @@ func TestDriftMarkdown(t *testing.T) {
 		t.Errorf("the report has the text form:\n%s", text)
 	}
 
-	text, code = runPravo(rt, t, dir, "drift", "--plan", "--store", "--markdown")
+	text, code = runPravo(t, rt, dir, "drift", "--plan", "--store", "--markdown")
 	id := storedID.FindString(text)
 	if code != 2 || id == "" {
 		t.Fatalf("drift --plan --store --markdown exited %d:\n%s", code, text)
@@ -46,11 +46,11 @@ func TestDriftMarkdown(t *testing.T) {
 		}
 	}
 
-	text, code = runPravo(rt, t, dir, "drift", "--due", "--markdown")
+	text, code = runPravo(t, rt, dir, "drift", "--due", "--markdown")
 	if !strings.HasPrefix(text, "### pravo drift:") || (code != 0 && code != 2) {
 		t.Errorf("drift --due --markdown exited %d:\n%s", code, text)
 	}
-	if text, code = runPravo(rt, t, dir, "drift", "--markdown", "--json"); code == 0 || !strings.Contains(text, "give one of them") {
+	if text, code = runPravo(t, rt, dir, "drift", "--markdown", "--json"); code == 0 || !strings.Contains(text, "give one of them") {
 		t.Errorf("--markdown with --json exited %d:\n%s", code, text)
 	}
 }
@@ -60,15 +60,15 @@ func TestDriftMarkdown(t *testing.T) {
 func TestDiscoverShowMarkdown(t *testing.T) {
 	rt := &runContext{}
 
-	_, dir := demoWorld(rt, t)
-	text, code := runPravo(rt, t, dir, "discover", "show", "--markdown")
+	_, dir := demoWorld(t, rt)
+	text, code := runPravo(t, rt, dir, "discover", "show", "--markdown")
 	if code != 0 || !strings.Contains(text, "### pravo discover vms: nothing unmanaged") && !strings.Contains(text, "Not run yet") {
 		t.Fatalf("discover show --markdown before a run exited %d:\n%s", code, text)
 	}
-	if text, code = runPravo(rt, t, dir, "discover"); code != 0 {
+	if text, code = runPravo(t, rt, dir, "discover"); code != 0 {
 		t.Fatalf("discover exited %d:\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, dir, "discover", "show", "--markdown", "--exit-code")
+	text, code = runPravo(t, rt, dir, "discover", "show", "--markdown", "--exit-code")
 	if code != 2 {
 		t.Fatalf("discover show --markdown --exit-code exited %d:\n%s", code, text)
 	}

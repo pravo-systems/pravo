@@ -15,7 +15,7 @@ import (
 func TestReadersFileThatIsAPipe(t *testing.T) {
 	rt := &runContext{}
 
-	isolateIdentities(rt, t)
+	isolateIdentities(t, rt)
 	root := t.TempDir()
 	dir := filepath.Join(root, ".pravo", "access")
 	if err := os.MkdirAll(dir, 0o755); err != nil {

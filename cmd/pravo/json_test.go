@@ -83,7 +83,7 @@ func TestJSONOutputKeepsHTMLCharacters(t *testing.T) {
 	rt := &runContext{}
 
 	dir := specDir(t, map[string]string{"main.cue": htmlSpec})
-	if text, code := runPravo(rt, t, dir, "init"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "init"); code != 0 {
 		t.Fatalf("init exited %d:\n%s", code, text)
 	}
 	const want = "http://x/?a=1&b=<2>"
@@ -97,7 +97,7 @@ func TestJSONOutputKeepsHTMLCharacters(t *testing.T) {
 		{"show", filepath.Join(dir, "p.plan"), "--json"},
 	}
 	for _, args := range commands {
-		text, code := runPravo(rt, t, dir, args...)
+		text, code := runPravo(t, rt, dir, args...)
 		if code != 0 {
 			t.Errorf("pravo %s: exit %d:\n%s", strings.Join(args, " "), code, text)
 			continue
@@ -133,7 +133,7 @@ func TestStateShowJSONKeepsHTMLCharacters(t *testing.T) {
 	if err := st.Set(node, ""); err != nil {
 		t.Fatal(err)
 	}
-	text, code := runPravo(rt, t, dir, "state", "show", "bucket", "--json")
+	text, code := runPravo(t, rt, dir, "state", "show", "bucket", "--json")
 	if code != 0 || !strings.Contains(text, `"note": "a<b>&c"`) {
 		t.Errorf("state show --json: exit %d:\n%s", code, text)
 	}
@@ -145,7 +145,7 @@ func TestMCPServerKeepsHTMLCharacters(t *testing.T) {
 
 	var out bytes.Buffer
 	in := strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize"}` + "\n")
-	if err := serveMCP(rt, context.Background(), in, &out); err != nil {
+	if err := serveMCP(context.Background(), rt, in, &out); err != nil {
 		t.Fatal(err)
 	}
 	text := out.String()
@@ -189,7 +189,7 @@ func TestEmptyListsInJSONAreNotNull(t *testing.T) {
 	rt := &runContext{}
 
 	dir := specDir(t, map[string]string{"main.cue": "package estate\n\nimport \"pravo.dev/pravo\"\n\nurl: pravo.#Output & {value: \"x\"}\n"})
-	if text, code := runPravo(rt, t, dir, "init"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "init"); code != 0 {
 		t.Fatalf("init exited %d:\n%s", code, text)
 	}
 	cases := []struct {
@@ -208,7 +208,7 @@ func TestEmptyListsInJSONAreNotNull(t *testing.T) {
 		{[]string{"output", "--json"}, "{}"},
 	}
 	for _, c := range cases {
-		text, code := runPravo(rt, t, dir, c.args...)
+		text, code := runPravo(t, rt, dir, c.args...)
 		if code != 0 {
 			t.Errorf("pravo %s: exit %d:\n%s", strings.Join(c.args, " "), code, text)
 			continue
@@ -244,7 +244,7 @@ func TestEmptyListsOfANodeInJSONAreNotNull(t *testing.T) {
 		{"state", "locks", "--json"},
 		{"state", "query", "--json", "edges"},
 	} {
-		text, code := runPravo(rt, t, dir, args...)
+		text, code := runPravo(t, rt, dir, args...)
 		if code != 0 {
 			t.Errorf("pravo %s: exit %d:\n%s", strings.Join(args, " "), code, text)
 			continue
@@ -258,7 +258,7 @@ func TestEmptyListsOfANodeInJSONAreNotNull(t *testing.T) {
 			t.Errorf("pravo %s prints null at %v:\n%s", strings.Join(args, " "), nulls, text)
 		}
 	}
-	if text, _ := runPravo(rt, t, dir, "state", "show", "bucket", "--json"); !strings.Contains(text, `"dependents": []`) {
+	if text, _ := runPravo(t, rt, dir, "state", "show", "bucket", "--json"); !strings.Contains(text, `"dependents": []`) {
 		t.Errorf("a node without dependents:\n%s", text)
 	}
 }
@@ -280,7 +280,7 @@ func TestTransactionWithoutChangesPrintsAnEmptyList(t *testing.T) {
 	if err := txn.Finish("applied", "nothing", true); err != nil {
 		t.Fatal(err)
 	}
-	text, code := runPravo(rt, t, dir, "state", "log", "--json")
+	text, code := runPravo(t, rt, dir, "state", "log", "--json")
 	if code != 0 || !strings.Contains(text, `"changes": []`) || strings.Contains(text, "null") {
 		t.Errorf("state log --json: exit %d:\n%s", code, text)
 	}
@@ -293,7 +293,7 @@ func TestPlanJSONTakesIncludeSkipped(t *testing.T) {
 
 	dir, _ := pendingDir(t)
 	for _, args := range [][]string{{"plan", "--json"}, {"plan", "--json", "--include-skipped"}} {
-		text, code := runPravo(rt, t, dir, args...)
+		text, code := runPravo(t, rt, dir, args...)
 		if code != 0 {
 			t.Fatalf("pravo %s: exit %d:\n%s", strings.Join(args, " "), code, text)
 		}

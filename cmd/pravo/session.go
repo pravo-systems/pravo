@@ -82,7 +82,7 @@ func setupSpan(name string, attrs ...attribute.KeyValue) (context.Context, func(
 	return telemetry.Span(commandContext(), "setup "+name, attrs...)
 }
 
-func newSession(rt *runContext, ctx context.Context, opts sessionOptions) (*session, error) {
+func newSession(ctx context.Context, rt *runContext, opts sessionOptions) (*session, error) {
 	mode := pravo.StateNone
 	switch {
 	case opts.loadState && opts.readOnlyState:
@@ -102,14 +102,14 @@ func newSession(rt *runContext, ctx context.Context, opts sessionOptions) (*sess
 		Actor: rt.flags.Actor, Reason: rt.flags.Reason, Args: os.Args[1:],
 		OpenState: func(ctx context.Context, root *config.Root, mode pravo.StateMode) (*state.Store, error) {
 			if mode == pravo.StateRead {
-				return openStateValues(rt, ctx, root)
+				return openStateValues(ctx, rt, root)
 			}
 			var st *state.Store
 			var err error
 			if opts.planning {
-				st, err = openStateForPlan(rt, ctx, root)
+				st, err = openStateForPlan(ctx, rt, root)
 			} else {
-				st, err = openState(rt, ctx, root)
+				st, err = openState(ctx, rt, root)
 			}
 			if err != nil {
 				return nil, err
@@ -195,15 +195,15 @@ func (s *session) readersInto(rt *runContext, opts *engine.Options) {
 }
 
 // openState opens the configured state backend.
-func openState(rt *runContext, ctx context.Context, root *config.Root) (*state.Store, error) {
-	return openStateStore(rt, ctx, root)
+func openState(ctx context.Context, rt *runContext, root *config.Root) (*state.Store, error) {
+	return openStateStore(ctx, rt, root)
 }
 
 // openStateStore opens the state of the root for a command that writes it. A
 // sealed state needs the identity of a reader and a readers file that matches
 // the state.
-func openStateStore(rt *runContext, ctx context.Context, root *config.Root) (*state.Store, error) {
-	st, _, err := openStateAs(rt, ctx, root, true, false, false)
+func openStateStore(ctx context.Context, rt *runContext, root *config.Root) (*state.Store, error) {
+	st, _, err := openStateAs(ctx, rt, root, true, false, false)
 	return st, err
 }
 
@@ -211,8 +211,8 @@ func openStateStore(rt *runContext, ctx context.Context, root *config.Root) (*st
 // state opens it as openState does. A reader gets the same state with its writes held
 // in memory: the plan refreshes what it reads and leaves the bucket as it found it, and
 // only a stored plan is written. See Role in internal/protect.
-func openStateForPlan(rt *runContext, ctx context.Context, root *config.Root) (*state.Store, error) {
-	st, _, err := openStateAs(rt, ctx, root, true, false, true)
+func openStateForPlan(ctx context.Context, rt *runContext, root *config.Root) (*state.Store, error) {
+	st, _, err := openStateAs(ctx, rt, root, true, false, true)
 	return st, err
 }
 
@@ -228,7 +228,7 @@ var stateInMemory bool
 // command that needs values gets the refusal of a store that is not read, unless
 // allowLocked is set. A command that writes also needs a readers
 // file that matches the state; one that reads only warns.
-func openStateAs(rt *runContext, ctx context.Context, root *config.Root, write, allowLocked, planning bool) (st *state.Store, why *noKey, err error) {
+func openStateAs(ctx context.Context, rt *runContext, root *config.Root, write, allowLocked, planning bool) (st *state.Store, why *noKey, err error) {
 	// A sealed state is opened once: the store asks which identity to open it with when
 	// it has read meta.json, and the answer, or why there is none, is kept here.
 	var (
@@ -257,7 +257,7 @@ func openStateAs(rt *runContext, ctx context.Context, root *config.Root, write, 
 	// would make it, in format 1.
 	missing, overlay := false, false
 	if rf := readersOf(rt, root); rf.Found && stateMissing(ctx, root) {
-		problem := missingStateProblemOf(rt, ctx, root, rf)
+		problem := missingStateProblemOf(ctx, rt, root, rf)
 		if write {
 			return nil, nil, engine.WithCode(engine.ExitRefused, errors.New(problem))
 		}
@@ -379,14 +379,14 @@ func remoteBackend(ctx context.Context, root *config.Root) (state.Backend, error
 // created: opening a store otherwise makes the directory and writes its
 // metadata. A sealed state that cannot be opened with an identity is returned
 // locked (see state.Store.Locked); commands that need values check for that.
-func openStateReadOnly(rt *runContext, ctx context.Context, root *config.Root) (*state.Store, error) {
-	st, _, err := openStateReadOnlyWhy(rt, ctx, root)
+func openStateReadOnly(ctx context.Context, rt *runContext, root *config.Root) (*state.Store, error) {
+	st, _, err := openStateReadOnlyWhy(ctx, rt, root)
 	return st, err
 }
 
-func openStateReadOnlyWhy(rt *runContext, ctx context.Context, root *config.Root) (*state.Store, *noKey, error) {
+func openStateReadOnlyWhy(ctx context.Context, rt *runContext, root *config.Root) (*state.Store, *noKey, error) {
 	began := time.Now()
-	st, why, err := openStateAs(rt, ctx, root, false, true, false)
+	st, why, err := openStateAs(ctx, rt, root, false, true, false)
 	if err == nil {
 		plog.Debug(ctx, "state opened for reading", "backend", pravo.BackendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", took(began))
 	}
@@ -395,8 +395,8 @@ func openStateReadOnlyWhy(rt *runContext, ctx context.Context, root *config.Root
 
 // openStateValues is openStateReadOnly for a command that prints values: a
 // locked store is refused.
-func openStateValues(rt *runContext, ctx context.Context, root *config.Root) (*state.Store, error) {
-	st, why, err := openStateReadOnlyWhy(rt, ctx, root)
+func openStateValues(ctx context.Context, rt *runContext, root *config.Root) (*state.Store, error) {
+	st, why, err := openStateReadOnlyWhy(ctx, rt, root)
 	if err != nil {
 		return nil, err
 	}

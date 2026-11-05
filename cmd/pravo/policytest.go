@@ -90,7 +90,7 @@ resource is not judged by any policy.
 The command exits 5 when a rule would refuse a plan, 6 when a rule cannot be used, and
 0 otherwise.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPolicyTest(rt, cmd.Context(), args, plans, all, inForce)
+			return runPolicyTest(cmd.Context(), rt, args, plans, all, inForce)
 		},
 	}
 	cmd.Flags().StringArrayVar(&plans, "plan", nil, "a stored plan id or a plan file to try the rules on (repeatable); without it the stored plans that can be applied")
@@ -100,13 +100,13 @@ The command exits 5 when a rule would refuse a plan, 6 when a rule cannot be use
 	return cmd
 }
 
-func runPolicyTest(rt *runContext, ctx context.Context, args, planRefs []string, all, inForce bool) error {
-	s, err := newSession(rt, ctx, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
+func runPolicyTest(ctx context.Context, rt *runContext, args, planRefs []string, all, inForce bool) error {
+	s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
 	if err != nil {
 		return err
 	}
 	defer s.close()
-	rules, err := trialRules(rt, ctx, s, args, inForce)
+	rules, err := trialRules(ctx, rt, s, args, inForce)
 	if err != nil {
 		return engine.WithCode(engine.ExitInvalid, err)
 	}
@@ -195,7 +195,7 @@ func runPolicyTest(rt *runContext, ctx context.Context, args, planRefs []string,
 
 // trialRules finds the rules to try: the files and policy names given, else every
 // policy of the specification, or of the state with inForce.
-func trialRules(rt *runContext, ctx context.Context, s *session, args []string, inForce bool) ([]trialRule, error) {
+func trialRules(ctx context.Context, rt *runContext, s *session, args []string, inForce bool) ([]trialRule, error) {
 	var declared, held map[string]trialRule
 	if inForce {
 		set, err := s.state.PolicySet(ctx, readersOf(rt, s.root).Readers)

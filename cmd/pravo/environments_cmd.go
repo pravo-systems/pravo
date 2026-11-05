@@ -138,7 +138,7 @@ func showEnvironments(rt *runContext, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	rows := readEnvironmentRows(rt, ctx, root, rel)
+	rows := readEnvironmentRows(ctx, rt, root, rel)
 	next := nextStep(root, rows)
 	if rt.flags.JSON {
 		envs := make([]environmentJSON, len(rows))
@@ -221,12 +221,12 @@ func status(r envRow) string {
 }
 
 // readEnvironmentRows reads the state of each environment in the order of the promotion flow.
-func readEnvironmentRows(rt *runContext, ctx context.Context, root *config.Root, rel engine.Release) []envRow {
+func readEnvironmentRows(ctx context.Context, rt *runContext, root *config.Root, rel engine.Release) []envRow {
 	envs := &environmentsOf{root: root}
 	rows := make([]envRow, 0, len(root.Environments))
 	runs := map[string]bool{}
 	for _, env := range root.Environments {
-		s := envs.open(rt, ctx, env.Name)
+		s := envs.open(ctx, rt, env.Name)
 		r := envRow{j: environmentJSON{Name: env.Name, After: env.After, Default: env.Default, Sealed: s.Sealed}}
 		if r.j.After == nil {
 			r.j.After = []string{}
@@ -327,7 +327,7 @@ For a specification that declares no environments any more, it records that the 
 			if stateMissing(ctx, root) {
 				return engine.WithCode(engine.ExitRefused, errors.New("there is no state here yet, and the first apply records what it serves"))
 			}
-			st, err := openStateStore(rt, ctx, root)
+			st, err := openStateStore(ctx, rt, root)
 			if err != nil {
 				return err
 			}
@@ -432,11 +432,11 @@ type declared struct {
 
 const unknownValue = "(known at apply)"
 
-func declaredIn(rt *runContext, ctx context.Context, env string) (*declared, error) {
+func declaredIn(ctx context.Context, rt *runContext, env string) (*declared, error) {
 	saved := rt.flags.Tags
 	rt.flags.Tags = config.WithEnvironment(rt.flags.Tags, env)
 	defer func() { rt.flags.Tags = saved }()
-	s, err := newSession(rt, ctx, sessionOptions{install: true, schemas: true})
+	s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true})
 	if err != nil {
 		return nil, err
 	}
@@ -544,11 +544,11 @@ func diffEnvironments(rt *runContext, cmd *cobra.Command, a, b string) error {
 	if _, ok := config.EnvironmentOf(rt.flags.Tags); ok {
 		return engine.WithCode(engine.ExitInvalid, errors.New("the environments are the arguments of diff, without --env"))
 	}
-	da, err := declaredIn(rt, ctx, a)
+	da, err := declaredIn(ctx, rt, a)
 	if err != nil {
 		return err
 	}
-	db, err := declaredIn(rt, ctx, b)
+	db, err := declaredIn(ctx, rt, b)
 	if err != nil {
 		return err
 	}

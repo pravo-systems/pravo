@@ -219,7 +219,7 @@ func lostStateProblem(rf readersFile) string {
 
 // missingStateProblemOf picks between a state that does not exist yet and one
 // that lost its meta.json.
-func missingStateProblemOf(rt *runContext, ctx context.Context, root *config.Root, rf readersFile) string {
+func missingStateProblemOf(ctx context.Context, rt *runContext, root *config.Root, rf readersFile) string {
 	if stateLost(ctx, stateBackendIfAny(ctx, root)) {
 		return lostStateProblem(rf)
 	}
@@ -373,7 +373,7 @@ func unnamedNotice(n int) string {
 }
 
 // noteUnnamed prints the notice for st when it applies.
-func noteUnnamed(rt *runContext, ctx context.Context, root *config.Root, st *state.Store) {
+func noteUnnamed(ctx context.Context, rt *runContext, root *config.Root, st *state.Store) {
 	if readers, ok := attributionReaders(readersOf(rt, root)); ok {
 		if n := st.Unnamed(ctx, readers); n > 0 {
 			fmt.Fprintln(os.Stderr, unnamedNotice(n))

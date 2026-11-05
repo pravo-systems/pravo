@@ -16,7 +16,7 @@ import (
 
 // runPravoCtx is runPravo for a command whose context the test cancels, as a
 // signal does in main.
-func runPravoCtx(rt *runContext, t *testing.T, ctx context.Context, dir string, args ...string) (string, int) {
+func runPravoCtx(t *testing.T, rt *runContext, ctx context.Context, dir string, args ...string) (string, int) {
 	t.Helper()
 	wd, _ := os.Getwd()
 	defer os.Chdir(wd) //nolint:usetesting // the directory is put back after each call, so that a relative path in the next call means what it meant in the first
@@ -44,7 +44,7 @@ func TestProtectInitInterruptedIsResumed(t *testing.T) {
 	rt := &runContext{}
 
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	t.Setenv("PRAVO_HOME", t.TempDir())
 	t.Setenv("PRAVO_S3_PROBE", "off")
 
@@ -71,7 +71,7 @@ func TestProtectInitInterruptedIsResumed(t *testing.T) {
 	e.readers(t, ada)
 	puts := recPuts.Load()
 
-	text, code := runPravoCtx(rt, t, ctx, e.dir, "protect", "init", "--encrypt", "--yes")
+	text, code := runPravoCtx(t, rt, ctx, e.dir, "protect", "init", "--encrypt", "--yes")
 	if code == 0 || !strings.Contains(text, "interrupted after") || !strings.Contains(text, "Run the command again to finish") {
 		t.Fatalf("an interrupted init: exit %d\n%s", code, text)
 	}
@@ -79,19 +79,19 @@ func TestProtectInitInterruptedIsResumed(t *testing.T) {
 		t.Fatalf("the interrupted init wrote %d of %d records", n, records)
 	}
 
-	status, code := runPravo(rt, t, e.dir, "protect", "status")
+	status, code := runPravo(t, rt, e.dir, "protect", "status")
 	if code != 0 || !strings.Contains(status, "Sealed       migrating · ") || !strings.Contains(status, "run pravo protect init --encrypt to finish") {
 		t.Fatalf("status after the interrupt: exit %d\n%s", code, status)
 	}
-	if text, code := runPravo(rt, t, e.dir, "state", "rm", "ra"); code == 0 || !strings.Contains(text, "a seal is in progress; run pravo protect init --encrypt to finish") {
+	if text, code := runPravo(t, rt, e.dir, "state", "rm", "ra"); code == 0 || !strings.Contains(text, "a seal is in progress; run pravo protect init --encrypt to finish") {
 		t.Errorf("a writer during the migration: exit %d\n%s", code, text)
 	}
 
-	text, code = runPravo(rt, t, e.dir, "protect", "init", "--encrypt", "--yes")
+	text, code = runPravo(t, rt, e.dir, "protect", "init", "--encrypt", "--yes")
 	if code != 0 || !strings.Contains(text, "The state is sealed to ada.") {
 		t.Fatalf("init run again: exit %d\n%s", code, text)
 	}
-	status, code = runPravo(rt, t, e.dir, "protect", "status")
+	status, code = runPravo(t, rt, e.dir, "protect", "status")
 	if code != 0 || !strings.Contains(status, "Sealed       on · format 3 · 1 reader (ada)") || strings.Contains(status, "Untrusted") {
 		t.Fatalf("status after the second run: exit %d\n%s", code, status)
 	}

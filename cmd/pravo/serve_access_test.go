@@ -468,7 +468,7 @@ func TestServeFlagsOfTheAccessView(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{{"--identity", "none", "--access-dir", "elsewhere"}, {"--access-dir", "elsewhere"}} {
-		info, stop := runServe(rt, t, dir, args...)
+		info, stop := runServe(t, rt, dir, args...)
 		var a serve.Access
 		if err := json.Unmarshal(fetch(t, info, "/api/access"), &a); err != nil {
 			t.Fatal(err)
@@ -511,7 +511,7 @@ func TestViewerOpensLockedForAnIdentityThatIsNotAReader(t *testing.T) {
 		without++
 		return state.OpenBackend(ctx, b)
 	}}
-	st, err := v.openWith(rt, context.Background(), &state.LocalBackend{Dir: dir}, gus)
+	st, err := v.openWith(context.Background(), rt, &state.LocalBackend{Dir: dir}, gus)
 	if err != nil || st == nil {
 		t.Fatalf("an identity that is not a reader: %v", err)
 	}
@@ -529,14 +529,14 @@ func TestViewerOpensLockedForAnIdentityThatIsNotAReader(t *testing.T) {
 	v.openStore = func(context.Context, state.Backend, state.Options) (*state.Store, error) {
 		return nil, os.ErrPermission
 	}
-	if _, err := v.openWith(rt, context.Background(), &state.LocalBackend{Dir: dir}, gus); err == nil {
+	if _, err := v.openWith(context.Background(), rt, &state.LocalBackend{Dir: dir}, gus); err == nil {
 		t.Error("an error of the store was swallowed")
 	}
 	// And an identity that is a reader clears the mark.
 	v.openStore = func(ctx context.Context, b state.Backend, o state.Options) (*state.Store, error) {
 		return state.OpenBackend(ctx, b)
 	}
-	if _, err := v.openWith(rt, context.Background(), &state.LocalBackend{Dir: dir}, gus); err != nil || v.who().refused {
+	if _, err := v.openWith(context.Background(), rt, &state.LocalBackend{Dir: dir}, gus); err != nil || v.who().refused {
 		t.Errorf("a reader: %v %+v", err, v.who())
 	}
 }

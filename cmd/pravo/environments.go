@@ -77,7 +77,7 @@ func (e *environmentsOf) readersFile(rt *runContext, name string) (readersFile, 
 // whose record pins its roles is refused when the file does not pin those roles, so that an
 // edit of its access directory does not make anyone a writer there.
 func (e *environmentsOf) readers(rt *runContext, name string) (engine.Judges, error) {
-	s := e.open(rt, commandContext(), name)
+	s := e.open(commandContext(), rt, name)
 	defer s.close()
 	switch {
 	case s.Err != nil:
@@ -132,7 +132,7 @@ func (s *envState) close() {
 }
 
 // openEnvironment opens the state of the environment name for reading, without a key.
-func (e *environmentsOf) open(rt *runContext, ctx context.Context, name string) *envState {
+func (e *environmentsOf) open(ctx context.Context, rt *runContext, name string) *envState {
 	s := &envState{}
 	es, err := e.settings(rt, name)
 	s.es = es
@@ -315,7 +315,7 @@ func promoteInto(rt *runContext, cmd *cobra.Command, env string, o promoteOpts) 
 	if stateMissing(ctx, root) {
 		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s has no state yet, and a promotion is kept in it, signed. Seal one first: pravo protect init --encrypt --env %s", env, env))
 	}
-	line, already, err := signPromotion(rt, ctx, root, &environmentsOf{root: root}, env, o)
+	line, already, err := signPromotion(ctx, rt, root, &environmentsOf{root: root}, env, o)
 	if err != nil {
 		return err
 	}
@@ -387,8 +387,8 @@ type promotionRun struct {
 
 // signPromotion signs the promotion in the state of the environment. It returns the line that
 // says what was signed, or the answer that the release already runs there.
-func signPromotion(rt *runContext, ctx context.Context, root *config.Root, envs *environmentsOf, env string, o promoteOpts) (line, already string, err error) {
-	st, err := openStateStore(rt, ctx, root)
+func signPromotion(ctx context.Context, rt *runContext, root *config.Root, envs *environmentsOf, env string, o promoteOpts) (line, already string, err error) {
+	st, err := openStateStore(ctx, rt, root)
 	if err != nil {
 		return "", "", err
 	}
@@ -405,7 +405,7 @@ func signPromotion(rt *runContext, ctx context.Context, root *config.Root, envs 
 		if err := pr.refuseWithdrawn(); err != nil {
 			return "", "", err
 		}
-		if msg := alreadyRuns(rt, ctx, st, envs, env, pr.gate, pr.rec, pr.rel, pr.readers, pr.vouched); msg != "" {
+		if msg := alreadyRuns(ctx, rt, st, envs, env, pr.gate, pr.rec, pr.rel, pr.readers, pr.vouched); msg != "" {
 			return "", msg, nil
 		}
 	}
@@ -497,7 +497,7 @@ func (pr *promotionRun) fillFromUpstream(rt *runContext, p *state.Promotion) (st
 	}
 	fills := false
 	for _, up := range pr.gate {
-		src, by, err := readUpstream(rt, pr.ctx, pr.envs, pr.root, up, env, pr.rel, pr.rec)
+		src, by, err := readUpstream(pr.ctx, rt, pr.envs, pr.root, up, env, pr.rel, pr.rec)
 		if err != nil {
 			return "", err
 		}
@@ -574,7 +574,7 @@ func storePromotedPlan(rt *runContext, cmd *cobra.Command, o promoteOpts) error 
 // alreadyRuns says that env already runs the release, or "" when it does not: its newest
 // note, signed there by a writer, names the release, and a promotion of the release still
 // counts. Promoting again would sign a second promotion and apply nothing new.
-func alreadyRuns(rt *runContext, ctx context.Context, st *state.Store, envs *environmentsOf, env string, gate []string, rec *state.EnvironmentRecord, rel engine.Release, readers []protect.Reader, vouched map[string]protect.Vouch) string {
+func alreadyRuns(ctx context.Context, rt *runContext, st *state.Store, envs *environmentsOf, env string, gate []string, rec *state.EnvironmentRecord, rel engine.Release, readers []protect.Reader, vouched map[string]protect.Vouch) string {
 	now := time.Now()
 	note, _, err := st.LatestRun(ctx, now)
 	if err != nil || note == nil || !rel.Same(note) || note.Deferred > 0 || engine.NoteProblem(note, env, st.Lineage(), engine.Judges{Readers: readers, Vouched: vouched}, now) != "" {
@@ -601,8 +601,8 @@ func mustCurrent(root *config.Root) config.Environment {
 // readUpstream reads the note of the environment up and checks that it runs the release: it is
 // signed there by a writer, names the release, and comes from the state the record of env
 // follows.
-func readUpstream(rt *runContext, ctx context.Context, envs *environmentsOf, root *config.Root, up, env string, rel engine.Release, rec *state.EnvironmentRecord) (*state.PromotionSource, string, error) {
-	s := envs.open(rt, ctx, up)
+func readUpstream(ctx context.Context, rt *runContext, envs *environmentsOf, root *config.Root, up, env string, rel engine.Release, rec *state.EnvironmentRecord) (*state.PromotionSource, string, error) {
+	s := envs.open(ctx, rt, up)
 	defer s.close()
 	steps := func(why string) error {
 		return engine.WithCode(engine.ExitRefused, fmt.Errorf("%s does not run this release: %s.\n\nRun these, skipping a step that is already done:\n\n%s", up, why, engine.Steps(root, env)))
@@ -661,7 +661,7 @@ func joinAnd(items []string) string {
 // such as state rm, import or secret set, when the record of the state says that it serves
 // another environment than the one the specification was loaded for: the check that plan and
 // apply make, so that a state that a setting points at by mistake is not written to.
-func refuseOtherEnvironment(rt *runContext, ctx context.Context, root *config.Root, st *state.Store) error {
+func refuseOtherEnvironment(ctx context.Context, rt *runContext, root *config.Root, st *state.Store) error {
 	eff, _, err := readersOf(rt, root).withRoles(st)
 	if err != nil {
 		return engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))

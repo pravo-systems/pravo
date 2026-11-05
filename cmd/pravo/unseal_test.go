@@ -12,19 +12,19 @@ import (
 func TestProtectUnseal(t *testing.T) {
 	rt := &runContext{}
 
-	r := recoveredBucket(rt, t)
+	r := recoveredBucket(t, rt)
 	if strings.Contains(r.bucketText(), secretA) {
 		t.Fatal("the secret is in the bucket after the seal")
 	}
 	t.Run("it asks first, and without a terminal it refuses", func(t *testing.T) {
 		before := r.bucketText()
-		text, code := runPravo(rt, t, r.dir, "protect", "unseal")
+		text, code := runPravo(t, rt, r.dir, "protect", "unseal")
 		if code != 1 || !strings.Contains(text, "pass --yes") || r.bucketText() != before {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 	t.Run("it takes the seal off and says what the repository still expects", func(t *testing.T) {
-		text, code := runPravo(rt, t, r.dir, "protect", "unseal", "--yes")
+		text, code := runPravo(t, rt, r.dir, "protect", "unseal", "--yes")
 		if code != 0 {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -54,17 +54,17 @@ func TestProtectUnseal(t *testing.T) {
 		}
 	})
 	t.Run("a writer refuses the state until the files are gone", func(t *testing.T) {
-		text, code := runPravo(rt, t, r.dir, "state", "rm", "net.vpc")
+		text, code := runPravo(t, rt, r.dir, "state", "rm", "net.vpc")
 		if code != 5 || !strings.Contains(text, "the state is not sealed") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
-		text, code = runPravo(rt, t, r.dir, "protect", "status")
+		text, code = runPravo(t, rt, r.dir, "protect", "status")
 		if code != 0 || !strings.Contains(text, "off · format 3 · immutable records") {
 			t.Errorf("status: exit %d\n%s", code, text)
 		}
 	})
 	t.Run("--remove-files finishes it", func(t *testing.T) {
-		text, code := runPravo(rt, t, r.dir, "protect", "unseal", "--remove-files", "--yes")
+		text, code := runPravo(t, rt, r.dir, "protect", "unseal", "--remove-files", "--yes")
 		if code != 0 || !strings.Contains(text, "The state is not sealed.") ||
 			!strings.Contains(text, "Removed .pravo/access/readers.txt; commit the deletion.") ||
 			!strings.Contains(text, "Removed .pravo/access/recovery.txt; commit the deletion.") {
@@ -75,7 +75,7 @@ func TestProtectUnseal(t *testing.T) {
 				t.Errorf("%s stayed", f)
 			}
 		}
-		if text, code = runPravo(rt, t, r.dir, "state", "list"); code != 0 || !strings.Contains(text, "net.vpc") {
+		if text, code = runPravo(t, rt, r.dir, "state", "list"); code != 0 || !strings.Contains(text, "net.vpc") {
 			t.Errorf("list: exit %d\n%s", code, text)
 		}
 	})
@@ -84,21 +84,21 @@ func TestProtectUnseal(t *testing.T) {
 func TestProtectUnsealJSONAndSealAgain(t *testing.T) {
 	rt := &runContext{}
 
-	r := recoveredBucket(rt, t)
-	text, code := runPravo(rt, t, r.dir, "--json", "protect", "unseal", "--yes", "--remove-files")
+	r := recoveredBucket(t, rt)
+	text, code := runPravo(t, rt, r.dir, "--json", "protect", "unseal", "--yes", "--remove-files")
 	if code != 0 || !strings.Contains(text, `"unsealed": true`) || !strings.Contains(text, `"records": 2`) ||
 		!strings.Contains(text, ".pravo/access/readers.txt") {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	// The same state is sealed again, to the same people, in a group of its own.
 	r.readers(t, r.adaLine, r.danLine)
-	if text, code = runPravo(rt, t, r.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
+	if text, code = runPravo(t, rt, r.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
 		t.Fatalf("seal again: exit %d\n%s", code, text)
 	}
 	if strings.Contains(r.bucketText(), secretA) {
 		t.Error("the secret is in the bucket after the second seal")
 	}
-	text, code = runPravo(rt, t, r.dir, "--json", "protect", "status")
+	text, code = runPravo(t, rt, r.dir, "--json", "protect", "status")
 	if code != 0 || !strings.Contains(text, `"state": "sealed"`) {
 		t.Errorf("status: exit %d\n%s", code, text)
 	}
@@ -111,7 +111,7 @@ func TestProtectUnsealTouchesNothingItShouldNot(t *testing.T) {
 	rt := &runContext{}
 
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	e := newS3Env(t, false)
 	st := e.store(t)
 	e.record(t, st, "net.vpc", secretA)
@@ -122,7 +122,7 @@ func TestProtectUnsealTouchesNothingItShouldNot(t *testing.T) {
 	// A state that was never sealed keeps the files of the repository, with or without the flag.
 	for _, args := range [][]string{{"protect", "unseal"}, {"protect", "unseal", "--remove-files", "--yes"}} {
 		puts := e.puts()
-		text, code := runPravo(rt, t, e.dir, args...)
+		text, code := runPravo(t, rt, e.dir, args...)
 		if code != 0 || !strings.Contains(text, "The state is not sealed.") || e.puts() != puts {
 			t.Fatalf("%v: exit %d, %d puts\n%s", args, code, e.puts()-puts, text)
 		}
@@ -134,7 +134,7 @@ func TestProtectUnsealTouchesNothingItShouldNot(t *testing.T) {
 	empty := newS3Env(t, false)
 	empty.readers(t, adaLine)
 	before := empty.puts()
-	if text, code := runPravo(rt, t, empty.dir, "protect", "unseal", "--yes"); code != 0 || !strings.Contains(text, "There is no state yet.") || empty.puts() != before {
+	if text, code := runPravo(t, rt, empty.dir, "protect", "unseal", "--yes"); code != 0 || !strings.Contains(text, "There is no state yet.") || empty.puts() != before {
 		t.Errorf("exit %d, %d puts\n%s", code, empty.puts()-before, text)
 	}
 }
@@ -142,14 +142,14 @@ func TestProtectUnsealTouchesNothingItShouldNot(t *testing.T) {
 func TestProtectUnsealByAStrangerWritesNothing(t *testing.T) {
 	rt := &runContext{}
 
-	r := recoveredBucket(rt, t)
+	r := recoveredBucket(t, rt)
 	before := r.bucketText()
 	stranger := t.TempDir()
 	eve, eveData := newIdentityFile(t, "eve", true)
 	putIdentity(t, stranger, "eve", eveData)
 	_ = eve
 	t.Setenv("PRAVO_IDENTITY_DIR", stranger)
-	text, code := runPravo(rt, t, r.dir, "protect", "unseal", "--yes", "--remove-files")
+	text, code := runPravo(t, rt, r.dir, "protect", "unseal", "--yes", "--remove-files")
 	if code != 5 || r.bucketText() != before {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -161,7 +161,7 @@ func TestProtectUnsealByAStrangerWritesNothing(t *testing.T) {
 func TestProtectUnsealMessagesForAnUnsealingState(t *testing.T) {
 	rt := &runContext{}
 
-	r := recoveredBucket(rt, t)
+	r := recoveredBucket(t, rt)
 	var m map[string]any
 	if err := json.Unmarshal(r.f.Objects["prod/meta.json"], &m); err != nil {
 		t.Fatal(err)
@@ -179,13 +179,13 @@ func TestProtectUnsealMessagesForAnUnsealingState(t *testing.T) {
 		{[]string{"protect", "rewrap"}, "an unseal is in progress; finish it with pravo protect unseal", 1},
 		{[]string{"protect", "status"}, "unsealing · 1 of 2 records · run pravo protect unseal to finish", 0},
 	} {
-		text, code := runPravo(rt, t, r.dir, tc.args...)
+		text, code := runPravo(t, rt, r.dir, tc.args...)
 		if code != tc.code || !strings.Contains(text, tc.want) {
 			t.Errorf("%v: exit %d, want %d with %q:\n%s", tc.args, code, tc.code, tc.want, text)
 		}
 	}
 	// Finishing it works: the records are sealed, the mark says unseal.
-	if text, code := runPravo(rt, t, r.dir, "protect", "unseal", "--yes"); code != 0 || !strings.Contains(text, "Finished an unseal that was begun earlier.") {
+	if text, code := runPravo(t, rt, r.dir, "protect", "unseal", "--yes"); code != 0 || !strings.Contains(text, "Finished an unseal that was begun earlier.") {
 		t.Errorf("finish: exit %d\n%s", code, text)
 	}
 }
@@ -195,7 +195,7 @@ func TestProtectUnsealMessagesForAnUnsealingState(t *testing.T) {
 func TestProtectUnsealWithShares(t *testing.T) {
 	rt := &runContext{}
 
-	r := recoveredBucket(rt, t)
+	r := recoveredBucket(t, rt)
 	stranger := t.TempDir()
 	_, data := newIdentityFile(t, "eve", true)
 	putIdentity(t, stranger, "eve", data)
@@ -203,7 +203,7 @@ func TestProtectUnsealWithShares(t *testing.T) {
 
 	// Not enough shares, and the wrong ones: nothing is written.
 	before := r.bucketText()
-	text, code := runPravo(rt, t, r.dir, "protect", "unseal", "--yes", "--share", r.shares[0])
+	text, code := runPravo(t, rt, r.dir, "protect", "unseal", "--yes", "--share", r.shares[0])
 	if code != 5 || r.bucketText() != before {
 		t.Fatalf("one share: exit %d\n%s", code, text)
 	}
@@ -215,11 +215,11 @@ func TestProtectUnsealWithShares(t *testing.T) {
 	m["migration"] = map[string]any{"to": 3, "started": "2026-10-22T09:30:00Z", "by": "ada", "done": 0, "total": 2, "unseal": true}
 	b, _ := json.Marshal(m)
 	r.f.Objects["prod/meta.json"] = b
-	text, code = runPravo(rt, t, r.dir, "protect", "rewrap", "--recovery", "2/3", "--yes")
+	text, code = runPravo(t, rt, r.dir, "protect", "rewrap", "--recovery", "2/3", "--yes")
 	if code == 0 {
 		t.Fatalf("rewrap over an unseal: %s", text)
 	}
-	text, code = runPravo(rt, t, r.dir, "protect", "unseal", "--yes", "--share", r.shares[0], "--share", r.shares[2])
+	text, code = runPravo(t, rt, r.dir, "protect", "unseal", "--yes", "--share", r.shares[0], "--share", r.shares[2])
 	if code != 0 || !strings.Contains(text, "Finished an unseal that was begun earlier.") || !strings.Contains(text, "(recovery)") {
 		t.Fatalf("exit %d\n%s", code, text)
 	}

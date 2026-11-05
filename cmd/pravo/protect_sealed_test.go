@@ -29,10 +29,10 @@ type sealed struct {
 
 const secretA, secretB = "TOPSECRET-alpha-0123456789", "TOPSECRET-bravo-9876543210"
 
-func sealedBucket(rt *runContext, t *testing.T) *sealed {
+func sealedBucket(t *testing.T, rt *runContext) *sealed {
 	t.Helper()
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	e := newS3Env(t, false)
 	st := e.store(t)
 	e.record(t, st, "net.vpc", secretA)
@@ -40,7 +40,7 @@ func sealedBucket(rt *runContext, t *testing.T) *sealed {
 	ada, adaLine := person(t, ids, "ada")
 	dan, danLine := person(t, ids, "dan")
 	e.readers(t, adaLine, danLine)
-	text, code := runPravo(rt, t, e.dir, "protect", "init", "--encrypt", "--yes")
+	text, code := runPravo(t, rt, e.dir, "protect", "init", "--encrypt", "--yes")
 	if code != 0 {
 		t.Fatalf("protect init exited %d:\n%s", code, text)
 	}
@@ -68,7 +68,7 @@ func TestProtectInitSealsTheState(t *testing.T) {
 	rt := &runContext{}
 
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	e := newS3Env(t, false)
 	st := e.store(t)
 	e.record(t, st, "net.vpc", secretA)
@@ -80,7 +80,7 @@ func TestProtectInitSealsTheState(t *testing.T) {
 		t.Fatal("the test record is not in the bucket to begin with")
 	}
 
-	text, code := runPravo(rt, t, e.dir, "protect", "init", "--encrypt", "--yes")
+	text, code := runPravo(t, rt, e.dir, "protect", "init", "--encrypt", "--yes")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -110,7 +110,7 @@ func TestProtectInitSealsTheState(t *testing.T) {
 	}
 
 	t.Run("status", func(t *testing.T) {
-		text, code := runPravo(rt, t, e.dir, "protect", "status")
+		text, code := runPravo(t, rt, e.dir, "protect", "status")
 		if code != 0 {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -129,20 +129,20 @@ func TestProtectInitSealsTheState(t *testing.T) {
 	})
 	t.Run("a second init writes nothing", func(t *testing.T) {
 		puts, snapshot := e.puts(), e.bucketText()
-		text, code := runPravo(rt, t, e.dir, "protect", "init", "--encrypt", "--yes")
+		text, code := runPravo(t, rt, e.dir, "protect", "init", "--encrypt", "--yes")
 		if code != 0 || !strings.Contains(text, "Already sealed (format 3). Use pravo protect rewrap to change the readers.") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 		if e.puts() != puts || e.bucketText() != snapshot {
 			t.Error("a second init changed the bucket")
 		}
-		text, code = runPravo(rt, t, e.dir, "protect", "check")
+		text, code = runPravo(t, rt, e.dir, "protect", "check")
 		if code != 0 || !strings.Contains(text, "Already sealed. Use pravo protect status.") {
 			t.Errorf("check: exit %d\n%s", code, text)
 		}
 	})
 	t.Run("a reader opens the values", func(t *testing.T) {
-		text, code := runPravo(rt, t, e.dir, "state", "show", "net.vpc")
+		text, code := runPravo(t, rt, e.dir, "state", "show", "net.vpc")
 		if code != 0 || !strings.Contains(text, secretA) {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -152,15 +152,15 @@ func TestProtectInitSealsTheState(t *testing.T) {
 func TestSealedStateWithoutAnIdentity(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	s.asNobody(t)
 	t.Run("the list commands work", func(t *testing.T) {
-		text, code := runPravo(rt, t, s.dir, "state", "list")
+		text, code := runPravo(t, rt, s.dir, "state", "list")
 		if code != 0 || text != "net.db\nnet.vpc\n" {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 		for _, args := range [][]string{{"state", "log"}, {"state", "locks"}, {"state", "graph"}, {"state", "dependents", "net.vpc"}} {
-			if text, code := runPravo(rt, t, s.dir, args...); code != 0 {
+			if text, code := runPravo(t, rt, s.dir, args...); code != 0 {
 				t.Errorf("%v: exit %d\n%s", args, code, text)
 			}
 		}
@@ -168,7 +168,7 @@ func TestSealedStateWithoutAnIdentity(t *testing.T) {
 	t.Run("the commands that need a value are refused", func(t *testing.T) {
 		want := "Error: you are not a reader of this state (no identity found).\n  Readers are listed in .pravo/access/readers.txt. Ask one of them to add yours.\n"
 		for _, args := range [][]string{{"state", "show", "net.vpc"}, {"state", "query", "len(resources)"}, {"output"}, {"plan"}, {"state", "rm", "net.vpc"}} {
-			text, code := runPravo(rt, t, s.dir, args...)
+			text, code := runPravo(t, rt, s.dir, args...)
 			if code != 5 || !strings.HasSuffix(text, want) {
 				t.Errorf("%v: exit %d\n%s", args, code, text)
 			}
@@ -183,18 +183,18 @@ func TestSealedStateWithoutAnIdentity(t *testing.T) {
 		putIdentity(t, d, "eve", data)
 		t.Setenv("PRAVO_IDENTITY_DIR", d)
 		resetIdentityState(t)
-		text, code := runPravo(rt, t, s.dir, "state", "show", "net.vpc")
+		text, code := runPravo(t, rt, s.dir, "state", "show", "net.vpc")
 		if code != 5 || !strings.Contains(text, "you are not a reader of this state (identity eve is not a reader).") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
-		text, code = runPravo(rt, t, s.dir, "protect", "status")
+		text, code = runPravo(t, rt, s.dir, "protect", "status")
 		if code != 0 || !strings.Contains(text, "You          identity eve is not a reader\n") {
 			t.Errorf("status: exit %d\n%s", code, text)
 		}
 	})
 	t.Run("status without an identity", func(t *testing.T) {
 		s.asNobody(t)
-		text, code := runPravo(rt, t, s.dir, "protect", "status")
+		text, code := runPravo(t, rt, s.dir, "protect", "status")
 		if code != 0 || !strings.Contains(text, "You          not a reader of this state (no identity found)\n") || !strings.Contains(text, "Sealed       on · format 3") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -205,7 +205,7 @@ func TestSealedStateWithoutAnIdentity(t *testing.T) {
 		putIdentity(t, d, "ada", data)
 		t.Setenv("PRAVO_IDENTITY_DIR", d)
 		resetIdentityState(t)
-		text, code := runPravo(rt, t, s.dir, "state", "show", "net.vpc")
+		text, code := runPravo(t, rt, s.dir, "state", "show", "net.vpc")
 		if code != 5 || !strings.Contains(text, "set PRAVO_PASSPHRASE") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -215,12 +215,12 @@ func TestSealedStateWithoutAnIdentity(t *testing.T) {
 func TestSealedStateAndTheReadersFile(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	_, eveLine := person(t, s.ids, "eve")
 
 	t.Run("a writer refuses a file that differs", func(t *testing.T) {
 		s.readers(t, s.adaLine, eveLine)
-		text, code := runPravo(rt, t, s.dir, "state", "rm", "net.vpc")
+		text, code := runPravo(t, rt, s.dir, "state", "rm", "net.vpc")
 		want := "Error: .pravo/access/readers.txt and the state differ (eve added, dan removed). Run pravo protect rewrap."
 		if code != 5 || !strings.Contains(text, want) {
 			t.Fatalf("exit %d\n%s", code, text)
@@ -232,7 +232,7 @@ func TestSealedStateAndTheReadersFile(t *testing.T) {
 	t.Run("a reader only warns", func(t *testing.T) {
 		var text string
 		var code int
-		stderr := withStderr(t, func() { text, code = runPravo(rt, t, s.dir, "state", "list") })
+		stderr := withStderr(t, func() { text, code = runPravo(t, rt, s.dir, "state", "list") })
 		if code != 0 || text != "net.db\nnet.vpc\n" {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -241,7 +241,7 @@ func TestSealedStateAndTheReadersFile(t *testing.T) {
 		}
 	})
 	t.Run("status says how they differ", func(t *testing.T) {
-		text, code := runPravo(rt, t, s.dir, "protect", "status")
+		text, code := runPravo(t, rt, s.dir, "protect", "status")
 		if code != 0 || !strings.Contains(text, "Readers      differs: eve is in the file and not in the store; dan is in the store and not in the file\n") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -253,18 +253,18 @@ func TestSealedStateAndTheReadersFile(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer os.Rename(moved+".away", moved)
-		text, code := runPravo(rt, t, s.dir, "state", "rm", "net.vpc")
+		text, code := runPravo(t, rt, s.dir, "state", "rm", "net.vpc")
 		if code != 5 || !strings.Contains(text, "looked in .pravo/access") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
-		stderr := withStderr(t, func() { text, code = runPravo(rt, t, s.dir, "state", "list") })
+		stderr := withStderr(t, func() { text, code = runPravo(t, rt, s.dir, "state", "list") })
 		if code != 0 || !strings.Contains(stderr, "Warning: the readers file was not found (looked in .pravo/access)") {
 			t.Errorf("a reader: exit %d, standard error %q", code, stderr)
 		}
 	})
 	t.Run("an invalid file stops a writer with 6", func(t *testing.T) {
 		s.readers(t, s.adaLine, s.danLine, "SECRETNAME one two")
-		text, code := runPravo(rt, t, s.dir, "state", "rm", "net.vpc")
+		text, code := runPravo(t, rt, s.dir, "state", "rm", "net.vpc")
 		if code != 6 || !strings.Contains(text, "line 3") || strings.Contains(text, "SECRETNAME") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -274,38 +274,38 @@ func TestSealedStateAndTheReadersFile(t *testing.T) {
 func TestProtectRewrap(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	bot, botData := newIdentityFile(t, "deploy-bot", true)
 	botLine := bot.Line()
 
 	t.Run("nothing to change", func(t *testing.T) {
 		puts := s.puts()
-		text, code := runPravo(rt, t, s.dir, "protect", "rewrap")
+		text, code := runPravo(t, rt, s.dir, "protect", "rewrap")
 		if code != 0 || !strings.Contains(text, "The store already matches the readers file.") || s.puts() != puts {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 	t.Run("nothing to change, as JSON", func(t *testing.T) {
-		text, code := runPravo(rt, t, s.dir, "--json", "protect", "rewrap")
+		text, code := runPravo(t, rt, s.dir, "--json", "protect", "rewrap")
 		if code != 0 || !strings.Contains(text, `"resealed": 0`) || strings.Contains(text, "already matches") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 	t.Run("a reader who is added", func(t *testing.T) {
 		s.readers(t, s.adaLine, s.danLine, botLine)
-		text, code := runPravo(rt, t, s.dir, "protect", "rewrap")
+		text, code := runPravo(t, rt, s.dir, "protect", "rewrap")
 		want := "Readers in .pravo/access/readers.txt: ada dan deploy-bot\nWrapped the data keys for deploy-bot (1 reader group, 1 new wrapped key)\nmeta.json updated\n"
 		if code != 0 || text != want {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
-		text, _ = runPravo(rt, t, s.dir, "protect", "status")
+		text, _ = runPravo(t, rt, s.dir, "protect", "status")
 		if !strings.Contains(text, "3 readers (ada dan deploy-bot)") || !strings.Contains(text, "matches the store") {
 			t.Errorf("status:\n%s", text)
 		}
 		// The job reads with its own identity.
 		t.Setenv("PRAVO_IDENTITY", string(botData))
 		resetIdentityState(t)
-		text, code = runPravo(rt, t, s.dir, "state", "show", "net.vpc")
+		text, code = runPravo(t, rt, s.dir, "state", "show", "net.vpc")
 		if code != 0 || !strings.Contains(text, secretA) {
 			t.Errorf("the new reader: exit %d\n%s", code, text)
 		}
@@ -314,14 +314,14 @@ func TestProtectRewrap(t *testing.T) {
 	})
 	t.Run("a reader who is removed", func(t *testing.T) {
 		s.readers(t, s.adaLine, botLine)
-		text, code := runPravo(rt, t, s.dir, "protect", "rewrap")
+		text, code := runPravo(t, rt, s.dir, "protect", "rewrap")
 		want := "Readers in .pravo/access/readers.txt: ada deploy-bot  (dan removed)\nNew data keys for 1 reader group. Records are sealed again as they are next written.\n"
 		if code != 0 || text != want {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 	t.Run("--all seals every record again", func(t *testing.T) {
-		text, code := runPravo(rt, t, s.dir, "protect", "rewrap", "--all")
+		text, code := runPravo(t, rt, s.dir, "protect", "rewrap", "--all")
 		if code != 0 || !strings.Contains(text, "Sealed 2 records again in ") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
@@ -336,11 +336,11 @@ func TestProtectRewrap(t *testing.T) {
 		putIdentity(t, d, "dan", s.identityFile(t, "dan"))
 		t.Setenv("PRAVO_IDENTITY_DIR", d)
 		resetIdentityState(t)
-		text, code := runPravo(rt, t, s.dir, "state", "show", "net.vpc")
+		text, code := runPravo(t, rt, s.dir, "state", "show", "net.vpc")
 		if code != 5 || !strings.Contains(text, "identity dan is not a reader") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
-		text, code = runPravo(rt, t, s.dir, "protect", "rewrap")
+		text, code = runPravo(t, rt, s.dir, "protect", "rewrap")
 		if code != 5 {
 			t.Errorf("rewrap by a removed reader: exit %d\n%s", code, text)
 		}
@@ -350,14 +350,14 @@ func TestProtectRewrap(t *testing.T) {
 func TestProtectRewrapOfAnInvalidReadersFileIsRefusedWith6(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	s.readers(t, s.adaLine, "SECRETNAME one two")
-	text, code := runPravo(rt, t, s.dir, "protect", "rewrap")
+	text, code := runPravo(t, rt, s.dir, "protect", "rewrap")
 	if code != 6 || strings.Contains(text, "SECRETNAME") {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	os.RemoveAll(filepath.Join(s.dir, ".pravo"))
-	if text, code = runPravo(rt, t, s.dir, "protect", "rewrap"); code != 6 || !strings.Contains(text, "looked in .pravo/access") {
+	if text, code = runPravo(t, rt, s.dir, "protect", "rewrap"); code != 6 || !strings.Contains(text, "looked in .pravo/access") {
 		t.Errorf("a missing file: exit %d\n%s", code, text)
 	}
 }
@@ -365,7 +365,7 @@ func TestProtectRewrapOfAnInvalidReadersFileIsRefusedWith6(t *testing.T) {
 func TestProtectStatusFindsATamperedRecord(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	var key string
 	for k := range s.f.Objects {
 		if strings.Contains(k, "/rec/") {
@@ -377,7 +377,7 @@ func TestProtectStatusFindsATamperedRecord(t *testing.T) {
 		t.Fatal("the sealed bucket holds no rec/ object")
 	}
 	s.f.Objects[key] = []byte(`{"v":1,"addr":"net.vpc","tampered":true}`)
-	text, code := runPravo(rt, t, s.dir, "protect", "status")
+	text, code := runPravo(t, rt, s.dir, "protect", "status")
 	if code != 7 || !strings.Contains(text, "Untrusted: ") || !strings.Contains(text, "rec/") {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -387,7 +387,7 @@ func TestProtectInitSealsTheStoredPlans(t *testing.T) {
 	rt := &runContext{}
 
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	e := newS3Env(t, false)
 	st := e.store(t)
 	attrs := fmt.Sprintf(`{"id":"cfg","password":%q}`, secretA)
@@ -397,7 +397,7 @@ func TestProtectInitSealsTheStoredPlans(t *testing.T) {
 	_, ada := person(t, ids, "ada")
 	// The readers file comes after the plan: a repository that lists readers
 	// does not write plans into a state that is not sealed.
-	text, code := runPravo(rt, t, e.dir, "plan", "--store", "--actor", "ci")
+	text, code := runPravo(t, rt, e.dir, "plan", "--store", "--actor", "ci")
 	if code != 0 || !strings.Contains(text, "plan-") {
 		t.Fatalf("plan --store exited %d:\n%s", code, text)
 	}
@@ -407,7 +407,7 @@ func TestProtectInitSealsTheStoredPlans(t *testing.T) {
 		t.Fatal("no stored plan in the bucket")
 	}
 
-	text, code = runPravo(rt, t, e.dir, "protect", "init", "--encrypt", "--yes")
+	text, code = runPravo(t, rt, e.dir, "protect", "init", "--encrypt", "--yes")
 	if code != 0 {
 		t.Fatalf("protect init exited %d:\n%s", code, text)
 	}
@@ -417,19 +417,19 @@ func TestProtectInitSealsTheStoredPlans(t *testing.T) {
 	if strings.Contains(e.bucketText(), secretA) {
 		t.Error("the password is still in the bucket")
 	}
-	text, code = runPravo(rt, t, e.dir, "plan", "list")
+	text, code = runPravo(t, rt, e.dir, "plan", "list")
 	if code != 0 || !strings.Contains(text, "plan-") {
 		t.Fatalf("a reader lists the plans: exit %d\n%s", code, text)
 	}
 	t.Run("without an identity", func(t *testing.T) {
 		resetIdentityState(t)
 		t.Setenv("PRAVO_IDENTITY_DIR", t.TempDir())
-		listed, code := runPravo(rt, t, e.dir, "plan", "list")
+		listed, code := runPravo(t, rt, e.dir, "plan", "list")
 		if code != 0 || !strings.Contains(listed, "plan-") {
 			t.Fatalf("list: exit %d\n%s", code, listed)
 		}
 		id := listed[strings.Index(listed, "plan-"):][:13]
-		text, code := runPravo(rt, t, e.dir, "plan", "show", id)
+		text, code := runPravo(t, rt, e.dir, "plan", "show", id)
 		if code != 5 {
 			t.Fatalf("show: exit %d\n%s", code, text)
 		}
@@ -443,17 +443,17 @@ func TestProtectInitOfAnEmptyStateAndOfAnImmutableOne(t *testing.T) {
 	rt := &runContext{}
 
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	_, ada := person(t, ids, "ada")
 
 	t.Run("a state with no records", func(t *testing.T) {
 		e := newS3Env(t, false)
 		e.readers(t, ada)
-		text, code := runPravo(rt, t, e.dir, "protect", "init", "--encrypt", "--yes")
+		text, code := runPravo(t, rt, e.dir, "protect", "init", "--encrypt", "--yes")
 		if code != 0 || !strings.Contains(text, "0 records sealed in ") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
-		text, code = runPravo(rt, t, e.dir, "protect", "status")
+		text, code = runPravo(t, rt, e.dir, "protect", "status")
 		if code != 0 || !strings.Contains(text, "Sealed       on · format 3 · 1 reader (ada)") {
 			t.Fatalf("status: exit %d\n%s", code, text)
 		}
@@ -461,11 +461,11 @@ func TestProtectInitOfAnEmptyStateAndOfAnImmutableOne(t *testing.T) {
 	t.Run("a state in the immutable layout", func(t *testing.T) {
 		e := newS3Env(t, false)
 		e.record(t, e.store(t), "net.vpc", secretA)
-		text, code := runPravo(rt, t, e.dir, "state", "upgrade")
+		text, code := runPravo(t, rt, e.dir, "state", "upgrade")
 		if code != 0 || !strings.Contains(text, "The state is in format 2: 1 record as immutable objects") {
 			t.Fatalf("state upgrade: exit %d\n%s", code, text)
 		}
-		text, code = runPravo(rt, t, e.dir, "protect", "status")
+		text, code = runPravo(t, rt, e.dir, "protect", "status")
 		if code != 0 || !strings.Contains(text, "Sealed       off · format 2 · immutable records\n") {
 			t.Fatalf("status: exit %d\n%s", code, text)
 		}
@@ -473,7 +473,7 @@ func TestProtectInitOfAnEmptyStateAndOfAnImmutableOne(t *testing.T) {
 			t.Error("format 2 encrypts nothing, and the value is gone")
 		}
 		e.readers(t, ada)
-		text, code = runPravo(rt, t, e.dir, "protect", "init", "--encrypt", "--yes")
+		text, code = runPravo(t, rt, e.dir, "protect", "init", "--encrypt", "--yes")
 		if code != 0 || !strings.Contains(text, "1 record sealed in ") {
 			t.Fatalf("init: exit %d\n%s", code, text)
 		}
@@ -482,7 +482,7 @@ func TestProtectInitOfAnEmptyStateAndOfAnImmutableOne(t *testing.T) {
 		}
 	})
 	t.Run("a hidden command is not listed", func(t *testing.T) {
-		text, _ := runPravo(rt, t, t.TempDir(), "state", "--help")
+		text, _ := runPravo(t, rt, t.TempDir(), "state", "--help")
 		if strings.Contains(text, "upgrade") {
 			t.Errorf("state --help lists the hidden upgrade:\n%s", text)
 		}
@@ -493,7 +493,7 @@ func TestSealedStateInALocalDirectory(t *testing.T) {
 	rt := &runContext{}
 
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	dir, st := pendingDir(t)
 	if err := st.Set(&state.Resource{Addr: "app", Mode: "managed", Type: "t_thing", Name: "app", Attributes: []byte(`{"password":"` + secretA + `"}`)}, ""); err != nil {
 		t.Fatal(err)
@@ -501,7 +501,7 @@ func TestSealedStateInALocalDirectory(t *testing.T) {
 	_, ada := person(t, ids, "ada")
 	writeReaders(t, filepath.Join(dir, ".pravo", "access"), ada)
 
-	text, code := runPravo(rt, t, dir, "protect", "init", "--encrypt", "--yes", "--allow-local")
+	text, code := runPravo(t, rt, dir, "protect", "init", "--encrypt", "--yes", "--allow-local")
 	if code != 0 || !strings.Contains(text, "2 records sealed in ") {
 		t.Fatalf("init: exit %d\n%s", code, text)
 	}
@@ -513,18 +513,18 @@ func TestSealedStateInALocalDirectory(t *testing.T) {
 		}
 		return nil
 	})
-	if text, code := runPravo(rt, t, dir, "protect", "status"); code != 0 || !strings.Contains(text, "Store        ./pravo.state\n") || !strings.Contains(text, "Sealed       on · format 3 · 1 reader (ada)") {
+	if text, code := runPravo(t, rt, dir, "protect", "status"); code != 0 || !strings.Contains(text, "Store        ./pravo.state\n") || !strings.Contains(text, "Sealed       on · format 3 · 1 reader (ada)") {
 		t.Errorf("status: exit %d\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, dir, "state", "show", "app"); code != 0 || !strings.Contains(text, secretA) {
+	if text, code := runPravo(t, rt, dir, "state", "show", "app"); code != 0 || !strings.Contains(text, secretA) {
 		t.Errorf("show: exit %d\n%s", code, text)
 	}
 	t.Setenv("PRAVO_IDENTITY_DIR", t.TempDir())
 	resetIdentityState(t)
-	if text, code := runPravo(rt, t, dir, "state", "list"); code != 0 || text != "app\ncfg\n" {
+	if text, code := runPravo(t, rt, dir, "state", "list"); code != 0 || text != "app\ncfg\n" {
 		t.Errorf("list: exit %d\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, dir, "state", "show", "app"); code != 5 {
+	if text, code := runPravo(t, rt, dir, "state", "show", "app"); code != 5 {
 		t.Errorf("show without an identity: exit %d\n%s", code, text)
 	}
 }
@@ -555,7 +555,7 @@ func TestProtectInitFinishesASealThatWasInterrupted(t *testing.T) {
 	rt := &runContext{}
 
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	e := newS3Env(t, false)
 	st := e.store(t)
 	for _, a := range []string{"a", "b", "c", "d"} {
@@ -574,41 +574,41 @@ func TestProtectInitFinishesASealThatWasInterrupted(t *testing.T) {
 	}
 
 	t.Run("status says that it is sealing", func(t *testing.T) {
-		text, code := runPravo(rt, t, e.dir, "protect", "status")
+		text, code := runPravo(t, rt, e.dir, "protect", "status")
 		if code != 0 || !strings.Contains(text, "Sealed       migrating · ") || !strings.Contains(text, "run pravo protect init --encrypt to finish") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 	t.Run("a command that writes is refused with 4", func(t *testing.T) {
-		text, code := runPravo(rt, t, e.dir, "state", "rm", "a")
+		text, code := runPravo(t, rt, e.dir, "state", "rm", "a")
 		if code != 4 || !strings.Contains(text, "a seal is in progress; run pravo protect init --encrypt to finish") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 	t.Run("commands that read still work", func(t *testing.T) {
-		text, code := runPravo(rt, t, e.dir, "state", "list")
+		text, code := runPravo(t, rt, e.dir, "state", "list")
 		if code != 0 || text != "a\nb\nc\nd\n" {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
-		if text, code := runPravo(rt, t, e.dir, "state", "show", "d"); code != 0 || !strings.Contains(text, secretA+"d") {
+		if text, code := runPravo(t, rt, e.dir, "state", "show", "d"); code != 0 || !strings.Contains(text, secretA+"d") {
 			t.Fatalf("show: exit %d\n%s", code, text)
 		}
 	})
 	t.Run("check does not call it ready twice", func(t *testing.T) {
-		text, code := runPravo(rt, t, e.dir, "protect", "check")
+		text, code := runPravo(t, rt, e.dir, "protect", "check")
 		if code != 0 || !strings.Contains(text, "sealing began, ") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 	})
 	t.Run("init finishes it", func(t *testing.T) {
-		text, code := runPravo(rt, t, e.dir, "protect", "init", "--encrypt", "--yes")
+		text, code := runPravo(t, rt, e.dir, "protect", "init", "--encrypt", "--yes")
 		if code != 0 || !strings.Contains(text, "A seal was started by ada and did not finish:") || !strings.Contains(text, "The state is sealed to ada.") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
 		if strings.Contains(e.bucketText(), secretA) {
 			t.Error("a value is still in the bucket")
 		}
-		text, code = runPravo(rt, t, e.dir, "protect", "status")
+		text, code = runPravo(t, rt, e.dir, "protect", "status")
 		if code != 0 || !strings.Contains(text, "Sealed       on · format 3 · 1 reader (ada)") {
 			t.Fatalf("status: exit %d\n%s", code, text)
 		}
@@ -620,19 +620,19 @@ func TestProtectInitFinishesASealThatWasInterrupted(t *testing.T) {
 func TestProtectStatusPrintsNoControlCharacterFromTheBucket(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	meta := string(s.f.Objects["prod/meta.json"])
 	if !strings.Contains(meta, `"name": "dan"`) {
 		t.Fatalf("meta.json has no reader named dan:\n%s", meta)
 	}
 	s.f.Objects["prod/meta.json"] = []byte(strings.ReplaceAll(meta, `"name": "dan"`, `"name": "d\u001b[2Jan"`))
 	s.readers(t, s.adaLine)
-	text, code := runPravo(rt, t, s.dir, "protect", "status")
+	text, code := runPravo(t, rt, s.dir, "protect", "status")
 	if code != 0 || strings.ContainsRune(text, 0x1b) || !strings.Contains(text, "(invalid name)") {
 		t.Fatalf("exit %d\n%q", code, text)
 	}
 	for _, args := range [][]string{{"state", "list"}, {"protect", "rewrap"}} {
-		text, _ := runPravo(rt, t, s.dir, args...)
+		text, _ := runPravo(t, rt, s.dir, args...)
 		if strings.ContainsRune(text, 0x1b) {
 			t.Errorf("%v printed an escape sequence:\n%q", args, text)
 		}
@@ -656,7 +656,7 @@ func TestRemoteOutputsOfASealedRootAreReadWithTheIdentity(t *testing.T) {
 	rt := &runContext{}
 
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	e := newS3Env(t, false)
 	st := e.store(t)
 	e.record(t, st, "net.vpc", secretA)
@@ -665,7 +665,7 @@ func TestRemoteOutputsOfASealedRootAreReadWithTheIdentity(t *testing.T) {
 	}
 	_, ada := person(t, ids, "ada")
 	e.readers(t, ada)
-	if text, code := runPravo(rt, t, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
 		t.Fatalf("protect init exited %d:\n%s", code, text)
 	}
 	consumer := specDir(t, map[string]string{"main.cue": `package app
@@ -678,17 +678,17 @@ net: pravo.#RemoteOutputs & {
 
 copy: pravo.#Output & {value: net.outputs.url}
 `})
-	if text, code := runPravo(rt, t, consumer, "init"); code != 0 {
+	if text, code := runPravo(t, rt, consumer, "init"); code != 0 {
 		t.Fatalf("init exited %d:\n%s", code, text)
 	}
-	text, code := runPravo(rt, t, consumer, "plan")
+	text, code := runPravo(t, rt, consumer, "plan")
 	if code != 0 || !strings.Contains(text, `copy: "http://db.internal"`) {
 		t.Fatalf("a reader plans the consumer: exit %d\n%s", code, text)
 	}
 	t.Run("without an identity", func(t *testing.T) {
 		resetIdentityState(t)
 		t.Setenv("PRAVO_IDENTITY_DIR", t.TempDir())
-		text, code := runPravo(rt, t, consumer, "plan")
+		text, code := runPravo(t, rt, consumer, "plan")
 		if code != 5 || strings.Contains(text, "db.internal") {
 			t.Fatalf("exit %d, want 5 and no value:\n%s", code, text)
 		}
@@ -703,7 +703,7 @@ func TestRemoteOutputsOfSeveralSealedRootsChooseTheIdentityByTheirLocks(t *testi
 	rt := &runContext{}
 
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	t.Setenv("USER", "nobody-in-the-directory")
 	carol, _ := person(t, ids, "carol")
 	dan, _ := person(t, ids, "dan")
@@ -737,7 +737,7 @@ func TestRemoteOutputsOfSeveralSealedRootsChooseTheIdentityByTheirLocks(t *testi
 			spec += f + "\n"
 		}
 		dir := specDir(t, map[string]string{"main.cue": spec})
-		if text, code := runPravo(rt, t, dir, "init"); code != 0 {
+		if text, code := runPravo(t, rt, dir, "init"); code != 0 {
 			t.Fatalf("init exited %d:\n%s", code, text)
 		}
 		return dir
@@ -745,7 +745,7 @@ func TestRemoteOutputsOfSeveralSealedRootsChooseTheIdentityByTheirLocks(t *testi
 
 	both := consumer(remote("one", forCarol), remote("two", forDan),
 		"copy_one: pravo.#Output & {value: one.outputs.url}", "copy_two: pravo.#Output & {value: two.outputs.url}")
-	text, code := runPravo(rt, t, both, "plan")
+	text, code := runPravo(t, rt, both, "plan")
 	if code != 0 || !strings.Contains(text, `copy_one: "http://carol.internal"`) || !strings.Contains(text, `copy_two: "http://dan.internal"`) {
 		t.Fatalf("a reader of each plans the consumer: exit %d\n%s", code, text)
 	}
@@ -753,7 +753,7 @@ func TestRemoteOutputsOfSeveralSealedRootsChooseTheIdentityByTheirLocks(t *testi
 	t.Run("a root sealed to nobody in the directory", func(t *testing.T) {
 		dir := consumer(remote("one", forCarol), remote("three", forEve),
 			"copy_one: pravo.#Output & {value: one.outputs.url}", "copy_three: pravo.#Output & {value: three.outputs.url}")
-		text, code := runPravo(rt, t, dir, "plan")
+		text, code := runPravo(t, rt, dir, "plan")
 		if code != 5 || strings.Contains(text, "eve.internal") {
 			t.Fatalf("exit %d, want 5 and no value:\n%s", code, text)
 		}
@@ -761,7 +761,7 @@ func TestRemoteOutputsOfSeveralSealedRootsChooseTheIdentityByTheirLocks(t *testi
 	t.Run("--identity still decides", func(t *testing.T) {
 		defer func() { rt.flags.Identity = "" }()
 		dir := consumer(remote("one", forCarol), "copy_one: pravo.#Output & {value: one.outputs.url}")
-		text, code := runPravo(rt, t, dir, "--identity", "dan", "plan")
+		text, code := runPravo(t, rt, dir, "--identity", "dan", "plan")
 		if code != 5 || strings.Contains(text, "carol.internal") {
 			t.Fatalf("an identity that is named but cannot read: exit %d, want 5 and no value:\n%s", code, text)
 		}
@@ -774,7 +774,7 @@ func TestPlanListWarnsOfPlansThatAreNotSealed(t *testing.T) {
 	rt := &runContext{}
 
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	e := newS3Env(t, false)
 	st := e.store(t)
 	attrs := fmt.Sprintf(`{"id":"cfg","password":%q}`, secretA)
@@ -784,16 +784,16 @@ func TestPlanListWarnsOfPlansThatAreNotSealed(t *testing.T) {
 	_, ada := person(t, ids, "ada")
 	// The readers file comes after the plan: a repository that lists readers
 	// does not write plans into a state that is not sealed.
-	text, code := runPravo(rt, t, e.dir, "plan", "--store", "--actor", "ci")
+	text, code := runPravo(t, rt, e.dir, "plan", "--store", "--actor", "ci")
 	if code != 0 || !strings.Contains(text, "plan-") {
 		t.Fatalf("plan --store exited %d:\n%s", code, text)
 	}
 	e.readers(t, ada)
 	id := storedID.FindString(text[strings.Index(text, "Stored the plan as"):])
-	if text, code := runPravo(rt, t, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
 		t.Fatalf("protect init exited %d:\n%s", code, text)
 	}
-	listed, code := runPravo(rt, t, e.dir, "plan", "list", "--all")
+	listed, code := runPravo(t, rt, e.dir, "plan", "list", "--all")
 	if code != 0 || !strings.Contains(listed, id) || strings.Contains(listed, "Warning") {
 		t.Fatalf("a sealed plan is listed without a warning: exit %d\n%s", code, listed)
 	}
@@ -815,11 +815,11 @@ func TestPlanListWarnsOfPlansThatAreNotSealed(t *testing.T) {
 	delete(m, "sealed")
 	e.f.Objects[key], _ = json.Marshal(m)
 
-	listed, code = runPravo(rt, t, e.dir, "plan", "list", "--all")
+	listed, code = runPravo(t, rt, e.dir, "plan", "list", "--all")
 	if code != 0 || !strings.Contains(listed, "Warning: stored before the state was sealed and not sealed: "+id) || !strings.Contains(listed, "pravo protect rewrap --all") {
 		t.Fatalf("exit %d, want the warning:\n%s", code, listed)
 	}
-	listed, code = runPravo(rt, t, e.dir, "plan", "list", "--all", "--json")
+	listed, code = runPravo(t, rt, e.dir, "plan", "list", "--all", "--json")
 	if code != 0 || !strings.Contains(listed, `"unsealed"`) || !strings.Contains(listed, id) {
 		t.Fatalf("json: exit %d\n%s", code, listed)
 	}
@@ -827,14 +827,14 @@ func TestPlanListWarnsOfPlansThatAreNotSealed(t *testing.T) {
 	// An apply holds the plan: rewrap --all leaves it alone, and says that it did.
 	claim := fmt.Sprintf(`{"format":1,"id":%q,"applying":[{"by":"ci","at":%q}],"updated":%q}`, id, time.Now().UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339))
 	e.f.Objects[strings.Replace(key, ".meta.json", ".progress.json", 1)] = []byte(claim)
-	text, code = runPravo(rt, t, e.dir, "protect", "rewrap", "--all")
+	text, code = runPravo(t, rt, e.dir, "protect", "rewrap", "--all")
 	if code != 0 || !strings.Contains(text, "Warning: stored before the state was sealed and not sealed: "+id) {
 		t.Fatalf("rewrap --all: exit %d, want the warning:\n%s", code, text)
 	}
 	if !strings.Contains(text, "1 stored plan in use was not sealed again; run pravo protect rewrap --all when it is done.\n") {
 		t.Errorf("rewrap --all does not count the plan that it left:\n%s", text)
 	}
-	text, code = runPravo(rt, t, e.dir, "protect", "rewrap", "--all", "--json")
+	text, code = runPravo(t, rt, e.dir, "protect", "rewrap", "--all", "--json")
 	if code != 0 || !strings.Contains(text, `"plans_skipped": 1`) {
 		t.Errorf("rewrap --all --json: exit %d, want the count of plans left:\n%s", code, text)
 	}
@@ -845,7 +845,7 @@ func TestPlanListWarnsOfPlansThatAreNotSealed(t *testing.T) {
 func TestProtectRewrapAllNeedsTheStateAtRest(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	st, err := state.OpenBackendWith(context.Background(), s.backend(t), state.Options{Identity: s.ada})
 	if err != nil {
 		t.Fatal(err)
@@ -858,7 +858,7 @@ func TestProtectRewrapAllNeedsTheStateAtRest(t *testing.T) {
 		t.Fatal(err)
 	}
 	before, snapshot := s.puts(), s.bucketText()
-	text, code := runPravo(rt, t, s.dir, "protect", "rewrap", "--all")
+	text, code := runPravo(t, rt, s.dir, "protect", "rewrap", "--all")
 	if code != 4 || !strings.Contains(text, "not ready: 1 transaction is running and 1 lock is held. Wait for them") {
 		t.Fatalf("rewrap --all with a command running: exit %d\n%s", code, text)
 	}
@@ -871,7 +871,7 @@ func TestProtectRewrapAllNeedsTheStateAtRest(t *testing.T) {
 	if err := txn.Finish("applied", "", false); err != nil {
 		t.Fatal(err)
 	}
-	text, code = runPravo(rt, t, s.dir, "protect", "rewrap", "--all")
+	text, code = runPravo(t, rt, s.dir, "protect", "rewrap", "--all")
 	if code != 0 || !strings.Contains(text, " again in ") {
 		t.Fatalf("rewrap --all at rest: exit %d\n%s", code, text)
 	}
@@ -905,7 +905,7 @@ func TestReadersLinesListAtMostFiveNames(t *testing.T) {
 func TestProtectStatusOfADamagedSealedPart(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	var key string
 	for k := range s.f.Objects {
 		if strings.HasSuffix(k, "meta.json") {
@@ -920,7 +920,7 @@ func TestProtectStatusOfADamagedSealedPart(t *testing.T) {
 	data, _ := json.Marshal(m)
 	s.f.Objects[key] = data
 	for _, args := range [][]string{{"protect", "status"}, {"state", "show", "net.vpc"}} {
-		text, code := runPravo(rt, t, s.dir, args...)
+		text, code := runPravo(t, rt, s.dir, args...)
 		if code != 7 || !strings.Contains(text, "the sealed part of meta.json is damaged") || strings.Contains(text, "not a reader") {
 			t.Errorf("pravo %s: exit %d\n%s", strings.Join(args, " "), code, text)
 		}
@@ -932,7 +932,7 @@ func TestProtectStatusOfADamagedSealedPart(t *testing.T) {
 func TestStateLogShowsTheTextOfAnErrorToAReader(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	st, err := state.OpenBackendWith(context.Background(), s.backend(t), state.Options{Identity: s.ada})
 	if err != nil {
 		t.Fatal(err)
@@ -946,16 +946,16 @@ func TestStateLogShowsTheTextOfAnErrorToAReader(t *testing.T) {
 	if strings.Contains(s.bucketText(), "TOPSECRET-error") {
 		t.Fatal("the bucket holds the text of the error")
 	}
-	text, code := runPravo(rt, t, s.dir, "state", "log")
+	text, code := runPravo(t, rt, s.dir, "state", "log")
 	if code != 0 || !strings.Contains(text, "\n    "+secretError+"\n") {
 		t.Errorf("a reader: exit %d\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, s.dir, "state", "log", "--json")
+	text, code = runPravo(t, rt, s.dir, "state", "log", "--json")
 	if code != 0 || !strings.Contains(text, secretError) || strings.Contains(text, "summary_sealed") {
 		t.Errorf("a reader, as JSON: exit %d\n%s", code, text)
 	}
 	s.asNobody(t)
-	text, code = runPravo(rt, t, s.dir, "state", "log")
+	text, code = runPravo(t, rt, s.dir, "state", "log")
 	if code != 0 || strings.Contains(text, "TOPSECRET-error") || !strings.Contains(text, "sealed to the readers of the state") {
 		t.Errorf("no identity: exit %d\n%s", code, text)
 	}
@@ -968,7 +968,7 @@ func TestASealedStateSealsTheValueAfterAFlagInTheCommandLine(t *testing.T) {
 	rt := &runContext{}
 
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	e := newS3Env(t, false)
 	st := e.store(t)
 	attrs := fmt.Sprintf(`{"id":"cfg","password":%q}`, secretA)
@@ -977,7 +977,7 @@ func TestASealedStateSealsTheValueAfterAFlagInTheCommandLine(t *testing.T) {
 	}
 	_, ada := person(t, ids, "ada")
 	e.readers(t, ada)
-	if text, code := runPravo(rt, t, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
 		t.Fatalf("protect init exited %d:\n%s", code, text)
 	}
 	if err := os.WriteFile(filepath.Join(e.dir, "tag.cue"), []byte("package t\n\nk: *\"x\" | string @tag(k)\n"), 0o600); err != nil {
@@ -986,17 +986,17 @@ func TestASealedStateSealsTheValueAfterAFlagInTheCommandLine(t *testing.T) {
 	was := os.Args
 	t.Cleanup(func() { os.Args = was })
 	os.Args = []string{"pravo", "--actor", "ci-bot-7", "plan", "--store", "--no-color", "-t", "k=" + secretB}
-	text, code := runPravo(rt, t, e.dir, os.Args[1:]...)
+	text, code := runPravo(t, rt, e.dir, os.Args[1:]...)
 	if code != 0 || !strings.Contains(text, "plan-") {
 		t.Fatalf("plan --store exited %d:\n%s", code, text)
 	}
-	listed, code := runPravo(rt, t, e.dir, "plan", "list", "--all", "--json")
+	listed, code := runPravo(t, rt, e.dir, "plan", "list", "--all", "--json")
 	if code != 0 || !strings.Contains(listed, "--actor ci-bot-7 plan --store --no-color -t k="+secretB) {
 		t.Errorf("a reader sees the line as it was typed: exit %d\n%s", code, listed)
 	}
 	s := &sealed{s3Env: e}
 	s.asNobody(t)
-	listed, code = runPravo(rt, t, e.dir, "plan", "list", "--all", "--json")
+	listed, code = runPravo(t, rt, e.dir, "plan", "list", "--all", "--json")
 	if code != 0 || strings.Contains(listed, "ci-bot-7 plan") || strings.Contains(listed, secretB) || !strings.Contains(listed, "--actor <sealed:") || !strings.Contains(listed, " plan --store --no-color -t k=<sealed:") {
 		t.Errorf("without a key: exit %d\n%s", code, listed)
 	}
@@ -1007,7 +1007,7 @@ func TestASealedStateSealsTheValueAfterAFlagInTheCommandLine(t *testing.T) {
 func TestASealedStateIsReadOnceByACommand(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	var lists atomic.Int64
 	s.f.Fault = func(r *http.Request) (int, string) {
 		if r.URL.Query().Get("list-type") == "2" && strings.HasSuffix(r.URL.Query().Get("prefix"), "/resources/") {
@@ -1015,7 +1015,7 @@ func TestASealedStateIsReadOnceByACommand(t *testing.T) {
 		}
 		return 0, ""
 	}
-	text, code := runPravo(rt, t, s.dir, "state", "show", "net.vpc")
+	text, code := runPravo(t, rt, s.dir, "state", "show", "net.vpc")
 	if code != 0 || !strings.Contains(text, secretA) {
 		t.Fatalf("exit %d, want the value of a sealed record:\n%s", code, text)
 	}

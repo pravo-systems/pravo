@@ -15,9 +15,9 @@ import (
 func TestRolesChangeIsRefusedWhileTheDemotedKeyIsApplying(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer")
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("protect roles: exit %d\n%s", code, text)
 	}
 	pin := protect.RolesGenesisKey + " " + loadReadersFile(s.dir, "").Pin
@@ -36,7 +36,7 @@ func TestRolesChangeIsRefusedWhileTheDemotedKeyIsApplying(t *testing.T) {
 
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", pin)
 	before := s.puts()
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes")
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes")
 	if code != 4 || !strings.Contains(text, "dan has a running apply (txn "+txn.ID()) || !strings.Contains(text, "--allow-running") {
 		t.Fatalf("demoting a key that is applying: exit %d\n%s", code, text)
 	}
@@ -45,19 +45,19 @@ func TestRolesChangeIsRefusedWhileTheDemotedKeyIsApplying(t *testing.T) {
 	}
 	// Removing the key from the readers file is the same.
 	s.readers(t, s.adaLine+" role:admin", pin)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 4 || !strings.Contains(text, "dan has a running apply") {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 4 || !strings.Contains(text, "dan has a running apply") {
 		t.Fatalf("removing a key that is applying: exit %d\n%s", code, text)
 	}
 	// Adding a reader is not a demotion.
 	_, zedLine := person(t, s.ids, "zed")
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer", zedLine+" role:reader", pin)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("adding a reader while a writer applies: exit %d\n%s", code, text)
 	}
 
 	// The break-glass flag stores the roles and says what happens to the running apply.
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", zedLine+" role:reader", pin)
-	text, code = runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes", "--allow-running")
+	text, code = runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes", "--allow-running")
 	if code != 0 || !strings.Contains(text, "dan has a running apply") || !strings.Contains(text, "stays refused") {
 		t.Fatalf("--allow-running: exit %d\n%s", code, text)
 	}
@@ -66,9 +66,9 @@ func TestRolesChangeIsRefusedWhileTheDemotedKeyIsApplying(t *testing.T) {
 func TestDemotionAfterTheApplyEndedIsNotRefused(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer")
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("protect roles: exit %d\n%s", code, text)
 	}
 	pin := protect.RolesGenesisKey + " " + loadReadersFile(s.dir, "").Pin
@@ -84,7 +84,7 @@ func TestDemotionAfterTheApplyEndedIsNotRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", pin)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("demoting after the apply: exit %d\n%s", code, text)
 	}
 }
@@ -94,9 +94,9 @@ func TestDemotionAfterTheApplyEndedIsNotRefused(t *testing.T) {
 func TestDemotionAfterAKilledApplyKeepsItsRecords(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer")
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("protect roles: exit %d\n%s", code, text)
 	}
 	pin := protect.RolesGenesisKey + " " + loadReadersFile(s.dir, "").Pin
@@ -114,16 +114,16 @@ func TestDemotionAfterAKilledApplyKeepsItsRecords(t *testing.T) {
 	// The process is gone: no finish, no lock.
 
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", pin)
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes")
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes")
 	if code != 0 || !strings.Contains(text, "dan: vouched for 1 transaction, 1 of them interrupted") {
 		t.Fatalf("demoting after a killed apply: exit %d\n%s", code, text)
 	}
 	for _, who := range []string{"ada", "dan"} {
-		if text, code := runPravo(rt, t, s.dir, "--identity", who, "plan"); code == 7 {
+		if text, code := runPravo(t, rt, s.dir, "--identity", who, "plan"); code == 7 {
 			t.Fatalf("%s: plan exit 7 after the demotion\n%s", who, text)
 		}
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "status"); code == 7 || !strings.Contains(text, "vouched for by an admin") {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "status"); code == 7 || !strings.Contains(text, "vouched for by an admin") {
 		t.Fatalf("protect status: exit %d\n%s", code, text)
 	}
 }
@@ -133,9 +133,9 @@ func TestDemotionAfterAKilledApplyKeepsItsRecords(t *testing.T) {
 func TestAStalledApplyThatWakesAfterTheDemotionLocksNobodyOut(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer")
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("protect roles: exit %d\n%s", code, text)
 	}
 	pin := protect.RolesGenesisKey + " " + loadReadersFile(s.dir, "").Pin
@@ -157,7 +157,7 @@ func TestAStalledApplyThatWakesAfterTheDemotionLocksNobodyOut(t *testing.T) {
 	set("n1")
 
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", pin)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 || !strings.Contains(text, "1 of them interrupted") {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 || !strings.Contains(text, "1 of them interrupted") {
 		t.Fatalf("demotion: exit %d\n%s", code, text)
 	}
 	// The process wakes, writes one more record, and finishes.
@@ -166,21 +166,21 @@ func TestAStalledApplyThatWakesAfterTheDemotionLocksNobodyOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, who := range []string{"ada", "dan"} {
-		if text, code := runPravo(rt, t, s.dir, "--identity", who, "plan"); code == 7 {
+		if text, code := runPravo(t, rt, s.dir, "--identity", who, "plan"); code == 7 {
 			t.Fatalf("%s: plan exit 7 after the stalled run finished\n%s", who, text)
 		}
 	}
 	// The toggle: dan a writer again, then a reader again, vouches for the finished run.
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer", pin)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("writer again: exit %d\n%s", code, text)
 	}
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", pin)
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes")
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes")
 	if code != 0 || !strings.Contains(text, "dan: vouched for 1 transaction") {
 		t.Fatalf("second demotion: exit %d\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "plan"); code == 7 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "plan"); code == 7 {
 		t.Fatalf("plan exit 7 after the second demotion\n%s", text)
 	}
 }
@@ -190,9 +190,9 @@ func TestAStalledApplyThatWakesAfterTheDemotionLocksNobodyOut(t *testing.T) {
 func TestAVouchedRunThatEndsWithoutAnEndSignatureDoesNotPanic(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer")
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("protect roles: exit %d\n%s", code, text)
 	}
 	pin := protect.RolesGenesisKey + " " + loadReadersFile(s.dir, "").Pin
@@ -210,7 +210,7 @@ func TestAVouchedRunThatEndsWithoutAnEndSignatureDoesNotPanic(t *testing.T) {
 	}
 	txn.Record("n1", "create", 0, 1)
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", pin)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 || !strings.Contains(text, "1 of them interrupted") {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 || !strings.Contains(text, "1 of them interrupted") {
 		t.Fatalf("demotion: exit %d\n%s", code, text)
 	}
 	if err := txn.Finish("applied", "", true); err != nil {
@@ -234,7 +234,7 @@ func TestAVouchedRunThatEndsWithoutAnEndSignatureDoesNotPanic(t *testing.T) {
 	if err := b.Put(context.Background(), key, data); err != nil {
 		t.Fatal(err)
 	}
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "plan")
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "plan")
 	if code == 2 || strings.Contains(text, "nil pointer") {
 		t.Fatalf("plan panicked: exit %d\n%s", code, text)
 	}
@@ -244,9 +244,9 @@ func TestAVouchedRunThatEndsWithoutAnEndSignatureDoesNotPanic(t *testing.T) {
 func TestARunWhoseEndCouldNotBeSignedLocksNobodyOut(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer")
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("protect roles: exit %d\n%s", code, text)
 	}
 	b := s.backend(t)
@@ -280,18 +280,18 @@ func TestARunWhoseEndCouldNotBeSignedLocksNobodyOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Nothing binds the record to the run any more: it is refused until an admin vouches.
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "plan"); code != 7 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "plan"); code != 7 {
 		t.Fatalf("plan exit %d before the admin vouched, want 7\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--adopt-unsigned", "--yes"); code != 0 || !strings.Contains(text, "end was not signed") && !strings.Contains(text, "vouched") {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--adopt-unsigned", "--yes"); code != 0 || !strings.Contains(text, "end was not signed") && !strings.Contains(text, "vouched") {
 		t.Fatalf("adopt: exit %d\n%s", code, text)
 	}
 	for _, who := range []string{"ada", "dan"} {
-		if text, code := runPravo(rt, t, s.dir, "--identity", who, "plan"); code == 7 || code == 2 {
+		if text, code := runPravo(t, rt, s.dir, "--identity", who, "plan"); code == 7 || code == 2 {
 			t.Fatalf("%s: plan exit %d after the admin vouched\n%s", who, code, text)
 		}
 	}
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "status")
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "status")
 	if code == 7 || !strings.Contains(text, "1 vouched for by an admin") {
 		t.Fatalf("protect status: exit %d\n%s", code, text)
 	}
@@ -300,11 +300,11 @@ func TestARunWhoseEndCouldNotBeSignedLocksNobodyOut(t *testing.T) {
 	pin := protect.RolesGenesisKey + " " + loadReadersFile(s.dir, "").Pin
 	s.readers(t, s.adaLine+" role:admin", pin)
 	for _, args := range [][]string{{"protect", "rewrap", "--yes"}, {"protect", "roles", "--yes"}} {
-		if text, code := runPravo(rt, t, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
+		if text, code := runPravo(t, rt, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
 			t.Fatalf("%v after dan left: exit %d\n%s", args, code, text)
 		}
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "plan"); code == 7 || code == 2 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "plan"); code == 7 || code == 2 {
 		t.Fatalf("plan exit %d after dan left\n%s", code, text)
 	}
 }
@@ -314,9 +314,9 @@ func TestARunWhoseEndCouldNotBeSignedLocksNobodyOut(t *testing.T) {
 func TestStrippedEndSignatureDoesNotAcceptAPlantedRecord(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader")
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("roles: %d\n%s", code, text)
 	}
 	b := s.backend(t)
@@ -346,10 +346,10 @@ func TestStrippedEndSignatureDoesNotAcceptAPlantedRecord(t *testing.T) {
 	if err := st.Set(&state.Resource{Addr: "planted", Mode: "data", Type: "t_data", Name: "planted", Attributes: []byte(`{"id":"planted"}`)}, id); err != nil {
 		t.Fatal(err)
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "plan"); code != 7 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "plan"); code != 7 {
 		t.Fatalf("plan exit %d, want 7\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "status"); code != 7 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "status"); code != 7 {
 		t.Fatalf("protect status exit %d, want 7\n%s", code, text)
 	}
 }
@@ -359,13 +359,13 @@ func TestStrippedEndSignatureDoesNotAcceptAPlantedRecord(t *testing.T) {
 func TestSecretOfARunWithoutAnEndSignatureNeedsTheVouch(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer")
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("roles: %d\n%s", code, text)
 	}
 	t.Setenv("S_FOR_THE_TEST", "hunter2")
-	if text, code := runPravo(rt, t, s.dir, "--identity", "dan", "secret", "set", "s2", "--from-env", "S_FOR_THE_TEST"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "dan", "secret", "set", "s2", "--from-env", "S_FOR_THE_TEST"); code != 0 {
 		t.Fatalf("secret set: %d\n%s", code, text)
 	}
 	b := s.backend(t)
@@ -396,13 +396,13 @@ func TestSecretOfARunWithoutAnEndSignatureNeedsTheVouch(t *testing.T) {
 	if stripped == 0 {
 		t.Fatal("no secret transaction found")
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "secret", "get", "s2"); code != 7 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "secret", "get", "s2"); code != 7 {
 		t.Fatalf("secret get exit %d before the vouch, want 7\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--adopt-unsigned", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--adopt-unsigned", "--yes"); code != 0 {
 		t.Fatalf("adopt: %d\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "secret", "get", "s2"); code != 0 || !strings.Contains(text, "hunter2") {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "secret", "get", "s2"); code != 0 || !strings.Contains(text, "hunter2") {
 		t.Fatalf("secret get exit %d after the vouch\n%s", code, text)
 	}
 
@@ -410,11 +410,11 @@ func TestSecretOfARunWithoutAnEndSignatureNeedsTheVouch(t *testing.T) {
 	pin := protect.RolesGenesisKey + " " + loadReadersFile(s.dir, "").Pin
 	s.readers(t, s.adaLine+" role:admin", pin)
 	for _, args := range [][]string{{"protect", "rewrap", "--yes"}, {"protect", "roles", "--yes"}} {
-		if text, code := runPravo(rt, t, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
+		if text, code := runPravo(t, rt, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
 			t.Fatalf("%v after dan left: exit %d\n%s", args, code, text)
 		}
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "secret", "get", "s2"); code != 0 || !strings.Contains(text, "hunter2") {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "secret", "get", "s2"); code != 0 || !strings.Contains(text, "hunter2") {
 		t.Fatalf("secret get exit %d after dan left\n%s", code, text)
 	}
 }

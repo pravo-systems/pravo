@@ -671,7 +671,7 @@ func (p *protectRun) recoverRoles(rt *runContext, b state.Backend) (*recoveredRo
 		return nil, err
 	}
 	next, nextFormer := protect.NextRoles(file, nil, nil, seen)
-	vouches, err := newVouches(rt, p.ctx, st, &state.RolesChain{}, nil, next, seen, true)
+	vouches, err := newVouches(p.ctx, rt, st, &state.RolesChain{}, nil, next, seen, true)
 	if err != nil {
 		return nil, err
 	}

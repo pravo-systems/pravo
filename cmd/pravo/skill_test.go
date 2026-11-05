@@ -21,7 +21,7 @@ func TestSkillInstallWritesTheEmbeddedSkill(t *testing.T) {
 	rt := &runContext{}
 
 	dir := t.TempDir()
-	out, code := runPravo(rt, t, t.TempDir(), "skill", "install", dir)
+	out, code := runPravo(t, rt, t.TempDir(), "skill", "install", dir)
 	if code != 0 || !strings.Contains(out, "Installed the pravo skill") {
 		t.Fatalf("install: %d %q", code, out)
 	}
@@ -48,14 +48,14 @@ func TestSkillInstallReplacesAnEarlierCopy(t *testing.T) {
 	rt := &runContext{}
 
 	dir := t.TempDir()
-	if _, code := runPravo(rt, t, t.TempDir(), "skill", "install", dir); code != 0 {
+	if _, code := runPravo(t, rt, t.TempDir(), "skill", "install", dir); code != 0 {
 		t.Fatal("first install")
 	}
 	stale := filepath.Join(dir, "pravo", "references", "gone.md")
 	changed := filepath.Join(dir, "pravo", "SKILL.md")
 	os.WriteFile(stale, []byte("old"), 0o644)
 	os.WriteFile(changed, []byte("---\nname: pravo\n---\nedited\n"), 0o644)
-	if out, code := runPravo(rt, t, t.TempDir(), "skill", "install", dir); code != 0 {
+	if out, code := runPravo(t, rt, t.TempDir(), "skill", "install", dir); code != 0 {
 		t.Fatalf("second install: %d %s", code, out)
 	}
 	if _, err := os.Stat(stale); err == nil {
@@ -77,7 +77,7 @@ func TestSkillInstallDoesNotTouchAnotherDirectory(t *testing.T) {
 	other := filepath.Join(dir, "pravo")
 	os.MkdirAll(other, 0o755)
 	os.WriteFile(filepath.Join(other, "notes.txt"), []byte("mine"), 0o644)
-	out, code := runPravo(rt, t, t.TempDir(), "skill", "install", dir)
+	out, code := runPravo(t, rt, t.TempDir(), "skill", "install", dir)
 	if code != 5 || !strings.Contains(out, "not the pravo skill") {
 		t.Fatalf("install over a foreign directory: %d %q", code, out)
 	}
@@ -91,7 +91,7 @@ func TestSkillInstallDefaultsToTheSkillsDirectoryOfClaude(t *testing.T) {
 
 	cfg := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", cfg)
-	out, code := runPravo(rt, t, t.TempDir(), "--json", "skill", "install")
+	out, code := runPravo(t, rt, t.TempDir(), "--json", "skill", "install")
 	if code != 0 {
 		t.Fatalf("install: %d %s", code, out)
 	}
@@ -114,21 +114,21 @@ func TestSkillInstallDefaultsToTheSkillsDirectoryOfClaude(t *testing.T) {
 func TestSkillPrint(t *testing.T) {
 	rt := &runContext{}
 
-	out, code := runPravo(rt, t, t.TempDir(), "skill", "print")
+	out, code := runPravo(t, rt, t.TempDir(), "skill", "print")
 	// A checkout with other line endings is still the skill.
 	if code != 0 || !strings.HasPrefix(strings.ReplaceAll(out, "\r\n", "\n"), "---\nname: pravo\n") {
 		t.Fatalf("print: %d %.60q", code, out)
 	}
-	out, code = runPravo(rt, t, t.TempDir(), "skill", "print", "references/reference/plan.md")
+	out, code = runPravo(t, rt, t.TempDir(), "skill", "print", "references/reference/plan.md")
 	if code != 0 || !strings.Contains(out, "# ") {
 		t.Fatalf("print a reference: %d %.60q", code, out)
 	}
 	for _, bad := range []string{"../go.mod", "/etc/passwd", "references/nope.md"} {
-		if out, code := runPravo(rt, t, t.TempDir(), "skill", "print", bad); code == 0 {
+		if out, code := runPravo(t, rt, t.TempDir(), "skill", "print", bad); code == 0 {
 			t.Errorf("print %q succeeded: %.60q", bad, out)
 		}
 	}
-	list, code := runPravo(rt, t, t.TempDir(), "skill", "list")
+	list, code := runPravo(t, rt, t.TempDir(), "skill", "list")
 	if code != 0 || !strings.Contains(list, "SKILL.md\n") || !strings.Contains(list, "references/INDEX.md\n") {
 		t.Fatalf("list: %d %.80q", code, list)
 	}

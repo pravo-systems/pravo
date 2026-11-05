@@ -48,7 +48,7 @@ ghcr.io/<owner>/cue unless CUE_REGISTRY says otherwise.`,
 			}
 			switch args[0] {
 			case "publish":
-				return modPublish(rt, cmd.Context(), args[1:])
+				return modPublish(cmd.Context(), rt, args[1:])
 			case "list":
 				return modList(rt)
 			case "verify":
@@ -127,7 +127,7 @@ func gitOutput(dir string, args ...string) (string, error) {
 }
 
 // modPublish publishes the module in the current directory.
-func modPublish(rt *runContext, ctx context.Context, args []string) error {
+func modPublish(ctx context.Context, rt *runContext, args []string) error {
 	if len(args) != 1 || !strings.HasPrefix(args[0], "v") {
 		return errors.New("usage: pravo mod publish <version>, for example v1.2.0")
 	}

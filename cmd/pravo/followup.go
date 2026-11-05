@@ -18,7 +18,7 @@ const maxFollowUps = 5
 // waited for is known now. It returns the engine and the plan, or a nil plan when the new
 // plan makes no progress: it defers as many changes as the apply did and writes nothing.
 // The plan is printed, or sent as a JSON line.
-func followUp(rt *runContext, ctx context.Context, s *session, opts engine.Options, deferred int) (*engine.Engine, *engine.Plan, error) {
+func followUp(ctx context.Context, rt *runContext, s *session, opts engine.Options, deferred int) (*engine.Engine, *engine.Plan, error) {
 	opts.Replace = nil // a replacement asked for was made
 	eng := s.engine(rt, opts)
 	plan, err := eng.Plan(ctx)
@@ -45,8 +45,8 @@ func followUp(rt *runContext, ctx context.Context, s *session, opts engine.Optio
 // storeFollowUp stores the follow-up plan of an apply of the stored plan id that deferred
 // changes, and says how to apply it. The new plan is judged by the policies in force first,
 // as one that "pravo plan --store" makes is.
-func storeFollowUp(rt *runContext, ctx context.Context, s *session, id string, deferred int) error {
-	eng, plan, err := followUp(rt, ctx, s, engine.Options{Refresh: engine.RefreshAge, Reason: "follows " + id + ": the changes it deferred"}, deferred)
+func storeFollowUp(ctx context.Context, rt *runContext, s *session, id string, deferred int) error {
+	eng, plan, err := followUp(ctx, rt, s, engine.Options{Refresh: engine.RefreshAge, Reason: "follows " + id + ": the changes it deferred"}, deferred)
 	if err != nil || plan == nil || !planWorth(plan) {
 		return err
 	}
@@ -67,8 +67,8 @@ func storeFollowUp(rt *runContext, ctx context.Context, s *session, id string, d
 
 // saveFollowUp writes the follow-up plan of an apply of the plan file path that deferred
 // changes next to it, and says how to apply it.
-func saveFollowUp(rt *runContext, ctx context.Context, s *session, path string, deferred int) error {
-	eng, plan, err := followUp(rt, ctx, s, engine.Options{Refresh: engine.RefreshAge}, deferred)
+func saveFollowUp(ctx context.Context, rt *runContext, s *session, path string, deferred int) error {
+	eng, plan, err := followUp(ctx, rt, s, engine.Options{Refresh: engine.RefreshAge}, deferred)
 	if err != nil || plan == nil || !planWorth(plan) {
 		return err
 	}

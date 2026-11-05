@@ -13,9 +13,9 @@ import (
 )
 
 // txnIDs lists the ids of the transactions of the state, newest first.
-func txnIDs(rt *runContext, t *testing.T, s *sealed) []string {
+func txnIDs(t *testing.T, rt *runContext, s *sealed) []string {
 	t.Helper()
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "state", "log", "--json")
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "state", "log", "--json")
 	if code != 0 {
 		t.Fatalf("state log exited %d:\n%s", code, text)
 	}
@@ -32,11 +32,11 @@ func txnIDs(rt *runContext, t *testing.T, s *sealed) []string {
 	return ids
 }
 
-func signedBucket(rt *runContext, t *testing.T) *sealed {
+func signedBucket(t *testing.T, rt *runContext) *sealed {
 	t.Helper()
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	for _, args := range [][]string{{"--identity", "ada", "state", "rm", "net.vpc"}, {"--identity", "dan", "state", "rm", "net.db"}} {
-		if text, code := runPravo(rt, t, s.dir, args...); code != 0 {
+		if text, code := runPravo(t, rt, s.dir, args...); code != 0 {
 			t.Fatalf("%v exited %d:\n%s", args, code, text)
 		}
 	}
@@ -46,20 +46,20 @@ func signedBucket(rt *runContext, t *testing.T) *sealed {
 func TestTransactionsAreSignedAndShown(t *testing.T) {
 	rt := &runContext{}
 
-	s := signedBucket(rt, t)
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "state", "log")
+	s := signedBucket(t, rt)
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "state", "log")
 	if code != 0 || !strings.Contains(text, "signed by ada (verified)") || !strings.Contains(text, "signed by dan (verified)") {
 		t.Fatalf("log: exit %d\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, s.dir, "--identity", "ada", "protect", "status")
+	text, code = runPravo(t, rt, s.dir, "--identity", "ada", "protect", "status")
 	if code != 0 || !strings.Contains(text, "Signatures   3 of 3 transactions verified\n") {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, s.dir, "--identity", "ada", "protect", "status", "--json")
+	text, code = runPravo(t, rt, s.dir, "--identity", "ada", "protect", "status", "--json")
 	if code != 0 || !strings.Contains(text, `"signatures": {`) || !strings.Contains(text, `"verified": 3`) {
 		t.Fatalf("status --json: exit %d\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, s.dir, "--identity", "ada", "state", "log", "--json")
+	text, code = runPravo(t, rt, s.dir, "--identity", "ada", "state", "log", "--json")
 	if code != 0 || strings.Count(text, `"status": "verified"`) != 3 {
 		t.Fatalf("log --json: exit %d\n%s", code, text)
 	}
@@ -68,8 +68,8 @@ func TestTransactionsAreSignedAndShown(t *testing.T) {
 func TestATamperedTransactionIsUntrusted(t *testing.T) {
 	rt := &runContext{}
 
-	s := signedBucket(rt, t)
-	id := txnIDs(rt, t, s)[0]
+	s := signedBucket(t, rt)
+	id := txnIDs(t, rt, s)[0]
 	key := "prod/txn/" + id + ".json"
 	var m map[string]any
 	if err := json.Unmarshal(s.f.Objects[key], &m); err != nil {
@@ -79,11 +79,11 @@ func TestATamperedTransactionIsUntrusted(t *testing.T) {
 	data, _ := json.Marshal(m)
 	s.f.Objects[key] = data
 
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "state", "log")
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "state", "log")
 	if code != 7 || !strings.Contains(text, "the signature does not verify: the transaction was changed") {
 		t.Fatalf("log: exit %d\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, s.dir, "--identity", "ada", "protect", "status")
+	text, code = runPravo(t, rt, s.dir, "--identity", "ada", "protect", "status")
 	if code != 7 || !strings.Contains(text, "Untrusted: txn/"+id+".json has a signature that does not verify") ||
 		!strings.Contains(text, "1 with a signature that does not verify") {
 		t.Fatalf("status: exit %d\n%s", code, text)
@@ -93,17 +93,17 @@ func TestATamperedTransactionIsUntrusted(t *testing.T) {
 func TestASignatureOfALeaverIsNotAFailure(t *testing.T) {
 	rt := &runContext{}
 
-	s := signedBucket(rt, t)
+	s := signedBucket(t, rt)
 	s.readers(t, s.danLine)
-	text, code := runPravo(rt, t, s.dir, "--identity", "dan", "state", "log")
+	text, code := runPravo(t, rt, s.dir, "--identity", "dan", "state", "log")
 	if code != 0 || !strings.Contains(text, "signed by ada, whose key is not in the readers file") || !strings.Contains(text, "signed by dan (verified)") {
 		t.Fatalf("log: exit %d\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, s.dir, "--identity", "dan", "protect", "status")
+	text, code = runPravo(t, rt, s.dir, "--identity", "dan", "protect", "status")
 	if code != 0 || !strings.Contains(text, "1 of 3 transactions verified · 2 signed with a key that is not in the file") {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, s.dir, "--identity", "dan", "state", "log", "--json")
+	text, code = runPravo(t, rt, s.dir, "--identity", "dan", "state", "log", "--json")
 	if code != 0 || !strings.Contains(text, `"status": "key_not_in_file"`) || !strings.Contains(text, `"claimed": "ada"`) {
 		t.Fatalf("log --json: exit %d\n%s", code, text)
 	}
@@ -112,15 +112,15 @@ func TestASignatureOfALeaverIsNotAFailure(t *testing.T) {
 func TestWithoutAReadersFileNothingIsChecked(t *testing.T) {
 	rt := &runContext{}
 
-	s := signedBucket(rt, t)
+	s := signedBucket(t, rt)
 	if err := os.Remove(filepath.Join(s.dir, ".pravo", "access", "readers.txt")); err != nil {
 		t.Fatal(err)
 	}
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "state", "log")
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "state", "log")
 	if code != 0 || strings.Contains(text, "signed by") || strings.Contains(text, "unsigned") {
 		t.Fatalf("log: exit %d\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, s.dir, "--identity", "ada", "protect", "status")
+	text, code = runPravo(t, rt, s.dir, "--identity", "ada", "protect", "status")
 	if code != 0 || !strings.Contains(text, "Signatures   not checked: the readers file is needed to check them") {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}
@@ -129,9 +129,9 @@ func TestWithoutAReadersFileNothingIsChecked(t *testing.T) {
 func TestATransactionBeforeSigningIsUnsignedAndNoFailure(t *testing.T) {
 	rt := &runContext{}
 
-	s := signedBucket(rt, t)
+	s := signedBucket(t, rt)
 	// The oldest transaction is the one that named the pointers at the seal.
-	ids := txnIDs(rt, t, s)
+	ids := txnIDs(t, rt, s)
 	id := ids[len(ids)-1]
 	key := "prod/txn/" + id + ".json"
 	var m map[string]any
@@ -140,11 +140,11 @@ func TestATransactionBeforeSigningIsUnsignedAndNoFailure(t *testing.T) {
 	delete(m, "finish_sig")
 	data, _ := json.Marshal(m)
 	s.f.Objects[key] = data
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "state", "log")
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "state", "log")
 	if code != 0 || !strings.Contains(text, "    unsigned\n") {
 		t.Fatalf("log: exit %d\n%s", code, text)
 	}
-	if text, code = runPravo(rt, t, s.dir, "--identity", "ada", "protect", "status"); code != 0 || !strings.Contains(text, "1 unsigned") {
+	if text, code = runPravo(t, rt, s.dir, "--identity", "ada", "protect", "status"); code != 0 || !strings.Contains(text, "1 unsigned") {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}
 }
@@ -152,14 +152,14 @@ func TestATransactionBeforeSigningIsUnsignedAndNoFailure(t *testing.T) {
 func TestAStoredPlanShowsWhoSignedItAndAnApplyNamesIt(t *testing.T) {
 	rt := &runContext{}
 
-	dir := localRoot(rt, t, "")
-	ids := isolateIdentities(rt, t)
-	if text, code := runPravo(rt, t, dir, "apply", "-auto-approve"); code != 0 {
+	dir := localRoot(t, rt, "")
+	ids := isolateIdentities(t, rt)
+	if text, code := runPravo(t, rt, dir, "apply", "-auto-approve"); code != 0 {
 		t.Fatalf("apply exited %d:\n%s", code, text)
 	}
 	adaID, ada := person(t, ids, "ada")
 	writeReaders(t, filepath.Join(dir, ".pravo", "access"), ada)
-	if text, code := runPravo(rt, t, dir, "protect", "init", "--encrypt", "--yes", "--allow-local"); code != 0 {
+	if text, code := runPravo(t, rt, dir, "protect", "init", "--encrypt", "--yes", "--allow-local"); code != 0 {
 		t.Fatalf("protect init exited %d:\n%s", code, text)
 	}
 	spec, _ := os.ReadFile(filepath.Join(dir, "main.cue"))
@@ -167,20 +167,20 @@ func TestAStoredPlanShowsWhoSignedItAndAnApplyNamesIt(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "main.cue"), []byte(more), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	id := storePlanAs(rt, t, dir, "ci")
-	text, code := runPravo(rt, t, dir, "plan", "show", id)
+	id := storePlanAs(t, rt, dir, "ci")
+	text, code := runPravo(t, rt, dir, "plan", "show", id)
 	if code != 0 || !strings.Contains(text, "  signed:  ada (verified)\n") {
 		t.Fatalf("plan show: exit %d\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, dir, "plan", "show", id, "--json")
+	text, code = runPravo(t, rt, dir, "plan", "show", id, "--json")
 	if code != 0 || !strings.Contains(text, `"status": "verified"`) {
 		t.Fatalf("plan show --json: exit %d\n%s", code, text)
 	}
-	if text, code = runPravo(rt, t, dir, "apply", id); code != 0 {
+	if text, code = runPravo(t, rt, dir, "apply", id); code != 0 {
 		t.Fatalf("apply exited %d:\n%s", code, text)
 	}
 	// The transaction of the apply names the plan and its digest, under its signature.
-	text, code = runPravo(rt, t, dir, "state", "log", "--json")
+	text, code = runPravo(t, rt, dir, "state", "log", "--json")
 	var log []struct {
 		Kind       string `json:"kind"`
 		Plan       string `json:"plan"`
@@ -223,7 +223,7 @@ func TestAStoredPlanShowsWhoSignedItAndAnApplyNamesIt(t *testing.T) {
 	// The readers file no longer lists the signer.
 	_, dan := person(t, ids, "dan")
 	writeReaders(t, filepath.Join(dir, ".pravo", "access"), dan)
-	text, _ = runPravo(rt, t, dir, "--identity", "ada", "plan", "show", id)
+	text, _ = runPravo(t, rt, dir, "--identity", "ada", "plan", "show", id)
 	if !strings.Contains(text, "ada (key not in the readers file)") {
 		t.Errorf("a leaver's plan:\n%s", text)
 	}
@@ -234,7 +234,7 @@ func TestAStoredPlanShowsWhoSignedItAndAnApplyNamesIt(t *testing.T) {
 func TestAKilledRunStillShowsItsStartSignature(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	st, err := state.OpenBackendWith(context.Background(), s.backend(t), state.Options{Identity: s.ada})
 	if err != nil {
 		t.Fatal(err)
@@ -243,11 +243,11 @@ func TestAKilledRunStillShowsItsStartSignature(t *testing.T) {
 	if err := tx.Start(); err != nil {
 		t.Fatal(err)
 	}
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "state", "log")
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "state", "log")
 	if code != 0 || !strings.Contains(text, "interrupted") || !strings.Contains(text, "start signed by ada (verified)") {
 		t.Fatalf("log: exit %d\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, s.dir, "--identity", "ada", "protect", "status")
+	text, code = runPravo(t, rt, s.dir, "--identity", "ada", "protect", "status")
 	if code != 0 || !strings.Contains(text, "2 of 2 transactions verified") {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}
@@ -258,8 +258,8 @@ func TestAKilledRunStillShowsItsStartSignature(t *testing.T) {
 func TestStateListAndShowRefuseWhenAPointerIsGone(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "state", "list"); code != 0 || !strings.Contains(text, "net.db") {
+	s := sealedBucket(t, rt)
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "state", "list"); code != 0 || !strings.Contains(text, "net.db") {
 		t.Fatalf("list before: exit %d\n%s", code, text)
 	}
 	var key string
@@ -273,12 +273,12 @@ func TestStateListAndShowRefuseWhenAPointerIsGone(t *testing.T) {
 	}
 	delete(s.f.Objects, key)
 	for _, args := range [][]string{{"state", "list"}, {"state", "show", "net.vpc"}, {"state", "dependents", "net.vpc"}} {
-		text, code := runPravo(rt, t, s.dir, append([]string{"--identity", "ada"}, args...)...)
+		text, code := runPravo(t, rt, s.dir, append([]string{"--identity", "ada"}, args...)...)
 		if code != 7 || !strings.Contains(text, "the pointer of net.db is gone") {
 			t.Errorf("%v: exit %d\n%s", args, code, text)
 		}
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "state", "log"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "state", "log"); code != 0 {
 		t.Errorf("state log must still read: exit %d\n%s", code, text)
 	}
 }
@@ -288,21 +288,21 @@ func TestStateListAndShowRefuseWhenAPointerIsGone(t *testing.T) {
 func TestAStateWithoutABaselineSaysSoUntilRewrap(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "status"); code != 0 || strings.Contains(text, "Baseline") {
+	s := sealedBucket(t, rt)
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "status"); code != 0 || strings.Contains(text, "Baseline") {
 		t.Fatalf("status with baseline: exit %d\n%s", code, text)
 	}
-	for _, id := range txnIDs(rt, t, s) {
+	for _, id := range txnIDs(t, rt, s) {
 		delete(s.f.Objects, "prod/txn/"+id+".json")
 	}
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "status")
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "status")
 	if code != 0 || !strings.Contains(text, "Baseline     ") {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}
-	if text, code = runPravo(rt, t, s.dir, "--identity", "ada", "protect", "rewrap", "--all", "--yes"); code != 0 {
+	if text, code = runPravo(t, rt, s.dir, "--identity", "ada", "protect", "rewrap", "--all", "--yes"); code != 0 {
 		t.Fatalf("rewrap: exit %d\n%s", code, text)
 	}
-	if text, code = runPravo(rt, t, s.dir, "--identity", "ada", "protect", "status"); code != 0 || strings.Contains(text, "Baseline") {
+	if text, code = runPravo(t, rt, s.dir, "--identity", "ada", "protect", "status"); code != 0 || strings.Contains(text, "Baseline") {
 		t.Fatalf("status after rewrap: exit %d\n%s", code, text)
 	}
 }

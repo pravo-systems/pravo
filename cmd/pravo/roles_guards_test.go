@@ -18,9 +18,9 @@ import (
 func TestRecoverStoresRolesWithTheRecoveringKeyAsAnAdmin(t *testing.T) {
 	rt := &runContext{}
 
-	r := recoveredBucket(rt, t)
+	r := recoveredBucket(t, rt)
 	r.readers(t, r.adaLine+" role:admin", r.danLine+" role:writer")
-	if text, code := runPravo(rt, t, r.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, r.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("protect roles: exit %d\n%s", code, text)
 	}
 	oldPin := loadReadersFile(r.dir, "").Pin
@@ -35,7 +35,7 @@ func TestRecoverStoresRolesWithTheRecoveringKeyAsAnAdmin(t *testing.T) {
 	resetIdentityState(t)
 	r.readers(t, eve.Line()+" role:admin", protect.RolesGenesisKey+" "+oldPin)
 
-	text, code := runPravo(rt, t, r.dir, "protect", "recover", "--yes", "--share", r.shares[0], "--share", r.shares[1])
+	text, code := runPravo(t, rt, r.dir, "protect", "recover", "--yes", "--share", r.shares[0], "--share", r.shares[1])
 	if code != 0 || !strings.Contains(text, "Stored the roles again as version 1, with eve as an admin") {
 		t.Fatalf("recover: exit %d\n%s", code, text)
 	}
@@ -44,10 +44,10 @@ func TestRecoverStoresRolesWithTheRecoveringKeyAsAnAdmin(t *testing.T) {
 		t.Fatalf("the pin was not replaced: %q -> %q\n%s", oldPin, newPin, r.readersFileText(t))
 	}
 	// She writes, and she stores roles: nothing else is needed to get back in.
-	if text, code := runPravo(rt, t, r.dir, "state", "rm", "net.vpc"); code != 0 {
+	if text, code := runPravo(t, rt, r.dir, "state", "rm", "net.vpc"); code != 0 {
 		t.Fatalf("a write after recovery: exit %d\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, r.dir, "protect", "roles", "--yes"); code != 0 || !strings.Contains(text, "already holds these roles (version 1)") {
+	if text, code := runPravo(t, rt, r.dir, "protect", "roles", "--yes"); code != 0 || !strings.Contains(text, "already holds these roles (version 1)") {
 		t.Fatalf("protect roles after recovery: exit %d\n%s", code, text)
 	}
 }
@@ -55,28 +55,28 @@ func TestRecoverStoresRolesWithTheRecoveringKeyAsAnAdmin(t *testing.T) {
 func TestTheLastAdminCannotLeaveOrStepDown(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
-	pin := pinnedRoles(rt, t, s) // ada admin, dan reader
+	s := plannableBucket(t, rt)
+	pin := pinnedRoles(t, rt, s) // ada admin, dan reader
 
 	// ada removes herself from the readers file and rewraps.
 	s.readers(t, s.danLine+" role:reader", pin)
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "rewrap", "--yes")
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "rewrap", "--yes")
 	if code != 5 || !strings.Contains(text, "no admin would be left") || !strings.Contains(text, "--allow-no-admin") {
 		t.Fatalf("the last admin leaves: exit %d\n%s", code, text)
 	}
 	// ada demotes herself.
 	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader", pin)
-	text, code = runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes")
+	text, code = runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes")
 	if code != 5 || !strings.Contains(text, "no admin would be left") {
 		t.Fatalf("the last admin steps down: exit %d\n%s", code, text)
 	}
 	// Another admin makes both fine.
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:admin", pin)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("adding an admin: exit %d\n%s", code, text)
 	}
 	s.readers(t, s.danLine+" role:admin", pin)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "rewrap", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "rewrap", "--yes"); code != 0 {
 		t.Fatalf("an admin leaves while another stays: exit %d\n%s", code, text)
 	}
 }
@@ -84,10 +84,10 @@ func TestTheLastAdminCannotLeaveOrStepDown(t *testing.T) {
 func TestTheOptOutLetsTheLastAdminStepDown(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
-	pin := pinnedRoles(rt, t, s)
+	s := plannableBucket(t, rt)
+	pin := pinnedRoles(t, rt, s)
 	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader", pin)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes", "--allow-no-admin"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes", "--allow-no-admin"); code != 0 {
 		t.Fatalf("--allow-no-admin: exit %d\n%s", code, text)
 	}
 }
@@ -97,16 +97,16 @@ func TestTheOptOutLetsTheLastAdminStepDown(t *testing.T) {
 func TestDroppingThePinLineDoesNotMakeAReaderAnAdmin(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
-	pinnedRoles(rt, t, s) // ada admin, dan reader
+	s := plannableBucket(t, rt)
+	pinnedRoles(t, rt, s) // ada admin, dan reader
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:admin")
 	for _, args := range [][]string{{"protect", "rewrap", "--yes"}, {"protect", "roles", "--yes"}, {"state", "rm", "cfg"}} {
-		text, code := runPravo(rt, t, s.dir, append([]string{"--identity", "dan"}, args...)...)
+		text, code := runPravo(t, rt, s.dir, append([]string{"--identity", "dan"}, args...)...)
 		if code != 5 || !strings.Contains(text, "your identity is a reader in the roles") {
 			t.Errorf("a reader without the pin line runs %v: exit %d\n%s", args, code, text)
 		}
 	}
-	text, code := runPravo(rt, t, s.dir, "--identity", "dan", "protect", "status")
+	text, code := runPravo(t, rt, s.dir, "--identity", "dan", "protect", "status")
 	if code != 0 || !strings.Contains(text, "you are a reader in the roles in the state") {
 		t.Errorf("status: exit %d\n%s", code, text)
 	}
@@ -116,9 +116,9 @@ func TestDroppingThePinLineDoesNotMakeAReaderAnAdmin(t *testing.T) {
 func TestTheRefusalNamesWhereTheRolesCameFrom(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
-	pin := pinnedRoles(rt, t, s)
-	text, code := runPravo(rt, t, s.dir, "--identity", "dan", "state", "rm", "cfg")
+	s := plannableBucket(t, rt)
+	pin := pinnedRoles(t, rt, s)
+	text, code := runPravo(t, rt, s.dir, "--identity", "dan", "state", "rm", "cfg")
 	if code != 5 || !strings.Contains(text, "your identity is a reader in the roles in the state, and a writer is needed") {
 		t.Fatalf("pinned: exit %d\n%s", code, text)
 	}
@@ -132,29 +132,29 @@ func TestTheRefusalNamesWhereTheRolesCameFrom(t *testing.T) {
 func TestAFormerKeyIsNotAddedBackByAStaleReadersFile(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
-	pin := pinnedRoles(rt, t, s)
+	s := plannableBucket(t, rt)
+	pin := pinnedRoles(t, rt, s)
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer", pin)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("roles: exit %d\n%s", code, text)
 	}
 	// ada offboards dan.
 	s.readers(t, s.adaLine+" role:admin", pin)
 	for _, args := range [][]string{{"protect", "rewrap", "--yes"}, {"protect", "roles", "--yes"}} {
-		if text, code := runPravo(rt, t, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
+		if text, code := runPravo(t, rt, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
 			t.Fatalf("%v: exit %d\n%s", args, code, text)
 		}
 	}
 	// A stale checkout lists dan again.
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:writer", pin)
 	for _, args := range [][]string{{"protect", "rewrap", "--yes"}, {"protect", "roles", "--yes"}} {
-		text, code := runPravo(rt, t, s.dir, append([]string{"--identity", "ada"}, args...)...)
+		text, code := runPravo(t, rt, s.dir, append([]string{"--identity", "ada"}, args...)...)
 		if code != 5 || !strings.Contains(text, "dan was taken out of the roles") || !strings.Contains(text, "--readd dan") {
 			t.Fatalf("%v with a stale file: exit %d\n%s", args, code, text)
 		}
 	}
 	for _, args := range [][]string{{"protect", "rewrap", "--yes", "--readd", "dan"}, {"protect", "roles", "--yes", "--readd", "dan"}} {
-		if text, code := runPravo(rt, t, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
+		if text, code := runPravo(t, rt, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
 			t.Fatalf("%v: exit %d\n%s", args, code, text)
 		}
 	}
@@ -165,21 +165,21 @@ func TestAFormerKeyIsNotAddedBackByAStaleReadersFile(t *testing.T) {
 func TestAdminHandoverInOneEditIsRefusedAndTheRightOrderWorks(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
-	pin := pinnedRoles(rt, t, s) // ada admin, dan reader
+	s := plannableBucket(t, rt)
+	pin := pinnedRoles(t, rt, s) // ada admin, dan reader
 	_, zoeLine := person(t, filepath.Join(os.Getenv("PRAVO_CONFIG_DIR"), "id"), "zoe")
 
 	s.readers(t, s.danLine+" role:reader", zoeLine+" role:admin", pin)
-	text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "rewrap", "--yes")
+	text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "rewrap", "--yes")
 	if code != 5 || !strings.Contains(text, "no admin would be left") || strings.Contains(text, "Make another key an admin first") {
 		t.Fatalf("rewrap of the one-edit hand-over: exit %d\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, s.dir, "--identity", "ada", "protect", "roles", "--yes")
+	text, code = runPravo(t, rt, s.dir, "--identity", "ada", "protect", "roles", "--yes")
 	if code != 5 || !strings.Contains(text, "no admin in these roles can read the state yet") {
 		t.Fatalf("roles of the one-edit hand-over: exit %d\n%s", code, text)
 	}
 	// ada is still an admin of the stored roles, so nothing was lost.
-	text, code = runPravo(rt, t, s.dir, "--identity", "ada", "protect", "status")
+	text, code = runPravo(t, rt, s.dir, "--identity", "ada", "protect", "status")
 	if code != 0 {
 		t.Fatalf("status: exit %d\n%s", code, text)
 	}
@@ -187,15 +187,15 @@ func TestAdminHandoverInOneEditIsRefusedAndTheRightOrderWorks(t *testing.T) {
 	// The right order.
 	s.readers(t, s.adaLine+" role:admin", s.danLine+" role:reader", zoeLine+" role:admin", pin)
 	for _, args := range [][]string{{"protect", "rewrap", "--yes"}, {"protect", "roles", "--yes"}} {
-		if text, code := runPravo(rt, t, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
+		if text, code := runPravo(t, rt, s.dir, append([]string{"--identity", "ada"}, args...)...); code != 0 {
 			t.Fatalf("%v: exit %d\n%s", args, code, text)
 		}
 	}
 	s.readers(t, s.danLine+" role:reader", zoeLine+" role:admin", pin)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "rewrap", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "rewrap", "--yes"); code != 0 {
 		t.Fatalf("ada leaves: exit %d\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "zoe", "protect", "roles", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "zoe", "protect", "roles", "--yes"); code != 0 {
 		t.Fatalf("zoe stores roles: exit %d\n%s", code, text)
 	}
 }
@@ -205,7 +205,7 @@ func TestAdminHandoverInOneEditIsRefusedAndTheRightOrderWorks(t *testing.T) {
 func TestRolesAreReadBackBeforeTheyAreReportedStored(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	ctx := context.Background()
 	st, err := state.OpenBackendWith(ctx, s.backend(t), state.Options{Identity: s.ada})
 	if err != nil {
@@ -225,7 +225,7 @@ func TestRolesAreReadBackBeforeTheyAreReportedStored(t *testing.T) {
 func TestUnreadableRolesAreRefusedBeforeTheyAreStored(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	ctx := context.Background()
 	st, err := state.OpenBackendWith(ctx, s.backend(t), state.Options{Identity: s.ada})
 	if err != nil {

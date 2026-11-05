@@ -23,12 +23,12 @@ func verifyCmd(rt *runContext) *cobra.Command {
 			var pf *engine.PlanFile
 			if planFile != "" {
 				var err error
-				if pf, err = readPlanFile(rt, ctx, planFile); err != nil {
+				if pf, err = readPlanFile(ctx, rt, planFile); err != nil {
 					return err
 				}
 				rt.flags.Tags, rt.flags.SysTags = pf.Tags, pf.SysTags
 			}
-			s, err := newSession(rt, ctx, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
+			s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
 			if err != nil {
 				return err
 			}

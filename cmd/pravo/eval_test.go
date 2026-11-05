@@ -9,7 +9,7 @@ import (
 )
 
 // run executes pravo eval in dir and returns what it printed.
-func runEval(rt *runContext, t *testing.T, dir string, args ...string) (string, error) {
+func runEval(t *testing.T, rt *runContext, dir string, args ...string) (string, error) {
 	t.Helper()
 	old, _ := os.Getwd()
 	if err := os.Chdir(dir); err != nil { //nolint:usetesting // see the deferred Chdir
@@ -49,7 +49,7 @@ env:   *"dev" | "prod" @tag(env)
 open:  #Bucket & {name: "x"}
 `), 0o644)
 
-	out, err := runEval(rt, t, dir)
+	out, err := runEval(t, rt, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,13 +61,13 @@ open:  #Bucket & {name: "x"}
 	if strings.Contains(out, "for s in") || strings.HasPrefix(out, "{") {
 		t.Errorf("comprehensions are expanded and the root has no braces:\n%s", out)
 	}
-	if out, _ := runEval(rt, t, dir, "-e", "logs.tags.team"); strings.TrimSpace(out) != `"platform"` {
+	if out, _ := runEval(t, rt, dir, "-e", "logs.tags.team"); strings.TrimSpace(out) != `"platform"` {
 		t.Errorf("-e printed %q", out)
 	}
-	if out, _ := runEval(rt, t, dir, "-e", "len(sizes)"); strings.TrimSpace(out) != "2" {
+	if out, _ := runEval(t, rt, dir, "-e", "len(sizes)"); strings.TrimSpace(out) != "2" {
 		t.Errorf("-e on an expression printed %q", out)
 	}
-	if _, err := runEval(rt, t, dir, "-c"); err == nil || !strings.Contains(err.Error(), "not concrete") {
+	if _, err := runEval(t, rt, dir, "-c"); err == nil || !strings.Contains(err.Error(), "not concrete") {
 		t.Errorf("-c must refuse the incomplete value: %v", err)
 	}
 }

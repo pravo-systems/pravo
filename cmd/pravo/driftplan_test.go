@@ -50,14 +50,14 @@ func TestDriftPlanStoresAPlanThatPutsTheDriftRight(t *testing.T) {
 	rt := &runContext{}
 
 	prov := newDemoProvider(t)
-	dir := demoEstate(rt, t, "keep: $demo.#Resource.demo_server & {name: \"keep\"}\nlost: $demo.#Resource.demo_server & {name: \"lost\"}\n")
-	if text, code := runPravo(rt, t, dir, "apply", "--auto-approve"); code != 0 {
+	dir := demoEstate(t, rt, "keep: $demo.#Resource.demo_server & {name: \"keep\"}\nlost: $demo.#Resource.demo_server & {name: \"lost\"}\n")
+	if text, code := runPravo(t, rt, dir, "apply", "--auto-approve"); code != 0 {
 		t.Fatalf("apply exited %d:\n%s", code, text)
 	}
 	hook, url := newHook(t)
 
 	// Without drift there is nothing to propose and nothing to send.
-	if text, code := runPravo(rt, t, dir, "drift", "--plan", "--store", "--webhook", url); code != 0 || !strings.Contains(text, "No drift.") {
+	if text, code := runPravo(t, rt, dir, "drift", "--plan", "--store", "--webhook", url); code != 0 || !strings.Contains(text, "No drift.") {
 		t.Fatalf("drift without drift exited %d:\n%s", code, text)
 	}
 	if len(hook.kinds()) != 0 || len(planObjects(t, dir)) != 0 {
@@ -68,7 +68,7 @@ func TestDriftPlanStoresAPlanThatPutsTheDriftRight(t *testing.T) {
 	prov.remove("srv-lost")
 
 	// --plan alone shows the plan and stores nothing.
-	text, code := runPravo(rt, t, dir, "drift", "--plan", "--webhook", url)
+	text, code := runPravo(t, rt, dir, "drift", "--plan", "--webhook", url)
 	if code != 2 || !strings.Contains(text, "Drift.") || !strings.Contains(text, "lost") || strings.Contains(text, "Stored the plan") {
 		t.Fatalf("drift --plan exited %d:\n%s", code, text)
 	}
@@ -80,7 +80,7 @@ func TestDriftPlanStoresAPlanThatPutsTheDriftRight(t *testing.T) {
 	}
 
 	// --store keeps it, and the event says where.
-	text, code = runPravo(rt, t, dir, "drift", "--plan", "--store", "--ttl", "36h", "--webhook", url)
+	text, code = runPravo(t, rt, dir, "drift", "--plan", "--store", "--ttl", "36h", "--webhook", url)
 	if code != 2 || !strings.Contains(text, "Stored the plan as") || !strings.Contains(text, "36 hours") {
 		t.Fatalf("drift --plan --store exited %d:\n%s", code, text)
 	}
@@ -97,7 +97,7 @@ func TestDriftPlanStoresAPlanThatPutsTheDriftRight(t *testing.T) {
 	}
 
 	// The plan is applied by its id, which puts the file right and says so.
-	if text, code = runPravo(rt, t, dir, "apply", id, "--webhook", url); code != 0 || !strings.Contains(text, "Apply complete!") {
+	if text, code = runPravo(t, rt, dir, "apply", id, "--webhook", url); code != 0 || !strings.Contains(text, "Apply complete!") {
 		t.Fatalf("apply exited %d:\n%s", code, text)
 	}
 	if !prov.has("srv-lost") {
@@ -122,7 +122,7 @@ func TestDriftPlanFlagsAgree(t *testing.T) {
 		{[]string{"drift", "--plan", "--store", "--ttl", "0"}, "above zero"},
 		{[]string{"apply", "--webhook", "http://x"}, "--webhook applies to a stored plan"},
 	} {
-		if text, code := runPravo(rt, t, dir, c.args...); code != 1 || !strings.Contains(text, c.want) {
+		if text, code := runPravo(t, rt, dir, c.args...); code != 1 || !strings.Contains(text, c.want) {
 			t.Errorf("%v exited %d:\n%s", c.args, code, text)
 		}
 	}

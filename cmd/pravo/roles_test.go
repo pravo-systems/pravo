@@ -14,19 +14,19 @@ import (
 func TestAReaderMayReadAndAWriterMayWrite(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
 
-	text, code := runPravo(rt, t, s.dir, "--identity", "dan", "state", "rm", "net.vpc")
+	text, code := runPravo(t, rt, s.dir, "--identity", "dan", "state", "rm", "net.vpc")
 	if code != 5 || !strings.Contains(text, "your identity is a reader in") || !strings.Contains(text, "a writer is needed to change the state") {
 		t.Fatalf("a reader's write: exit %d\n%s", code, text)
 	}
 	for _, args := range [][]string{{"state", "log"}, {"state", "list"}} {
-		if text, code := runPravo(rt, t, s.dir, append([]string{"--identity", "dan"}, args...)...); code != 0 {
+		if text, code := runPravo(t, rt, s.dir, append([]string{"--identity", "dan"}, args...)...); code != 0 {
 			t.Errorf("a reader's %v: exit %d\n%s", args, code, text)
 		}
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "state", "rm", "net.vpc"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "state", "rm", "net.vpc"); code != 0 {
 		t.Fatalf("a writer's write: exit %d\n%s", code, text)
 	}
 }
@@ -34,8 +34,8 @@ func TestAReaderMayReadAndAWriterMayWrite(t *testing.T) {
 func TestWithoutRolesEveryKeyMayWrite(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "dan", "state", "rm", "net.vpc"); code != 0 {
+	s := sealedBucket(t, rt)
+	if text, code := runPravo(t, rt, s.dir, "--identity", "dan", "state", "rm", "net.vpc"); code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 }
@@ -43,9 +43,9 @@ func TestWithoutRolesEveryKeyMayWrite(t *testing.T) {
 func TestALineWithoutARoleIsAReaderOnceRolesAreOn(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	s.readers(t, s.adaLine+" role:admin", s.danLine)
-	text, code := runPravo(rt, t, s.dir, "--identity", "dan", "state", "rm", "net.vpc")
+	text, code := runPravo(t, rt, s.dir, "--identity", "dan", "state", "rm", "net.vpc")
 	if code != 5 || !strings.Contains(text, "your identity is a reader") {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -62,15 +62,15 @@ func (s *sealed) objects() map[string]string {
 
 // plannableBucket is a sealed bucket that holds one data source, which a plan can be made
 // of without a provider.
-func plannableBucket(rt *runContext, t *testing.T) *sealed {
+func plannableBucket(t *testing.T, rt *runContext) *sealed {
 	t.Helper()
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	e := newS3Env(t, false)
 	ada, adaLine := person(t, ids, "ada")
 	dan, danLine := person(t, ids, "dan")
 	e.readers(t, adaLine, danLine)
-	if text, code := runPravo(rt, t, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
 		t.Fatalf("protect init exited %d:\n%s", code, text)
 	}
 	// ada records the data source in a transaction of her own, as a command would.
@@ -96,11 +96,11 @@ func plannableBucket(rt *runContext, t *testing.T) *sealed {
 func TestAReaderPlansWithoutWritingTheState(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
 	before := s.objects()
 
-	text, code := runPravo(rt, t, s.dir, "--identity", "dan", "plan")
+	text, code := runPravo(t, rt, s.dir, "--identity", "dan", "plan")
 	if code != 0 {
 		t.Fatalf("a reader's plan: exit %d\n%s", code, text)
 	}
@@ -120,12 +120,12 @@ func TestAReaderPlansWithoutWritingTheState(t *testing.T) {
 func TestAReaderRunsDriftWithoutWritingTheState(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
 	before := s.objects()
 
 	for _, args := range [][]string{{"drift"}, {"drift", "--due"}} {
-		text, code := runPravo(rt, t, s.dir, append([]string{"--identity", "dan"}, args...)...)
+		text, code := runPravo(t, rt, s.dir, append([]string{"--identity", "dan"}, args...)...)
 		if code != 0 {
 			t.Fatalf("a reader's %v: exit %d\n%s", args, code, text)
 		}
@@ -146,11 +146,11 @@ func TestAReaderRunsDriftWithoutWritingTheState(t *testing.T) {
 func TestAReaderStoresTheDriftPlan(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
 	before := s.objects()
 
-	text, code := runPravo(rt, t, s.dir, "--identity", "dan", "drift", "--plan", "--store")
+	text, code := runPravo(t, rt, s.dir, "--identity", "dan", "drift", "--plan", "--store")
 	if code != 0 {
 		t.Fatalf("a reader's drift --plan --store: exit %d\n%s", code, text)
 	}
@@ -164,11 +164,11 @@ func TestAReaderStoresTheDriftPlan(t *testing.T) {
 func TestAReaderStoresAPlanAndAWriterAppliesIt(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
 	before := s.objects()
 
-	text, code := runPravo(rt, t, s.dir, "--identity", "dan", "plan", "--store")
+	text, code := runPravo(t, rt, s.dir, "--identity", "dan", "plan", "--store")
 	if code != 0 || !strings.Contains(text, "plan-") {
 		t.Fatalf("a reader's plan --store: exit %d\n%s", code, text)
 	}
@@ -178,10 +178,10 @@ func TestAReaderStoresAPlanAndAWriterAppliesIt(t *testing.T) {
 		}
 	}
 	id := regexp.MustCompile(`plan-[0-9a-f]+`).FindString(text)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "dan", "apply", id, "--auto-approve"); code != 5 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "dan", "apply", id, "--auto-approve"); code != 5 {
 		t.Fatalf("a reader's apply: exit %d\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "apply", id, "--auto-approve"); code == 5 || strings.Contains(text, "is needed to change the state") {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "apply", id, "--auto-approve"); code == 5 || strings.Contains(text, "is needed to change the state") {
 		// This bucket has no provider to apply with: what matters is that the role did not stop it.
 		t.Fatalf("a writer's apply of the plan of a reader was refused: exit %d\n%s", code, text)
 	}
@@ -190,18 +190,18 @@ func TestAReaderStoresAPlanAndAWriterAppliesIt(t *testing.T) {
 func TestOnlyAnAdminChangesWhoReads(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:admin")
 	for _, args := range [][]string{{"protect", "rewrap", "--yes"}, {"protect", "gc"}, {"protect", "unseal", "--yes"}} {
-		text, code := runPravo(rt, t, s.dir, append([]string{"--identity", "ada"}, args...)...)
+		text, code := runPravo(t, rt, s.dir, append([]string{"--identity", "ada"}, args...)...)
 		if code != 5 || !strings.Contains(text, "your identity is a writer in") || !strings.Contains(text, "an admin is needed to") {
 			t.Errorf("a writer's %v: exit %d\n%s", args, code, text)
 		}
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "protect", "gc", "--dry-run"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "protect", "gc", "--dry-run"); code != 0 {
 		t.Errorf("a dry run of gc by a writer: exit %d\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, s.dir, "--identity", "dan", "protect", "gc"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "dan", "protect", "gc"); code != 0 {
 		t.Errorf("gc by an admin: exit %d\n%s", code, text)
 	}
 }
@@ -209,8 +209,8 @@ func TestOnlyAnAdminChangesWhoReads(t *testing.T) {
 func TestOnlyAnAdminRemovesAPolicy(t *testing.T) {
 	rt := &runContext{}
 
-	r := newPolicyRoot(rt, t, map[string]string{"none": "summary: destroy: 0"}, "a")
-	if text, code := r.apply(rt, t); code != 0 {
+	r := newPolicyRoot(t, rt, map[string]string{"none": "summary: destroy: 0"}, "a")
+	if text, code := r.apply(t, rt); code != 0 {
 		t.Fatalf("first apply: exit %d\n%s", code, text)
 	}
 	// dan joins while the repository has no roles, and then it gives them: ada writes, dan administers.
@@ -218,28 +218,28 @@ func TestOnlyAnAdminRemovesAPolicy(t *testing.T) {
 	ada := r.ada.AsReader().String()
 	access := filepath.Join(r.dir, ".pravo", "access")
 	writeReaders(t, access, ada, dan)
-	if text, code := runPravo(rt, t, r.dir, "protect", "rewrap", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, r.dir, "protect", "rewrap", "--yes"); code != 0 {
 		t.Fatalf("rewrap: exit %d\n%s", code, text)
 	}
 	writeReaders(t, access, ada+" role:writer", dan+" role:admin")
 
 	// A writer may add a policy and edit one.
 	r.declare(t, map[string]string{"none": "summary: destroy: 0", "added": "summary: add: >=0"}, "a")
-	if text, code := runPravo(rt, t, r.dir, "--identity", "ada", "apply", "--auto-approve"); code != 0 {
+	if text, code := runPravo(t, rt, r.dir, "--identity", "ada", "apply", "--auto-approve"); code != 0 {
 		t.Fatalf("a writer adds a policy: exit %d\n%s", code, text)
 	}
 	r.declare(t, map[string]string{"none": "summary: destroy: <=0", "added": "summary: add: >=0"}, "a")
-	if text, code := runPravo(rt, t, r.dir, "--identity", "ada", "apply", "--auto-approve"); code != 0 {
+	if text, code := runPravo(t, rt, r.dir, "--identity", "ada", "apply", "--auto-approve"); code != 0 {
 		t.Fatalf("a writer edits a policy: exit %d\n%s", code, text)
 	}
 
 	// Only an admin removes one.
 	r.declare(t, map[string]string{"added": "summary: add: >=0"}, "a")
-	text, code := runPravo(rt, t, r.dir, "--identity", "ada", "apply", "--auto-approve")
+	text, code := runPravo(t, rt, r.dir, "--identity", "ada", "apply", "--auto-approve")
 	if code != 5 || !strings.Contains(text, "removing the policy none needs an admin, and your key is a writer") {
 		t.Fatalf("a writer removes a policy: exit %d\n%s", code, text)
 	}
-	if text, code := runPravo(rt, t, r.dir, "--identity", "dan", "apply", "--auto-approve"); code != 0 {
+	if text, code := runPravo(t, rt, r.dir, "--identity", "dan", "apply", "--auto-approve"); code != 0 {
 		t.Fatalf("an admin removes a policy: exit %d\n%s", code, text)
 	}
 	st, err := state.OpenWith(filepath.Join(r.dir, "pravo.state"), state.Options{Identity: r.ada})
@@ -272,11 +272,11 @@ func (s *sealed) bucketRecords(t *testing.T) state.RecordVerdict {
 func TestARecordOfAReaderIsNotBoundToAWriter(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedBucket(rt, t)
+	s := sealedBucket(t, rt)
 	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
 
 	// ada, a writer, removes one record and writes nothing else; the other two came before roles.
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "state", "rm", "net.db"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "state", "rm", "net.db"); code != 0 {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
 	if v := s.bucketRecords(t); len(v.Problems) != 1 || v.Problems[0].Addr != "net.vpc" {
@@ -304,21 +304,21 @@ func TestARecordOfAReaderIsNotBoundToAWriter(t *testing.T) {
 func TestTheRecordsOfAWriterAreBoundToItsTransactions(t *testing.T) {
 	rt := &runContext{}
 
-	r := newPolicyRoot(rt, t, nil, "a")
-	if text, code := r.apply(rt, t); code != 0 {
+	r := newPolicyRoot(t, rt, nil, "a")
+	if text, code := r.apply(t, rt); code != 0 {
 		t.Fatalf("first apply: exit %d\n%s", code, text)
 	}
 	danID, dan := person(t, r.ids, "dan")
 	ada := r.ada.AsReader().String()
 	access := filepath.Join(r.dir, ".pravo", "access")
 	writeReaders(t, access, ada, dan)
-	if text, code := runPravo(rt, t, r.dir, "protect", "rewrap", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, r.dir, "protect", "rewrap", "--yes"); code != 0 {
 		t.Fatalf("rewrap: exit %d\n%s", code, text)
 	}
 	writeReaders(t, access, ada+" role:writer", dan+" role:reader")
 
 	r.declare(t, nil, "a", "b")
-	if text, code := runPravo(rt, t, r.dir, "--identity", "ada", "apply", "--auto-approve"); code != 0 {
+	if text, code := runPravo(t, rt, r.dir, "--identity", "ada", "apply", "--auto-approve"); code != 0 {
 		t.Fatalf("a writer's apply: exit %d\n%s", code, text)
 	}
 	st := r.store(t)
@@ -332,7 +332,7 @@ func TestTheRecordsOfAWriterAreBoundToItsTransactions(t *testing.T) {
 		t.Fatalf("after a writer's apply: %+v", v)
 	}
 
-	text, code := runPravo(rt, t, r.dir, "--identity", "dan", "protect", "status")
+	text, code := runPravo(t, rt, r.dir, "--identity", "dan", "protect", "status")
 	if code != 0 || !strings.Contains(text, "Roles        on · 0 admin · 1 writer · 1 reader · from the readers file, not pinned (pravo protect roles) · you are a reader") ||
 		!strings.Contains(text, "Records      1 bound to a transaction of a writer · 1 from before roles") {
 		t.Fatalf("status: exit %d\n%s", code, text)
@@ -357,15 +357,15 @@ func TestTheRecordsOfAWriterAreBoundToItsTransactions(t *testing.T) {
 	if v = r.store(t).VerifyRecords(txns, readers); len(v.Problems) != 2 {
 		t.Fatalf("after a record that names a missing transaction: %+v", v)
 	}
-	if text, code := runPravo(rt, t, r.dir, "--identity", "ada", "state", "rm", "forged2"); code != 0 {
+	if text, code := runPravo(t, rt, r.dir, "--identity", "ada", "state", "rm", "forged2"); code != 0 {
 		t.Fatalf("state rm forged2: exit %d\n%s", code, text)
 	}
-	text, code = runPravo(rt, t, r.dir, "--identity", "ada", "protect", "status")
+	text, code = runPravo(t, rt, r.dir, "--identity", "ada", "protect", "status")
 	if code != 7 || !strings.Contains(text, "Untrusted: forged: it names no transaction that wrote it") {
 		t.Fatalf("status after a reader's write: exit %d\n%s", code, text)
 	}
 
-	if text, code := runPravo(rt, t, r.dir, "--identity", "ada", "state", "rm", "forged"); code != 0 {
+	if text, code := runPravo(t, rt, r.dir, "--identity", "ada", "state", "rm", "forged"); code != 0 {
 		t.Fatalf("state rm forged: exit %d\n%s", code, text)
 	}
 	// An apply does not build on a record that a reader sealed: dan replaces the record of a, and
@@ -380,7 +380,7 @@ func TestTheRecordsOfAWriterAreBoundToItsTransactions(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.declare(t, nil, "b")
-	text, code = runPravo(rt, t, r.dir, "--identity", "ada", "apply", "--auto-approve")
+	text, code = runPravo(t, rt, r.dir, "--identity", "ada", "apply", "--auto-approve")
 	if code != 7 || !strings.Contains(text, "that no transaction of a writer accounts for") {
 		t.Fatalf("apply over a forged record: exit %d\n%s", code, text)
 	}
@@ -389,9 +389,9 @@ func TestTheRecordsOfAWriterAreBoundToItsTransactions(t *testing.T) {
 func TestAReaderCannotReserve(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
-	text, code := runPravo(rt, t, s.dir, "--identity", "dan", "plan", "--reserve", "5m")
+	text, code := runPravo(t, rt, s.dir, "--identity", "dan", "plan", "--reserve", "5m")
 	if code != 5 || !strings.Contains(text, "a writer is needed to change the state") {
 		t.Fatalf("exit %d\n%s", code, text)
 	}
@@ -400,10 +400,10 @@ func TestAReaderCannotReserve(t *testing.T) {
 func TestAReaderMayAskWhy(t *testing.T) {
 	rt := &runContext{}
 
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
 	before := s.objects()
-	if text, code := runPravo(rt, t, s.dir, "--identity", "dan", "why", "cfg"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "dan", "why", "cfg"); code != 0 {
 		t.Fatalf("a reader's why: exit %d\n%s", code, text)
 	}
 	for k, v := range s.objects() {
@@ -419,19 +419,19 @@ func TestAReaderRunsADiscoveryWithoutWritingTheState(t *testing.T) {
 	rt := &runContext{}
 
 	newDemoProvider(t, demoObject{"srv-web-old", "web-old", "eu"})
-	s := plannableBucket(rt, t)
+	s := plannableBucket(t, rt)
 	s.readers(t, s.adaLine+" role:writer", s.danLine+" role:reader")
 	spec := "package t\n\nimport demo \"pravo.dev/providers/demo/demo\"\n\n" +
 		`$settings: state: {backend: "s3", bucket: "northwind-state", prefix: "prod", region: "eu-west-1", endpoint: "` + s.url + `", path_style: true, access_key: "test", secret_key: "test"}` + "\n" +
 		"$demo: demo.#Provider & {$path: " + fmt.Sprintf("%q", demoBinary) + "}\n" +
 		"vms: $demo.#Discovery.demo_server & {region: \"eu\"}\n"
 	mustWrite(t, s.dir, "main.cue", spec)
-	if text, code := runPravo(rt, t, s.dir, "--identity", "ada", "init"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "--identity", "ada", "init"); code != 0 {
 		t.Fatalf("init exited %d:\n%s", code, text)
 	}
 	before := s.objects()
 
-	text, code := runPravo(rt, t, s.dir, "--identity", "dan", "discover", "--exit-code")
+	text, code := runPravo(t, rt, s.dir, "--identity", "dan", "discover", "--exit-code")
 	if code != 2 {
 		t.Fatalf("a reader's discover --exit-code: exit %d, want 2\n%s", code, text)
 	}
@@ -443,12 +443,12 @@ func TestAReaderRunsADiscoveryWithoutWritingTheState(t *testing.T) {
 	}
 
 	// A writer's run is kept, and says nothing of the kind.
-	text, code = runPravo(rt, t, s.dir, "--identity", "ada", "discover")
+	text, code = runPravo(t, rt, s.dir, "--identity", "ada", "discover")
 	if code != 0 {
 		t.Fatalf("a writer's discover: exit %d\n%s", code, text)
 	}
 	lacks(t, text, "Not kept")
-	text, code = runPravo(rt, t, s.dir, "--identity", "dan", "discover", "show", "--exit-code")
+	text, code = runPravo(t, rt, s.dir, "--identity", "dan", "discover", "show", "--exit-code")
 	if code != 2 {
 		t.Fatalf("show after a writer's run: exit %d\n%s", code, text)
 	}

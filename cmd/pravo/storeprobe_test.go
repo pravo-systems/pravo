@@ -108,7 +108,7 @@ func TestProbeS3PrintsEachCheck(t *testing.T) {
 	t.Cleanup(func() { rt.out = prev })
 
 	root, _ := probeRoot(t, false)
-	if err := probeS3(rt, context.Background(), root); err != nil {
+	if err := probeS3(context.Background(), rt, root); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"create only (If-None-Match)", "ok", "concurrent creates", "honours the conditional requests"} {
@@ -122,11 +122,11 @@ func TestProbeS3PrintsEachCheck(t *testing.T) {
 
 	buf.Reset()
 	root, _ = probeRoot(t, true)
-	if err := probeS3(rt, context.Background(), root); err == nil || !strings.Contains(buf.String(), "FAILED") {
+	if err := probeS3(context.Background(), rt, root); err == nil || !strings.Contains(buf.String(), "FAILED") {
 		t.Errorf("a store that ignores a condition: error %v, output:\n%s", err, buf.String())
 	}
 	local := &config.Root{}
-	if err := probeS3(rt, context.Background(), local); err == nil {
+	if err := probeS3(context.Background(), rt, local); err == nil {
 		t.Error("a local state was probed")
 	}
 }

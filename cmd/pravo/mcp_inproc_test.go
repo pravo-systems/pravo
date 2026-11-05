@@ -46,15 +46,15 @@ func TestInprocessStateTools(t *testing.T) {
 		}
 	}
 	ctx := context.Background()
-	text, code := inprocess(rt, ctx, map[string]any{"expression": "outputs.greeting"}, byName["pravo_state_query"].run)
+	text, code := inprocess(ctx, rt, map[string]any{"expression": "outputs.greeting"}, byName["pravo_state_query"].run)
 	if code != 0 || !strings.Contains(text, "hello") {
 		t.Errorf("state query: %d %q", code, text)
 	}
-	text, code = inprocess(rt, ctx, map[string]any{"expression": "outputs.greeting +"}, byName["pravo_state_query"].run)
+	text, code = inprocess(ctx, rt, map[string]any{"expression": "outputs.greeting +"}, byName["pravo_state_query"].run)
 	if code == 0 || !strings.Contains(text, `"kind":"error"`) {
 		t.Errorf("a bad expression: %d %q", code, text)
 	}
-	text, code = inprocess(rt, ctx, map[string]any{"addr": "nothing.here"}, byName["pravo_dependents"].run)
+	text, code = inprocess(ctx, rt, map[string]any{"addr": "nothing.here"}, byName["pravo_dependents"].run)
 	if code == 0 {
 		t.Errorf("an unknown address was accepted: %q", text)
 	}

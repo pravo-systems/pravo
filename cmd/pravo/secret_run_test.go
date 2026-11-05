@@ -24,16 +24,16 @@ const (
 
 // sealedEmptyBucket is sealedBucket with a state that holds no record, so that a plan has
 // nothing to destroy.
-func sealedEmptyBucket(rt *runContext, t *testing.T) *sealed {
+func sealedEmptyBucket(t *testing.T, rt *runContext) *sealed {
 	t.Helper()
 	requireSealing(t)
-	ids := isolateIdentities(rt, t)
+	ids := isolateIdentities(t, rt)
 	e := newS3Env(t, false)
 	e.store(t)
 	ada, adaLine := person(t, ids, "ada")
 	dan, danLine := person(t, ids, "dan")
 	e.readers(t, adaLine, danLine)
-	if text, code := runPravo(rt, t, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
+	if text, code := runPravo(t, rt, e.dir, "protect", "init", "--encrypt", "--yes"); code != 0 {
 		t.Fatalf("protect init exited %d:\n%s", code, text)
 	}
 	return &sealed{e, ids, ada, dan, adaLine, danLine}
@@ -42,7 +42,7 @@ func sealedEmptyBucket(rt *runContext, t *testing.T) *sealed {
 // secretEstate writes a specification that sets up the demo provider with a secret, creates
 // a demo_account whose write-only password is another, and rotates it through the number of
 // the version. The bucket and its readers are those of s.
-func (s *sealed) secretEstate(rt *runContext, t *testing.T) {
+func (s *sealed) secretEstate(t *testing.T, rt *runContext) {
 	t.Helper()
 	bin := buildDemoProvider(t)
 	spec := "package t\n\n" +
@@ -62,7 +62,7 @@ func (s *sealed) secretEstate(rt *runContext, t *testing.T) {
 	if err := os.WriteFile(filepath.Join(s.dir, "cue.mod", "module.cue"), []byte("module: \"pravo.local/test\"\nlanguage: version: \"v0.14.0\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if text, code := runPravo(rt, t, s.dir, "init"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "init"); code != 0 {
 		t.Fatalf("init exited %d:\n%s", code, text)
 	}
 }
@@ -82,18 +82,18 @@ func receivedBy(t *testing.T, p *demoProvider) []string {
 func TestSecretsReachAProviderAndLeaveNoTrace(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedEmptyBucket(rt, t)
+	s := sealedEmptyBucket(t, rt)
 	p := newDemoProvider(t)
-	s.secretEstate(rt, t)
+	s.secretEstate(t, rt)
 
-	if text, code := s.setSecret(rt, t, tokenOne, "demo/token"); code != 0 {
+	if text, code := s.setSecret(t, rt, tokenOne, "demo/token"); code != 0 {
 		t.Fatalf("set the token: exit %d\n%s", code, text)
 	}
-	if text, code := s.setSecret(rt, t, adminOne, "demo/admin_password"); code != 0 {
+	if text, code := s.setSecret(t, rt, adminOne, "demo/admin_password"); code != 0 {
 		t.Fatalf("set the password: exit %d\n%s", code, text)
 	}
 
-	plan, code := runPravo(rt, t, s.dir, "plan")
+	plan, code := runPravo(t, rt, s.dir, "plan")
 	if code != 0 {
 		t.Fatalf("plan: exit %d\n%s", code, plan)
 	}
@@ -103,14 +103,14 @@ func TestSecretsReachAProviderAndLeaveNoTrace(t *testing.T) {
 		}
 	}
 	planFile := filepath.Join(t.TempDir(), "run.plan")
-	if text, code := runPravo(rt, t, s.dir, "plan", "-out", planFile); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "plan", "-out", planFile); code != 0 {
 		t.Fatalf("plan -out: exit %d\n%s", code, text)
 	}
 	if raw, err := os.ReadFile(planFile); err != nil || strings.Contains(string(raw), adminOne) || strings.Contains(string(raw), tokenOne) {
 		t.Errorf("the plan file holds a secret (%v)", err)
 	}
 
-	text, code := runPravo(rt, t, s.dir, "apply", "-auto-approve")
+	text, code := runPravo(t, rt, s.dir, "apply", "-auto-approve")
 	if code != 0 {
 		t.Fatalf("apply: exit %d\n%s", code, text)
 	}
@@ -149,28 +149,28 @@ func TestSecretsReachAProviderAndLeaveNoTrace(t *testing.T) {
 		}
 	}
 	// The record of the secret's use is the transaction of the apply, which names no value.
-	if text, code := runPravo(rt, t, s.dir, "state", "log"); code != 0 || strings.Contains(text, adminOne) || strings.Contains(text, tokenOne) {
+	if text, code := runPravo(t, rt, s.dir, "state", "log"); code != 0 || strings.Contains(text, adminOne) || strings.Contains(text, tokenOne) {
 		t.Errorf("state log: exit %d\n%s", code, text)
 	}
 
 	// Nothing changed, nothing to do.
-	if text, code := runPravo(rt, t, s.dir, "plan", "-detailed-exitcode"); code != 0 {
+	if text, code := runPravo(t, rt, s.dir, "plan", "-detailed-exitcode"); code != 0 {
 		t.Fatalf("a plan with no new version: exit %d\n%s", code, text)
 	}
 
 	// Setting the password again is a new version, the resource that holds its number
 	// changes, and the provider reads the new password.
-	if text, code := s.setSecret(rt, t, adminTwo, "demo/admin_password", "--note", "rotated"); code != 0 {
+	if text, code := s.setSecret(t, rt, adminTwo, "demo/admin_password", "--note", "rotated"); code != 0 {
 		t.Fatalf("set the password again: exit %d\n%s", code, text)
 	}
-	plan, code = runPravo(rt, t, s.dir, "plan", "-detailed-exitcode")
+	plan, code = runPravo(t, rt, s.dir, "plan", "-detailed-exitcode")
 	if code != 2 || !strings.Contains(plan, "password_version") {
 		t.Fatalf("a plan with a new version: exit %d\n%s", code, plan)
 	}
 	if strings.Contains(plan, adminTwo) {
 		t.Errorf("the plan shows the new password:\n%s", plan)
 	}
-	if text, code := runPravo(rt, t, s.dir, "apply", "-auto-approve"); code != 0 || strings.Contains(text, adminTwo) {
+	if text, code := runPravo(t, rt, s.dir, "apply", "-auto-approve"); code != 0 || strings.Contains(text, adminTwo) {
 		t.Fatalf("apply the rotation: exit %d\n%s", code, text)
 	}
 	got = strings.Join(receivedBy(t, p), "\n")
@@ -181,7 +181,7 @@ func TestSecretsReachAProviderAndLeaveNoTrace(t *testing.T) {
 		t.Errorf("the bucket holds the rotated password")
 	}
 	// The history of the secret is there for whoever asks, with no value.
-	text, code = runPravo(rt, t, s.dir, "secret", "history", "demo/admin_password")
+	text, code = runPravo(t, rt, s.dir, "secret", "history", "demo/admin_password")
 	if code != 0 || !strings.Contains(text, "v2") || !strings.Contains(text, "rotated") || strings.Contains(text, adminTwo) {
 		t.Errorf("history: exit %d\n%s", code, text)
 	}
@@ -192,10 +192,10 @@ func TestSecretsReachAProviderAndLeaveNoTrace(t *testing.T) {
 func TestRunWithoutItsSecretStopsAndSaysHow(t *testing.T) {
 	rt := &runContext{}
 
-	s := sealedEmptyBucket(rt, t)
+	s := sealedEmptyBucket(t, rt)
 	p := newDemoProvider(t)
-	s.secretEstate(rt, t)
-	text, code := runPravo(rt, t, s.dir, "apply", "-auto-approve")
+	s.secretEstate(t, rt)
+	text, code := runPravo(t, rt, s.dir, "apply", "-auto-approve")
 	if code == 0 {
 		t.Fatalf("an apply with no secrets succeeded:\n%s", text)
 	}
