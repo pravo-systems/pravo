@@ -79,11 +79,7 @@ func loadRoot() (*config.Root, error) {
 // setupSpan starts the span of a stage of readying a command, under the
 // command's span.
 func setupSpan(name string, attrs ...attribute.KeyValue) (context.Context, func(error)) {
-	ctx := context.Background()
-	if runningCommand != nil && runningCommand.Context() != nil {
-		ctx = runningCommand.Context()
-	}
-	return telemetry.Span(ctx, "setup "+name, attrs...)
+	return telemetry.Span(commandContext(), "setup "+name, attrs...)
 }
 
 func newSession(ctx context.Context, opts sessionOptions) (*session, error) {
