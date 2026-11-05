@@ -151,6 +151,7 @@ class Ctx:
         s = re.sub(r'(\bid:\s+")\d{15,}"', r'\1<num>"', s)
         s = re.sub(r"x25519:[A-Za-z0-9_-]{20,}", "x25519:<key>", s)
         s = re.sub(r"\bon [A-Za-z0-9._-]+ since", "on <host> since", s)
+        s = re.sub(r"\bon host [A-Za-z0-9._-]+\)", "on host <host>)", s)
         s = re.sub(r"\b\d+(\.\d+)?s ago\b", "<ago>", s)
         s = re.sub(r"\b\d+(\.\d+)?(ms|s)\b$", "<dur>", s, flags=re.M)
         return s.strip()
@@ -623,7 +624,8 @@ def case_stored_plan(c):
         wrote = os.path.exists(os.path.join(d2, "out", "f.txt"))
         c.obs(f"apply-{name}.rc_nonzero", r.rc != 0)
         c.obs(f"apply-{name}.wrote", wrote)
-        c.obs(f"apply-{name}.msg", c.lines(r.all)[:3])
+        if name != "flipped":  # which byte breaks which parser is not a fact about the system
+            c.obs(f"apply-{name}.msg", c.lines(r.all)[:3])
         if name == "crlf":
             c.check(r.rc == 0 or not wrote, "a plan file with CRLF failed halfway")
         else:
@@ -816,6 +818,43 @@ def case_serve(c):
     c.check(free, "the viewer's port still answers after the interrupt")
 
 
+def case_examples(c):
+    """The examples of this repository, as the system checked them out (CRLF on a Windows checkout), with the lock
+    file that was made on another system."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    ex = os.path.normpath(os.path.join(here, "..", "..", "examples"))
+    if not os.path.isdir(ex):
+        raise Skip("no examples directory next to the suite")
+    for name in sorted(os.listdir(ex)):
+        src = os.path.join(ex, name)
+        if not os.path.exists(os.path.join(src, "main.cue")):
+            continue
+        d = os.path.join(c.root, "ex-" + name)
+        shutil.copytree(src, d)
+        lock0 = read(os.path.join(d, "pravo.lock.cue")).decode() if os.path.exists(os.path.join(d, "pravo.lock.cue")) else ""
+        c.obs(f"{name}.crlf_in_checkout", b"\r\n" in read(os.path.join(d, "main.cue")), local=True)
+        r = c.run(["fmt", "--check"], cwd=d)
+        c.obs(f"{name}.fmt_check.rc", r.rc)
+        c.check(r.rc == 0, f"{name}: fmt --check on the checked out files: exit {r.rc}: {c.norm(r.all)[:200]}")
+        r = c.run(["init"], cwd=d, timeout=600)
+        c.obs(f"{name}.init.rc", r.rc)
+        if not c.expect(r, 0, f"{name}: init"):
+            continue
+        lock1 = read(os.path.join(d, "pravo.lock.cue")).decode()
+        have = sorted(set(re.findall(r'"((?:binary:)?[a-z0-9]+_[a-z0-9]+)":', lock1)))
+        goos = SYSTEM
+        c.check(any(k.startswith(f"binary:{goos}_") for k in have), f"{name}: the lock file after init has no binary hash for {goos}")
+        old = sorted(set(re.findall(r'"((?:binary:)?[a-z0-9]+_[a-z0-9]+)":', lock0)))
+        c.check(set(old) <= set(have), f"{name}: init dropped hashes of other systems from the lock file: {sorted(set(old) - set(have))}")
+        r = c.run(["validate"], cwd=d)
+        c.obs(f"{name}.validate.rc", r.rc)
+        c.expect(r, 0, f"{name}: validate")
+        r = c.run(["plan", "--detailed-exitcode"], cwd=d)
+        c.obs(f"{name}.plan.rc", r.rc)
+        c.obs(f"{name}.plan.summary", [l for l in c.lines(r.out) if l.startswith(("Plan:", "No changes"))])
+        c.check(r.rc in (0, 2), f"{name}: plan exits {r.rc}: {c.norm(r.all)[:200]}")
+
+
 def case_json_exitcodes(c):
     """The numbers and the shapes that CI depends on."""
     d = c.new("machine", LIFE)
@@ -862,7 +901,7 @@ def case_json_exitcodes(c):
 CASES = [
     ("init", case_init), ("lifecycle", case_lifecycle), ("crlf", case_crlf), ("names", case_names), ("paths", case_paths),
     ("split", case_split_files), ("locks", case_locks), ("interrupt", case_interrupt), ("plans", case_stored_plan),
-    ("seal", case_identity), ("serve", case_serve), ("machine", case_json_exitcodes),
+    ("seal", case_identity), ("serve", case_serve), ("machine", case_json_exitcodes), ("examples", case_examples),
 ]
 
 
@@ -938,8 +977,8 @@ def main():
         for k, v_ in r["cases"].items():
             statuses.setdefault(k, []).append(v_["status"])
     doc = {"system": a.label, "version": v, "python": sys.version.split()[0], "runs": runs, "flakes": flakes, "statuses": statuses}
-    with open(os.path.join(out, "results.json"), "w") as fh:
-        json.dump(doc, fh, indent=1, sort_keys=True, ensure_ascii=False)
+    with open(os.path.join(out, "results.json"), "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, indent=1, sort_keys=True, ensure_ascii=True)
     print()
     for k, v_ in statuses.items():
         print(f"{k:10} " + " ".join(s[0] for s in v_))

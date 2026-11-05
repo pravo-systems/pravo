@@ -51,7 +51,7 @@ jobs:
           LABEL: ${{ runner.os }}
         run: |
           exe=bin/pravo; [ "$RUNNER_OS" = Windows ] && exe=bin/pravo.exe
-          python tools/xplat/xplat.py --pravo "$exe" --out "out/$LABEL" --label "$LABEL" --repeat "$REPEAT" --only "$ONLY" | tee "out-$LABEL.txt"
+          python -X utf8 tools/xplat/xplat.py --pravo "$exe" --out "out/$LABEL" --label "$LABEL" --repeat "$REPEAT" --only "$ONLY" | tee "out-$LABEL.txt"
       - if: always()
         uses: actions/upload-artifact@v5
         with:
@@ -69,6 +69,7 @@ jobs:
           path: results
       - name: Compare
         run: |
+          set -o pipefail
           ls -R results
           python3 tools/xplat/compare.py Linux=results/xplat-Linux/results.json macOS=results/xplat-macOS/results.json Windows=results/xplat-Windows/results.json | tee compare.txt
           { echo '```'; cat compare.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

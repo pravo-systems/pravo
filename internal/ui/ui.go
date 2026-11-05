@@ -29,6 +29,10 @@ import (
 type Printer struct {
 	Out   io.Writer
 	Color bool
+	// Warnings, when set, receives Warning instead of Out. A command whose standard
+	// output is its answer (a secret, a value, a schema) sets it, so that a warning
+	// never lands in the middle of what a script captures.
+	Warnings io.Writer
 }
 
 // NewPrinter detects whether colour should be used for w. noColor turns it off:
@@ -76,7 +80,11 @@ func (p *Printer) Error(err error) {
 
 // Warning prints a warning message.
 func (p *Printer) Warning(msg string) {
-	fmt.Fprintf(p.Out, "%s %s\n", p.C(Yellow+Bold, "Warning:"), msg)
+	w := p.Out
+	if p.Warnings != nil {
+		w = p.Warnings
+	}
+	fmt.Fprintf(w, "%s %s\n", p.C(Yellow+Bold, "Warning:"), msg)
 }
 
 func actionSymbol(a engine.Action) (sym, color string) {
