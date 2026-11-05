@@ -148,120 +148,16 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 	}
 	switch ch.Action {
 	case ActionCreate, ActionUpdate:
-		verb, done := "Creating", "Creation"
-		if ch.Action == ActionUpdate {
-			verb, done = "Modifying", "Modifications"
-		}
-		e.step(string(ch.Action), ch.Addr, "start", idOf(ch, ch.Prior), time.Time{}, "%s: %s... %s", ch.Addr, verb, idSuffix(ch, ch.Prior))
-		// A create over a record (the object it records is gone) is noted like the
-		// creation of a replacement: the lock cannot carry the mark, because a plan
-		// reclaims the stale lock of a node that has a record.
-		noted := false
-		if ch.Action == ActionCreate {
-			if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
-				if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), rec.AppliedAt, true, e.txnID(), e.Opts.Command); err != nil {
-					return tftypes.Value{}, fmt.Errorf("%s: noting the create: %w", ch.Addr, err)
-				}
-				noted = true
-			}
-		}
-		res, err := e.applyChange(ctx, prov, ch, ch.Prior, ch.Planned, ch.Config, ch.PlannedPrivate)
-		if err != nil {
-			// A create that failed with nothing in doubt leaves no note.
-			if noted && !e.isUnsettled(ch.Addr) {
-				_ = e.State.ClearPendingCreate(ch.Addr)
-			}
+		if final, private, err = e.applyCreateUpdate(ctx, prov, ch, start); err != nil {
 			return tftypes.Value{}, err
 		}
-		final, private = res.NewState, res.Private
-		what := "creation"
-		if ch.Action == ActionUpdate {
-			what = "update"
-		}
-		if err := e.recordApplied(ch, what, final, private, string(ch.Action)); err != nil {
-			return tftypes.Value{}, err
-		}
-		if noted {
-			_ = e.State.ClearPendingCreate(ch.Addr)
-		}
-		e.step(string(ch.Action), ch.Addr, "done", idOf(ch, final), start, "%s: %s complete after %s %s", ch.Addr, done, since(start), idSuffix(ch, final))
 	case ActionReplace:
-		nullV := tftypes.NewValue(ch.Schema.Block.Type(), nil)
+		replace := e.replaceInPlace
 		if ch.CreateBeforeDestroy {
-			e.Opts.Progress("%s: Creating replacement...", ch.Addr)
-			// The record keeps the old object until the replacement is recorded. A note that
-			// outlives a command that stops is what keeps the next apply from creating the
-			// replacement again (the lock does not: a plan reclaims it).
-			noted := false
-			var oldRec *state.Resource
-			if rec := e.State.Get(ch.Addr); rec != nil {
-				cp := *rec
-				oldRec = &cp
-			}
-			if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
-				if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), rec.AppliedAt, ch.Action == ActionCreate, e.txnID(), e.Opts.Command); err != nil {
-					return tftypes.Value{}, fmt.Errorf("%s: noting the replacement: %w", ch.Addr, err)
-				}
-				noted = true
-			}
-			// The old object is kept in the state under an address of its own until its
-			// destroy has finished, so that an apply that stops or fails from here on does
-			// not forget it, whether the create is killed, fails with a state of the new
-			// object (which is recorded over the node's record) or succeeds: a plan lists
-			// the record as one to destroy, and the next apply retries. While the node's
-			// record still holds the old object the plan takes the two records for one
-			// object, and the note refuses a second create.
-			deposed := e.depose(ch.Addr, oldRec)
-			res, err := e.applyChange(ctx, prov, ch, nullV, ch.PlannedCreate, ch.Config, ch.CreatePrivate)
-			if err != nil {
-				// A create that failed with nothing in doubt leaves no note and, when the
-				// node's record still names the old object, no second record of it.
-				if !e.isUnsettled(ch.Addr) {
-					if rec := e.State.Get(ch.Addr); oldRec != nil && rec != nil && rec.ID() == oldRec.ID() && sameApplied(rec, oldRec) {
-						e.undepose(deposed)
-					}
-					if noted {
-						_ = e.State.ClearPendingCreate(ch.Addr)
-					}
-				}
-				return tftypes.Value{}, err
-			}
-			final, private = res.NewState, res.Private
-			if err := e.recordApplied(ch, "creation", final, private, "replace"); err != nil {
-				return tftypes.Value{}, err
-			}
-			if noted {
-				_ = e.State.ClearPendingCreate(ch.Addr)
-			}
-			// The destroy waits for the end of the walk: what depends on this node is updated
-			// first, so that nothing points at the old object when it goes. The closures run
-			// in reverse order of registration, which puts dependents before what they use.
-			e.deferDestroy(ch, func(ctx context.Context) error {
-				e.Opts.Progress("%s: Destroying previous instance... %s", ch.Addr, idSuffix(ch, ch.Prior))
-				if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
-					if deposed != "" {
-						err = fmt.Errorf("%w; the previous instance (id %s) is kept in the state as %s, and the next apply destroys it", err, oldRec.ID(), deposed)
-					}
-					return err
-				}
-				e.undepose(deposed)
-				return nil
-			})
-		} else {
-			if !ch.predestroyed {
-				if err := e.destroyOld(ctx, prov, ch); err != nil {
-					return tftypes.Value{}, err
-				}
-			}
-			e.Opts.Progress("%s: Creating replacement...", ch.Addr)
-			res, err := e.applyChange(ctx, prov, ch, nullV, ch.PlannedCreate, ch.Config, ch.CreatePrivate)
-			if err != nil {
-				return tftypes.Value{}, err
-			}
-			final, private = res.NewState, res.Private
-			if err := e.recordApplied(ch, "creation", final, private, "replace"); err != nil {
-				return tftypes.Value{}, err
-			}
+			replace = e.replaceCreateFirst
+		}
+		if final, private, err = replace(ctx, prov, ch); err != nil {
+			return tftypes.Value{}, err
 		}
 		e.step("replace", ch.Addr, "done", idOf(ch, final), start, "%s: Replacement complete after %s %s", ch.Addr, since(start), idSuffix(ch, final))
 	default:
@@ -269,6 +165,137 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 	}
 	e.complete(ch.Addr)
 	return final, nil
+}
+
+// applyCreateUpdate creates or updates the resource of a change and records what the
+// provider returned.
+func (e *Engine) applyCreateUpdate(ctx context.Context, prov plugin.Provider, ch *Change, start time.Time) (final tftypes.Value, private []byte, err error) {
+	verb, done := "Creating", "Creation"
+	if ch.Action == ActionUpdate {
+		verb, done = "Modifying", "Modifications"
+	}
+	e.step(string(ch.Action), ch.Addr, "start", idOf(ch, ch.Prior), time.Time{}, "%s: %s... %s", ch.Addr, verb, idSuffix(ch, ch.Prior))
+	// A create over a record (the object it records is gone) is noted like the
+	// creation of a replacement: the lock cannot carry the mark, because a plan
+	// reclaims the stale lock of a node that has a record.
+	noted := false
+	if ch.Action == ActionCreate {
+		if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
+			if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), rec.AppliedAt, true, e.txnID(), e.Opts.Command); err != nil {
+				return tftypes.Value{}, nil, fmt.Errorf("%s: noting the create: %w", ch.Addr, err)
+			}
+			noted = true
+		}
+	}
+	res, err := e.applyChange(ctx, prov, ch, ch.Prior, ch.Planned, ch.Config, ch.PlannedPrivate)
+	if err != nil {
+		// A create that failed with nothing in doubt leaves no note.
+		if noted && !e.isUnsettled(ch.Addr) {
+			_ = e.State.ClearPendingCreate(ch.Addr)
+		}
+		return tftypes.Value{}, nil, err
+	}
+	final, private = res.NewState, res.Private
+	what := "creation"
+	if ch.Action == ActionUpdate {
+		what = "update"
+	}
+	if err := e.recordApplied(ch, what, final, private, string(ch.Action)); err != nil {
+		return tftypes.Value{}, nil, err
+	}
+	if noted {
+		_ = e.State.ClearPendingCreate(ch.Addr)
+	}
+	e.step(string(ch.Action), ch.Addr, "done", idOf(ch, final), start, "%s: %s complete after %s %s", ch.Addr, done, since(start), idSuffix(ch, final))
+	return final, private, nil
+}
+
+// replaceCreateFirst replaces a resource that is create_before_destroy: the
+// replacement is created now, and the destroy of the old object waits for the end of
+// the walk.
+func (e *Engine) replaceCreateFirst(ctx context.Context, prov plugin.Provider, ch *Change) (final tftypes.Value, private []byte, err error) {
+	nullV := tftypes.NewValue(ch.Schema.Block.Type(), nil)
+	e.Opts.Progress("%s: Creating replacement...", ch.Addr)
+	// The record keeps the old object until the replacement is recorded. A note that
+	// outlives a command that stops is what keeps the next apply from creating the
+	// replacement again (the lock does not: a plan reclaims it).
+	noted := false
+	var oldRec *state.Resource
+	if rec := e.State.Get(ch.Addr); rec != nil {
+		cp := *rec
+		oldRec = &cp
+	}
+	if rec := e.State.Get(ch.Addr); rec != nil && rec.ID() != "" {
+		if err := e.State.NotePendingCreate(ch.Addr, rec.ID(), rec.AppliedAt, ch.Action == ActionCreate, e.txnID(), e.Opts.Command); err != nil {
+			return tftypes.Value{}, nil, fmt.Errorf("%s: noting the replacement: %w", ch.Addr, err)
+		}
+		noted = true
+	}
+	// The old object is kept in the state under an address of its own until its
+	// destroy has finished, so that an apply that stops or fails from here on does
+	// not forget it, whether the create is killed, fails with a state of the new
+	// object (which is recorded over the node's record) or succeeds: a plan lists
+	// the record as one to destroy, and the next apply retries. While the node's
+	// record still holds the old object the plan takes the two records for one
+	// object, and the note refuses a second create.
+	deposed := e.depose(ch.Addr, oldRec)
+	res, err := e.applyChange(ctx, prov, ch, nullV, ch.PlannedCreate, ch.Config, ch.CreatePrivate)
+	if err != nil {
+		// A create that failed with nothing in doubt leaves no note and, when the
+		// node's record still names the old object, no second record of it.
+		if !e.isUnsettled(ch.Addr) {
+			if rec := e.State.Get(ch.Addr); oldRec != nil && rec != nil && rec.ID() == oldRec.ID() && sameApplied(rec, oldRec) {
+				e.undepose(deposed)
+			}
+			if noted {
+				_ = e.State.ClearPendingCreate(ch.Addr)
+			}
+		}
+		return tftypes.Value{}, nil, err
+	}
+	final, private = res.NewState, res.Private
+	if err := e.recordApplied(ch, "creation", final, private, "replace"); err != nil {
+		return tftypes.Value{}, nil, err
+	}
+	if noted {
+		_ = e.State.ClearPendingCreate(ch.Addr)
+	}
+	// The destroy waits for the end of the walk: what depends on this node is updated
+	// first, so that nothing points at the old object when it goes. The closures run
+	// in reverse order of registration, which puts dependents before what they use.
+	e.deferDestroy(ch, func(ctx context.Context) error {
+		e.Opts.Progress("%s: Destroying previous instance... %s", ch.Addr, idSuffix(ch, ch.Prior))
+		if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
+			if deposed != "" {
+				err = fmt.Errorf("%w; the previous instance (id %s) is kept in the state as %s, and the next apply destroys it", err, oldRec.ID(), deposed)
+			}
+			return err
+		}
+		e.undepose(deposed)
+		return nil
+	})
+	return final, private, nil
+}
+
+// replaceInPlace replaces a resource by destroying the old object and then creating
+// the replacement.
+func (e *Engine) replaceInPlace(ctx context.Context, prov plugin.Provider, ch *Change) (final tftypes.Value, private []byte, err error) {
+	nullV := tftypes.NewValue(ch.Schema.Block.Type(), nil)
+	if !ch.predestroyed {
+		if err := e.destroyOld(ctx, prov, ch); err != nil {
+			return tftypes.Value{}, nil, err
+		}
+	}
+	e.Opts.Progress("%s: Creating replacement...", ch.Addr)
+	res, err := e.applyChange(ctx, prov, ch, nullV, ch.PlannedCreate, ch.Config, ch.CreatePrivate)
+	if err != nil {
+		return tftypes.Value{}, nil, err
+	}
+	final, private = res.NewState, res.Private
+	if err := e.recordApplied(ch, "creation", final, private, "replace"); err != nil {
+		return tftypes.Value{}, nil, err
+	}
+	return final, private, nil
 }
 
 func (e *Engine) applyChange(ctx context.Context, prov plugin.Provider, ch *Change, prior, planned, cfg tftypes.Value, private []byte) (*plugin.ApplyResult, error) {
@@ -543,50 +570,12 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	if e.Opts.Destroy {
 		kind = "destroy"
 	}
-	if e.Opts.Destroy {
-		if err := e.checkPreventDestroy(); err != nil {
-			return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
+	sc, admitted, early, err := e.applyGate(ctx, plan)
+	if early != nil || err != nil {
+		if early == nil {
+			early = emptyApplyResult()
 		}
-	}
-	// The state must serve the environment of the run, and an environment that follows
-	// another takes only a release that was promoted into it.
-	admitted, note, err := e.admit(ctx, plan)
-	if err != nil {
-		return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
-	}
-	var sc *applyScope
-	if !e.Opts.Destroy {
-		var err error
-		if sc, err = e.scopeFor(plan); err != nil {
-			return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
-		}
-		if e.adjustScope != nil {
-			e.adjustScope(sc)
-		}
-		if plan.NeedsApply() {
-			if err := e.preflightRecord(ctx); err != nil {
-				return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
-			}
-			if err := e.preflightPolicies(plan); err != nil {
-				return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
-			}
-		}
-		if !plan.NeedsApply() {
-			// Nothing to write and no output to record or remove: no lock, no record, no
-			// transaction. A state of an environment notes that it runs this release, unless
-			// the release was not promoted into it.
-			if !plan.Partial && note {
-				// The note writes the record with the pin of the roles, which a key that may
-				// not put meta.json cannot: that is the same refusal as for a changing apply.
-				if err := e.preflightRecord(ctx); err != nil {
-					return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
-				}
-				if err := e.noteRun(ctx, admitted, "", plan.DeferredCount()); err != nil {
-					return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
-				}
-			}
-			return &ApplyResult{Outputs: map[string]json.RawMessage{}, Deferred: plan.DeferredCount()}, nil
-		}
+		return early, err
 	}
 	if err := e.checkInterruptedCreates(plan); err != nil {
 		return &ApplyResult{Outputs: map[string]json.RawMessage{}}, err
@@ -607,53 +596,12 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		e.finishError("failed", err, true)
 		return result, err
 	}
-	// What the specification declares about the state is written first: the plan staged it.
-	if !e.Opts.Destroy {
-		_, done := e.phase(ctx, "commit moves")
-		err := e.commitMoves(plan)
-		done(err)
-		if err != nil {
-			e.finishError("rejected", err, true)
-			return result, err
-		}
-	}
-	lockStart := time.Now()
-	_, done := e.phase(ctx, "lock")
-	held, err := e.lockAll(plan)
-	done(err)
+	held, policies, err := e.takeApplyLocks(ctx, plan, sc)
 	if err != nil {
-		e.finishError("rejected", err, true)
 		return result, err
 	}
 	defer held.release()
 	locked := len(held.held())
-	telemetry.LockWait(ctx, time.Since(lockStart), locked)
-	plog.Debug(ctx, fmt.Sprintf("locked %d resources", locked))
-	// With the locks held, the records are read from the backend again: a node
-	// that another process wrote after the plan was made is not applied over.
-	_, done = e.phase(ctx, "check revisions")
-	err = e.checkRevisions(plan, sc.inputsOf(plan))
-	done(err)
-	if err != nil {
-		e.finishError("rejected", err, true)
-		return result, err
-	}
-	// With roles, an apply does not build on a record that no transaction of a writer
-	// accounts for: someone who holds the data key sealed it.
-	if err := e.checkBound(held.held()); err != nil {
-		e.finishError("rejected", err, true)
-		return result, err
-	}
-	// The policies in force judge the resource changes of the whole plan file before
-	// the start is signed, which lists the versions that judged.
-	var policies *state.PolicySet
-	if locked > 0 || len(plan.Policies) > 0 {
-		var err error
-		if policies, err = e.judgeApply(ctx, plan, locked > 0); err != nil {
-			e.finishError("rejected", err, true)
-			return result, err
-		}
-	}
 	if locked > 0 || e.txn.Started() {
 		// An apply that is killed from here on leaves a transaction that is still
 		// running, and locks that go stale. One that started for the moves it committed
@@ -674,31 +622,8 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	// started again, and configured with the values the apply fills in.
 	e.Providers.DropPartial()
 	if !e.Opts.Destroy {
-		defer e.approve(plan)()
-		e.scope = sc
-		defer func() { e.scope = nil }()
-		e.resetRun(true)
-		e.mu.Lock()
-		e.applyPlan = plan
-		e.mu.Unlock()
-		defer func() { e.mu.Lock(); e.applyPlan = nil; e.mu.Unlock() }()
-		if err := e.destroyReplaced(ctx, plan); err != nil {
-			return fail(err)
-		}
-		actx, done := e.phase(ctx, "apply changes", attribute.Int("pravo.tasks", len(plan.Changes)))
-		final, err := e.run(actx, true)
-		done(err)
-		if err != nil {
-			return fail(err)
-		}
-		e.tally(result)
-		if plan.DeferredCount() > 0 {
-			// A change that waits for a value of this apply still points at the old
-			// instances: they stay as deposed records, and the plan that follows destroys them
-			// after the deferred changes were applied.
-			result.Destroyed -= e.holdDeferredDestroys()
-		}
-		if err := e.evalOutputs(final, plan, result); err != nil {
+		defer e.enterApply(plan, sc)()
+		if err := e.applyWalk(ctx, plan, result); err != nil {
 			return fail(err)
 		}
 	}
@@ -726,28 +651,13 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	if err != nil {
 		return fail(err)
 	}
-	for name, raw := range result.Outputs {
-		if prev, ok := baseline[name]; !ok || !jsonEqual(prev, raw) {
-			result.ChangedOutputs = append(result.ChangedOutputs, name)
-		}
-	}
-	sort.Strings(result.ChangedOutputs)
+	result.ChangedOutputs = changedOutputs(baseline, result.Outputs)
 	// The versions of the policies come last, from the stage that leaves no resource change
 	// unapplied.
 	if len(plan.Policies) > 0 && !plan.Partial {
-		if err := e.writePolicies(ctx, policies, plan); err != nil {
+		if err := e.commitPolicies(ctx, policies, plan, result); err != nil {
 			return fail(err)
 		}
-		var written []string
-		for _, en := range plan.Policies {
-			result.Policies = append(result.Policies, PolicyWritten{Name: en.Name, Seq: en.Base + 1, Change: en.Kind()})
-			digest := en.Digest
-			if en.removal() {
-				digest = state.TextDigest("")
-			}
-			written = append(written, fmt.Sprintf("%s@%d:%s", en.Name, en.Base+1, digest))
-		}
-		e.txn.SetPolicyWrites(written)
 	}
 	result.Applied = e.completedAddrs()
 	summary := fmt.Sprintf("%d added, %d changed, %d destroyed", result.Added, result.Changed, result.Destroyed)
@@ -762,6 +672,190 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 		}
 	}
 	return result, nil
+}
+
+// takeApplyLocks commits what the specification declares about the state, locks the
+// resources the plan writes and checks, under the locks, that nothing the plan builds
+// on has changed and that the policies in force allow it. A failure ends the
+// transaction as rejected; the locks of a failed attempt are released.
+func (e *Engine) takeApplyLocks(ctx context.Context, plan *Plan, sc *applyScope) (held *heldLocks, policies *state.PolicySet, err error) {
+	reject := func(err error) (*heldLocks, *state.PolicySet, error) {
+		e.finishError("rejected", err, true)
+		if held != nil {
+			held.release()
+		}
+		return nil, nil, err
+	}
+	// What the specification declares about the state is written first: the plan staged it.
+	if !e.Opts.Destroy {
+		_, done := e.phase(ctx, "commit moves")
+		err := e.commitMoves(plan)
+		done(err)
+		if err != nil {
+			return reject(err)
+		}
+	}
+	lockStart := time.Now()
+	_, done := e.phase(ctx, "lock")
+	held, err = e.lockAll(plan)
+	done(err)
+	if err != nil {
+		held = nil // nothing was kept, and nothing is released
+		return reject(err)
+	}
+	locked := len(held.held())
+	telemetry.LockWait(ctx, time.Since(lockStart), locked)
+	plog.Debug(ctx, fmt.Sprintf("locked %d resources", locked))
+	// With the locks held, the records are read from the backend again: a node
+	// that another process wrote after the plan was made is not applied over.
+	_, done = e.phase(ctx, "check revisions")
+	err = e.checkRevisions(plan, sc.inputsOf(plan))
+	done(err)
+	if err != nil {
+		return reject(err)
+	}
+	// With roles, an apply does not build on a record that no transaction of a writer
+	// accounts for: someone who holds the data key sealed it.
+	if err := e.checkBound(held.held()); err != nil {
+		return reject(err)
+	}
+	// The policies in force judge the resource changes of the whole plan file before
+	// the start is signed, which lists the versions that judged.
+	if locked > 0 || len(plan.Policies) > 0 {
+		if policies, err = e.judgeApply(ctx, plan, locked > 0); err != nil {
+			return reject(err)
+		}
+	}
+	return held, policies, nil
+}
+
+// emptyApplyResult is the result of an apply that stopped before it changed anything.
+func emptyApplyResult() *ApplyResult {
+	return &ApplyResult{Outputs: map[string]json.RawMessage{}}
+}
+
+// applyGate is the part of an apply that comes before it takes a lock or opens a
+// transaction. When early is not nil the apply ends there without writing a resource:
+// the plan has nothing to apply.
+func (e *Engine) applyGate(ctx context.Context, plan *Plan) (sc *applyScope, admitted *state.Admission, early *ApplyResult, err error) {
+	if e.Opts.Destroy {
+		if err := e.checkPreventDestroy(); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	// The state must serve the environment of the run, and an environment that follows
+	// another takes only a release that was promoted into it.
+	admitted, note, err := e.admit(ctx, plan)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if e.Opts.Destroy {
+		return nil, admitted, nil, nil
+	}
+	if sc, err = e.scopeFor(plan); err != nil {
+		return nil, nil, nil, err
+	}
+	if e.adjustScope != nil {
+		e.adjustScope(sc)
+	}
+	if plan.NeedsApply() {
+		if err := e.preflightRecord(ctx); err != nil {
+			return nil, nil, nil, err
+		}
+		if err := e.preflightPolicies(plan); err != nil {
+			return nil, nil, nil, err
+		}
+		return sc, admitted, nil, nil
+	}
+	// Nothing to write and no output to record or remove: no lock, no record, no
+	// transaction. A state of an environment notes that it runs this release, unless
+	// the release was not promoted into it.
+	if !plan.Partial && note {
+		// The note writes the record with the pin of the roles, which a key that may
+		// not put meta.json cannot: that is the same refusal as for a changing apply.
+		if err := e.preflightRecord(ctx); err != nil {
+			return nil, nil, nil, err
+		}
+		if err := e.noteRun(ctx, admitted, "", plan.DeferredCount()); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	early = emptyApplyResult()
+	early.Deferred = plan.DeferredCount()
+	return nil, admitted, early, nil
+}
+
+// enterApply puts the engine in the state of an apply of a plan: the plan approved,
+// the scope set, the run reset. The function it returns undoes that, and the apply
+// defers it.
+func (e *Engine) enterApply(plan *Plan, sc *applyScope) func() {
+	unapprove := e.approve(plan)
+	e.scope = sc
+	e.resetRun(true)
+	e.mu.Lock()
+	e.applyPlan = plan
+	e.mu.Unlock()
+	return func() {
+		e.mu.Lock()
+		e.applyPlan = nil
+		e.mu.Unlock()
+		e.scope = nil
+		unapprove()
+	}
+}
+
+// applyWalk applies the changes of the plan: the replaced resources are destroyed
+// first, then the graph is walked, and the outputs are evaluated.
+func (e *Engine) applyWalk(ctx context.Context, plan *Plan, result *ApplyResult) error {
+	if err := e.destroyReplaced(ctx, plan); err != nil {
+		return err
+	}
+	actx, done := e.phase(ctx, "apply changes", attribute.Int("pravo.tasks", len(plan.Changes)))
+	final, err := e.run(actx, true)
+	done(err)
+	if err != nil {
+		return err
+	}
+	e.tally(result)
+	if plan.DeferredCount() > 0 {
+		// A change that waits for a value of this apply still points at the old
+		// instances: they stay as deposed records, and the plan that follows destroys them
+		// after the deferred changes were applied.
+		result.Destroyed -= e.holdDeferredDestroys()
+	}
+	return e.evalOutputs(final, plan, result)
+}
+
+// changedOutputs are the names of the outputs that the apply recorded with a value
+// other than the one they had when it began, sorted.
+func changedOutputs(baseline, now map[string]json.RawMessage) []string {
+	var names []string
+	for name, raw := range now {
+		if prev, ok := baseline[name]; !ok || !jsonEqual(prev, raw) {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// commitPolicies writes the new versions of the policies of the plan and tells the
+// transaction which it wrote.
+func (e *Engine) commitPolicies(ctx context.Context, policies *state.PolicySet, plan *Plan, result *ApplyResult) error {
+	if err := e.writePolicies(ctx, policies, plan); err != nil {
+		return err
+	}
+	var written []string
+	for _, en := range plan.Policies {
+		result.Policies = append(result.Policies, PolicyWritten{Name: en.Name, Seq: en.Base + 1, Change: en.Kind()})
+		digest := en.Digest
+		if en.removal() {
+			digest = state.TextDigest("")
+		}
+		written = append(written, fmt.Sprintf("%s@%d:%s", en.Name, en.Base+1, digest))
+	}
+	e.txn.SetPolicyWrites(written)
+	return nil
 }
 
 // tally counts the changes this apply made.
