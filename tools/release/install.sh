@@ -9,7 +9,8 @@
 # of the releases is named by PRAVO_DOWNLOAD_BASE, with a directory for each tag
 # below it. It needs
 # curl, tar and sha256sum or shasum. A file that curl fetches is not marked
-# as downloaded from the internet, so macOS does not block it.
+# as downloaded from the internet, so macOS does not block it. An existing
+# pravo is replaced by a new file, never overwritten in place.
 set -eu
 
 repo=pravo-systems/pravo
@@ -59,9 +60,19 @@ fi
 
 tar -xzf "$tmp/$name.tar.gz" -C "$tmp"
 mkdir -p "$dir"
-cp "$tmp/$name/pravo" "$dir/pravo"
-chmod 755 "$dir/pravo"
-echo "Installed $("$dir/pravo" version | head -n 1) in $dir"
+# Write a new file and move it over the old one. Copying onto an existing
+# binary keeps its inode, and macOS then kills the new contents (SIGKILL on
+# launch) because it still remembers the signature of the old ones.
+cp "$tmp/$name/pravo" "$dir/.pravo.new.$$"
+chmod 755 "$dir/.pravo.new.$$"
+if [ "$os" = darwin ] && command -v codesign >/dev/null 2>&1; then
+	# The Go linker signs the binary ad hoc; sign again only if that is missing.
+	codesign --verify "$dir/.pravo.new.$$" >/dev/null 2>&1 || codesign -s - -f "$dir/.pravo.new.$$" >/dev/null 2>&1 || true
+fi
+mv -f "$dir/.pravo.new.$$" "$dir/pravo"
+shown=$("$dir/pravo" version 2>/dev/null | head -n 1 || true)
+[ -n "$shown" ] || fail "the installed $dir/pravo does not run; on macOS try: codesign -s - -f $dir/pravo"
+echo "Installed $shown in $dir"
 case ":$PATH:" in
 	*":$dir:"*) ;;
 	*) echo "Add $dir to your PATH:  export PATH=\"$dir:\$PATH\"" ;;
