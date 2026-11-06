@@ -617,9 +617,9 @@ html.js [data-reveal]:not(.is-in) {
   transition: transform var(--t-med) var(--ease);
 }
 .site-nav a:hover { color: var(--text); }
-.site-nav a:hover::after { transform: scaleX(.35); }
+.site-nav a:hover::after { transform: scaleX(1); background: var(--line-strong); }
 .site-nav a[aria-current] { color: var(--text); }
-.site-nav a[aria-current]::after { transform: scaleX(1); }
+.site-nav a[aria-current]::after { transform: scaleX(1); background: var(--accent); }
 
 .site-tools {
   margin-left: auto;
