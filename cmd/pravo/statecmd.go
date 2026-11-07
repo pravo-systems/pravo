@@ -98,47 +98,6 @@ func stateCmd(rt *runContext) *cobra.Command {
 			return st, nil
 		}
 	}
-	copyCmd := func(use, short string, toRemote bool) *cobra.Command {
-		return &cobra.Command{
-			Use: use, Short: short, Args: cobra.ExactArgs(1),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				local, err := state.NewLocalBackend(args[0])
-				if err != nil {
-					return err
-				}
-				var src, dst state.Backend
-				if toRemote {
-					// The objects are copied as they are, sealed or not. The configured state
-					// is not opened: a repository that lists readers refuses to open a state
-					// that does not exist yet, and a push is what makes it.
-					root, err := loadRoot(rt)
-					if err != nil {
-						return err
-					}
-					p := &protectRun{ctx: cmd.Context(), root: root, rf: readersOf(rt, root)}
-					if dst, err = p.backend(true); err != nil {
-						return err
-					}
-					src = local
-				} else {
-					st, err := load()
-					if err != nil {
-						return err
-					}
-					src, dst = st.Backend(), local
-				}
-				n, err := state.Copy(cmd.Context(), src, dst)
-				if err != nil {
-					return err
-				}
-				rt.out.Printf("Copied %d objects from %s to %s\n", n, src.Name(), dst.Name())
-				if toRemote {
-					rt.out.Println("Check it with: pravo protect status (a sealed state) or pravo plan.")
-				}
-				return nil
-			},
-		}
-	}
 	cmd.AddCommand(
 		verifyCmd(rt),
 		stateListCmd(whole(loadRead)),
@@ -150,14 +109,58 @@ func stateCmd(rt *runContext) *cobra.Command {
 		stateLocksCmd(rt, loadRead),
 		upgradeCmd(rt, load),
 		unlockCmd(rt, load),
-		copyCmd("pull <dir>", "Copy the configured state graph into a local directory", false),
-		copyCmd("push <dir>", "Copy a local state directory into the configured backend", true),
+		stateCopyCmd(rt, load, "pull <dir>", "Copy the configured state graph into a local directory", false),
+		stateCopyCmd(rt, load, "push <dir>", "Copy a local state directory into the configured backend", true),
 		stateEdgesCmd(rt, whole(loadRead)),
 		stateDependentsCmd(whole(loadRead)),
 		stateQueryCmd(rt, whole(loadValues)),
 		stateImportTfstateCmd(rt, loadEdit),
 	)
 	return cmd
+}
+
+// stateCopyCmd is "state pull" and "state push": it copies the objects of the state between a
+// local directory and the configured backend.
+func stateCopyCmd(rt *runContext, load func() (*state.Store, error), use, short string, toRemote bool) *cobra.Command {
+	return &cobra.Command{
+		Use: use, Short: short, Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			local, err := state.NewLocalBackend(args[0])
+			if err != nil {
+				return err
+			}
+			var src, dst state.Backend
+			if toRemote {
+				// The objects are copied as they are, sealed or not. The configured state
+				// is not opened: a repository that lists readers refuses to open a state
+				// that does not exist yet, and a push is what makes it.
+				root, err := loadRoot(rt)
+				if err != nil {
+					return err
+				}
+				p := &protectRun{ctx: cmd.Context(), root: root, rf: readersOf(rt, root)}
+				if dst, err = p.backend(true); err != nil {
+					return err
+				}
+				src = local
+			} else {
+				st, err := load()
+				if err != nil {
+					return err
+				}
+				src, dst = st.Backend(), local
+			}
+			n, err := state.Copy(cmd.Context(), src, dst)
+			if err != nil {
+				return err
+			}
+			rt.out.Printf("Copied %d objects from %s to %s\n", n, src.Name(), dst.Name())
+			if toRemote {
+				rt.out.Println("Check it with: pravo protect status (a sealed state) or pravo plan.")
+			}
+			return nil
+		},
+	}
 }
 
 // stateListCmd is "state list".
@@ -408,19 +411,7 @@ func stateLogCmd(rt *runContext, loadRead func() (*state.Store, error)) *cobra.C
 				rt.out.Println(rt.out.C(ui.Dim, "Signatures are not checked: the readers file is missing or invalid."))
 			}
 			if rt.flags.JSON {
-				type view struct {
-					state.Transaction
-					Signature *sigStatusJSON `json:"signature,omitempty"`
-					Approvals []string       `json:"approved_by,omitempty"`
-				}
-				views := make([]view, len(txns))
-				for i, t := range txns {
-					views[i] = view{Transaction: t}
-					if checked {
-						views[i].Signature = sigJSON(verdicts[i])
-						views[i].Approvals = approvers[txns[i].ID]
-					}
-				}
+				views := txnViews(txns, verdicts, approvers, checked)
 				if err := emitJSON(views); err != nil {
 					return err
 				}
@@ -473,16 +464,40 @@ func stateLogCmd(rt *runContext, loadRead func() (*state.Store, error)) *cobra.C
 					rt.out.Println()
 				}
 			}
-			for _, t := range txns {
-				if strings.Contains(t.Command, "<sealed") {
-					rt.out.Println()
-					rt.out.Println(rt.out.C(ui.Dim, "<sealed:...> stands for a flag value that a sealed state keeps out of its log, because it can hold a secret. Who ran a command is on its signed-by line, and the reason is on the line under the command."))
-					break
-				}
-			}
+			noteSealedCommands(rt, txns)
 			printRolesLog(cmd.Context(), rt, st)
 			return invalidTxns(invalid)
 		},
+	}
+}
+
+// txnViews is the JSON form of state log: the transactions with the check of their signatures
+// and the approvers of the plan they ran from.
+func txnViews(txns []state.Transaction, verdicts []state.TxnVerdict, approvers map[string][]string, checked bool) any {
+	type view struct {
+		state.Transaction
+		Signature *sigStatusJSON `json:"signature,omitempty"`
+		Approvals []string       `json:"approved_by,omitempty"`
+	}
+	views := make([]view, len(txns))
+	for i, t := range txns {
+		views[i] = view{Transaction: t}
+		if checked {
+			views[i].Signature = sigJSON(verdicts[i])
+			views[i].Approvals = approvers[t.ID]
+		}
+	}
+	return views
+}
+
+// noteSealedCommands explains <sealed:...> once, when a command line in the log has one.
+func noteSealedCommands(rt *runContext, txns []state.Transaction) {
+	for _, t := range txns {
+		if strings.Contains(t.Command, "<sealed") {
+			rt.out.Println()
+			rt.out.Println(rt.out.C(ui.Dim, "<sealed:...> stands for a flag value that a sealed state keeps out of its log, because it can hold a secret. Who ran a command is on its signed-by line, and the reason is on the line under the command."))
+			return
+		}
 	}
 }
 

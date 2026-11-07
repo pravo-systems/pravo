@@ -683,13 +683,7 @@ func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 		if sigNote == "" && sigs != nil {
 			opts.Notes = append(opts.Notes, "Signed: "+planSigsText(sigs))
 		}
-		text, needs := storedPlanApprovals(ctx, rt, s, eng, pf, m.ID)
-		for _, n := range needs {
-			opts.Notes = append(opts.Notes, "Approvals: "+n)
-		}
-		if text != "" {
-			opts.Notes = append(opts.Notes, "Approved: "+text)
-		}
+		opts.Notes = append(opts.Notes, approvalNotes(ctx, rt, s, eng, pf, m.ID)...)
 		opts.Notes = append(opts.Notes, "Status: "+statusText(rt, entry.Status)+".")
 		switch {
 		case stale != nil:
@@ -729,13 +723,7 @@ func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 	} else if sigs != nil {
 		rt.out.Printf("  signed:  %s\n", planSigsText(sigs))
 	}
-	text, needs := storedPlanApprovals(ctx, rt, s, eng, pf, entry.Meta.ID)
-	for _, n := range needs {
-		rt.out.Printf("  approvals: %s\n", n)
-	}
-	if text != "" {
-		rt.out.Printf("  approved: %s\n", text)
-	}
+	printApprovals(ctx, rt, s, eng, pf, entry.Meta.ID)
 	if entry.Status.Open() || entry.Status == engine.PlanStale {
 		rt.out.Printf("  %s\n", expiry(m))
 	}
@@ -767,6 +755,30 @@ func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 	}
 	rt.out.RenderPlan(plan)
 	return nil
+}
+
+// approvalNotes is printApprovals for the Markdown form of a stored plan.
+func approvalNotes(ctx context.Context, rt *runContext, s *session, eng *engine.Engine, pf *engine.PlanFile, id string) []string {
+	text, needs := storedPlanApprovals(ctx, rt, s, eng, pf, id)
+	var notes []string
+	for _, n := range needs {
+		notes = append(notes, "Approvals: "+n)
+	}
+	if text != "" {
+		notes = append(notes, "Approved: "+text)
+	}
+	return notes
+}
+
+// printApprovals prints what the policies ask of a stored plan and who approved it.
+func printApprovals(ctx context.Context, rt *runContext, s *session, eng *engine.Engine, pf *engine.PlanFile, id string) {
+	text, needs := storedPlanApprovals(ctx, rt, s, eng, pf, id)
+	for _, n := range needs {
+		rt.out.Printf("  approvals: %s\n", n)
+	}
+	if text != "" {
+		rt.out.Printf("  approved: %s\n", text)
+	}
 }
 
 // printConflicts says which changes of a partly-stale plan cannot be applied and

@@ -8,11 +8,10 @@ cmd/pravo/commands.go providersCmd 155
 cmd/pravo/commands.go runApply 102
 cmd/pravo/environments_cmd.go diffEnvironments 112
 cmd/pravo/id.go runIDNew 143
-cmd/pravo/planstore.go showStored 106
+cmd/pravo/planstore.go showStored 102
 cmd/pravo/protect_init.go protectRun.init 145
 cmd/pravo/protect_rewrap.go protectRun.rewrap 117
-cmd/pravo/statecmd.go stateCmd 122
-cmd/pravo/statecmd.go stateLogCmd 114
+cmd/pravo/statecmd.go stateLogCmd 110
 cmd/pravo/unseal.go protectRun.unseal 108
 internal/config/config.go parseState 101
 internal/config/config.go readSettingsSource 156
