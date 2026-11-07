@@ -230,8 +230,6 @@ The plan changes nothing. Four things to read in it:
 pravo apply -auto-approve
 ```
 
-`-auto-approve` skips the question `pravo apply` asks in a terminal. A script or a shell with no input needs it, or a saved plan file, because there is no one to answer.
-
 ```text out
 pravo will perform the following actions:
 ...
@@ -245,7 +243,7 @@ config: Creation complete after 0s [id=261ce15616ccd7d5df87e363a6975949dbddb862]
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn 20261019T101500Z-3f9c2a]
 ```
 
-`apply` prints the plan again, then runs it. `-auto-approve` skips the question. Without it, pravo waits until you type `yes`.
+`apply` prints the plan again, then runs it. `-auto-approve` skips the question. Without it, pravo waits until you type `yes`. A script or a shell with no input has no one to answer, so it needs `-auto-approve` or a saved plan file.
 
 Read the result:
 

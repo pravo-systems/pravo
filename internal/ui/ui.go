@@ -230,11 +230,7 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 	if n := plan.DeferredCount(); n > 0 {
 		declared += fmt.Sprintf(", %d deferred to the next plan", n)
 	}
-	addText := p.C(Green, strconv.Itoa(add))
-	if n := plan.RecreatedCount(); n > 0 {
-		addText += fmt.Sprintf(" (%d after drift)", n)
-	}
-	p.Printf("%s %s to add, %s to change, %s to destroy%s.\n", p.C(Bold, "Plan:"), addText, p.C(Yellow, strconv.Itoa(change)), p.C(Red, strconv.Itoa(destroy)), declared)
+	p.Printf("%s %s, %s to change, %s to destroy%s.\n", p.C(Bold, "Plan:"), p.addCount(plan, add), p.C(Yellow, strconv.Itoa(change)), p.C(Red, strconv.Itoa(destroy)), declared)
 	if plan.DeferredCount() > 0 {
 		p.Println(p.C(Dim, "A deferred change waits for a value that the apply makes known. The apply plans it again when it is done."))
 	}
@@ -617,6 +613,16 @@ func (p *Printer) line(b *strings.Builder, sym, color, indent, text string) {
 	b.WriteString(" ")
 	b.WriteString(indent)
 	b.WriteString(text)
+}
+
+// addCount is the number of adds in the Plan line, with the part of it that makes again an
+// object that drifted away.
+func (p *Printer) addCount(plan *engine.Plan, add int) string {
+	text := p.C(Green, strconv.Itoa(add)) + " to add"
+	if n := plan.RecreatedCount(); n > 0 {
+		text += fmt.Sprintf(" (%d after drift)", n)
+	}
+	return text
 }
 
 func (p *Printer) value(v tftypes.Value, indent string, sens func([]string) bool, path []string) string {

@@ -17,18 +17,20 @@ import (
 // the fields of the struct the name was looked up in, and, when the name was found
 // one level up, why the reference did not reach it. v is the value that produced err.
 func DetailsWithHints(v cue.Value, err error) string {
-	var b strings.Builder
+	text := cueerrors.Details(err, nil)
+	seen := map[string]bool{}
 	for _, e := range cueerrors.Errors(err) {
-		b.WriteString(cueerrors.Details(e, nil))
-		if hint := hintFor(v, e); hint != "" {
-			b.WriteString(hint)
-			b.WriteString("\n")
+		hint := hintFor(v, e)
+		if hint == "" || seen[hint] {
+			continue
 		}
+		seen[hint] = true
+		if p := strings.Join(e.Path(), "."); p != "" {
+			hint = strings.Replace(hint, "  hint:", "  hint ("+p+"):", 1)
+		}
+		text += hint + "\n"
 	}
-	if b.Len() == 0 {
-		return cueerrors.Details(err, nil)
-	}
-	return b.String()
+	return text
 }
 
 var selectorBefore = regexp.MustCompile(`([\$#_A-Za-z][\w\$#]*(?:\.[\$#_A-Za-z][\w\$#]*)*)\.$`)

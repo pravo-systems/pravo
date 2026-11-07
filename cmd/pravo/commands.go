@@ -1443,6 +1443,10 @@ func withHiddenFields(v cue.Value) cue.Value {
 	return out
 }
 
+const evalNote = `
+pravo eval prints once and exits; there is no interactive prompt. Locals nested inside
+a struct (a._x) are not visible to -e: reach them with a path from the top (a.b).`
+
 func evalCmd(rt *runContext) *cobra.Command {
 	var expr string
 	var concrete, optional, raw bool
@@ -1455,15 +1459,10 @@ the recorded state of every resource filled in. Needs no provider for a file
 that declares none, so it also serves to try out CUE.
 
   pravo eval                       the whole evaluated specification
-  pravo eval -e logs.tags          one expression: a path or any CUE expression
-  pravo eval -e _prefix            a local (hidden _x) at the top level, like tofu console local.x
+  pravo eval -e logs.tags          one expression: a path, a top-level local _x, or any CUE
   pravo eval -c                    fail unless every value is concrete
   pravo eval -e guard.rule --raw   the value as written, with its comprehensions, as a file
-  pravo eval -t env=prod           inject a value for an @tag() field
-
-pravo eval prints once and exits; there is no interactive prompt. Locals nested inside
-a struct (a._x) are not visible to -e: reach them with a path from the top (a.b) or
-give them a name without the underscore while you debug.`,
+  pravo eval -t env=prod           inject a value for an @tag() field`+evalNote,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})

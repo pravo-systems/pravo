@@ -128,7 +128,7 @@ One task each, for a reader who knows the basics.
 
 | File | Covers | Size |
 |---|---|---|
-| [how-to/quick-start.md](how-to/quick-start.md) | Twelve minutes from install to a first plan, an apply, a conflict and a destroy. No account and no cloud. | 15 KB |
+| [how-to/quick-start.md](how-to/quick-start.md) | Twelve minutes from install to a first plan, an apply, a conflict and a destroy. No account and no cloud. | 14 KB |
 
 ### Maintain
 
