@@ -304,9 +304,12 @@ pravo protect rewrap
 ```text out
 Readers in .pravo/access/readers.txt: ada dan deploy-bot  (eve removed)
 New data keys for 1 reader group. Records are sealed again as they are next written.
+Still to do for eve: pravo protect rewrap --all, pravo protect gc, and take the credentials of the bucket away. pravo protect offboard does all but the credentials.
 ```
 
 In a state with [pinned roles](../reference/roles.md), deleting the line is not enough: the roles in the state still name the key. An admin runs the rewrap below and then `pravo protect roles --yes` to write the new roles to the state (either order works, as long as both run). [Give people roles](give-people-roles.md) shows the command.
+
+`pravo protect offboard <name>` runs the whole removal in order, for a team that does not want to remember it: it takes the line out of the readers file, then runs `rewrap --all`, `roles` (when the readers file gives roles) and `gc`, and ends with what is left for you: committing the readers file, a second `gc` once it says so, and the credentials. The steps below are what it runs, one at a time.
 
 Removal has four parts, and the last is yours.
 
@@ -338,7 +341,7 @@ No record is garbage: a pointer names every record.
 Dropped group g1: nothing refers to it.
 ```
 
-`gc` needs the state at rest, as `rewrap --all` does, and the readers file as any command that writes the state. A record that no pointer names is marked by the first `gc` that finds it 24 hours old, and deleted by one that runs at least 15 minutes after that, so the records of earlier revisions and of resources that were destroyed go the day after they were replaced, on the second run. Run `gc` again then. A group that still has something sealed in it is kept, and the command says what.
+`gc` needs the state at rest, as `rewrap --all` does, and the readers file as any command that writes the state. A record that no pointer names is marked by the first `gc` that finds it 24 hours old, and deleted by one that runs at least 15 minutes after that, so the records of earlier revisions and of resources that were destroyed go the day after they were replaced, on the second run. Run `gc` again then. A group that still has something sealed in it is kept, and the command says what. Until the old group is dropped, a copy of the bucket that was made before the removal still opens with Eve's key. The bucket as it is now does not: no record is sealed to her any more, apart from the old revisions that `gc` reports as kept until they are old enough to delete.
 
 ## 11. See who did what
 
@@ -362,6 +365,8 @@ Signatures   4 of 5 transactions verified · 1 unsigned
 ```
 
 The transaction from before the seal is unsigned, which is not an error. A signature from a key that the readers file does not list, such as a reader who has left, shows as `signed by NAME, whose key is not in the readers file`, and is not an error either. A transaction that was changed in the bucket after it was signed shows `the signature does not verify`, and `state log` and `protect status` exit with 7.
+
+An apply that ran from a stored plan also shows who approved the plan, on a line `approved by NAME (ROLE)` under the signature, and the log ends with the versions of the roles: who stored each and who joined, changed role or left. A plan that was removed after its apply has no approvals left to read; `pravo plan show ID` and `pravo plan list --all` show them while the plan is kept. A value in a command line that a sealed state keeps out of the log appears as `<sealed:...>`; who ran the command is on its signature line, and the reason under the command.
 
 What the signature covers is the event: which key ran which command, and which addresses and revisions it changed. It does not cover the values of the records, and it cannot tell that a transaction was deleted or that an older copy of the state was put back. [Signatures](../reference/protect.md#signatures) lists what it covers and what it leaves, and [What a signature binds](../concepts/signatures-and-roles.md#what-a-signature-binds) explains it. With roles, the signature of a writer also names each record the run wrote, which is what lets a later run tell a record that a writer wrote from one that a reader put in the bucket.
 

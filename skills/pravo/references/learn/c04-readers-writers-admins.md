@@ -124,7 +124,7 @@ PRAVO_CONFIG_DIR=people/eve pravo -C eve-team protect status | grep '^Roles'
 Output:
 
 ```text
-Error: your identity is a reader in the roles in the state, and a writer is needed to change the state.
+Error: your identity is a reader in the roles in the state, and a writer is needed to change the state. A reader can store a plan (pravo plan --store) for a writer to apply with pravo apply; or ask an admin to make you a writer (role:writer on your line in the readers file, then pravo protect roles).
 exit=5
 Roles        on · 1 admin · 1 writer · 1 reader · pinned, version 1 in the state (the readers file asks for other roles: pravo protect roles) · you are a reader
 ```
@@ -154,7 +154,7 @@ PRAVO_CONFIG_DIR=people/eve pravo -C team apply --auto-approve; echo "exit=$?"
 Output:
 
 ```text
-Error: your identity is a reader in the roles in the state, and a writer is needed to change the state.
+Error: your identity is a reader in the roles in the state, and a writer is needed to change the state. A reader can store a plan (pravo plan --store) for a writer to apply with pravo apply; or ask an admin to make you a writer (role:writer on your line in the readers file, then pravo protect roles).
 exit=5
 ```
 
@@ -174,6 +174,7 @@ Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. T
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
     signed by dan (verified)
     signed by ada (verified)
+Roles, newest first (each version is signed by an admin of the one before)
 ```
 
 The transaction is signed by Dan, who applied, and the stored plan keeps Eve's signature as the key that stored it. That is the shape of a review: one person asks, another runs, and the state says which was which.

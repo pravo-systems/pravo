@@ -19,6 +19,16 @@ To follow along without an account, start the in-memory server in a second termi
 go run ./tools/fakes3 -addr 127.0.0.1:9000
 ```
 
+Without a checkout of pravo's source, any S3 server for tests does the same. moto is one, from pip, and the bucket is made by hand because pravo does not make it:
+
+```sh
+pip install 'moto[server]' boto3
+moto_server -p 9000 &
+python3 -c "import boto3; boto3.client('s3', endpoint_url='http://127.0.0.1:9000', region_name='us-east-1', aws_access_key_id='test', aws_secret_access_key='test').create_bucket(Bucket='pravo-state')"
+```
+
+A team that shares a filesystem needs no bucket: `$settings: state: path: "/shared/pravo/app"` keeps the state in a directory there. Its locks are the mutex of one user, so use it for one person at a time, and a bucket for a team.
+
 Give the shell test credentials. The server accepts any value.
 
 ```sh
@@ -278,8 +288,11 @@ Output:
 ```text
 Plan: 2 to add, 0 to change, 0 to destroy.
 Copied 6 objects from pravo.state to s3://pravo-state/demo/moved
+Check it with: pravo protect status (a sealed state) or pravo plan.
 No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 ```
+
+A sealed state is pushed the same way. The objects are copied as they are, so the destination holds the same ciphertext and the same readers, and the readers file of the repository stays as it is. The push does not open the configured state first, because a repository that lists readers refuses to open a state that does not exist yet and the push is what makes it. After it, `pravo protect status` says where the sealed state stands.
 
 Archive the local directory when you are satisfied. `pravo state pull <dir>` copies the other way, from the bucket into a local directory.
 

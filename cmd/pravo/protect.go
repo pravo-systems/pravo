@@ -56,7 +56,7 @@ that nothing is sealed in any more.`,
 	pf.StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
 	addEnvFlag(rt, pf)
 	pf.BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
-	cmd.AddCommand(protectCheckCmd(rt), protectInitCmd(rt), protectStatusCmd(rt), protectRewrapCmd(rt), protectRolesCmd(rt), protectPoliciesCmd(rt), protectRecoverCmd(rt), protectUnsealCmd(rt), protectGCCmd(rt))
+	cmd.AddCommand(protectCheckCmd(rt), protectInitCmd(rt), protectStatusCmd(rt), protectRewrapCmd(rt), protectRolesCmd(rt), protectOffboardCmd(rt), protectPoliciesCmd(rt), protectRecoverCmd(rt), protectUnsealCmd(rt), protectGCCmd(rt))
 	return cmd
 }
 

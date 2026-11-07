@@ -260,10 +260,10 @@ sed -n '/^Error/,$p' apply.out
 ```
 
 ```text out
-Policies: 1 satisfied.
+Policies: 1 satisfied (approvals are counted when the plan is applied).
 Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
 exit=5
-Error: the plan plan-<id> needs 1 approval by a writer or an admin (careful_destroys@1) and has 0. The key that stored the plan does not count.
+Error: the plan plan-<id> needs 1 approval by a writer or an admin (policy careful_destroys, version 1) and has 0. The key that stored the plan does not count. Ask an admin to review it (pravo plan show plan-<id>) and run pravo plan approve plan-<id>; then apply again.
 ```
 
 eve approves the plan. `plan show` names who approved, and dan's apply goes through:
@@ -277,6 +277,7 @@ PRAVO_CONFIG_DIR=people/dan pravo -C team apply "$ID" --auto-approve | grep '^Ap
 
 ```text out
 Approved plan-<id> as eve.
+Policy: needs 1 approval by a writer or an admin (policy careful_destroys, version 1); has 1 (met)
 Stored plan plan-<id> by dan, just now (pending)
   approved: eve (writer)
 Apply complete! Resources: 0 added, 0 changed, 1 destroyed. [txn <id>]

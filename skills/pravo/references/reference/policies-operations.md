@@ -579,10 +579,10 @@ sed -n '/^Error/,$p' apply.out
 Output:
 
 ```text
-Policies: 3 satisfied.
+Policies: 3 satisfied (approvals are counted when the plan is applied).
 Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
 exit=5
-Error: the plan plan-<id> needs 1 approval by a writer or an admin (second_opinion@1) and has 0. The key that stored the plan does not count.
+Error: the plan plan-<id> needs 1 approval by a writer or an admin (policy second_opinion, version 1) and has 0. The key that stored the plan does not count. Ask an admin to review it (pravo plan show plan-<id>) and run pravo plan approve plan-<id>; then apply again.
 ```
 
 eve approves the plan, and dan applies it. `plan show` names who approved:
@@ -598,6 +598,7 @@ Output:
 
 ```text
 Approved plan-<id> as eve.
+Policy: needs 1 approval by a writer or an admin (policy second_opinion, version 1); has 1 (met)
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 Stored plan plan-<id> by dan, just now (applied)
   approved: eve (writer)
@@ -625,7 +626,7 @@ Output:
 ```text
 Policies: +0 new, ~1 changed, -0 removed.
 Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
-Error: the plan plan-<id> needs 1 approval by an admin (a change to second_opinion@1) and has 0. The key that stored the plan does not count.
+Error: the plan plan-<id> needs 1 approval by an admin (a change to policy second_opinion, version 1) and has 0. The key that stored the plan does not count. Ask an admin to review it (pravo plan show plan-<id>) and run pravo plan approve plan-<id>; then apply again.
 ```
 
 With `--json`, `pravo plan approve` prints `id`, `approved_by` and `at`, and the refusal of an apply is the error object with code 5. [Approve a plan](../how-to/approve-a-plan.md) walks through the same with two people and the viewer.

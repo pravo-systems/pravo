@@ -190,6 +190,35 @@ func (n *ApprovalNeed) Counted(approvals []Approval, storers []string) (counted 
 	return counted
 }
 
+// Why says why an approval does not count toward need, or "" when it does. storers are as
+// for Counted. An approval that is not verified is reported by its own status.
+func (n *ApprovalNeed) Why(a Approval, storers []string) string {
+	switch {
+	case a.Status != protect.SigVerified:
+		return "its key is not in the readers file or its signature does not verify"
+	case !a.Role.Allows(n.Role):
+		return fmt.Sprintf("the policy needs %s and %s is %s", roleWords(n.Role), a.Signer, withArticle(a.Role))
+	case !n.Self && slices.Contains(storers, a.Key):
+		return a.Signer + " stored this plan, and the policy does not let the key that stored it approve"
+	}
+	return ""
+}
+
+func withArticle(r protect.Role) string {
+	if r == protect.RoleAdmin {
+		return "an admin"
+	}
+	return "a " + r.String()
+}
+
+// WordsOf is the text of a policy version that asks, "policy admin_approves, version 1".
+func WordsOf(by []string) string { return byWords(by) }
+
+// Ask is what the need asks for, in words: "1 approval by an admin (policy x, version 1)".
+func (n *ApprovalNeed) Ask() string {
+	return fmt.Sprintf("%d approval%s by %s (%s)", n.Min, map[bool]string{true: "", false: "s"}[n.Min == 1], roleWords(n.Role), byWords(n.By))
+}
+
 // judgingReaders are the readers whose roles judge the key that applies and the keys that
 // approve. When the state holds a roles chain that the readers file does not pin, the roles
 // are the lower of the file and the chain: a local file that dropped the pin line, or an old
@@ -220,7 +249,7 @@ func (e *Engine) checkApprovals(ctx context.Context, need *ApprovalNeed) error {
 	if known && role.Allows(protect.RoleAdmin) {
 		return nil
 	}
-	ask := fmt.Sprintf("%d approval%s by %s (%s)", need.Min, map[bool]string{true: "", false: "s"}[need.Min == 1], roleWords(need.Role), strings.Join(need.By, ", "))
+	ask := fmt.Sprintf("%d approval%s by %s (%s)", need.Min, map[bool]string{true: "", false: "s"}[need.Min == 1], roleWords(need.Role), byWords(need.By))
 	if e.planID == "" {
 		return refused("the plan needs %s, and approvals belong to a stored plan: make it with plan --store, have it approved with \"pravo plan approve\" and apply it by its id", ask)
 	}
@@ -261,10 +290,27 @@ func (e *Engine) checkApprovals(ctx context.Context, need *ApprovalNeed) error {
 	if !need.Self {
 		msg += ". The key that stored the plan does not count."
 	}
+	msg += fmt.Sprintf(" Ask an admin to review it (pravo plan show %s) and run pravo plan approve %s; then apply again.", e.planID, e.planID)
 	if fromState {
 		msg += fmt.Sprintf(" Your key is %s in the roles stored in the state; %s does not pin those roles, so the roles in the state decide: commit the %s line that pravo protect roles printed.", map[bool]string{true: "a " + role.String(), false: "not listed"}[known], e.Opts.ReadersFile, protect.RolesGenesisKey)
 	}
 	return refused("%s", msg)
+}
+
+// byWords writes the policy versions that ask as words: "policy admin_approves, version 1".
+func byWords(by []string) string {
+	words := make([]string, len(by))
+	for i, b := range by {
+		prefix := ""
+		if rest, ok := strings.CutPrefix(b, "a change to "); ok {
+			prefix, b = "a change to ", rest
+		}
+		if name, seq, ok := strings.Cut(b, "@"); ok {
+			b = "policy " + name + ", version " + seq
+		}
+		words[i] = prefix + b
+	}
+	return strings.Join(words, "; ")
 }
 
 func roleWords(r protect.Role) string {

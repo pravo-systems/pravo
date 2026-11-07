@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/pravo"
 )
@@ -240,7 +241,7 @@ func runIDNew(rt *runContext, name, sshFile, outFile string, ci bool, unlock, ag
 	rt.out.Printf("  signing  ssh-ed25519 %s  %s\n", sum.Fingerprint, sum.Source)
 	rt.out.Printf("  reader   %s  %s in %s\n", sum.Reader, keeping, tilde(path))
 	rt.out.Println()
-	rt.out.Println("Give whoever keeps .pravo/access/readers.txt this line, and nothing else.")
+	rt.out.Println(readersFileAsk(rt))
 	rt.out.Println("They add the role as its last word: role:reader (the default), role:writer or role:admin.")
 	rt.out.Println()
 	fmt.Println("  " + sum.Line)
@@ -415,9 +416,41 @@ func runIDShow(rt *runContext, name string) error {
 	rt.out.Printf("  signing  ssh-ed25519 %s  %s\n", sum.Fingerprint, sum.Source)
 	rt.out.Printf("  reader   %s  %s\n", sum.Reader, keeping)
 	rt.out.Println()
-	rt.out.Println("Give whoever keeps .pravo/access/readers.txt this line, and nothing else.")
+	rt.out.Println(readersFileAsk(rt))
 	rt.out.Println("They add the role as its last word: role:reader (the default), role:writer or role:admin.")
 	rt.out.Println()
 	fmt.Println("  " + sum.Line)
 	return nil
+}
+
+// readersFileAsk is the sentence that asks for the line to go to the readers file. It names the
+// file the settings give, one for each environment when they differ, and .pravo/access/readers.txt
+// outside a project.
+func readersFileAsk(rt *runContext) string {
+	const tail = " this line, and nothing else."
+	list, err := config.ReadEnvironmentSettings(".", config.LoadOptions{Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Env: environment()})
+	if err == nil && len(list) > 0 {
+		var parts []string
+		seen := map[string]bool{}
+		for _, es := range list {
+			if es.Err != nil {
+				continue
+			}
+			path := displayPath(filepath.Join(accessDirsFrom(".", es.AccessDir)[0], readersFileName))
+			if !seen[path] {
+				seen[path] = true
+				parts = append(parts, path)
+			}
+		}
+		switch {
+		case len(parts) == 1:
+			return "Give whoever keeps " + parts[0] + tail
+		case len(parts) > 1:
+			return "Give whoever keeps the readers file of each environment you are to read (" + strings.Join(parts, ", ") + ")" + tail
+		}
+	}
+	if root, err := loadRoot(rt); err == nil {
+		return "Give whoever keeps " + readersOf(rt, root).shown() + tail
+	}
+	return "Give whoever keeps .pravo/access/readers.txt" + tail
 }

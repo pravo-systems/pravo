@@ -315,6 +315,11 @@ func (p *protectRun) reportRewrap(rt *runContext, st *state.Store, prot state.Pr
 			rt.out.Println("New data keys for 1 reader group.")
 		} else {
 			rt.out.Println("New data keys for 1 reader group. Records are sealed again as they are next written.")
+			still := "pravo protect rewrap --all, "
+			if protect.RolesOn(p.rf.Readers) {
+				still += "pravo protect roles, "
+			}
+			rt.out.Println("Still to do for " + nameList(safeNames(res.Change.Removed)) + ": " + still + "pravo protect gc, and take the credentials of the bucket away. pravo protect offboard does all but the credentials.")
 		}
 	}
 	if all {
