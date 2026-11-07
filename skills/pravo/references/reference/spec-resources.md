@@ -274,6 +274,7 @@ Output:
 Error: evaluating .:
 a.b: field not allowed:
     ./main.cue:8:4
+  hint (a.b): a has: id, keepers, length, prefix, separator. `pravo schema <type>` prints every field of a type.
 ```
 
 ## Addresses

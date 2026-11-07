@@ -183,6 +183,7 @@ Output:
 Error: evaluating .:
 logs.versionning: field not allowed:
     ./typo.cue:3:7
+  hint (logs.versionning): did you mean versioning? logs has: name, region, tags, versioning. `pravo schema <type>` prints every field of a type.
 ```
 
 `[string]: string` is a pattern: every field of `tags`, whatever its name, is a string. A field marked `?` is optional, and one marked `!` is required, so that `name!: string` fails until something sets it. [Definitions reject typos](https://pravo.systems/learn/a08-definitions-reject-typos.html) and [Required, optional, regular](https://pravo.systems/learn/a07-required-optional-regular.html) show the three kinds of field.

@@ -165,6 +165,7 @@ pravo eval -e logs
 Error: evaluating .:
 logs.versionning: field not allowed:
     ./typo.cue:3:7
+  hint (logs.versionning): did you mean versioning? logs has: name, region, tags, versioning. `pravo schema <type>` prints every field of a type.
 ```
 
 ```sh run hidden
