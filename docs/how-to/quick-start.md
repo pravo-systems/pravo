@@ -4,7 +4,7 @@ description: Twelve minutes from install to a first plan, an apply, a conflict a
 order: 1
 group: Get started
 minutes: 12
-needs: Go 1.26 or newer, the pravo source tree and network access.
+needs: The pravo binary and network access. Go 1.26 is needed only to build from source.
 done_when: "`pravo destroy` reports 2 destroyed and `server.env` is gone."
 level: beginner
 normalize:

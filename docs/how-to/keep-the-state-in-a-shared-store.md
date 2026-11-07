@@ -43,6 +43,18 @@ To follow along without an account, start the in-memory server in a second termi
 go run ./tools/fakes3 -addr 127.0.0.1:9000
 ```
 
+With only the `pravo` binary and no source checkout, use any S3-compatible server instead. Both of these need nothing from pravo's source. Create the bucket `pravo-state` yourself, because pravo does not.
+
+```sh
+pip install 'moto[server]' boto3
+moto_server -p 9000 &
+python3 -c "import boto3; boto3.client('s3', endpoint_url='http://127.0.0.1:9000', region_name='us-east-1', aws_access_key_id='test', aws_secret_access_key='test').create_bucket(Bucket='pravo-state')"
+```
+
+Or, with Docker, `docker run -p 9000:9000 -e MINIO_ROOT_USER=test -e MINIO_ROOT_PASSWORD=testtest1 minio/minio server /data`, then make the bucket `pravo-state` with `mc` or the console. With minio, export `testtest1` as `AWS_SECRET_ACCESS_KEY` and `test` as `AWS_ACCESS_KEY_ID`. Either server works with the `endpoint` and `path_style: true` lines of step 2. Run `pravo state probe` to check the store.
+
+If the team shares a filesystem, a network mount for instance, you need no server: `$settings: state: path: "/mnt/team/pravo.state"` points every checkout at one directory.
+
 Give the shell test credentials. The server accepts any value.
 
 ```sh
