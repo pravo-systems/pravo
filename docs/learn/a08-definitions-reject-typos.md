@@ -130,6 +130,7 @@ pravo eval
 Error: evaluating .:
 logs.vrsioning: field not allowed:
     ./estate.cue:9:33
+  hint (logs.vrsioning): did you mean versioning? logs has: class, name, versioning. `pravo schema <type>` prints every field of a type.
 ```
 
 Read the error from the top.
@@ -169,6 +170,7 @@ pravo eval
 Error: evaluating .:
 logs.vrsioning: field not allowed:
     ./estate.cue:9:35
+  hint (logs.vrsioning): did you mean versioning? logs has: class, name, versioning. `pravo schema <type>` prints every field of a type.
 ```
 
 Do three things.

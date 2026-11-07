@@ -45,7 +45,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/cue-for-terraform-people.md](reference/cue-for-terraform-people.md) | The CUE that a pravo specification uses, on one page, for a reader who knows HCL. Values, unification, constraints, definitions, references, comprehensions, and what each HCL construct becomes. | 11 KB |
 | [reference/spec-overview.md](reference/spec-overview.md) | What a root is, which constructs pravo reads from it, and the page that describes each one. | 7 KB |
 | [reference/spec-settings.md](reference/spec-settings.md) | The $settings block. It sets where the state lives, where its readers file is and the default refresh age, and nothing else. | 14 KB |
-| [reference/spec-resources.md](reference/spec-resources.md) | How to declare managed resources, data sources, ephemeral resources and function calls, how pravo finds them, and how they are addressed. | 15 KB |
+| [reference/spec-resources.md](reference/spec-resources.md) | How to declare managed resources, data sources, ephemeral resources and function calls, how pravo finds them, and how they are addressed. | 16 KB |
 | [reference/spec-providers.md](reference/spec-providers.md) | How to declare a provider, the $-fields that tell pravo how to obtain it, instance keys, and rules that bind every resource built through a provider. | 14 KB |
 | [reference/spec-moves-and-imports.md](reference/spec-moves-and-imports.md) | $from renames or moves a record to a new address. $import adopts an existing object. Both are fields of the resource they describe. | 14 KB |
 | [reference/spec-outputs.md](reference/spec-outputs.md) | pravo.#Output publishes a value. It is recorded in state when a plan is applied and printed by pravo output. | 6 KB |
@@ -199,7 +199,7 @@ The tutorial on pravo (track B), the team track (track C) and the companion page
 | [learn/reading-a-cue-error.md](learn/reading-a-cue-error.md) | The four parts of a pravo error, the three stages that produce one, and the messages you meet first. | 8 KB |
 | [learn/why-is-my-value-incomplete.md](learn/why-is-my-value-incomplete.md) | The three causes of an incomplete value, each with the error pravo prints, how to read it and the fix. | 12 KB |
 | [learn/closed-or-open.md](learn/closed-or-open.md) | Which structs refuse a field they do not declare, how definitions combine, and the real errors when they do not. | 9 KB |
-| [learn/eval-and-validate.md](learn/eval-and-validate.md) | What pravo eval and pravo validate check, what they print, and what the flags -c, -e and -O change. | 11 KB |
+| [learn/eval-and-validate.md](learn/eval-and-validate.md) | What pravo eval and pravo validate check, what they print, and what the flags -c, -e and -O change. | 12 KB |
 | [learn/cue-cheat-sheet.md](learn/cue-cheat-sheet.md) | Every construct of Track A on one page. Each has a short example and the output that pravo prints. | 15 KB |
 
 ### Track B · pravo
@@ -253,7 +253,7 @@ From OpenTofu or Terraform: a runbook with its lookups.
 | [migrate/m7-cut-over.md](migrate/m7-cut-over.md) | Remove OpenTofu's claim on the objects, move the pipeline to pravo, order roots that share outputs, and archive the old state. | 13 KB |
 | [migrate/m8-rollback.md](migrate/m8-rollback.md) | Where the migration can be undone by deleting the pravo files, and what to do after the first apply that changes an object. | 9 KB |
 | [migrate/m9-pitfalls.md](migrate/m9-pitfalls.md) | Symptoms you may meet while you translate, convert and cut over, with the cause, the fix and the message as pravo prints it. | 26 KB |
-| [migrate/m10-not-in-pravo.md](migrate/m10-not-in-pravo.md) | The OpenTofu features that pravo does not have, what to use in each case, and the parts of a state that the conversion does not carry over. | 11 KB |
+| [migrate/m10-not-in-pravo.md](migrate/m10-not-in-pravo.md) | The OpenTofu features that pravo does not have, what to use in each case, and the parts of a state that the conversion does not carry over. | 12 KB |
 | [migrate/m11-after-the-migration.md](migrate/m11-after-the-migration.md) | Rewrite the faithful translation in the idiom of CUE, one idea per commit, and let a policy confirm that no commit changes an object. | 12 KB |
 
 ### Annexes

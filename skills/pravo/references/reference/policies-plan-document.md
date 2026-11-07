@@ -150,9 +150,9 @@ Output:
 
 ```text
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <id>]
-7:  ~     bcrypt_hash:      (sensitive) -> (sensitive)
+7:  ~     bcrypt_hash:      (sensitive, changed)
 9:  ~     length:           8 -> 9 # forces replacement
-17:  ~     result:           (sensitive) -> (sensitive)
+17:  ~     result:           (sensitive, changed)
 ```
 
 The text shows `(sensitive)`. The document shows the value:

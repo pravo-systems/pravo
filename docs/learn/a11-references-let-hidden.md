@@ -181,18 +181,17 @@ The three kinds of name differ in two ways.
 | `let` | `let base = "10.0"` | No | The file, or the struct where it is written |
 | Hidden field | `_region: "eu-west-1"` | No | Every file of the package |
 
-`pravo eval` omits hidden fields, and `-e` cannot name one.
+`pravo eval` omits hidden fields from the whole specification. `-e` can name a top-level one:
 
-```sh run exit=1
+```sh run
 pravo eval -e _region
 ```
 
 ```text out
-Error: -e "_region": reference "_region" not found:
-    1:1
+"eu-west-1"
 ```
 
-To look at a hidden value, copy it into a regular field.
+A hidden field nested inside a struct is not visible to `-e`. To look at it, copy it into a regular field.
 
 ## Break it
 

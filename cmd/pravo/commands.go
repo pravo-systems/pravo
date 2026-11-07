@@ -777,7 +777,7 @@ func runApply(rt *runContext, cmd *cobra.Command, refresh string, full, autoAppr
 		}
 		if ok, noInput := confirmApply(rt, question); !ok {
 			if noInput {
-				return errors.New("apply cancelled: nothing was read from the input to answer the question; pass --auto-approve to approve without a prompt, or apply a reviewed plan file")
+				return errors.New("apply cancelled: not a terminal, so there was no one to ask. Use --auto-approve, or apply a saved plan file")
 			}
 			return errors.New("apply cancelled")
 		}
@@ -813,7 +813,6 @@ func runApply(rt *runContext, cmd *cobra.Command, refresh string, full, autoAppr
 	}
 }
 
-// confirmApply asks the question and reports whether it was answered "yes".
 // confirmApply asks the question and reports whether the answer was yes. noInput says
 // that nothing could be read to answer with (a closed or empty input).
 func confirmApply(rt *runContext, question string) (ok, noInput bool) {
@@ -1424,6 +1423,30 @@ func countMode(root *config.Root, mode string) int {
 	return n
 }
 
+// withHiddenFields returns v with its top-level hidden fields (the locals, _x) also
+// declared in the scope that a compiled expression has, so that -e _x finds them. A
+// hidden field belongs to the package that declares it, and an expression compiled on
+// its own is another one.
+func withHiddenFields(v cue.Value) cue.Value {
+	it, err := v.Fields(cue.Hidden(true))
+	if err != nil {
+		return v
+	}
+	out := v
+	for it.Next() {
+		sel := it.Selector()
+		if sel.PkgPath() == "" || sel.IsDefinition() {
+			continue
+		}
+		out = out.FillPath(cue.MakePath(cue.Hid(sel.String(), "_")), it.Value())
+	}
+	return out
+}
+
+const evalNote = `
+pravo eval prints once and exits; there is no interactive prompt. Locals nested inside
+a struct (a._x) are not visible to -e: reach them with a path from the top (a.b).`
+
 func evalCmd(rt *runContext) *cobra.Command {
 	var expr string
 	var concrete, optional, raw bool
@@ -1436,10 +1459,10 @@ the recorded state of every resource filled in. Needs no provider for a file
 that declares none, so it also serves to try out CUE.
 
   pravo eval                       the whole evaluated specification
-  pravo eval -e logs.tags          one expression: a path or any CUE expression
+  pravo eval -e logs.tags          one expression: a path, a top-level local _x, or any CUE
   pravo eval -c                    fail unless every value is concrete
   pravo eval -e guard.rule --raw   the value as written, with its comprehensions, as a file
-  pravo eval -t env=prod           inject a value for an @tag() field`,
+  pravo eval -t env=prod           inject a value for an @tag() field` + evalNote,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
@@ -1484,7 +1507,7 @@ that declares none, so it also serves to try out CUE.
 				}
 			}
 			if expr != "" {
-				v = v.Context().CompileString(expr, cue.Scope(v), cue.InferBuiltins(true))
+				v = v.Context().CompileString(expr, cue.Scope(withHiddenFields(v)), cue.InferBuiltins(true))
 				if err := v.Err(); err != nil {
 					return fmt.Errorf("-e %q: %s", expr, cueerrors.Details(err, nil))
 				}

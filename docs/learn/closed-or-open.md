@@ -71,6 +71,7 @@ pravo eval
 Error: evaluating .:
 logs.vrsioning: field not allowed:
     ./estate.cue:8:32
+  hint (logs.vrsioning): did you mean versioning? logs has: name, versioning. `pravo schema <type>` prints every field of a type.
 ```
 
 The path is `logs.vrsioning`. The rule is `field not allowed`: `#Bucket` does not declare it. The location is the line that wrote the field. Correct the spelling, or declare the field in the definition.
@@ -100,6 +101,7 @@ pravo eval
 Error: evaluating .:
 logs.tags.team: field not allowed:
     ./estate.cue:10:58
+  hint (logs.tags.team): logs.tags has: owner. `pravo schema <type>` prints every field of a type.
 ```
 
 The path is `logs.tags.team`. The definition declares `tags`, and the struct in `tags` declares only `owner`. To accept other tags, give `tags` a pattern.
@@ -154,6 +156,7 @@ pravo eval
 Error: evaluating .:
 logs.owner: field not allowed:
     ./estate.cue:8:7
+  hint (logs.owner): logs has: name. `pravo schema <type>` prints every field of a type.
 ```
 
 The location is the line that added `owner`. Declare the field in `#Bucket` instead.
@@ -183,6 +186,8 @@ logs.name: field not allowed:
 logs.owner: field not allowed:
     ./estate.cue:4:11
     ./estate.cue:6:41
+  hint (logs.name): logs has: owner. `pravo schema <type>` prints every field of a type.
+  hint (logs.owner): logs has: name. `pravo schema <type>` prints every field of a type.
 ```
 
 Every field is refused. `#Named` allows `name` and refuses `owner`. `#Tagged` allows `owner` and refuses `name`. The value must satisfy both, so it can hold neither.
@@ -233,6 +238,7 @@ Error: evaluating .:
 logs.owner: field not allowed:
     ./estate.cue:4:19
     ./estate.cue:6:32
+  hint (logs.owner): logs has: name. `pravo schema <type>` prints every field of a type.
 ```
 
 The path is `logs.owner`. `#Base` is closed, so the extra field in `#Tagged` is not allowed. The two locations are the declaration in `#Tagged` and the field in `logs`. Embed the base instead.
@@ -284,6 +290,7 @@ pravo eval
 Error: evaluating .:
 logs.ownr: field not allowed:
     ./estate.cue:10:51
+  hint (logs.ownr): did you mean owner? logs has: name, owner. `pravo schema <type>` prints every field of a type.
 ```
 
 ## Opening a definition
@@ -332,6 +339,7 @@ pravo eval
 Error: evaluating .:
 logs.extra: field not allowed:
     ./estate.cue:7:32
+  hint (logs.extra): logs has: name. `pravo schema <type>` prints every field of a type.
 ```
 
 ## A resource is closed
@@ -384,6 +392,7 @@ pravo validate
 Error: evaluating .:
 note.filenmae: field not allowed:
     ./estate.cue:8:2
+  hint (note.filenmae): did you mean filename? `pravo schema <type>` prints every field of a type.
 ```
 
 The path is `note.filenmae`. The rule is the same one: the definition does not declare the field. The check runs on the specification alone, before any provider starts, so it needs no credentials.

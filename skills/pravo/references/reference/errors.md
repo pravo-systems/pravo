@@ -320,6 +320,7 @@ Output:
 Error: evaluating .:
 pet.lenght: field not allowed:
     ./main.cue:7:38
+  hint (pet.lenght): did you mean length? pet has: id, keepers, length, prefix, separator. `pravo schema <type>` prints every field of a type.
 
 exit=6
 ```

@@ -102,9 +102,10 @@ pravo validate
 Error: evaluating .:
 note.filenam: field not allowed:
     ./bad.cue:3:7
+  hint (note.filenam): did you mean filename? `pravo schema <type>` prints every field of a type.
 ```
 
-`field not allowed` means that a definition is closed and the field is not in it. A resource is built from a closed definition, so a typo is an error before any provider starts. [Closed or open?](../learn/closed-or-open.md) explains it.
+`field not allowed` means that a definition is closed and the field is not in it. The hint after the error names the closest field and lists the ones the resource has. A resource is built from a closed definition, so a typo is an error before any provider starts. [Closed or open?](../learn/closed-or-open.md) explains it.
 
 ```cue file=bad.cue title="bad.cue" status=rejected
 package debugging
@@ -324,7 +325,7 @@ pravo plan -refresh=all | grep -E '^(note|Plan|Graph)'
 ```text out
 note: Refreshing state... [id=<id>]
 note: the provider no longer finds it (deleted, or changed into another object): note.txt exists, so it was changed, not deleted; it will be written again from the specification
-Plan: 1 to add, 0 to change, 0 to destroy.
+Plan: 1 to add (1 after drift), 0 to change, 0 to destroy.
 Graph: planned 1 · skipped 1 · refreshed 2 · drifted 1
 ```
 

@@ -392,13 +392,13 @@ func loadPackage(abs string, files []string, opts LoadOptions, overlay map[strin
 	v := ctx.BuildInstance(inst)
 	if err := v.Err(); err != nil {
 		end(err)
-		return nil, ModuleNotFoundHint(fmt.Errorf("evaluating %s:\n%s", abs, cueerrors.Details(err, nil)))
+		return nil, ModuleNotFoundHint(fmt.Errorf("evaluating %s:\n%s", abs, DetailsWithHints(v, err)))
 	}
 	end(nil)
 	end = opts.stage("validate")
 	if err := v.Validate(); err != nil {
 		end(err)
-		return nil, fmt.Errorf("invalid configuration:\n%s", cueerrors.Details(err, nil))
+		return nil, fmt.Errorf("invalid configuration:\n%s", DetailsWithHints(v, err))
 	}
 	end(nil)
 	r := &Root{Dir: abs, PkgName: inst.PkgName, Ctx: ctx, Value: v, Providers: map[string]*ProviderReq{}, StatePath: DefaultStatePath}
@@ -582,7 +582,7 @@ func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, notes en
 		// Something the block does not need could not be evaluated; read the
 		// block on its own.
 		if v, err = build(src.pravoDecls); err != nil {
-			return nil, notes, fmt.Errorf("evaluating pravo settings:\n%s", cueerrors.Details(err, nil))
+			return nil, notes, fmt.Errorf("evaluating pravo settings:\n%s", DetailsWithHints(v, err))
 		}
 	}
 	r := &Root{Dir: src.abs, PkgName: src.pkg, Ctx: ctx, Value: v, Providers: map[string]*ProviderReq{}, StatePath: DefaultStatePath, ModRoot: FindModuleRoot(src.abs),

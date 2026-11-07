@@ -230,7 +230,7 @@ func (p *Printer) RenderPlan(plan *engine.Plan) {
 	if n := plan.DeferredCount(); n > 0 {
 		declared += fmt.Sprintf(", %d deferred to the next plan", n)
 	}
-	p.Printf("%s %s to add, %s to change, %s to destroy%s.\n", p.C(Bold, "Plan:"), p.C(Green, strconv.Itoa(add)), p.C(Yellow, strconv.Itoa(change)), p.C(Red, strconv.Itoa(destroy)), declared)
+	p.Printf("%s %s, %s to change, %s to destroy%s.\n", p.C(Bold, "Plan:"), p.addCount(plan, add), p.C(Yellow, strconv.Itoa(change)), p.C(Red, strconv.Itoa(destroy)), declared)
 	if plan.DeferredCount() > 0 {
 		p.Println(p.C(Dim, "A deferred change waits for a value that the apply makes known. The apply plans it again when it is done."))
 	}
@@ -615,6 +615,16 @@ func (p *Printer) line(b *strings.Builder, sym, color, indent, text string) {
 	b.WriteString(text)
 }
 
+// addCount is the number of adds in the Plan line, with the part of it that makes again an
+// object that drifted away.
+func (p *Printer) addCount(plan *engine.Plan, add int) string {
+	text := p.C(Green, strconv.Itoa(add)) + " to add"
+	if n := plan.RecreatedCount(); n > 0 {
+		text += fmt.Sprintf(" (%d after drift)", n)
+	}
+	return text
+}
+
 func (p *Printer) value(v tftypes.Value, indent string, sens func([]string) bool, path []string) string {
 	s := convert.RenderCUE(v, indent, sens, path)
 	switch s {
@@ -661,9 +671,16 @@ func (p *Printer) renderDiff(b *strings.Builder, before, after tftypes.Value, in
 			b.WriteString(p.value(after, indent, sens, path))
 			return
 		}
-		b.WriteString(p.value(before, indent, sens, path))
+		bs, as := p.value(before, indent, sens, path), p.value(after, indent, sens, path)
+		if bs == as && bs == p.C(Dim, "(sensitive)") {
+			// Both sides are hidden, so "(sensitive) -> (sensitive)" would read as no
+			// change. Say it changed; the reason is usually an input that changed.
+			b.WriteString(p.C(Dim, "(sensitive, changed)"))
+			return
+		}
+		b.WriteString(bs)
 		b.WriteString(p.C(Yellow, " -> "))
-		b.WriteString(p.value(after, indent, sens, path))
+		b.WriteString(as)
 		return
 	}
 	var bm, am map[string]tftypes.Value

@@ -31,9 +31,9 @@ A pravo command takes the same place in a pipeline as the tofu command it replac
 | `tofu apply f` | `pravo apply f` | Asks nothing. `-only addr` applies part of the plan. |
 | `tofu destroy` | `pravo destroy` | `--auto-approve` skips the question. |
 | `tofu show f` | `pravo show f` | Prints a saved plan. `--json` prints the plan document. |
-| `tofu show` (state) | `pravo state list`, `pravo state show addr` | One record at a time. |
-| `tofu output` | `pravo output [name]` | `--json` for JSON. A string prints quoted. |
-| `tofu console` | `pravo eval -e EXPR` | `pravo eval` prints the whole evaluated specification. `-c` fails unless every value is concrete. |
+| `tofu show` (state) | `pravo state list`, `pravo state show addr` | One record at a time. It prints sensitive attributes in clear, where `tofu state show` masks them: `--redact` withholds them. `pravo plan --json` carries the values of the plan in clear. |
+| `tofu output` | `pravo output [name]` | `--json` for JSON. A string prints quoted. A sensitive output prints as `(sensitive)`, but `--json` and a named output print the value in clear, as `tofu output -json` does. |
+| `tofu console` | `pravo eval -e EXPR` | `pravo eval` prints the whole evaluated specification. `-c` fails unless every value is concrete. `-e` sees top-level locals (`_x`) and resources. It prints once and exits: there is no interactive prompt. A local nested inside a struct is not visible: reach it by a path from the top. |
 | `tofu fmt` | `pravo fmt` | Formats the `.cue` files of the current directory. `--check` writes nothing and exits with code 2 when a file would change. |
 | `tofu graph` | `pravo state graph` | `--dot` prints Graphviz. |
 | `tofu import addr id` | `pravo import addr id` | The declaration `$import: "id"` does the same in the specification. |
@@ -48,7 +48,7 @@ A pravo command takes the same place in a pipeline as the tofu command it replac
 | `tofu providers lock` | `pravo providers lock` | Pins the archive hashes for more platforms. |
 | `tofu providers schema -json` | `pravo providers schema name`, `pravo schema type` | Prints the schema as CUE. |
 | `tofu state list` | `pravo state list` | |
-| `tofu state show addr` | `pravo state show addr` | Attributes as CUE, with the bookkeeping as comments. |
+| `tofu state show addr` | `pravo state show addr` | Attributes as CUE, with the bookkeeping as comments. Sensitive attributes print as `(sensitive)`; `--reveal` prints them. |
 | `tofu state mv a b` | `pravo state mv a b` | Within one state. |
 | `tofu state rm addr` | `pravo state rm addr` | Forgets the record and leaves the object. |
 | `tofu state pull` | `pravo state pull dir` | Copies the whole graph to a local directory. |

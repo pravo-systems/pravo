@@ -117,6 +117,7 @@ pravo validate
 Error: evaluating .:
 manifest.filenam: field not allowed:
     ./fault.cue:3:11
+  hint (manifest.filenam): did you mean filename? `pravo schema <type>` prints every field of a type.
 ```
 
 The provider's definition is closed, so the field is refused. The only location is the one you typed. See [A8](a08-definitions-reject-typos.md).

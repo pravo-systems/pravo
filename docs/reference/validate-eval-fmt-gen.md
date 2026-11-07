@@ -101,6 +101,7 @@ pravo validate
 Error: evaluating .:
 pet.lenght: field not allowed:
     ./typo.cue:3:38
+  hint (pet.lenght): did you mean length? pet has: id, keepers, length, prefix, separator. `pravo schema <type>` prints every field of a type.
 ```
 
 The path is `pet.lenght`, the rule is `field not allowed`, and the location is the line of the attribute. Remove the file.

@@ -251,7 +251,7 @@ hello: $local.#Resource.local_file & {
 | `random_pet.server.id` | `server.id` |
 | `data.local_file.banner.content` | `banner.content` |
 
-Choose the field name with care. It is the address, and renaming it later is a move. A name inside a struct resolves to the nearest field of that name. So `prefix: prefix` in a resource body refers to the attribute itself. Give the variable a different name, or alias it outside the body (`_p: prefix`). [Pitfalls](m9-pitfalls.md) shows the plan that results.
+Choose the field name with care. It is the address, and renaming it later is a move. A name inside a struct resolves to the nearest field of that name. So `prefix: prefix` in a resource body refers to the attribute itself. The error then reads `undefined field` or `invalid operand`, and names the shadowing field in a hint. Give the variable a different name, or alias it outside the body (`_p: prefix`). [Pitfalls](m9-pitfalls.md) shows the plan that results.
 
 In a root that declares the provider, `pravo schema <type>` prints the arguments a type accepts, with the provider's documentation as comments. `pravo schema <type> -required` prints only those that must be set.
 

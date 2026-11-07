@@ -167,6 +167,7 @@ pravo eval
 Error: evaluating .:
 buckets.media.vrsioning: field not allowed:
     ./estate.cue:13:12
+  hint (buckets.media.vrsioning): did you mean versioning? buckets.media has: class, name, versioning. `pravo schema <type>` prints every field of a type.
 ```
 
 The path is `buckets.media.vrsioning`. The rule reached the entry `media`, built it from `#Bucket`, and the closed shape refused the field. The single location is the line that wrote it. The other two entries are fine, and no result is printed.

@@ -225,7 +225,23 @@ func (p *provider) StopProvider(context.Context, *tfprotov6.StopProviderRequest)
 	return &tfprotov6.StopProviderResponse{}, nil
 }
 
-func (p *provider) ValidateResourceConfig(context.Context, *tfprotov6.ValidateResourceConfigRequest) (*tfprotov6.ValidateResourceConfigResponse, error) {
+// ValidateResourceConfig refuses a size of "huge", as a provider refuses a value its
+// schema cannot express, so that a test sees an error that only the provider finds.
+func (p *provider) ValidateResourceConfig(_ context.Context, req *tfprotov6.ValidateResourceConfigRequest) (*tfprotov6.ValidateResourceConfigResponse, error) {
+	if req.TypeName == "demo_server" {
+		if cfg, err := req.Config.Unmarshal(serverType); err == nil && !cfg.IsNull() {
+			var m map[string]tftypes.Value
+			var size string
+			if cfg.As(&m) == nil && m["size"].As(&size) == nil && size == "huge" {
+				return &tfprotov6.ValidateResourceConfigResponse{Diagnostics: []*tfprotov6.Diagnostic{{
+					Severity:  tfprotov6.DiagnosticSeverityError,
+					Summary:   "Invalid Attribute Value",
+					Detail:    "Attribute size value must be small or large, got: huge",
+					Attribute: tftypes.NewAttributePath().WithAttributeName("size"),
+				}}}, nil
+			}
+		}
+	}
 	return &tfprotov6.ValidateResourceConfigResponse{}, nil
 }
 
