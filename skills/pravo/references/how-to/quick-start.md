@@ -204,6 +204,8 @@ The plan changes nothing. Four things to read in it:
 pravo apply -auto-approve
 ```
 
+`-auto-approve` skips the question `pravo apply` asks in a terminal. A script or a shell with no input needs it, or a saved plan file, because there is no one to answer.
+
 Output:
 
 ```text

@@ -128,7 +128,7 @@ One task each, for a reader who knows the basics.
 
 | File | Covers | Size |
 |---|---|---|
-| [how-to/quick-start.md](how-to/quick-start.md) | Twelve minutes from install to a first plan, an apply, a conflict and a destroy. No account and no cloud. | 14 KB |
+| [how-to/quick-start.md](how-to/quick-start.md) | Twelve minutes from install to a first plan, an apply, a conflict and a destroy. No account and no cloud. | 15 KB |
 
 ### Maintain
 
@@ -252,7 +252,7 @@ From OpenTofu or Terraform: a runbook with its lookups.
 | [migrate/m7-cut-over.md](migrate/m7-cut-over.md) | Remove OpenTofu's claim on the objects, move the pipeline to pravo, order roots that share outputs, and archive the old state. | 13 KB |
 | [migrate/m8-rollback.md](migrate/m8-rollback.md) | Where the migration can be undone by deleting the pravo files, and what to do after the first apply that changes an object. | 9 KB |
 | [migrate/m9-pitfalls.md](migrate/m9-pitfalls.md) | Symptoms you may meet while you translate, convert and cut over, with the cause, the fix and the message as pravo prints it. | 26 KB |
-| [migrate/m10-not-in-pravo.md](migrate/m10-not-in-pravo.md) | The OpenTofu features that pravo does not have, what to use in each case, and the parts of a state that the conversion does not carry over. | 11 KB |
+| [migrate/m10-not-in-pravo.md](migrate/m10-not-in-pravo.md) | The OpenTofu features that pravo does not have, what to use in each case, and the parts of a state that the conversion does not carry over. | 12 KB |
 | [migrate/m11-after-the-migration.md](migrate/m11-after-the-migration.md) | Rewrite the faithful translation in the idiom of CUE, one idea per commit, and let a policy confirm that no commit changes an object. | 12 KB |
 
 ### Annexes

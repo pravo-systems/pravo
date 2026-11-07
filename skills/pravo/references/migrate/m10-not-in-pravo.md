@@ -20,7 +20,7 @@ pravo has no workspaces, no `-target` and no provisioners. The same holds for th
 | `lifecycle { replace_triggered_by }` | `pravo plan --replace addr`, or an attribute that depends on the trigger. |
 | `tofu taint`, `tofu untaint` | `pravo plan --replace addr` and `pravo apply --replace addr`. |
 | `tofu refresh`, `-refresh-only` | `pravo drift` reads every resource and reports changes. `--refresh=all` on `plan` refreshes every record. |
-| `tofu console` | `pravo eval -e EXPR`. |
+| `tofu console` | `pravo eval -e EXPR`. It prints once and exits, with no interactive prompt, and sees top-level locals (`_x`). |
 | `tofu graph` | `pravo state graph --dot`. |
 | `tofu test`, `.tftest.hcl` | `pravo validate`, `pravo eval -c`, and a plan policy on a saved plan in CI. |
 | `-var`, `-var-file`, `*.tfvars` | `-t name=value` for a string, a number or a boolean. A list or a map is a field in a `.cue` file. |
