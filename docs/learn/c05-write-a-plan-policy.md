@@ -360,7 +360,7 @@ sed -n '/^Error/,$p' plan.out
 exit=5
 Error: the plan violates the policy long_passwords@1 (sha256:<digest>):
 changes.0.after.length: invalid value 12 (out of bound >=16):
-    long_passwords:5:12
+    ./policy.cue:7, in the field changes of the policy long_passwords: length: >=16
     plan:1:151
 ```
 

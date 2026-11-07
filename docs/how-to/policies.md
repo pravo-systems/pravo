@@ -225,7 +225,7 @@ Graph: planned 0 · skipped 2 · not read 2
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 Error: the plan violates the policy guard@1 (sha256:<digest>):
 changes.0: server: replace is not allowed:
-    guard:9:3
+    ./root/policy.cue:8, in the field changes of the policy guard: error("\(addr): \(action) is not allowed")
 ```
 
 ## 5. Roll a new rule out as advice
@@ -312,7 +312,7 @@ exit=0
 
 ## 6. Make it blocking
 
-When the advice is quiet, move the rule into the policy and add the fixture that proves it. The edit is a change of the policy, so the apply that carries it is not judged by the new text: it creates `extra` under the version in force, and writes version 2. The plan prints that as `~ guard (version 1, replaced by version 2, ...)`. The version in force judges the plan that replaces it on purpose, so that one plan cannot weaken a rule and use the weaker text to pass.
+When the advice is quiet, move the rule into the policy and add the fixture that proves it. The edit is a change of the policy, so the apply that carries it is not judged by the new text: it creates `extra` under the version in force, and writes version 2. The plan prints that as `~ guard (version 1, replaced by version 2, ...)`. The version in force judges the plan that replaces it, so that one plan cannot weaken a rule and use the weaker text to pass.
 
 ```cue file=root/policy.cue title="root/policy.cue" hl="9,19-22"
 package guarded
@@ -374,9 +374,11 @@ rm root/extra2.cue
 ```text out
 Error: the plan violates the policy guard@2 (sha256:<digest>):
 changes.0.after.prefix: conflicting values null and !="" (mismatched types null and string):
-    guard:14:2
-    guard:16:12
+    ./root/policy.cue:8, in the field changes of the policy guard: if type == "random_pet" && action == "create" {
+    ./root/policy.cue:8, in the field changes of the policy guard: prefix: !=""
     plan:1:129
+
+Hint: an attribute that is not set is null in the plan document: declare a field that can be null as field?: null | {...} in the template, and test it, if field != null {...}
 ```
 
 ## 7. Exempt by type

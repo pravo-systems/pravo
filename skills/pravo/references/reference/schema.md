@@ -82,6 +82,10 @@ random_integer: {
 	// Additional dependencies, as references to other resources.
 	$depends_on?: [..._]
 	$lifecycle?: #Lifecycle
+	// Marks of the resource that a policy can read, such as protected: "true".
+	// They reach the provider as nothing: they are kept in the state and shown
+	// in the plan document as labels.
+	$labels?: [string]: __string
 	// The maximum inclusive value of the range.
 	max: number
 	// The minimum inclusive value of the range.
@@ -128,6 +132,10 @@ random_pet: {
 	// Additional dependencies, as references to other resources.
 	$depends_on?: [..._]
 	$lifecycle?: #Lifecycle
+	// Marks of the resource that a policy can read, such as protected: "true".
+	// They reach the provider as nothing: they are kept in the state and shown
+	// in the plan document as labels.
+	$labels?: [string]: __string
 	// The random pet name.
 	id: __string | null
 	// Arbitrary map of values that, when changed, will trigger recreation of resource. See [the main provider documentation](../index.html) for more information.
