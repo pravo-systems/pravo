@@ -140,6 +140,11 @@
 .node .kb .kbg .gs { stroke-width: 1.8; }
 .node .kb .kbt { font: 500 9.5px var(--font-mono); fill: var(--text-2); }
 .node .kb { opacity: var(--lab); transition: opacity .2s; }
+.node .aw { opacity: var(--lab); transition: opacity .2s; pointer-events: none; }
+.node .aw .awr { fill: var(--bg); stroke: var(--g-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.node .aw .awt { font: 500 9.5px var(--font-mono); text-anchor: middle; fill: var(--text-2); }
+.node.a-create .aw .awt { fill: var(--accent); } .node.a-update .aw .awt, .node.a-replace .aw .awt { fill: var(--change); } .node.a-delete .aw .awt { fill: var(--conflict); }
+.node.a-read .aw .awt, .node.a-move .aw .awt, .node.a-import .aw .awt { fill: var(--key); }
 .node.drifted .bar { fill: var(--change); } .node.gone .bar, .node.orphan .bar { fill: var(--conflict); }
 .node.a-create .bar { fill: var(--accent); } .node.a-update .bar, .node.a-replace .bar { fill: var(--change); } .node.a-delete .bar { fill: var(--conflict); }
 .node.a-read .bar, .node.a-move .bar, .node.a-import .bar { fill: var(--key); }
@@ -207,7 +212,7 @@
 .ctl-item .sep { stroke: var(--g-edge); vector-effect: non-scaling-stroke; }
 
 /* selection and filters dim what is not involved */
-.has-sel .node:not(.rel), .has-sel .ns-item:not(.rel), .has-sel .cluster-item:not(.rel), .has-sel .ctl-item { opacity: .34; }
+.has-sel .node:not(.rel), .has-sel .ns-item:not(.rel), .has-sel .cluster-item:not(.rel), .has-sel .ctl-item { opacity: .55; }
 .has-sel .lane, .has-sel .lane-head { opacity: .65; } .has-sel .lane.sel, .has-sel .lane-head.sel { opacity: 1; }
 .reach-mode .node:not(.reach), .reach-mode .ns-item:not(.reach), .reach-mode .cluster-item:not(.reach) { opacity: .1; }
 .has-match .nomatch { opacity: .2; }

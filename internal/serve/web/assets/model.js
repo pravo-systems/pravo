@@ -1,7 +1,7 @@
 // The graph held by the page: indexes over the answer of /api/graph, the items that are visible for a
 // given set of collapsed namespaces and open clusters, and the diff of two graphs. No DOM.
 
-import { G, FIT, fitScale, layout } from './layout.js';
+import { G, FIT, fitScale, padX, layout } from './layout.js';
 import { setProviders } from './provider.js';
 
 export const CLUSTER_MIN = 8;
@@ -298,7 +298,7 @@ export function firstView(model, clusters, o = {}) {
   const budget = o.budget || budgetFor(width, height);
   const touched = o.touched || new Set();
   const must = o.must || new Set();
-  const fit = { w: width - FIT.padX * 2, h: height - FIT.padTop - FIT.padBottom };
+  const fit = { w: width - padX(width) * 2, h: height - FIT.padTop - FIT.padBottom };
   const collapsed = new Set();
   for (const m of model.namespaces.values()) if (!m.isRoot) collapsed.add(m.path);
   for (const p of must) { const m = model.namespaces.get(p); if (m) for (const c of chain(m)) collapsed.delete(c.path); }

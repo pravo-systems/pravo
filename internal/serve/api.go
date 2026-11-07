@@ -140,6 +140,11 @@ type Node struct {
 	NoSchema    bool       `json:"no_schema,omitempty"`
 	Revision    int        `json:"revision,omitempty"`
 	RefreshedAt *time.Time `json:"refreshed_at,omitempty"`
+	// ChangedAt and ChangedBy say when and by whom the last transaction that wrote
+	// the node ran (a plan does not write it): the start of the transaction, and its
+	// actor, or the operating system user when it has none.
+	ChangedAt *time.Time `json:"changed_at,omitempty"`
+	ChangedBy string     `json:"changed_by,omitempty"`
 	// Source is where the node is written in the specification: the field that
 	// holds it. It is nil for a node that is only in the state.
 	Source *Ref `json:"source,omitempty"`
