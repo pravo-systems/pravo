@@ -376,7 +376,7 @@ A record that does not match its name, a pointer that disagrees with its record,
 
 ## protect offboard
 
-`pravo protect offboard NAME` removes the line of NAME from the readers file, runs `rewrap --all`, runs `protect roles` when the readers file gives roles, and runs `gc`, each as its own section above describes, and prints what is left for you: committing the readers file, a second `gc` once the old reader group may be dropped (it prints when), and taking the credentials of the bucket from NAME. It needs an admin identity. `--yes` skips the question of `protect roles`, and `--vouch-notes` is passed to it. When a step fails, the steps before it stay done; run the one that failed, then `offboard` again for the rest. A NAME that is no longer in the readers file but is still in the state runs the steps without the first.
+`pravo protect offboard NAME` removes the line of NAME from the readers file, runs `rewrap --all`, runs `protect roles` when the readers file gives roles, and runs `gc`, each as its own section above describes, and prints what is left for you: committing the readers file, a second `gc` once the old reader group may be dropped (it prints when), and taking the credentials of the bucket from NAME. It needs an admin identity. `--yes` skips the question of `protect roles`, and `--vouch-notes` is passed to it. When a step fails, the steps before it stay done; run the one that failed, then `offboard` again for the rest. A NAME that was already taken out of the readers file but is still in the state runs the steps without the first.
 
 ## protect recover
 
