@@ -127,7 +127,7 @@ func (e *Engine) VerifyReceipt(ctx context.Context, t *state.Transaction, pf *Pl
 	if err != nil {
 		return nil, err
 	}
-	_, err = judgeVersions(e, doc, versions)
+	_, err = judgeVersions(e, doc, versions, nil)
 	return rc, err
 }
 

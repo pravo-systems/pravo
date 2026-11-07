@@ -312,7 +312,7 @@ exit=0
 
 ## 6. Make it blocking
 
-When the advice is quiet, move the rule into the policy and add the fixture that proves it. The edit is a change of the policy, so the apply that carries it is not judged by the new text: it creates `extra` under the version in force, and writes version 2.
+When the advice is quiet, move the rule into the policy and add the fixture that proves it. The edit is a change of the policy, so the apply that carries it is not judged by the new text: it creates `extra` under the version in force, and writes version 2. The plan prints that as `~ guard (version 1, replaced by version 2, ...)`. The version in force judges the plan that replaces it on purpose, so that one plan cannot weaken a rule and use the weaker text to pass.
 
 ```cue file=root/policy.cue title="root/policy.cue" hl="9,19-22"
 package guarded
@@ -543,6 +543,53 @@ guard: pravo.#Policy & {
 ```
 
 The plan-time line `Policies: 1 satisfied` does not count approvals: they are counted when the plan is applied, and an apply with too few is refused with the number it needs. The approvals belong to a stored plan, so a plan that such a rule matches is made with `pravo plan --store` and applied by its id, and an admin needs none. [Approve a plan](approve-a-plan.md) sets it up with three people, and [Operating policies](../reference/policies-operations.md#ask-for-approvals) lists the fields.
+
+## 11. Protect resources by label
+
+A plan names no tags, so a rule cannot tell a resource that matters from one that does not. Mark the resource with `$labels`, a map of strings that no provider sees, and let a policy read it. The document of each change holds `labels` (the specification now) and `before_labels` (the record from the last apply):
+
+```cue
+vault: $local.#Resource.local_file & {
+	filename: "vault.txt"
+	content:  "secret"
+	$labels: protected: "true"
+}
+```
+
+The rule reads `before_labels`, because it still holds the label when the block is deleted from the specification or when the label is taken off in the same change:
+
+```cue
+keep_protected: pravo.#Policy & {
+	rule: changes: [...pravo.#Change & {
+		action: string
+		addr:   string
+		before_labels?: {protected?: string, ...}
+		if (action == "delete" || action == "replace") && before_labels != _|_ {
+			if before_labels.protected != _|_ {
+				error("\(addr) is protected: take the label off in a reviewed change first")
+			}
+		}
+	}]
+}
+```
+
+A plan that destroys or replaces `vault` is refused with exit code 5 and the message `vault is protected: ...`. To release it, take `$labels` off in a change of its own and apply that; the record then holds no label, and a later plan may destroy the resource. [The plan document in a policy](../reference/policies-plan-document.md#labels) lists the fields.
+
+## 12. When a rule is wrong
+
+A rule that fails to evaluate refuses plans for a reason that is not the plan. The refusal names the policy, the file and the field of the rule that CUE stopped at, and says what to write:
+
+```text
+Error: the plan violates the policy faulty@1 (sha256:...):
+changes.0.after.content_base64: conflicting values null and {x:string} (mismatched types null and struct):
+    main.cue:9, in the field changes of the policy faulty: after?: {content_base64?: {x: string}, ...}
+
+Hint: an attribute that is not set is null in the plan document: declare a field that can be null as field?: null | {...} in the template, and test it, if field != null {...}
+```
+
+Two more mistakes have a hint. A rule that reads `before` or `after` without declaring it `before?: {...}` is refused when the root loads, with the line of the rule, because a create has no `before` and a delete has no `after`. A rule that compares a value the provider computes at apply meets `{"$unknown": true}`. [Writing policies](../reference/policies-writing.md#read-an-absent-field-only-after-a-presence-test) has the shapes that work.
+
+The version in force judges the plan that replaces it, so a rule that is wrong judges its own fix. When the plan that carries the fix also changes resources, the refusal ends with the way out. A plan that changes only policies is not judged, so put the resource changes aside, apply the fix, and bring the changes back. The policy is then judged by the corrected text from the next plan on.
 
 ## What a policy does not bind
 

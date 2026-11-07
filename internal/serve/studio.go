@@ -354,7 +354,8 @@ func stateChanges(m *model) []engine.ChangeView {
 			continue
 		}
 		out = append(out, engine.ChangeView{Addr: a, Mode: mn.rec.Mode, Type: mn.rec.Type, Name: mn.rec.Name, Action: engine.ActionUpdate,
-			Provider: mn.rec.ProviderKey, Before: raw, After: raw, Dependencies: mn.rec.Dependencies})
+			Provider: mn.rec.ProviderKey, Before: raw, After: raw, Dependencies: mn.rec.Dependencies,
+			Labels: mn.rec.Labels, BeforeLabels: mn.rec.Labels})
 	}
 	return out
 }

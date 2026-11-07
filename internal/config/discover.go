@@ -365,7 +365,20 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 			return fmt.Errorf("policy %s: %w", p, err)
 		}
 		desc, _ := v.LookupPath(cue.ParsePath("description")).String()
-		r.Policies = append(r.Policies, &Policy{Name: p.String(), Path: p, Description: desc, Rule: rule})
+		pol := &Policy{Name: p.String(), Path: p, Description: desc, Rule: rule}
+		// Where the author wrote each field of the rule: the stored text is formatted
+		// and has no lines of the file.
+		rv := v.LookupPath(cue.ParsePath("rule"))
+		if it, err := rv.Fields(cue.Optional(true), cue.Definitions(true)); err == nil {
+			pol.Fields = map[string]int{}
+			for it.Next() {
+				if pos := authorPos(it.Value()); pos.IsValid() {
+					pol.File = pos.Filename()
+					pol.Fields[strings.Trim(it.Selector().String(), `"?!`)] = pos.Line()
+				}
+			}
+		}
+		r.Policies = append(r.Policies, pol)
 		return nil
 	case "remote_outputs":
 		if nested := findNested(v, p, 0); nested != "" {
@@ -650,4 +663,21 @@ func withoutPravoSchema(decls []ast.Decl) []ast.Decl {
 		out = append(out, d)
 	}
 	return out
+}
+
+// authorPos is where the author wrote v: the position of v itself, or when v is a
+// unification with a schema (pravo.#Change & {...}), the operand that is not generated.
+func authorPos(v cue.Value) token.Pos {
+	generated := func(p token.Pos) bool { return strings.Contains(filepath.ToSlash(p.Filename()), "/cue.mod/") }
+	if p := v.Pos(); p.IsValid() && !generated(p) {
+		return p
+	}
+	if op, args := v.Expr(); op == cue.AndOp {
+		for _, a := range args {
+			if p := authorPos(a); p.IsValid() {
+				return p
+			}
+		}
+	}
+	return token.NoPos
 }
