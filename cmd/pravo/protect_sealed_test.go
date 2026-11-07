@@ -315,7 +315,7 @@ func TestProtectRewrap(t *testing.T) {
 	t.Run("a reader who is removed", func(t *testing.T) {
 		s.readers(t, s.adaLine, botLine)
 		text, code := runPravo(t, rt, s.dir, "protect", "rewrap")
-		want := "Readers in .pravo/access/readers.txt: ada deploy-bot  (dan removed)\nNew data keys for 1 reader group. Records are sealed again as they are next written.\n"
+		want := "Readers in .pravo/access/readers.txt: ada deploy-bot  (dan removed)\nNew data keys for 1 reader group. Records are sealed again as they are next written.\nStill to do for dan: pravo protect rewrap --all, pravo protect gc, and take the credentials of the bucket away. pravo protect offboard does all but the credentials.\n"
 		if code != 0 || text != want {
 			t.Fatalf("exit %d\n%s", code, text)
 		}

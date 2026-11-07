@@ -166,7 +166,7 @@ PRAVO_CONFIG_DIR=people/dan pravo promote prod --auto-approve; echo "exit=$?"
 ```
 
 ```text out
-Error: your identity is a reader in .pravo/access/prod/readers.txt, and a writer is needed to change the state.
+Error: your identity is a reader in .pravo/access/prod/readers.txt, and a writer is needed to change the state. A reader can store a plan (pravo plan --store) for a writer to apply with pravo apply; or ask an admin to make you a writer (role:writer on your line in .pravo/access/prod/readers.txt, then pravo protect roles).
 exit=5
 ```
 

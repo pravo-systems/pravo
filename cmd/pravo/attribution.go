@@ -142,41 +142,76 @@ func storedPlanSignatures(ctx context.Context, rt *runContext, s *session, id st
 	return sigs, ""
 }
 
-// storedPlanApprovals says who approved a stored plan, empty when nobody did or the
-// readers file cannot say.
-func storedPlanApprovals(ctx context.Context, rt *runContext, s *session, id string) string {
+// storedPlanApprovals says who approved a stored plan and what the policies in force ask
+// of it. approved is empty when nobody did or the readers file cannot say; needs has a line
+// for each policy that asks, with how many counted approvals the plan has. An approval that
+// can never count under a policy is marked in approved, with the reason.
+func storedPlanApprovals(ctx context.Context, rt *runContext, s *session, eng *engine.Engine, pf *engine.PlanFile, id string) (approved string, needs []string) {
 	if s.state.Protection().Sealed == nil {
-		return ""
+		return "", nil
 	}
 	root, err := loadRoot(rt)
 	if err != nil {
-		return ""
+		return "", nil
 	}
 	readers, ok := attributionReaders(readersOf(rt, root))
 	if !ok {
-		return ""
+		return "", nil
 	}
 	ps := engine.NewPlanStoreFor(s.state)
 	digest, err := ps.PlanDigest(ctx, id)
 	if err != nil {
-		return ""
+		return "", nil
 	}
 	approvals, err := ps.Approvals(ctx, id, digest, readers)
-	if err != nil || len(approvals) == 0 {
-		return ""
+	if err != nil {
+		return "", nil
+	}
+	var asked []engine.ApprovalNeed
+	var storers []string
+	if eng != nil && pf != nil {
+		if set, err := s.state.PolicySet(ctx, readers); err == nil {
+			if ns, refused, err := eng.ApprovalNeeds(set, pf); err == nil && !refused {
+				asked = ns
+			}
+		}
+		if sigs, err := ps.SignaturesOf(ctx, id, digest, readers); err == nil {
+			for _, v := range sigs {
+				if v.Status == protect.SigVerified {
+					storers = append(storers, v.Key)
+				}
+			}
+		}
+	}
+	for _, n := range asked {
+		have := len(n.Counted(approvals, storers))
+		line := fmt.Sprintf("needs %s; has %d", n.Ask(), have)
+		if have >= n.Min {
+			line += " (met)"
+		} else {
+			line += " (not met; approve with pravo plan approve " + id + ")"
+		}
+		needs = append(needs, line)
 	}
 	var parts []string
 	for _, a := range approvals {
 		switch a.Status {
 		case protect.SigVerified:
-			parts = append(parts, fmt.Sprintf("%s (%s)", safeName(a.Signer), a.Role))
+			part := fmt.Sprintf("%s (%s)", safeName(a.Signer), a.Role)
+			for _, n := range asked {
+				if why := n.Why(a, storers); why != "" {
+					part = fmt.Sprintf("%s (%s; does not count: %s)", safeName(a.Signer), a.Role, printable(why))
+					break
+				}
+			}
+			parts = append(parts, part)
 		case protect.SigUnknownKey:
 			parts = append(parts, safeName(a.Claimed)+" (key not in the readers file, does not count)")
 		default:
 			parts = append(parts, "an approval that does not verify")
 		}
 	}
-	return strings.Join(parts, ", ")
+	return strings.Join(parts, ", "), needs
 }
 
 func planSigsText(sigs []engine.PlanVerdict) string {

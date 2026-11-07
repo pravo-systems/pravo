@@ -104,10 +104,10 @@ sed -n '/^Error/,$p' apply.out
 Output:
 
 ```text
-Policies: 1 satisfied.
+Policies: 1 satisfied (approvals are counted when the plan is applied).
 Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
 exit=5
-Error: the plan plan-<id> needs 1 approval by a writer or an admin (second_opinion@1) and has 0. The key that stored the plan does not count.
+Error: the plan plan-<id> needs 1 approval by a writer or an admin (policy second_opinion, version 1) and has 0. The key that stored the plan does not count. Ask an admin to review it (pravo plan show plan-<id>) and run pravo plan approve plan-<id>; then apply again.
 ```
 
 `ID` in the shell stands for the id that pravo printed. The approvals belong to the stored plan, so a plan that a rule asks approvals for is stored: `pravo apply` of a plan file, or without a plan, refuses such a plan too, because a file has nowhere to keep an approval.
@@ -119,14 +119,16 @@ Eve reads the plan first. `pravo plan show ID` prints it, and the Plans section 
 ```sh
 ID=$(pravo -C team plan list | awk 'NR==1 {print $1}')
 PRAVO_CONFIG_DIR=people/eve pravo -C team plan approve "$ID"
-pravo -C team plan show "$ID" | grep -E '^(Stored plan|  approved)'
+pravo -C team plan show "$ID" | grep -E '^(Stored plan|  approv)'
 ```
 
 Output:
 
 ```text
 Approved plan-<id> as eve.
+Policy: needs 1 approval by a writer or an admin (policy second_opinion, version 1); has 1 (met)
 Stored plan plan-<id> by dan, just now (pending)
+  approvals: needs 1 approval by a writer or an admin (policy second_opinion, version 1); has 1 (met)
   approved: eve (writer)
 ```
 
@@ -167,7 +169,7 @@ Output:
 ```text
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 exit=5
-Error: the plan needs 1 approval by a writer or an admin (second_opinion@1), and approvals belong to a stored plan: make it with plan --store, have it approved with "pravo plan approve" and apply it by its id
+Error: the plan needs 1 approval by a writer or an admin (policy second_opinion, version 1), and approvals belong to a stored plan: make it with plan --store, have it approved with "pravo plan approve" and apply it by its id
 Apply complete! Resources: 0 added, 0 changed, 1 destroyed. [txn <id>]
 ```
 
@@ -206,10 +208,12 @@ Output:
 Policies: +0 new, ~1 changed, -0 removed.
 Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
 exit=5
-Error: the plan plan-<id> needs 1 approval by an admin (a change to second_opinion@1) and has 0. The key that stored the plan does not count.
+Error: the plan plan-<id> needs 1 approval by an admin (a change to policy second_opinion, version 1) and has 0. The key that stored the plan does not count. Ask an admin to review it (pravo plan show plan-<id>) and run pravo plan approve plan-<id>; then apply again.
 Approved plan-<id> as eve.
+Recorded, but it will not count: the policy needs an admin and eve is a writer.
+Policy: needs 1 approval by an admin (a change to policy second_opinion, version 1); has 0 (not met; approve with pravo plan approve plan-<id>)
 exit=5
-Error: the plan plan-<id> needs 1 approval by an admin (a change to second_opinion@1) and has 0. The key that stored the plan does not count.
+Error: the plan plan-<id> needs 1 approval by an admin (a change to policy second_opinion, version 1) and has 0. The key that stored the plan does not count. Ask an admin to review it (pravo plan show plan-<id>) and run pravo plan approve plan-<id>; then apply again.
 ```
 
 Eve's approval is recorded and does not count, because the rule that is being changed asks for an admin. Ada approves, and dan applies:
@@ -218,13 +222,14 @@ Eve's approval is recorded and does not count, because the rule that is being ch
 ID=$(pravo -C team plan list | awk 'NR==1 {print $1}')
 pravo -C team plan approve "$ID"
 PRAVO_CONFIG_DIR=people/dan pravo -C team apply "$ID" --auto-approve | grep -E '^(Policies|Apply complete)'
-pravo -C team plan show "$ID" | grep '^  approved'
+pravo -C team plan show "$ID" | grep '^  approv'
 ```
 
 Output:
 
 ```text
 Approved plan-<id> as ada.
+Policy: needs 1 approval by an admin (a change to policy second_opinion, version 1); has 1 (met)
 Policies: +0 new, ~1 changed, -0 removed.
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
   approved: eve (writer), ada (admin)

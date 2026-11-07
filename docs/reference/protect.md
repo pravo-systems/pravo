@@ -67,6 +67,7 @@ The format is the layout, and it only goes up. Whether the state is sealed is a 
 | `protect status` | Says whether the state is sealed, to whom, and whether it verifies. | yes | No. | yes |
 | `protect rewrap` | Brings the keys of the state in line with the readers file. | yes | yes | yes |
 | `protect roles` | Stores the roles of the readers file in the state and pins them. [Its own page](roles.md). | yes | yes | yes |
+| `protect offboard NAME` | Takes a member off in one command: their line in the readers file, then `rewrap --all`, `roles` and `gc`. | yes | yes | no |
 | `protect policies` | Lists the policy versions that signed transactions name and the state lost, and with `--restore` writes them back. | yes | with `--restore` | no |
 | `protect recover` | Opens the state with the shares of its recovery key, and makes the readers those of the readers file. | yes | yes | yes |
 | `protect unseal` | Takes the seal off: writes everything in the open, and removes the sealed part of `meta.json`. | yes | yes | yes |
@@ -372,6 +373,10 @@ A record that does not match its name, a pointer that disagrees with its record,
 ## protect roles
 
 `pravo protect roles` stores the roles of the readers file in the state, as a signed version, and pins the first one with a line in the readers file. [Its page](roles.md) has the roles, the command and an example.
+
+## protect offboard
+
+`pravo protect offboard NAME` removes the line of NAME from the readers file, runs `rewrap --all`, runs `protect roles` when the readers file gives roles, and runs `gc`, each as its own section above describes, and prints what is left for you: committing the readers file, a second `gc` once the old reader group may be dropped (it prints when), and taking the credentials of the bucket from NAME. It needs an admin identity. `--yes` skips the question of `protect roles`, and `--vouch-notes` is passed to it. When a step fails, the steps before it stay done; run the one that failed, then `offboard` again for the rest. A NAME that was already taken out of the readers file but is still in the state runs the steps without the first.
 
 ## protect recover
 

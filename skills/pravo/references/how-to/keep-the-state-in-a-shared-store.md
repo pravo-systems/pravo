@@ -290,8 +290,11 @@ Output:
 ```text
 Plan: 2 to add, 0 to change, 0 to destroy.
 Copied 6 objects from pravo.state to s3://pravo-state/demo/moved
+Check it with: pravo protect status (a sealed state) or pravo plan.
 No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.
 ```
+
+A sealed state is pushed the same way. The objects are copied as they are, so the destination holds the same ciphertext and the same readers, and the readers file of the repository stays as it is. The push does not open the configured state first, because a repository that lists readers refuses to open a state that does not exist yet and the push is what makes it. After it, `pravo protect status` says where the sealed state stands.
 
 Archive the local directory when you are satisfied. `pravo state pull <dir>` copies the other way, from the bucket into a local directory.
 

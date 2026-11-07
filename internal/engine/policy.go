@@ -364,7 +364,14 @@ func (e *Engine) JudgePlan(ctx context.Context, plan *Plan) error {
 		return err
 	}
 	if len(refs) > 0 {
-		e.Opts.Progress("Policies: %d satisfied.", len(refs))
+		note := ""
+		for _, v := range set.InForce() {
+			if asksForApprovals(v.Text) {
+				note = " (approvals are counted when the plan is applied)"
+				break
+			}
+		}
+		e.Opts.Progress("Policies: %d satisfied%s.", len(refs), note)
 	}
 	return nil
 }

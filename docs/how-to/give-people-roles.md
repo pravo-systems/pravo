@@ -167,7 +167,7 @@ PRAVO_CONFIG_DIR=people/eve pravo -C team apply --auto-approve; echo "exit=$?"
 ```
 
 ```text out
-Error: your identity is a reader in the roles in the state, and a writer is needed to change the state.
+Error: your identity is a reader in the roles in the state, and a writer is needed to change the state. A reader can store a plan (pravo plan --store) for a writer to apply with pravo apply; or ask an admin to make you a writer (role:writer on your line in the readers file, then pravo protect roles).
 exit=5
 ```
 
@@ -195,6 +195,7 @@ pravo -C team state log | grep 'signed by'
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
     signed by dan (verified)
     signed by ada (verified)
+Roles, newest first (each version is signed by an admin of the one before)
 ```
 
 What dan may not do is change who reads the state, or the roles:
@@ -245,6 +246,7 @@ pravo -C team protect roles --yes
 ```text out
 Readers in .pravo/access/readers.txt: ada eve  (dan removed)
 New data keys for 1 reader group. Records are sealed again as they are next written.
+Still to do for dan: pravo protect rewrap --all, pravo protect roles, pravo protect gc, and take the credentials of the bucket away. pravo protect offboard does all but the credentials.
   dan: removed, now a former key
   dan: vouched for 1 transaction (records they wrote stay valid)
 Stored the roles as version 3.
@@ -266,7 +268,7 @@ Error: you are not a reader of this state (identity dan is not a reader).
 exit=5
 ```
 
-`protect rewrap` and `protect roles` refuse a change that leaves no admin, so the last admin cannot take herself off by mistake (`--allow-no-admin` overrides it). They also refuse to add dan back from a readers file that is out of date and still lists him; `--readd dan` says that you mean it.
+`pravo protect offboard dan` does these steps and the two that follow in one command, and prints what is left to do by hand. `protect rewrap` and `protect roles` refuse a change that leaves no admin, so the last admin cannot take herself off by mistake (`--allow-no-admin` overrides it). They also refuse to add dan back from a readers file that is out of date and still lists him; `--readd dan` says that you mean it.
 
 A copy of the bucket made before this step still opens with dan's key, and the records that were sealed in the old group do until they are written again. `pravo protect rewrap --all` seals them again now, as a signed run of its own, so the records stay bound to a writer's run, `pravo protect gc` drops the old group afterwards, and the credentials of the bucket are taken from dan where they are kept: [Remove a reader](seal-the-state.md#10-remove-a-reader) has the three.
 

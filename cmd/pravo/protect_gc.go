@@ -267,6 +267,9 @@ func printGCReport(rt *runContext, res state.GCResult, sealed, groups bool, skip
 		return
 	case res.GroupsRefused != "":
 		rt.out.Println("Groups were kept: " + printable(res.GroupsRefused) + ".")
+		if !res.DryRun {
+			rt.out.Println("Until the old group is dropped, the key of a reader who was removed still opens what is sealed in it, for whoever holds a copy of the bucket. What is written from now on is sealed to the readers of today only.")
+		}
 		return
 	case !groups:
 		return
@@ -274,7 +277,7 @@ func printGCReport(rt *runContext, res state.GCResult, sealed, groups bool, skip
 		rt.out.Println("No group needs to be dropped: the state has only its current group.")
 		return
 	}
-	drop, rewrap, later := "Dropped", false, false
+	drop, rewrap, later, anyKept := "Dropped", false, false, false
 	if res.DryRun {
 		drop = "Would drop"
 	}
@@ -283,6 +286,7 @@ func printGCReport(rt *runContext, res state.GCResult, sealed, groups bool, skip
 		case g.Dropped:
 			rt.out.Printf("%s group %s: nothing refers to it.\n", drop, g.ID)
 		default:
+			anyKept = true
 			rt.out.Printf("Kept group %s: %s.\n", g.ID, groupRefs(g, age))
 			if g.Records > 0 || g.Outputs || g.Plans > 0 || g.Summaries > 0 {
 				rewrap = true
@@ -291,6 +295,9 @@ func printGCReport(rt *runContext, res state.GCResult, sealed, groups bool, skip
 				later = true
 			}
 		}
+	}
+	if anyKept && !res.DryRun {
+		rt.out.Println("Until a kept group is dropped, the key of a reader who was removed still opens what is sealed in it, for whoever holds a copy of the bucket. What is written from now on is sealed to the readers of today only.")
 	}
 	if rewrap {
 		rt.out.Println("pravo protect rewrap --all seals records, outputs, stored plans and the texts of errors again under the current group.")

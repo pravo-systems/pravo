@@ -332,10 +332,12 @@ func roleProblem(rf readersFile, st *state.Store, need pravo.Role, what string) 
 	// decide, and also when the state holds some that the readers file does not pin, since a
 	// local file that dropped the pin line must not turn a reader into an admin.
 	source := rf.shown()
+	hintFile := rf.shown()
 	readers := rf.Readers
 	switch {
 	case rs.Source == "state":
 		source = "the roles in the state"
+		hintFile = "the readers file"
 	case rs.Unpinned:
 		role := pravo.RoleReader
 		if r, ok := pravo.RoleOf(rs.Stored, key); ok {
@@ -356,7 +358,22 @@ func roleProblem(rf readersFile, st *state.Store, need pravo.Role, what string) 
 	if role.Allows(need) {
 		return "", engine.ExitRefused
 	}
-	return fmt.Sprintf("your identity is %s in %s, and %s is needed to %s.", article(role), source, article(need), what), engine.ExitRefused
+	return fmt.Sprintf("your identity is %s in %s, and %s is needed to %s.%s", article(role), source, article(need), what, roleHint(role, need, what, hintFile)), engine.ExitRefused
+}
+
+// roleHint says what a reader can do instead, for the refusals a reader meets first.
+func roleHint(role, need protect.Role, what, file string) string {
+	if role != protect.RoleReader || need != protect.RoleWriter {
+		return ""
+	}
+	promote := fmt.Sprintf("ask an admin to make you a writer (role:writer on your line in %s, then pravo protect roles)", file)
+	switch what {
+	case "approve a plan":
+		return " A reader cannot approve a plan; " + promote + "."
+	case "change the state":
+		return " A reader can store a plan (pravo plan --store) for a writer to apply with pravo apply; or " + promote + "."
+	}
+	return ""
 }
 
 // article puts a or an before the name of a role.

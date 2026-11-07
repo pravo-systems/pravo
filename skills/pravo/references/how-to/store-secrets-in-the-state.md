@@ -106,7 +106,7 @@ printf %s 'x' | PRAVO_CONFIG_DIR=people/eve pravo secret set prod/db_password
 Output:
 
 ```text
-Error: your identity is a reader in the roles in the state, and a writer is needed to change the state.
+Error: your identity is a reader in the roles in the state, and a writer is needed to change the state. A reader can store a plan (pravo plan --store) for a writer to apply with pravo apply; or ask an admin to make you a writer (role:writer on your line in the readers file, then pravo protect roles).
 ```
 
 ## 3. Read a secret

@@ -99,7 +99,7 @@ PRAVO_CONFIG_DIR=people/dan pravo plan --store 2>&1 | grep -E '^(Policies|Stored
 Output:
 
 ```text
-Policies: 1 satisfied.
+Policies: 1 satisfied (approvals are counted when the plan is applied).
 Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
 ```
 
@@ -113,7 +113,7 @@ Output:
 
 ```text
 exit=5
-Error: the plan plan-<id> needs 1 approval by a writer or an admin (second_opinion@1) and has 0. The key that stored the plan does not count.
+Error: the plan plan-<id> needs 1 approval by a writer or an admin (policy second_opinion, version 1) and has 0. The key that stored the plan does not count. Ask an admin to review it (pravo plan show plan-<id>) and run pravo plan approve plan-<id>; then apply again.
 ```
 
 `ID` in the shell stands for the id that pravo printed. The error says how many approvals the plan needs, of which role, under which rule, and how many it has.
@@ -137,6 +137,8 @@ Output:
 
 ```text
 Approved plan-<id> as dan.
+Recorded, but it will not count: dan stored this plan.
+Policy: needs 1 approval by a writer or an admin (policy second_opinion, version 1); has 0 (not met; approve with pravo plan approve plan-<id>)
 exit=5
 and has 0
 ```
@@ -157,8 +159,9 @@ Output:
 
 ```text
 Approved plan-<id> as eve.
+Policy: needs 1 approval by a writer or an admin (policy second_opinion, version 1); has 1 (met)
 Stored plan plan-<id> by dan, just now (pending)
-  approved: dan (writer), eve (writer)
+  approved: dan (writer; does not count: dan stored this plan, and the policy does not let the key that stored it approve), eve (writer)
 Apply complete! Resources: 0 added, 0 changed, 1 destroyed. [txn <txn>]
 plan-<id>  applied  dan  just now  +0 ~0 -1  applied just now
 ```
@@ -226,10 +229,12 @@ Output:
 Policies: +0 new, ~1 changed, -0 removed.
 Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. To apply exactly these actions, run:
 exit=5
-Error: the plan plan-<id> needs 1 approval by an admin (a change to second_opinion@1) and has 0. The key that stored the plan does not count.
+Error: the plan plan-<id> needs 1 approval by an admin (a change to policy second_opinion, version 1) and has 0. The key that stored the plan does not count. Ask an admin to review it (pravo plan show plan-<id>) and run pravo plan approve plan-<id>; then apply again.
 Approved plan-<id> as eve.
+Recorded, but it will not count: the policy needs an admin and eve is a writer.
+Policy: needs 1 approval by an admin (a change to policy second_opinion, version 1); has 0 (not met; approve with pravo plan approve plan-<id>)
 exit=5
-Error: the plan plan-<id> needs 1 approval by an admin (a change to second_opinion@1) and has 0. The key that stored the plan does not count.
+Error: the plan plan-<id> needs 1 approval by an admin (a change to policy second_opinion, version 1) and has 0. The key that stored the plan does not count. Ask an admin to review it (pravo plan show plan-<id>) and run pravo plan approve plan-<id>; then apply again.
 ```
 
 Eve's approval is recorded and does not count: the rule that is being changed asks for an admin. Removing the policy altogether is an admin's apply as well. Adding a policy needs nothing, since a new rule can only ask for more.

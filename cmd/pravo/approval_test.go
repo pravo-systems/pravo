@@ -55,7 +55,7 @@ func TestAPolicyAsksForApprovalsBeforeAPlanIsApplied(t *testing.T) {
 	}
 	// The approvals are listed in the order they were made, ada's first, whatever the ids of the keys.
 	text, code = runPravo(t, rt, r.dir, "--identity", "dan", "plan", "show", id)
-	if code != 0 || !strings.Contains(text, "approved: ada (writer), dan (admin)") {
+	if code != 0 || !strings.Contains(text, "approved: ada (writer; does not count: the policy needs an admin and ada is a writer), dan (admin)") {
 		t.Fatalf("plan show: exit %d\n%s", code, text)
 	}
 	if text, code := runPravo(t, rt, r.dir, "--identity", "ada", "apply", id, "--auto-approve"); code != 0 {
@@ -167,7 +167,7 @@ func TestChangingAPolicyThatAsksForApprovalsNeedsAnAdmin(t *testing.T) {
 	// The writer drops the requirement: refused until an admin approves the stored plan.
 	r.declare(t, map[string]string{"ok_first": "summary: add: >=0"})
 	text, code := runPravo(t, rt, r.dir, "--identity", "ada", "apply", "--auto-approve")
-	if code != 5 || !strings.Contains(text, "a change to ok_first@1") {
+	if code != 5 || !strings.Contains(text, "a change to policy ok_first, version 1") {
 		t.Fatalf("a plain apply: exit %d\n%s", code, text)
 	}
 	text, _ = runPravo(t, rt, r.dir, "--identity", "ada", "plan", "--store")

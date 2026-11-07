@@ -412,11 +412,38 @@ a plan.approved event is POSTed to that URL.`,
 				return emitJSON(map[string]any{"id": id, "approved_by": obj.Signature.Signer, "at": obj.At})
 			}
 			rt.out.Printf("Approved %s as %s.\n", id, safeName(obj.Signature.Signer))
+			approvalOutlook(ctx, rt, id, obj.Signature.Signer)
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&webhook, "webhook", "", "POST a plan.approved event as JSON to this URL")
 	return cmd
+}
+
+// approvalOutlook tells, after an approval was stored, whether it counts under the policies in
+// force and where the plan stands. It is best effort: a specification that does not load
+// leaves the one line above as it was.
+func approvalOutlook(ctx context.Context, rt *runContext, id, signer string) {
+	s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})
+	if err != nil {
+		return
+	}
+	defer s.close()
+	rd, err := readStored(ctx, s, id, "plan approve")
+	if err != nil {
+		return
+	}
+	eng := s.engine(rt, engine.Options{})
+	approved, needs := storedPlanApprovals(ctx, rt, s, eng, rd.File, id)
+	for _, part := range strings.Split(approved, ", ") {
+		if strings.HasPrefix(part, safeName(signer)+" (") && strings.Contains(part, "does not count: ") {
+			why := part[strings.Index(part, "does not count: ")+len("does not count: "):]
+			rt.out.Println(rt.out.C(ui.Yellow, "Recorded, but it will not count: "+strings.TrimSuffix(why, ")")+"."))
+		}
+	}
+	for _, n := range needs {
+		rt.out.Println("Policy: " + n)
+	}
 }
 
 func planGCCmd(rt *runContext) *cobra.Command {
@@ -656,9 +683,7 @@ func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 		if sigNote == "" && sigs != nil {
 			opts.Notes = append(opts.Notes, "Signed: "+planSigsText(sigs))
 		}
-		if text := storedPlanApprovals(ctx, rt, s, m.ID); text != "" {
-			opts.Notes = append(opts.Notes, "Approved: "+text)
-		}
+		opts.Notes = append(opts.Notes, approvalNotes(ctx, rt, s, eng, pf, m.ID)...)
 		opts.Notes = append(opts.Notes, "Status: "+statusText(rt, entry.Status)+".")
 		switch {
 		case stale != nil:
@@ -698,9 +723,7 @@ func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 	} else if sigs != nil {
 		rt.out.Printf("  signed:  %s\n", planSigsText(sigs))
 	}
-	if text := storedPlanApprovals(ctx, rt, s, entry.Meta.ID); text != "" {
-		rt.out.Printf("  approved: %s\n", text)
-	}
+	printApprovals(ctx, rt, s, eng, pf, entry.Meta.ID)
 	if entry.Status.Open() || entry.Status == engine.PlanStale {
 		rt.out.Printf("  %s\n", expiry(m))
 	}
@@ -732,6 +755,30 @@ func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 	}
 	rt.out.RenderPlan(plan)
 	return nil
+}
+
+// approvalNotes is printApprovals for the Markdown form of a stored plan.
+func approvalNotes(ctx context.Context, rt *runContext, s *session, eng *engine.Engine, pf *engine.PlanFile, id string) []string {
+	text, needs := storedPlanApprovals(ctx, rt, s, eng, pf, id)
+	var notes []string
+	for _, n := range needs {
+		notes = append(notes, "Approvals: "+n)
+	}
+	if text != "" {
+		notes = append(notes, "Approved: "+text)
+	}
+	return notes
+}
+
+// printApprovals prints what the policies ask of a stored plan and who approved it.
+func printApprovals(ctx context.Context, rt *runContext, s *session, eng *engine.Engine, pf *engine.PlanFile, id string) {
+	text, needs := storedPlanApprovals(ctx, rt, s, eng, pf, id)
+	for _, n := range needs {
+		rt.out.Printf("  approvals: %s\n", n)
+	}
+	if text != "" {
+		rt.out.Printf("  approved: %s\n", text)
+	}
 }
 
 // printConflicts says which changes of a partly-stale plan cannot be applied and
