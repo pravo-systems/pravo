@@ -360,23 +360,9 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		if nested := findNested(v, p, 0); nested != "" {
 			return fmt.Errorf("%s is a policy, so it cannot contain %s, which is a resource", p, nested)
 		}
-		rule, err := RuleText(v.LookupPath(cue.ParsePath("rule")))
+		pol, err := newPolicy(v, p)
 		if err != nil {
-			return fmt.Errorf("policy %s: %w", p, err)
-		}
-		desc, _ := v.LookupPath(cue.ParsePath("description")).String()
-		pol := &Policy{Name: p.String(), Path: p, Description: desc, Rule: rule}
-		// Where the author wrote each field of the rule: the stored text is formatted
-		// and has no lines of the file.
-		rv := v.LookupPath(cue.ParsePath("rule"))
-		if it, err := rv.Fields(cue.Optional(true), cue.Definitions(true)); err == nil {
-			pol.Fields = map[string]int{}
-			for it.Next() {
-				if pos := authorPos(it.Value()); pos.IsValid() {
-					pol.File = pos.Filename()
-					pol.Fields[strings.Trim(it.Selector().String(), `"?!`)] = pos.Line()
-				}
-			}
+			return err
 		}
 		r.Policies = append(r.Policies, pol)
 		return nil
@@ -680,4 +666,34 @@ func authorPos(v cue.Value) token.Pos {
 		}
 	}
 	return token.NoPos
+}
+
+// ruleFields is the file where the author wrote a rule and the line of each of its
+// fields there: the stored text is formatted and has no lines of the file.
+func ruleFields(rv cue.Value) (string, map[string]int) {
+	it, err := rv.Fields(cue.Optional(true), cue.Definitions(true))
+	if err != nil {
+		return "", nil
+	}
+	file, fields := "", map[string]int{}
+	for it.Next() {
+		if pos := authorPos(it.Value()); pos.IsValid() {
+			file = pos.Filename()
+			fields[strings.Trim(it.Selector().String(), `"?!`)] = pos.Line()
+		}
+	}
+	return file, fields
+}
+
+// newPolicy reads the policy at p from its struct.
+func newPolicy(v cue.Value, p cue.Path) (*Policy, error) {
+	rv := v.LookupPath(cue.ParsePath("rule"))
+	rule, err := RuleText(rv)
+	if err != nil {
+		return nil, fmt.Errorf("policy %s: %w", p, err)
+	}
+	desc, _ := v.LookupPath(cue.ParsePath("description")).String()
+	pol := &Policy{Name: p.String(), Path: p, Description: desc, Rule: rule}
+	pol.File, pol.Fields = ruleFields(rv)
+	return pol, nil
 }
