@@ -360,12 +360,11 @@ func (r *Root) register(v cue.Value, kind string, path []cue.Selector) error {
 		if nested := findNested(v, p, 0); nested != "" {
 			return fmt.Errorf("%s is a policy, so it cannot contain %s, which is a resource", p, nested)
 		}
-		rule, err := RuleText(v.LookupPath(cue.ParsePath("rule")))
+		pol, err := newPolicy(v, p)
 		if err != nil {
-			return fmt.Errorf("policy %s: %w", p, err)
+			return err
 		}
-		desc, _ := v.LookupPath(cue.ParsePath("description")).String()
-		r.Policies = append(r.Policies, &Policy{Name: p.String(), Path: p, Description: desc, Rule: rule})
+		r.Policies = append(r.Policies, pol)
 		return nil
 	case "remote_outputs":
 		if nested := findNested(v, p, 0); nested != "" {
@@ -650,4 +649,51 @@ func withoutPravoSchema(decls []ast.Decl) []ast.Decl {
 		out = append(out, d)
 	}
 	return out
+}
+
+// authorPos is where the author wrote v: the position of v itself, or when v is a
+// unification with a schema (pravo.#Change & {...}), the operand that is not generated.
+func authorPos(v cue.Value) token.Pos {
+	generated := func(p token.Pos) bool { return strings.Contains(filepath.ToSlash(p.Filename()), "/cue.mod/") }
+	if p := v.Pos(); p.IsValid() && !generated(p) {
+		return p
+	}
+	if op, args := v.Expr(); op == cue.AndOp {
+		for _, a := range args {
+			if p := authorPos(a); p.IsValid() {
+				return p
+			}
+		}
+	}
+	return token.NoPos
+}
+
+// ruleFields is the file where the author wrote a rule and the line of each of its
+// fields there: the stored text is formatted and has no lines of the file.
+func ruleFields(rv cue.Value) (string, map[string]int) {
+	it, err := rv.Fields(cue.Optional(true), cue.Definitions(true))
+	if err != nil {
+		return "", nil
+	}
+	file, fields := "", map[string]int{}
+	for it.Next() {
+		if pos := authorPos(it.Value()); pos.IsValid() {
+			file = pos.Filename()
+			fields[strings.Trim(it.Selector().String(), `"?!`)] = pos.Line()
+		}
+	}
+	return file, fields
+}
+
+// newPolicy reads the policy at p from its struct.
+func newPolicy(v cue.Value, p cue.Path) (*Policy, error) {
+	rv := v.LookupPath(cue.ParsePath("rule"))
+	rule, err := RuleText(rv)
+	if err != nil {
+		return nil, fmt.Errorf("policy %s: %w", p, err)
+	}
+	desc, _ := v.LookupPath(cue.ParsePath("description")).String()
+	pol := &Policy{Name: p.String(), Path: p, Description: desc, Rule: rule}
+	pol.File, pol.Fields = ruleFields(rv)
+	return pol, nil
 }

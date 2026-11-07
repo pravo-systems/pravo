@@ -141,9 +141,9 @@ pravo schema random_pet | tail -n 14
 Output:
 
 ```text
-	// Additional dependencies, as references to other resources.
-	$depends_on?: [..._]
-	$lifecycle?: #Lifecycle
+	// They reach the provider as nothing: they are kept in the state and shown
+	// in the plan document as labels.
+	$labels?: [string]: __string
 	// The random pet name.
 	id: __string | null
 	// Arbitrary map of values that, when changed, will trigger recreation of resource. See [the main provider documentation](../index.html) for more information.

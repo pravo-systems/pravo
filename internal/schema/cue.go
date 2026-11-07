@@ -101,6 +101,10 @@ const discoveryMeta = `		// The most objects one run lists. Leave out for the pr
 const resourceMeta = `		// Additional dependencies, as references to other resources.
 		$depends_on?: [..._]
 		$lifecycle?: #Lifecycle
+		// Marks of the resource that a policy can read, such as protected: "true".
+		// They reach the provider as nothing: they are kept in the state and shown
+		// in the plan document as labels.
+		$labels?: [string]: __string
 `
 
 const dataMeta = `		// Additional dependencies, as references to other resources.

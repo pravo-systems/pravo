@@ -57,7 +57,7 @@ func (e *Engine) planOrphans(ctx context.Context, present map[string]bool) ([]*C
 		defer turn.pass()
 		sr := records[i]
 		if sr.Mode == "data" {
-			out[i] = &Change{Addr: sr.Address(), Mode: sr.Mode, Type: sr.Type, Name: sr.Name, Action: ActionDelete, ProviderKey: sr.ProviderKey, Deps: sr.Dependencies, Reasons: []string{reason}, PriorRevision: sr.Revision, PriorGeneration: sr.Generation}
+			out[i] = &Change{Addr: sr.Address(), Mode: sr.Mode, Type: sr.Type, Name: sr.Name, Action: ActionDelete, ProviderKey: sr.ProviderKey, Deps: sr.Dependencies, Reasons: []string{reason}, PriorRevision: sr.Revision, PriorGeneration: sr.Generation, PriorLabels: sr.Labels}
 			return
 		}
 		if ctx.Err() != nil {

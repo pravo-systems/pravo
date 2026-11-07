@@ -325,6 +325,11 @@ func ModuleNotFoundHint(err error) error {
 	if m := keywordPackageRe.FindStringSubmatch(err.Error()); m != nil {
 		return fmt.Errorf("%w\n\nhint: %s is a CUE keyword, so the package of this provider is named %s_: import it as \"%s:%s_\"", err, m[2], m[2], m[1], m[2])
 	}
+	if strings.Contains(err.Error(), ".rule.") {
+		if h := PolicyRuleHints(err.Error()); h != "" {
+			return fmt.Errorf("%w%s", err, h)
+		}
+	}
 	if strings.Contains(err.Error(), ProviderPackagePrefix) && strings.Contains(err.Error(), "cannot find package") {
 		return fmt.Errorf("%w\n\nhint: a provider schema package is missing. Run \"pravo init\" to generate it", err)
 	}
@@ -459,4 +464,25 @@ func (r *Root) HCLFieldNames() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// PolicyRuleHints is the lines to add to the details of an error of a rule, for the mistakes
+// that the rules of a first policy make: reading a field that the template does not
+// declare optional, reading one that can be null as if it were a struct, and comparing a
+// value that is not known yet. It is empty for any other error.
+func PolicyRuleHints(details string) string {
+	var hints []string
+	if strings.Contains(details, `reference "before" not found`) || strings.Contains(details, `reference "after" not found`) {
+		hints = append(hints, "before and after are absent from some changes (before of a create, after of a delete): declare them optional in the template, before?: {...}, and read them after a presence test, if before != _|_ {...}")
+	}
+	if strings.Contains(details, "conflicting values null and") {
+		hints = append(hints, "an attribute that is not set is null in the plan document: declare a field that can be null as field?: null | {...} in the template, and test it, if field != null {...}")
+	}
+	if strings.Contains(details, "$unknown") {
+		hints = append(hints, "a value the provider computes at apply is {\"$unknown\": true}, not a string or a number: test for it or leave it out of the comparison")
+	}
+	if len(hints) == 0 {
+		return ""
+	}
+	return "\nHint: " + strings.Join(hints, "\nHint: ")
 }

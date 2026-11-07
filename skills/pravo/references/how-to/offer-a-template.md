@@ -294,9 +294,9 @@ Output:
 Error: the plan violates the policy service_secrets@1 (sha256:<digest>):
 changes.0.after.special: conflicting values true and false:
     plan:1:N
-    service_secrets:7:2
-    service_secrets:9:3
-    service_secrets:11:14
+    ./estate/policy.cue:7, in the field changes of the policy service_secrets: if template != _|_ // explicit error (_|_ literal) in source
+    ./estate/policy.cue:7, in the field changes of the policy service_secrets: if template.name == "service" && type == "random_password" {
+    ./estate/policy.cue:7, in the field changes of the policy service_secrets: special: true
 ```
 
 The form of the viewer tries every policy in force on an approximate plan while the person types, so this refusal shows there before anything is pasted. [Writing policies](../reference/policies-writing.md#rules-for-the-instances-of-a-template) has more rules of this kind.

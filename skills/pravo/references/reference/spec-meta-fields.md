@@ -10,6 +10,7 @@ Meta fields are not part of the provider schema. They all start with `$`, so the
 |---|---|---|---|
 | `$depends_on` | list of references | resource, data, ephemeral | Dependencies that have no data flow. |
 | `$lifecycle` | `#Lifecycle` | resource | `create_before_destroy`, `prevent_destroy`, `ignore_changes`, `refresh`. |
+| `$labels` | map of strings | resource | Marks that a policy can read, such as `protected: "true"`. They go to no provider. See [Labels](#labels). |
 | `$from` | string | resource, data; a group of resources | The address the record had before. See [Moves and imports](spec-moves-and-imports.md). |
 | `$import` | string or struct | resource | The id of an existing object to adopt, or its identity. See [Moves and imports](spec-moves-and-imports.md#import). |
 
@@ -82,6 +83,18 @@ note -> pet
 The state records the dependency: `note -> pet` reads "`note` depends on `pet`".
 
 The references in `$depends_on` are not counted as a nested resource.
+
+## Labels
+
+`$labels` is a map from a name to a string. No provider receives it, and it changes no plan by itself: a policy reads it in the plan document, as `changes[].labels` for the specification and `changes[].before_labels` for the record. A resource whose block is gone is destroyed with the labels it had. A change of a label alone is written to the state by the next apply, which reports no change to the object. See [The plan document in a policy](policies-plan-document.md#labels).
+
+```cue
+vault: $local.#Resource.local_file & {
+	filename: "vault.txt"
+	content:  "secret"
+	$labels: {protected: "true", owner: "platform"}
+}
+```
 
 ## Lifecycle
 

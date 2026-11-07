@@ -187,13 +187,13 @@ test -e change.plan || echo "change.plan does not exist"
 ```text out
 Error: the plan violates the policy no_destroy@1 (sha256:0c23a31e78bd):
 changes.0: seed: replace is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.1: pet: replace is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.2: ticket: replace is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.3: extra: replace is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 
 change.plan does not exist
 ```
@@ -209,13 +209,13 @@ pravo -C infra state query 'resources.seed.revision'
 ```text out
 Error: the plan violates the policy no_destroy@1 (sha256:0c23a31e78bd):
 changes.0: seed: replace is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.1: pet: replace is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.2: ticket: replace is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.3: extra: replace is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 
 {"kind":"apply","status":"rejected","policies":["no_destroy@1:0c23a31e78bda4155de6c4983b382b0041de2fe21627240eca920dfc8a2972dc","owner@1:396a91be1092531ea328cee8ac7015cfecf66f28bb4975e82538005fc80ddd30"]}
 1
@@ -243,13 +243,13 @@ pravo -C infra plan 2>&1 | sed -n '/^Error/,$p'
 Policies: +1 new, ~0 changed, -0 removed.
 Error: the plan violates the policy no_destroy@1 (sha256:0c23a31e78bd):
 changes.0: seed: replace is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.1: pet: replace is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.2: ticket: replace is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.3: extra: replace is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 ```
 
 Remove the file of the policy. The plan prints the removal, the apply passes, and the resource change that follows is judged by the policies that remain:
@@ -283,13 +283,13 @@ Graph: 4 resources in state · refreshed 4
 
 Error: the plan violates the policy no_destroy@1 (sha256:0c23a31e78bd):
 changes.0: extra: delete is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.1: seed: delete is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.2: ticket: delete is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.3: pet: delete is not allowed:
-    no_destroy:7:3
+    ./infra/policy-no_destroy.cue:7, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 ```
 
 Exit code 5, and `pravo state list` still shows all four nodes:
@@ -462,11 +462,11 @@ Policies: +0 new, ~1 changed, -0 removed.
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 Error: the plan violates the policy no_destroy@2 (sha256:a1521d7920e4):
 changes.0: seed: replace is not allowed:
-    no_destroy:23:3
+    ./infra/policy-no_destroy.cue:12, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.1: pet: replace is not allowed:
-    no_destroy:23:3
+    ./infra/policy-no_destroy.cue:12, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 changes.3: extra: replace is not allowed:
-    no_destroy:23:3
+    ./infra/policy-no_destroy.cue:12, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 ```
 
 ## Verify a receipt

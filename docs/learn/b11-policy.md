@@ -140,7 +140,7 @@ key.file_permission: conflicting values "0600" and "0644":
     ./main.cue:11:6
     ./main.cue:14:19
 key.file_permission: conflicting values "0644" and null (mismatched types string and null):
-    ./cue.mod/gen/pravo.dev/providers/hashicorp/local/local_gen.cue:97:29
+    ./cue.mod/gen/pravo.dev/providers/hashicorp/local/local_gen.cue:101:29
     ./main.cue:11:6
     ./main.cue:14:19
 ```
@@ -348,7 +348,7 @@ Graph: planned 0 · skipped 2 · removed 1 · refreshed 1 · not read 2
 
 Error: the plan violates the policy no_delete@1 (sha256:d0fce23004ba):
 changes.0: note: delete is not allowed:
-    no_delete:6:3
+    ./policy.cue:8, in the field changes of the policy no_delete: error("\(addr): delete is not allowed")
 ```
 
 The plan is printed, then judged, and the run exits with code 5. The error has three parts.
@@ -377,7 +377,7 @@ pravo state log --json | jq -c '.[0] | {kind, status}'
 ```text out
 Error: the plan violates the policy no_delete@1 (sha256:d0fce23004ba):
 changes.0: note: delete is not allowed:
-    no_delete:6:3
+    ./policy.cue:8, in the field changes of the policy no_delete: error("\(addr): delete is not allowed")
 
 {"kind":"apply","status":"rejected"}
 ```
@@ -577,7 +577,7 @@ sed -i 's/secret/new secret/' main.cue
 
 ```text out
 Policies: +0 new, ~1 changed, -0 removed.
-  ~ no_delete (version 2, sha256:5530c1a63699)
+  ~ no_delete (version 2, replaced by version 3, sha256:5530c1a63699)
 Graph: planned 0 · skipped 2 · not read 2
 Policies: +0 new, ~1 changed, -0 removed.
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <txn>]
@@ -590,7 +590,7 @@ pravo plan 2>&1 | sed -n '/^Error/,$p'
 ```text out
 Error: the plan violates the policy no_delete@3 (sha256:5530c1a63699):
 changes.0: key: replace is not allowed:
-    no_delete:6:3
+    ./policy.cue:8, in the field changes of the policy no_delete: error("\(addr): \(action) is not allowed")
 ```
 
 ```sh run check
