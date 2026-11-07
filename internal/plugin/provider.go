@@ -94,7 +94,11 @@ func (d Diagnostics) Err() error {
 	return d
 }
 
-func (d Diagnostics) Error() string {
+func (d Diagnostics) Error() string { return d.ErrorAt(nil) }
+
+// ErrorAt is Error with where(path) added after the attribute path of each diagnostic
+// that has one, when where answers something.
+func (d Diagnostics) ErrorAt(where func(*tftypes.AttributePath) string) string {
 	var parts []string
 	for _, x := range d {
 		if x.Severity == SeverityDeferred {
@@ -106,7 +110,13 @@ func (d Diagnostics) Error() string {
 		}
 		s := x.Summary
 		if x.Path != nil && len(x.Path.Steps()) > 0 {
-			s = fmt.Sprintf("%s (at %s)", s, pathString(x.Path))
+			at := pathString(x.Path)
+			if where != nil {
+				if w := where(x.Path); w != "" {
+					at += ", " + w
+				}
+			}
+			s = fmt.Sprintf("%s (at %s)", s, at)
 		}
 		if x.Detail != "" {
 			s += ": " + strings.TrimSpace(x.Detail)

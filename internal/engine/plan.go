@@ -252,6 +252,18 @@ func (p *Plan) Counts() (add, change, destroy, read int) {
 	return
 }
 
+// RecreatedCount is the number of creates that make an object again that a record
+// describes and that drifted away.
+func (p *Plan) RecreatedCount() int {
+	n := 0
+	for _, c := range p.Changes {
+		if c.Action == ActionCreate && c.GoneNote != "" && !c.Applied {
+			n++
+		}
+	}
+	return n
+}
+
 // HasChanges reports whether applying the plan would do anything.
 // PendingCount is the number of changes that would act on a provider: those
 // not yet applied, excluding no-ops, reads, opens, calls and moves.

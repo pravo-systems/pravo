@@ -247,8 +247,8 @@ func (e *Engine) planData(ctx context.Context, p *resourcePlan) (*Change, error)
 	if err != nil {
 		return nil, fmt.Errorf("%s: validating: %w", addr, err)
 	}
-	if err := diags.Err(); err != nil {
-		return nil, fmt.Errorf("%s: %w", addr, err)
+	if err := e.providerChecked(r, diags); err != nil {
+		return nil, err
 	}
 	if p.conv.Unknown || (!p.strict && e.dependsOnPendingChange(addr)) {
 		ch.Deferred = true
@@ -342,8 +342,8 @@ func (e *Engine) planManaged(ctx context.Context, p *resourcePlan) (*Change, err
 	if err != nil {
 		return nil, fmt.Errorf("%s: validating: %w", addr, err)
 	}
-	if err := diags.Err(); err != nil {
-		return nil, fmt.Errorf("%s: %w", addr, err)
+	if err := e.providerChecked(r, diags); err != nil {
+		return nil, err
 	}
 	ch.Warnings = append(ch.Warnings, diags.Warnings()...)
 
@@ -545,4 +545,33 @@ func valueAt(v tftypes.Value, path *tftypes.AttributePath) (tftypes.Value, bool)
 	}
 	val, ok := got.(tftypes.Value)
 	return val, ok
+}
+
+// providerChecked turns the errors a provider found in the configuration of r into one
+// error. The provider checks a value only when it reads the configuration, so the error
+// says that, which is why validate did not report it, and names the line of the
+// specification that holds the value, or of the resource when the value has none.
+func (e *Engine) providerChecked(r *config.Resource, diags plugin.Diagnostics) error {
+	if diags.Err() == nil {
+		return nil
+	}
+	where := func(p *tftypes.AttributePath) string {
+		path := r.Path
+		for _, st := range p.Steps() {
+			name, ok := st.(tftypes.AttributeName)
+			if !ok {
+				break
+			}
+			path = cue.MakePath(append(path.Selectors(), cue.Str(string(name)))...)
+		}
+		for _, q := range []cue.Path{path, r.Path} {
+			if v := e.Value.LookupPath(q); v.Exists() {
+				if pos := v.Pos(); pos.IsValid() && !strings.Contains(pos.Filename(), "cue.mod") {
+					return pos.String()
+				}
+			}
+		}
+		return ""
+	}
+	return fmt.Errorf("%s: %s (checked by the provider when it read the configuration, so pravo validate cannot report it)", r.Address(), diags.ErrorAt(where))
 }
