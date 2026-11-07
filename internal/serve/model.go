@@ -56,6 +56,9 @@ type model struct {
 	// as the engine counts it.
 	resources int
 
+	lcOnce sync.Once
+	lc     map[string]lastChange
+
 	graph     Graph
 	graphJSON []byte
 
@@ -382,6 +385,10 @@ func (m *model) baseNode(addr string, mn *mnode) Node {
 		n.Revision = rec.Revision
 		n.Sealed = m.acc.sealedRec(rec)
 		n.RefreshedAt = rec.RefreshedAt
+		if lc, ok := m.lastChanges()[addr]; ok {
+			at := lc.at
+			n.ChangedAt, n.ChangedBy = &at, lc.by
+		}
 		n.Gone = rec.Gone
 		n.Drifted = rec.DriftedAt != nil && !rec.Gone
 		mn.providerSource, mn.providerVersion = rec.Provider, rec.ProviderVersion
@@ -963,4 +970,36 @@ func (m *model) planInfo() *PlanInfo {
 func (m *model) transactions() []state.Transaction {
 	m.txOnce.Do(func() { m.txns, _ = m.store.Transactions() })
 	return m.txns
+}
+
+// lastChange is who last wrote a node and when.
+type lastChange struct {
+	at time.Time
+	by string
+}
+
+// lastChanges maps the address of each node to the last transaction that wrote it, read once from the
+// transactions, which are newest first. A plan writes no record, and a drift or a read is not a change by anyone.
+func (m *model) lastChanges() map[string]lastChange {
+	m.lcOnce.Do(func() {
+		m.lc = map[string]lastChange{}
+		for _, t := range m.transactions() {
+			if t.Kind == "plan" {
+				continue
+			}
+			by := t.Actor
+			if by == "" {
+				by = t.User
+			}
+			for _, c := range t.Changes {
+				switch c.Action {
+				case "create", "update", "replace", "delete", "import", "move":
+					if _, seen := m.lc[c.Addr]; !seen {
+						m.lc[c.Addr] = lastChange{at: t.Started, by: by}
+					}
+				}
+			}
+		}
+	})
+	return m.lc
 }

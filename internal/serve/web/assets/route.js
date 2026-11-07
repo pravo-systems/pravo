@@ -40,7 +40,7 @@ export function writeFragment(v) {
   put('q', v.q);
   put('dq', v.dq);
   put('plq', v.plq);
-  put('view', v.view === 'list' ? 'list' : v.view === 'access' ? 'state' : v.view === 'plans' ? 'plans' : v.view === 'discovery' ? 'discovery' : v.view === 'policies' ? 'policies' : v.view === 'secrets' ? 'secrets' : v.view === 'templates' ? 'templates' : v.view === 'traces' ? 'traces' : v.view === 'environments' ? 'environments' : '');
+  put('view', v.view === 'list' ? 'list' : v.view === 'graph' && v.graphChosen ? 'graph' : v.view === 'access' ? 'state' : v.view === 'plans' ? 'plans' : v.view === 'discovery' ? 'discovery' : v.view === 'policies' ? 'policies' : v.view === 'secrets' ? 'secrets' : v.view === 'templates' ? 'templates' : v.view === 'traces' ? 'traces' : v.view === 'environments' ? 'environments' : '');
   put('tpl', v.tpl);
   put('tn', v.tn);
   put('pol', v.pol);

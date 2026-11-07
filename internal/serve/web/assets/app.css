@@ -56,6 +56,7 @@ a { color: inherit; }
 /* ---- controls ---- */
 .iconbtn { display: inline-grid; place-items: center; width: 2.1rem; height: 2.1rem; border: 1px solid var(--line-strong); border-radius: var(--rad); color: var(--text-2); background: var(--surface); transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast), transform var(--t-fast) var(--ease); }
 .top .iconbtn { flex: none; height: 2.3rem; width: 2.3rem; }
+.helpbtn { font: 600 var(--fs-4)/1 var(--font-mono); }
 .iconbtn:hover { color: var(--text); border-color: var(--text-3); background: var(--surface-2); }
 .iconbtn:active { transform: scale(.94); }
 .iconbtn .i { width: 1.05rem; height: 1.05rem; }
@@ -168,6 +169,7 @@ a { color: inherit; }
 .insp { border-left: 1px solid var(--line-strong); display: flex; flex-direction: column; position: relative; overflow: hidden; }
 .stage { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg); position: relative; }
 .pane { flex: 1 1 auto; min-height: 0; position: relative; display: flex; flex-direction: column; }
+.app:not([data-view="graph"]):not([data-view="list"]) .hintsec { display: none; } /* there is nothing to select on the other pages */
 .h { margin: 0 1rem .5rem; font: 600 var(--fs-1)/1.3 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); }
 
 i.sq, span.sq { display: inline-block; width: .6rem; height: .6rem; border: 1.5px solid var(--text-3); flex: none; }
@@ -186,9 +188,18 @@ i.sq.a-create, span.sq.a-create { background: var(--accent); border-color: var(-
 i.sq.a-update, span.sq.a-update, i.sq.a-replace, span.sq.a-replace { background: var(--change); border-color: var(--change); }
 i.sq.a-delete, span.sq.a-delete { background: var(--conflict); border-color: var(--conflict); }
 i.sq.a-read, span.sq.a-read, i.sq.a-move, span.sq.a-move, i.sq.a-import, span.sq.a-import { background: var(--key); border-color: var(--key); }
+/* the square of an action carries the glyph that the badge of the node has (the same paths as ACTIONS in util.js), so that a node, a list, the inspector and the legend say replace with one mark */
+i.sq:is(.a-create, .a-update, .a-replace, .a-delete, .a-read, .a-move, .a-import):not(.tiny), span.sq:is(.a-create, .a-update, .a-replace, .a-delete, .a-read, .a-move, .a-import):not(.tiny) { width: .95rem; height: .95rem; box-sizing: border-box; position: relative; vertical-align: -.2em; }
+i.sq:is(.a-create, .a-update, .a-replace, .a-delete, .a-read, .a-move, .a-import):not(.tiny)::after, span.sq:is(.a-create, .a-update, .a-replace, .a-delete, .a-read, .a-move, .a-import):not(.tiny)::after { content: ""; position: absolute; inset: -1px; background: var(--on-accent); -webkit-mask: var(--glyph) center / 100% 100% no-repeat; mask: var(--glyph) center / 100% 100% no-repeat; }
+.sq.a-create { --glyph: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-2%20-2%2016%2016'%3E%3Cpath%20d='M6%202.5v7M2.5%206h7'%20fill='none'%20stroke='black'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.sq.a-update { --glyph: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-2%20-2%2016%2016'%3E%3Cpath%20d='M2%207.2C3%204.6%204.2%204.6%206%206.2s3%201.6%204-.9'%20fill='none'%20stroke='black'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.sq.a-replace { --glyph: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-2%20-2%2016%2016'%3E%3Cpath%20d='M6%202.2v4M4%204.2h4M3.6%208.8h4.8'%20fill='none'%20stroke='black'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.sq.a-delete { --glyph: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-2%20-2%2016%2016'%3E%3Cpath%20d='M2.8%206h6.4'%20fill='none'%20stroke='black'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.sq.a-read { --glyph: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-2%20-2%2016%2016'%3E%3Cpath%20d='M6%204.2a1.8%201.8%200%201%200%20.01%200z'%20fill='none'%20stroke='black'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.sq.a-move { --glyph: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-2%20-2%2016%2016'%3E%3Cpath%20d='M2.5%206h6.5M6.6%203.6L9%206%206.6%208.4'%20fill='none'%20stroke='black'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.sq.a-import { --glyph: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='-2%20-2%2016%2016'%3E%3Cpath%20d='M6%202.2v6M3.6%206.2L6%208.6l2.4-2.4M3%2010.2h6'%20fill='none'%20stroke='black'%20stroke-width='1.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E"); }
 /* a change deferred to the next plan: an outline, nothing is done to it yet */
 i.sq.a-defer, span.sq.a-defer { background: transparent; border: 1px dashed var(--change); }
-i.sq.a-replace, span.sq.a-replace { background: repeating-linear-gradient(135deg, var(--change) 0 2px, transparent 2px 4px); }
 
 /* ---- toolbar ---- */
 .toolbar { position: relative; z-index: 5; display: flex; align-items: center; gap: .6rem; padding: .6rem 1rem; min-width: 0; flex: none; }
@@ -239,15 +250,15 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 .tv-row .mini .m-ok { background: var(--accent); } .tv-row .mini .m-chg { background: var(--change); } .tv-row .mini .m-bad { background: var(--conflict); } .tv-row .mini .m-key { background: var(--key); }
 .list-pane { padding: 0 1rem 1rem; }
 .tv-grid { min-height: 0; flex: 1; border: 1px solid var(--line-strong); border-radius: var(--rad-p); background: var(--surface); overflow-x: auto; container-type: inline-size; display: flex; flex-direction: column; }
-.tv-inner { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 48rem; }
-.tv-head, .tv-row { display: grid; grid-template-columns: minmax(12rem, 3fr) minmax(8rem, 1.5fr) minmax(7rem, 1.3fr) 5.2rem minmax(5rem, 6.5rem) 5.2rem 5.4rem; align-items: center; column-gap: .8rem; padding: 0 1rem; }
+.tv-inner { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 56rem; }
+.tv-head, .tv-row { display: grid; grid-template-columns: minmax(12rem, 3fr) minmax(8rem, 1.5fr) minmax(7rem, 1.3fr) 5.2rem minmax(5rem, 6.5rem) 5.2rem minmax(9rem, 11rem); align-items: center; column-gap: .8rem; padding: 0 1rem; }
 .no-plan .c-action { display: none; }
-.no-plan .tv-head, .no-plan .tv-row { grid-template-columns: minmax(12rem, 3fr) minmax(8rem, 1.5fr) minmax(7rem, 1.3fr) 5.2rem minmax(5rem, 6.5rem) 5.4rem; }
-@container (max-width: 52rem) {
+.no-plan .tv-head, .no-plan .tv-row { grid-template-columns: minmax(12rem, 3fr) minmax(8rem, 1.5fr) minmax(7rem, 1.3fr) 5.2rem minmax(5rem, 6.5rem) minmax(9rem, 11rem); }
+@container (max-width: 60rem) {
   .tv-inner { min-width: 0; }
-  .tv-head, .tv-row { grid-template-columns: minmax(10rem, 3fr) minmax(7rem, 1.5fr) minmax(6.5rem, 1.2fr) minmax(5rem, 6.5rem) 5rem 5rem; }
+  .tv-head, .tv-row { grid-template-columns: minmax(10rem, 3fr) minmax(7rem, 1.5fr) minmax(6.5rem, 1.2fr) minmax(5rem, 6.5rem) 5rem 9rem; }
   .tv-head > .c-mode, .tv-row > .c-mode { display: none; }
-  .no-plan .tv-head, .no-plan .tv-row { grid-template-columns: minmax(10rem, 3fr) minmax(7rem, 1.5fr) minmax(6.5rem, 1.2fr) minmax(5rem, 6.5rem) 5rem; }
+  .no-plan .tv-head, .no-plan .tv-row { grid-template-columns: minmax(10rem, 3fr) minmax(7rem, 1.5fr) minmax(6.5rem, 1.2fr) minmax(5rem, 6.5rem) 9rem; }
 }
 .tv-head { height: 2.4rem; border-bottom: 1px solid var(--line-strong); background: color-mix(in srgb, var(--surface-2) 70%, var(--surface)); flex: none; }
 .tv-h button { font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); display: inline-flex; gap: .35rem; align-items: center; padding: .3rem 0; transition: color var(--t-fast); }
@@ -270,6 +281,7 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 .tv-row .c-addr b { font-weight: 500; flex: none; }
 .tv-row .c-type, .tv-row .c-mode, .tv-row .c-prov { color: var(--text-2); }
 .tv-row .c-ref { color: var(--text-3); }
+.tv-row .c-ref b { font-weight: 500; color: var(--text-2); }
 .tv-row .c-status { display: flex; gap: .3rem; overflow: hidden; }
 .tv-row .act { display: inline-flex; align-items: center; gap: .4rem; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -313,7 +325,9 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 .pal { position: relative; width: min(40rem, calc(100vw - 2rem)); max-height: min(38rem, 84vh); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 0; overflow: hidden; box-shadow: var(--shadow-2), 0 0 0 1px color-mix(in srgb, var(--text) 4%, transparent); animation: ui-pal-in .32s var(--ease); }
 .pal::before { content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 1px; background: var(--hair); }
 @keyframes ui-pal-in { from { opacity: 0; transform: translateY(-10px) scale(.985); } to { opacity: 1; transform: none; } }
-.pal-wrap > .pal:not(.sheet) { height: min(38rem, 84vh); }
+/* the palette is as tall as what it lists, up to its largest size: there is no empty block under the footer */
+.pal-wrap > .pal:not(.sheet) { height: auto; }
+.pal-wrap > .pal:not(.sheet) .pal-list { flex: 0 1 auto; }
 .pal-in { flex: none; display: flex; align-items: center; gap: .7rem; padding: 0 1rem; height: 3.3rem; border-bottom: 1px solid var(--line-strong); color: var(--text-3); }
 .pal-in .i { width: 1.1rem; height: 1.1rem; }
 .pal-in input { flex: 1; min-width: 0; align-self: stretch; border: 0; padding: 0; background: none; outline: none; font: 400 1.05rem/1.5 var(--font-sans); color: var(--text); }
@@ -426,17 +440,21 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
   .me b { display: none; }
   .me { padding: 0 .55rem; }
   .top { gap: 0 .6rem; padding: 0 .7rem; --top-pad: .7rem; }
-  .brand small, .top .search kbd { display: none; }
-  .toolbar { flex-wrap: wrap; padding: .5rem .7rem; }
-  .filterbox { flex: 1 1 9rem; width: auto; }
+  .brand small, .top .search kbd, .helpbtn { display: none; }
+  /* one row: the views, the filter and the buttons of the picture. The rest (grouping, opening and closing every group, the
+     steps of the zoom) are on the rows and on the fingers: a group opens by its arrow, and the picture by a pinch. */
+  .toolbar { flex-wrap: nowrap; padding: .5rem .7rem; gap: .4rem; }
+  .toolbar .ns-only, .toolbar .list-only, .toolbar .zoom #btn-zin, .toolbar .zoom #btn-zout, .toolbar .grow { display: none; }
+  .filterbox { flex: 1 1 4rem; width: auto; min-width: 0; padding: 0 .5rem; }
+  .filterbox .count { display: none; }
   .legend { display: none; }
   .list-pane { padding: 0 .5rem .5rem; }
-  .tv-head, .tv-row { grid-template-columns: minmax(10rem, 1fr) 6rem; }
-  .tv-head > :nth-child(n + 3), .tv-row > :nth-child(n + 3), .tv-head > :nth-child(2), .tv-row > :nth-child(2) { display: none; }
-  .tv-head > :nth-child(6), .tv-row > :nth-child(6) { display: block; }
-  .no-plan .tv-head, .no-plan .tv-row { grid-template-columns: minmax(10rem, 1fr) 6rem; }
+  .tv-head, .tv-row { grid-template-columns: minmax(4rem, 1fr) 4.9rem 8.4rem; column-gap: .5rem; }
+  .tv-head > :nth-child(n + 2), .tv-row > :nth-child(n + 2) { display: none; }
+  .tv-head > :nth-child(6), .tv-row > :nth-child(6), .tv-head > :nth-child(7), .tv-row > :nth-child(7) { display: block; }
+  .tv-row .c-action { display: flex; }
+  .no-plan .tv-head, .no-plan .tv-row { grid-template-columns: minmax(4rem, 1fr) 8.4rem; }
   .no-plan .tv-head > :nth-child(6), .no-plan .tv-row > :nth-child(6) { display: none; }
-  .no-plan .tv-head > :nth-child(5), .no-plan .tv-row > :nth-child(5) { display: block; }
   .status { gap: .8rem; } .status .quiet, #st-notread, #st-time { display: none; }
   .minimap { display: none; }
   .toasts { right: .6rem; left: .6rem; align-items: stretch; }
@@ -450,6 +468,9 @@ body:has(.app[data-view="access"]) #st-plan, body:has(.app[data-view="access"]) 
 @media (max-width: 40em) {
   .brand .word { display: none; }
   .topright { gap: .3rem; }
+  /* the sections fit the width of a phone: the open one has its word, the others their icon (the word stays for a screen reader) */
+  .sec-tab { padding: 0 .55rem; }
+  .sec-tab[aria-pressed="false"] .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .top { gap: 0 .3rem; padding: 0 .5rem; --top-pad: .5rem; }
 }
 

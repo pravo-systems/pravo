@@ -8,7 +8,7 @@
 // stay readable when the picture is small. Nothing in the picture is a bitmap.
 
 import { s, h, clamp, ease, schedule, actionOf, plural } from './util.js';
-import { G, FIT, fitScale, pathOf, badges, badgeSize, lengthOf, wiring } from './layout.js';
+import { G, FIT, fitScale, fitOverflows, padX, narrow, pathOf, badges, badgeSize, lengthOf, wiring } from './layout.js';
 import { eachNode, cellsOf, isOut, isEnv, isSecret } from './model.js';
 import { initials, hueOf } from './plans.js';
 import { providerOf, pvClass } from './provider.js';
@@ -285,7 +285,7 @@ export class GraphView {
   }
 
   // the shape of the canvas, for the layout and for the first view
-  get shape() { return { w: this.size.w, h: this.size.h, fit: { w: this.size.w - FIT.padX * 2, h: this.size.h - FIT.padTop - FIT.padBottom } }; }
+  get shape() { return { w: this.size.w, h: this.size.h, fit: { w: this.size.w - padX(this.size.w) * 2, h: this.size.h - FIT.padTop - FIT.padBottom } }; }
 
   // ---- scene ----
 
@@ -668,9 +668,19 @@ export class GraphView {
     for (const m of marks) { inn.append(m === 'decl' ? declGlyph(mx + 2, 30, 'all', 'declared only') : glyph(m, mx, 28, 13, 'mk mk-' + m)); mx -= 16; }
     const kind = isEnv(n) ? 'env' : isSecret(n) ? 'secret' : n.mode === 'data' || n.mode === 'ephemeral' ? n.mode : '';
     if (kind) inn.append(this.kindBadge(kind, H));
+    // with a plan loaded the node says its action in a word, on the bottom edge, as well as in the glyph of its badge
+    if (badge && this.ctx.hasPlan && n.action !== 'no-op' && W >= 190) inn.append(this.actionWord(act, W, H));
     const aus = this.authorBadges(authorsOf(n, this.ctx), W);
     if (aus) inn.append(aus);
     g.append(inn);
+    return g;
+  }
+
+  // actionWord hangs on the bottom edge at the right of a node that the loaded plan changes: the word of its action
+  actionWord(act, W, H) {
+    const w = 14 + act.label.length * 5.8;
+    const g = s('g', { class: 'aw', transform: `translate(${W - 15 - w} ${H})` });
+    g.append(s('rect', { class: 'awr', x: 0, y: -7, width: w, height: 14, rx: 0 }), s('text', { class: 'awt', x: w / 2, y: 3.4 }, act.label));
     return g;
   }
 
@@ -1258,7 +1268,9 @@ export class GraphView {
     const k = fitScale(b, this.size.w, this.size.h, maxK);
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
     const midY = FIT.padTop + (this.size.h - FIT.padTop - FIT.padBottom) / 2;
-    this.setView({ x: this.size.w / 2 - cx * k, y: midY - cy * k, k }, animate);
+    // a picture that is wider than the canvas at the smallest scale that reads starts at its left end, where the dependencies begin
+    const x = narrow(this.size.w) && fitOverflows(b, k, this.size.w) ? padX(this.size.w) - b.x * k : this.size.w / 2 - cx * k;
+    this.setView({ x, y: midY - cy * k, k }, animate);
   }
 
   fit(animate = true, ids = null, maxK = FIT.maxK) {
