@@ -381,3 +381,12 @@ func noteUnnamed(ctx context.Context, rt *runContext, root *config.Root, st *sta
 		}
 	}
 }
+
+// dotSlash puts "./" before a path that is relative and stays inside the
+// working directory, so that it reads as a path and not as a word.
+func dotSlash(p string) string {
+	if filepath.IsAbs(p) || strings.HasPrefix(p, "../") || strings.HasPrefix(p, "./") {
+		return p
+	}
+	return "./" + p
+}

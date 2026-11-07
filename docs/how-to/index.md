@@ -36,6 +36,7 @@ A team on one state: where the state lives, who reads it, who writes it, and how
 | Say who may change the state and who may only read and plan | [Give people roles](give-people-roles.md) | [Signatures and roles](../concepts/signatures-and-roles.md), [pravo protect roles](../reference/roles.md) |
 | Let a team list and read a plan before anyone applies it | [Store a plan and apply it later](store-a-plan-and-apply-it-later.md) | [Stored plans and approvals](../concepts/stored-plans-and-approvals.md) |
 | Make a risky plan wait for another member's approval | [Approve a plan](approve-a-plan.md) | [Stored plans and approvals](../concepts/stored-plans-and-approvals.md#approvals) |
+| Read a stored plan and approve it, when I review and do not write the specification | [Review a plan as an approver](review-a-plan.md) | [Stored plans and approvals](../concepts/stored-plans-and-approvals.md#approvals) |
 | Hold prod to the release that dev runs, and promote it with a signed note | [Promote a release from one environment to the next](promote-a-release.md) | [Environments](../reference/spec-environments.md#the-gate), [pravo promote](../reference/promote.md) |
 
 ## Self-service

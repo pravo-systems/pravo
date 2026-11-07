@@ -838,7 +838,7 @@ once.`,
 			if err := txn.Finish("applied", fmt.Sprintf("imported %d resources from %s", len(res.Resources), args[0]), true); err != nil {
 				return err
 			}
-			rt.out.Printf("Imported %d resources and %d outputs from %s into %s\n", len(res.Resources), len(res.Outputs), args[0], st.Dir())
+			rt.out.Printf("Imported %d resources and %d outputs from %s into %s\n", len(res.Resources), len(res.Outputs), args[0], dotSlash(displayPath(st.Dir())))
 			for _, n := range res.Notes {
 				rt.out.Warning(n)
 			}
