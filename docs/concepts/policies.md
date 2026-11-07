@@ -212,9 +212,11 @@ sed -n '/^Error/,$p' plan.out
 exit 5
 Error: the plan violates the policy owner@1 (sha256:0f1d1ef14fae):
 changes.0.after.keepers.owner: conflicting values null and =~"^team-" (mismatched types null and string):
-    owner:4:2
-    owner:7:12
+    ./policy.cue:8, in the field changes of the policy owner: if type == "random_pet" && action == "create" {
+    ./policy.cue:8, in the field changes of the policy owner: owner: =~"^team-"
     plan:1:<col>
+
+Hint: an attribute that is not set is null in the plan document: declare a field that can be null as field?: null | {...} in the template, and test it, if field != null {...}
 ```
 
 The exit code is 5. The path `changes.0` indexes the `changes` array of the document, and the position points into the text of the rule. The same plan is refused by `pravo apply`, which records a rejected transaction, and a plan file is not written for it.

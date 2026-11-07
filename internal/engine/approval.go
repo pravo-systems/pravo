@@ -338,7 +338,7 @@ func (e *Engine) ApprovalNeeds(set *state.PolicySet, pf *PlanFile) (needs []Appr
 	if err != nil {
 		return nil, false, err
 	}
-	if _, err := judgeVersions(e, doc, force); err != nil {
+	if _, err := judgeVersions(e, doc, force, nil); err != nil {
 		var coded *CodedError
 		if errors.As(err, &coded) && coded.Code == ExitRefused {
 			return needs, true, nil

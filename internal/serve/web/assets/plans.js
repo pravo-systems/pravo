@@ -92,6 +92,22 @@ export function counts(c, cls = '') {
   return h('span', { class: 'pcnt' + (cls ? ' ' + cls : ''), 'aria-hidden': 'true' }, parts);
 }
 
+// countWordsChips is what a plan does to the resources, in the words of the marks on the nodes: "3 replace", "1 create". A
+// replace is a destroy and a create in the summary, and is told as one here. The rest is as counts() has it.
+export function countChips(c, cls = '') {
+  const rep = c.replace || 0;
+  const parts = [];
+  if (rep) parts.push(h('b', { class: 'chg' }, `${rep} replace`));
+  if (c.add - rep > 0) parts.push(h('b', { class: 'ok' }, `${c.add - rep} create`));
+  if (c.change) parts.push(h('b', { class: 'chg' }, `${c.change} update`));
+  if (c.destroy - rep > 0) parts.push(h('b', { class: 'bad' }, `${c.destroy - rep} delete`));
+  if (c.import) parts.push(h('b', { class: 'dim' }, c.import + ' import'));
+  if (c.move) parts.push(h('b', { class: 'dim' }, c.move + ' move'));
+  if (c.policies) parts.push(h('b', { class: 'chg' }, plural(c.policies, 'policy', 'policies')));
+  if (!parts.length) parts.push(h('b', { class: 'dim' }, c.read ? plural(c.read, 'read') : c.planned ? plural(c.planned, 'change') : 'no changes'));
+  return h('span', { class: 'pcnt pcnt-w' + (cls ? ' ' + cls : ''), 'aria-hidden': 'true' }, parts);
+}
+
 // signerOf is the verified signer of a plan when it is not the author, from the signatures that the overlay of the plan
 // carries. The lists do not check signatures: a row shows the name once its overlay has been read, as it does the reason.
 export function signerOf(o, author) {
@@ -488,26 +504,27 @@ function approveCommand(p) {
 
 export function planStrip(el, p, cb) {
   // a strip that says the same is left as it is: drawing it again takes the focus from the button that has it
-  const sig = p ? [p.id, p.status, p.author, cb.reason || '', JSON.stringify(p.summary || {}), JSON.stringify(p.policies || []), p.planned || 0, p.applied || 0, (p.touches || []).length, JSON.stringify(cb.signatures || null), JSON.stringify(cb.approvals || null), !!cb.onClear, !!cb.onList, p.open ? Math.floor(Date.now() / 60000) : ''].join('|') : '';
+  const sig = p ? [p.id, p.status, p.author, cb.reason || '', cb.replace || 0, JSON.stringify(p.summary || {}), JSON.stringify(p.policies || []), p.planned || 0, p.applied || 0, (p.touches || []).length, JSON.stringify(cb.signatures || null), JSON.stringify(cb.approvals || null), !!cb.onClear, !!cb.onList, p.open ? Math.floor(Date.now() / 60000) : ''].join('|') : '';
   if (el.dataset.sig === sig) return;
   el.dataset.sig = sig;
   clear(el);
   if (!p) { el.hidden = true; return; }
   el.hidden = false;
   const n = planCounts(p);
-  let c = counts(n);
-  if (p.summary && p.summary.blast_radius) c.title = 'Blast radius: ' + plural(p.summary.blast_radius, 'resource');
+  // a replace is both an add and a destroy in the summary: the strip names it the way the nodes do
+  n.replace = Math.min(cb.replace || 0, n.add, n.destroy);
+  let c = countChips(n);
+  if (p.summary && p.summary.blast_radius) c.setAttribute('data-tip', plural(p.summary.blast_radius, 'resource') + ' change or depend on a change');
   // the counts of a stored plan lead to the list of what it changes: the changes of a plan that was applied are the point of looking at it
   if (cb.onList) c = h('button', { class: 'ps-chg', type: 'button', 'aria-label': `${countWords(n, p.status === 'applied')}. List what the plan changes`, 'data-tip': 'List what the plan changes', on: { click: cb.onList } }, c);
   el.append(...[
     h('span', { class: 'ps-eyebrow' }, 'Plan'),
-    p.author ? avatar(p.author) : null,
     cb.reason ? h('span', { class: 'ps-title', title: cb.reason }, cb.reason) : null,
     h('code', { class: 'ps-id' }, p.id),
     p.status ? statusChip(p.status) : null,
     c,
     p.status === 'partial' && p.applied ? h('span', { class: 'ps-prog dim' }, `${p.applied} of ${p.planned} applied`) : null,
-    h('span', { class: 'ps-by dim' }, byLine(p.author, cb.signatures), signedIcon(cb.signatures), (p.author ? ' \u00b7 ' : '') + relTime(p.created)),
+    h('span', { class: 'ps-by dim', 'data-tip': p.created ? stamp(p.created) : null }, p.author ? 'planned by ' : null, byLine(p.author, cb.signatures), signedIcon(cb.signatures), (p.author ? ' \u00b7 ' : '') + relTime(p.created)),
     approvalChip(cb.approvals),
     expiryRing(p),
     h('span', { class: 'grow' }),

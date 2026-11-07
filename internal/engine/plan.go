@@ -62,6 +62,8 @@ type Change struct {
 
 	CreateBeforeDestroy bool
 	PreventDestroy      bool
+	// Labels is $labels of the specification; PriorLabels is what the record holds.
+	Labels, PriorLabels map[string]string
 	// Deferred marks a data source whose configuration is not yet known.
 	Deferred bool
 	// DeferReason says why a change of ActionDefer is deferred to the next plan.

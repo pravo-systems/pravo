@@ -16,7 +16,7 @@ const COLS = [
   { key: 'mode', label: 'Mode', cls: 'c-mode' },
   { key: 'status', label: 'Status', cls: 'c-status' },
   { key: 'action', label: 'Plan', cls: 'c-action' },
-  { key: 'refreshed', label: 'Refreshed', cls: 'c-ref' },
+  { key: 'changed', label: 'Changed', cls: 'c-ref' },
 ];
 const ACTION_ORDER = { delete: 0, replace: 1, update: 2, create: 3, move: 4, import: 5, read: 6, 'no-op': 7, '': 8 };
 const statusRank = (n) => (n.gone ? 0 : n.drifted ? 1 : n.presence === 'state' ? 2 : n.locked ? 3 : n.presence === 'spec' ? 4 : n.sensitive ? 5 : 6);
@@ -28,7 +28,7 @@ const SORTERS = {
   mode: (a, b) => natural(a.mode, b.mode) || natural(a.addr, b.addr),
   status: (a, b) => statusRank(a) - statusRank(b) || natural(a.addr, b.addr),
   action: (a, b) => (ACTION_ORDER[a.action || ''] ?? 9) - (ACTION_ORDER[b.action || ''] ?? 9) || natural(a.addr, b.addr),
-  refreshed: (a, b) => (Date.parse(a.refreshed_at) || 0) - (Date.parse(b.refreshed_at) || 0) || natural(a.addr, b.addr),
+  changed: (a, b) => (Date.parse(a.changed_at) || 0) - (Date.parse(b.changed_at) || 0) || natural(a.addr, b.addr),
 };
 
 // facet is the pair of buttons at the end of a cell: show only the rows that hold this value, or hide them
@@ -212,6 +212,8 @@ export class ListView {
     const key = keyOfNode(n.addr);
     const on = key === this.selKey;
     const stat = [];
+    // a clean record says so, so that an empty cell never has to be read as "unknown"
+    if (n.presence === 'both' && n.mode === 'managed' && !n.gone && !n.drifted && !n.locked && !n.sealed) stat.push(h('span', { class: 'dim', title: 'The record matches what the provider last said' }, 'in sync'));
     if (n.gone) stat.push(h('span', { class: 'b bad' }, h('span', { class: 'i i-gone' }), 'gone'));
     if (n.drifted && !n.gone) stat.push(h('span', { class: 'b chg' }, h('span', { class: 'i i-drift' }), 'drifted'));
     if (n.locked) stat.push(h('span', { class: 'b lock' }, h('span', { class: 'i i-hold' }), 'locked'));
@@ -234,7 +236,9 @@ export class ListView {
       h('div', { class: 'c-mode' + (n.mode === 'managed' ? ' plain' : ''), role: 'gridcell' }, n.mode, facet('mode', n.mode)),
       h('div', { class: 'c-status', role: 'gridcell' }, stat),
       h('div', { class: 'c-action', role: 'gridcell' }, act, who.length ? h('span', { class: 'who' }, who) : null, a ? facet('plan', n.action) : null),
-      h('div', { class: 'c-ref', role: 'gridcell', title: n.refreshed_at ? stamp(n.refreshed_at) : '' }, n.refreshed_at ? relTime(n.refreshed_at, now) : '—'));
+      // who last wrote the record and when, from the transactions: the refresh (a read) is in the inspector
+      h('div', { class: 'c-ref', role: 'gridcell', title: n.changed_at ? `${stamp(n.changed_at)}${n.changed_by ? ' by ' + n.changed_by : ''}` : '' },
+        n.changed_at ? [n.changed_by ? h('b', null, n.changed_by) : null, n.changed_by ? ' \u00b7 ' : '', relTime(n.changed_at, now)] : '\u2014'));
   }
 
   onClick(ev) {

@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	cuejson "cuelang.org/go/encoding/json"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/telemetry"
@@ -150,7 +153,7 @@ func (e *Engine) checkPolicyRoles(ctx context.Context, plan *Plan) error {
 // rule with a misspelt bound, and not one that is too strict.
 func (e *Engine) checkNewPolicy(name, text string) error {
 	if p := CheckRule(e.Root.Ctx, name, text); p != nil {
-		return WithCode(ExitInvalid, errors.New(p.Message))
+		return WithCode(ExitInvalid, errors.New(e.explainPolicyError(name, text, p.Message)))
 	}
 	return nil
 }
@@ -290,11 +293,24 @@ func (e *Engine) Judge(set *state.PolicySet, pf *PlanFile) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return judgeVersions(e, doc, force)
+	return judgeVersions(e, doc, force, replaced(pf.Policies))
+}
+
+// replaced is the names of the policies that a plan puts a new text of.
+func replaced(entries []PolicyEntry) map[string]bool {
+	out := map[string]bool{}
+	for _, en := range entries {
+		if !en.removal() && en.Base > 0 {
+			out[en.Name] = true
+		}
+	}
+	return out
 }
 
 // judgeVersions judges the document by the versions, each on its own: all must hold.
-func judgeVersions(e *Engine, doc cue.Value, force []state.PolicyVersion) (refs []string, err error) {
+// replacing names the policies that the plan itself puts a new text of: the version in
+// force judges the plan that replaces it, so a refusal by one of them says how to leave.
+func judgeVersions(e *Engine, doc cue.Value, force []state.PolicyVersion, replacing map[string]bool) (refs []string, err error) {
 	_, end := telemetry.Span(e.traceCtx(), "engine check policy", attribute.Int("pravo.policies", len(force)))
 	defer func() { end(err) }()
 	refs = make([]string, 0, len(force))
@@ -302,10 +318,14 @@ func judgeVersions(e *Engine, doc cue.Value, force []state.PolicyVersion) (refs 
 	for _, v := range force {
 		rule := e.Root.Ctx.CompileString(v.Text, cue.Filename(v.Name))
 		if err := rule.Err(); err != nil {
-			return nil, WithCode(ExitInvalid, fmt.Errorf("policy %s@%d does not compile: %s", v.Name, v.Seq, cueerrors.Details(err, nil)))
+			return nil, WithCode(ExitInvalid, fmt.Errorf("policy %s@%d does not compile: %s", v.Name, v.Seq, e.explainPolicyError(v.Name, v.Text, cueerrors.Details(err, nil))))
 		}
 		if err := rule.Unify(doc).Validate(cue.Concrete(true)); err != nil {
-			failed = append(failed, fmt.Sprintf("the plan violates the policy %s@%d (sha256:%s):\n%s", v.Name, v.Seq, v.Digest()[:12], cueerrors.Details(err, nil)))
+			msg := fmt.Sprintf("the plan violates the policy %s@%d (sha256:%s):\n%s", v.Name, v.Seq, v.Digest()[:12], e.explainPolicyError(v.Name, v.Text, cueerrors.Details(err, nil)))
+			if replacing[v.Name] {
+				msg += fmt.Sprintf("\nThis plan also replaces the policy %s, and the version in force judges the plan that replaces it. If the rule is at fault, apply the new text alone: put the resource changes of this plan aside (a plan that changes only policies is not judged), plan again, apply, and bring the resource changes back.", v.Name)
+			}
+			failed = append(failed, msg)
 		}
 		refs = append(refs, v.Ref())
 	}
@@ -478,4 +498,44 @@ func (e *Engine) writePolicies(ctx context.Context, set *state.PolicySet, plan *
 
 func refused(format string, args ...any) error {
 	return WithCode(ExitRefused, fmt.Errorf(format, args...))
+}
+
+// explainPolicyError makes the details of a CUE error of a policy readable: a position in
+// the stored text, which CUE names after the policy ("keep:19:7"), becomes the file and line
+// of the rule where the author wrote it, and the mistakes that rules make most get one line
+// of what to write instead.
+func (e *Engine) explainPolicyError(name, text, details string) string {
+	var pol *config.Policy
+	if e.Root != nil {
+		for _, p := range e.Root.Policies {
+			if state.PolicyName(p.Name) == name && p.Rule == text {
+				pol = p
+				break
+			}
+		}
+	}
+	lines := strings.Split(text, "\n")
+	re := regexp.MustCompile(`(?m)(^|[\s(])` + regexp.QuoteMeta(name) + `:(\d+):(\d+)`)
+	details = re.ReplaceAllStringFunc(details, func(m string) string {
+		sub := re.FindStringSubmatch(m)
+		line, _ := strconv.Atoi(sub[2])
+		if line < 1 || line > len(lines) {
+			return m
+		}
+		where := fmt.Sprintf("line %d of the rule of the policy %s", line, name)
+		if pol != nil && pol.File != "" {
+			// The field the line is in is the nearest line above it that is not indented.
+			for i := line - 1; i >= 0; i-- {
+				if l := lines[i]; l != "" && l[0] != ' ' && l[0] != '\t' {
+					label, _, _ := strings.Cut(l, ":")
+					if src, ok := pol.Fields[strings.Trim(label, `"?!`)]; ok {
+						where = fmt.Sprintf("%s:%d, in the field %s of the policy %s", pol.File, src, strings.Trim(label, `"?!`), name)
+					}
+					break
+				}
+			}
+		}
+		return fmt.Sprintf("%s%s: %s", sub[1], where, strings.TrimSpace(lines[line-1]))
+	})
+	return details + config.PolicyRuleHints(details)
 }

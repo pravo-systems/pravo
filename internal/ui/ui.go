@@ -257,7 +257,7 @@ func (p *Printer) renderPolicies(plan *engine.Plan) {
 		case en.Base == 0:
 			p.Printf("  + %s (sha256:%s)\n", en.Name, en.Digest[:12])
 		default:
-			p.Printf("  ~ %s (version %d, sha256:%s)\n", en.Name, en.Base, en.Digest[:12])
+			p.Printf("  ~ %s (version %d, replaced by version %d, sha256:%s)\n", en.Name, en.Base, en.Base+1, en.Digest[:12])
 		}
 	}
 }

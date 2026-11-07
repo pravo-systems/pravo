@@ -11,6 +11,8 @@ A rule is unified with the plan document. It is the JSON that `pravo plan --json
 | What the plan does to a resource | `changes[].action` | yes |
 | What kind of object it is | `changes[].mode`, `changes[].type` | yes |
 | Which object | `changes[].addr`, `changes[].name` | yes |
+| The labels of a resource now | `changes[].labels` | when the resource sets `$labels` |
+| The labels the record holds | `changes[].before_labels` | when the record holds labels |
 | A value after the change | `changes[].after` | for `create`, `update`, `replace`, `read` |
 | A value before the change | `changes[].before` | for `update`, `replace`, `delete` |
 | What forces a replacement | `changes[].requires_replace` | for `replace` |
@@ -21,6 +23,32 @@ A rule is unified with the plan document. It is the JSON that `pravo plan --json
 `mode` is `managed`, `data`, `ephemeral` or `call`. A value that pravo reads itself (`pravo.#Env`, `pravo.#SecretEnv`, `pravo.#RemoteOutputs`) produces no entry, so a rule over it never fires. `action` is `create`, `update`, `replace`, `delete`, `read`, `open`, `call`, `move` or `no-op`.
 
 A `replace` is its own action. A rule that forbids `delete` alone still allows a resource to be destroyed and created again. In `summary`, a replacement counts as an addition and as a destruction.
+
+## Labels
+
+A resource can carry `$labels`, a map of strings that no provider sees. The plan document copies them into each change, twice:
+
+| Field | Holds | Use it to |
+|---|---|---|
+| `labels` | What the specification says now. Absent for a resource whose block is gone. | Require a label, for example an `owner` on everything that is created. |
+| `before_labels` | What the record kept at the last apply. Absent for a create. | Refuse to destroy or replace what was marked, since it holds the labels even when the block is gone or the label was taken off in the same plan. |
+
+A rule that protects reads `before_labels`. Declare it optional, and test it before reading it:
+
+```cue
+changes: [...pravo.#Change & {
+	action: string
+	addr:   string
+	before_labels?: {protected?: string, ...}
+	if (action == "delete" || action == "replace") && before_labels != _|_ {
+		if before_labels.protected != _|_ {
+			error("\(addr) is protected: take the label off in a reviewed change first")
+		}
+	}
+}]
+```
+
+The labels are written to the state by the apply that changes them, and a change of a label alone is an apply with no change of the object. A policy that reads `before_labels` judges the labels of the last apply, so taking `protected` off and destroying the resource are two applies. [Protect resources by label](../how-to/policies.md#11-protect-resources-by-label) walks through it.
 
 ## The schema of a rule
 

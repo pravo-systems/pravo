@@ -23,7 +23,8 @@ export function planCounts(p) {
 // countWords says the counts in words, for a screen reader and a tooltip: what the plan will do, or, with done, what it did.
 export function countWords(c, done = false) {
   const w = done ? ['added', 'changed', 'destroyed', 'imported', 'moved', 'read'] : ['to add', 'to change', 'to destroy', 'to import', 'to move', 'to read'];
-  const bits = [c.add && `${c.add} ${w[0]}`, c.change && `${c.change} ${w[1]}`, c.destroy && `${c.destroy} ${w[2]}`,
+  const rep = c.replace || 0;
+  const bits = [rep && `${rep} ${done ? 'replaced' : 'to replace'}`, c.add - rep > 0 && `${c.add - rep} ${w[0]}`, c.change && `${c.change} ${w[1]}`, c.destroy - rep > 0 && `${c.destroy - rep} ${w[2]}`,
     c.import && `${c.import} ${w[3]}`, c.move && `${c.move} ${w[4]}`].filter(Boolean);
   if (c.policies) bits.push(`${c.policies} ${c.policies === 1 ? 'policy' : 'policies'} ${done ? 'written' : 'to write'}`);
   if (!bits.length && c.read) bits.push(`${c.read} ${w[5]}`);

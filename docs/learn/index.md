@@ -14,6 +14,13 @@ Each lesson takes between 6 and 20 minutes. It shows a problem you know from HCL
 <div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr))">
 <div class="card">
 
+### Let me try it first
+
+[Try it in 12 minutes](../how-to/quick-start.md): install, plan, apply, a conflict and a destroy, with no CUE background. Come back here when you want to know why it worked.
+
+</div>
+<div class="card">
+
 ### I run OpenTofu or Terraform
 
 Start with [Migrate](../migrate/index.md). It links to the Track A lessons that a page needs, at the point where it needs them.
@@ -52,7 +59,7 @@ If you write CUE already, begin Track B at [B1, Providers and resources](b01-pro
 | **Track B · pravo** | [B1](b01-providers-and-resources.md) to [B11](b11-policy.md), three labs and a [project](b12-project.md) | about 2 hours, plus the labs | A specification that you plan, apply, change, move, check against a policy and destroy. |
 | **Track C · A team on one state** | [C1](c01-one-state-two-people.md) to [C8](c08-self-service-from-a-template.md) | about 2 hours | A sealed state in a shared store that three people work on, with roles, a policy, an approval, a recorded run and a template that a reader asks for instances of. |
 
-Do Track A first. Track B assumes the CUE that Track A teaches. The [quick start](../how-to/quick-start.md) runs a plan before you know any CUE, and Track A explains what you saw there.
+Do Track A first if you want to learn in order. Track B assumes the CUE that Track A teaches. If you would rather see it work first, the [quick start](../how-to/quick-start.md) runs a plan before you know any CUE, and Track A explains what you saw there.
 
 Track C follows a team of three on one state. Each lesson names the lessons it needs, under "Needs": B7 and Lab 2 for most of them, and B11 before [C5](c05-write-a-plan-policy.md).
 

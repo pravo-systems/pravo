@@ -155,6 +155,7 @@ row target-flags       all '-target[ =]'
 row remote-state       tf  'terraform_remote_state'
 row check-blocks       tf  '^[[:space:]]*check[[:space:]]+"'
 row lifecycle-checks   tf  '(precondition|postcondition|replace_triggered_by)'
+row lifecycle-meta     tf  '(prevent_destroy|ignore_changes|create_before_destroy)'
 row moved-blocks       tf  '^[[:space:]]*moved[[:space:]]*\{'
 row import-blocks      tf  '^[[:space:]]*import[[:space:]]*\{'
 row dynamic-blocks     tf  '^[[:space:]]*dynamic[[:space:]]+"'
@@ -178,6 +179,7 @@ target-flags             1
 remote-state             1
 check-blocks             0
 lifecycle-checks         0
+lifecycle-meta           0
 moved-blocks             1
 import-blocks            0
 dynamic-blocks           0
@@ -198,11 +200,13 @@ Every row above 0 is a decision. The table says what each construct becomes and 
 | `remote-state` | `pravo.#RemoteOutputs`. The conversion skips the data source record and prints a warning. | [M3](m3-worked-example.md), [environment values](../reference/spec-env.md) |
 | `check-blocks` | No equivalent. A constraint fails evaluation. A plan policy refuses a plan. | [M10](m10-not-in-pravo.md) |
 | `lifecycle-checks` | No equivalent. `$lifecycle` takes `create_before_destroy`, `prevent_destroy`, `ignore_changes` and `refresh`. | [M10](m10-not-in-pravo.md) |
-| `moved-blocks`, `import-blocks` | `$from` and `$import` on the resource, or `pravo import`. | [M5](m5-convert-the-state.md), [importing and moving](../how-to/importing-and-moving.md) |
+| `lifecycle-meta` | `$lifecycle` on the resource: `prevent_destroy: true`, `ignore_changes` and `create_before_destroy`. A destroy of a guarded resource is refused. | [M4, step 8](m4-translate-the-specification.md#step-8-providers-and-meta-arguments), [construct matrix](construct-matrix.md) |
+| `moved-blocks` | Keep `$from` on the renamed resource. There is no separate block, and a rename after the migration uses the same `$from`. | [Rename, move and adopt resources](../how-to/importing-and-moving.md), [construct matrix](construct-matrix.md), [M5](m5-convert-the-state.md) for a state you convert |
+| `import-blocks` | `$import` on the resource, or `pravo import`. | [Rename, move and adopt resources](../how-to/importing-and-moving.md) |
 | `dynamic-blocks` | A comprehension in the body of the resource. | [M4](m4-translate-the-specification.md) |
 | `count` | A comprehension. Addresses change from `[0]` to `_0` in the converted state. | [M4](m4-translate-the-specification.md), [M5](m5-convert-the-state.md) |
 | `provider-passing` | An input of type `#Provider` on the definition. | [M4](m4-translate-the-specification.md), [reuse](../reference/spec-reuse.md) |
-| `sensitive-vars`, `tf-var-env` | `pravo.#SecretEnv` for a secret and `pravo.#Env` for the rest. | [M4](m4-translate-the-specification.md), [secrets](../how-to/secrets.md) |
+| `sensitive-vars`, `tf-var-env` | For a `variable`: `pravo.#SecretEnv` for a secret and `pravo.#Env` for the rest. For an `output` that says `sensitive = true`: `sensitive: true` on `pravo.#Output`. | [M4](m4-translate-the-specification.md), [M4, step 9](m4-translate-the-specification.md#step-9-outputs), [secrets](../how-to/secrets.md) |
 | `plan-json-checks` | A policy: a `pravo.#Policy` node of the root. | [M6](m6-rewrite-plan-checks.md), [policies](../how-to/policies.md) |
 
 The `workspaces` row counts the places where the code reads the workspace name. It cannot see a workspace that a pipeline selects with `tofu workspace select`. The `tofu workspace list` of task 2 does. A root with workspaces converts each state into its own pravo state, as [M5](m5-convert-the-state.md#a-root-with-workspaces) shows.

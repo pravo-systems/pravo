@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -37,7 +38,7 @@ func (e *Engine) planDelete(ctx context.Context, sr *state.Resource, reason stri
 	if err != nil {
 		return nil, err
 	}
-	ch := &Change{Addr: sr.Address(), Mode: sr.Mode, Type: sr.Type, Name: sr.Name, ProviderKey: sr.ProviderKey, Schema: s, Deps: sr.Dependencies, Reasons: []string{reason}, removal: true, PreventDestroy: sr.PreventDestroy}
+	ch := &Change{Addr: sr.Address(), Mode: sr.Mode, Type: sr.Type, Name: sr.Name, ProviderKey: sr.ProviderKey, Schema: s, Deps: sr.Dependencies, Reasons: []string{reason}, removal: true, PreventDestroy: sr.PreventDestroy, PriorLabels: sr.Labels}
 	prior, private, err := e.priorState(ctx, prov, sr, s, ch, "")
 	if err != nil {
 		return nil, err
@@ -81,6 +82,29 @@ func configHash(cfg tftypes.Value) string {
 func configHashBytes(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:8])
+}
+
+// labelsOf is $labels of a resource: the marks a policy can read. A value that
+// is not a string is left out, the schema refuses it before.
+func labelsOf(v cue.Value) map[string]string {
+	lv := v.LookupPath(cue.MakePath(cue.Str("$labels")))
+	if !lv.Exists() {
+		return nil
+	}
+	it, err := lv.Fields()
+	if err != nil {
+		return nil
+	}
+	var out map[string]string
+	for it.Next() {
+		if s, err := it.Value().String(); err == nil {
+			if out == nil {
+				out = map[string]string{}
+			}
+			out[it.Selector().Unquoted()] = s
+		}
+	}
+	return out
 }
 
 func lifecycle(v cue.Value) (cbd, prevent bool, ignore []string, refresh string) {
@@ -159,6 +183,7 @@ func (e *Engine) startPlan(r *config.Resource, v cue.Value, strict bool) (*resou
 	conv := &convert.Converter{Strict: strict, Self: r.Path, Resolve: e.resolver(), IsEphemeral: e.ephemeralCheck()}
 	cfg := conv.Block(addr, s.Block, v)
 	cbd, prevent, ignore, age := lifecycle(v)
+	labels := labelsOf(v)
 	e.cueMu.Unlock()
 	if err := conv.Err(); err != nil {
 		return nil, err
@@ -169,14 +194,18 @@ func (e *Engine) startPlan(r *config.Resource, v cue.Value, strict bool) (*resou
 	ch := &Change{Addr: addr, Mode: r.Mode, Type: r.Type, Name: r.Name, ProviderKey: r.ProviderKey, Schema: s, Config: cfg, Deps: e.deps[addr]}
 	ch.ConfigHash = configHash(cfg)
 	ch.CreateBeforeDestroy, ch.PreventDestroy = cbd, prevent
+	ch.Labels = labels
 	sr := e.State.Get(addr)
+	if sr != nil {
+		ch.PriorLabels = sr.Labels
+	}
 	tainted := sr != nil && r.Mode == "managed" && sr.Tainted
 	forced := tainted || (sr != nil && r.Mode == "managed" && e.replaceRequested(addr))
 	return &resourcePlan{
 		r: r, s: s, conv: conv, ch: ch, sr: sr, cfg: cfg, age: age, ignore: ignore, strict: strict, forced: forced,
 		// A node that a read left a mark on is planned until an apply writes it.
 		unchanged: sr != nil && !forced && !sr.Marked() && !e.Opts.Full && ch.ConfigHash != "" && ch.ConfigHash == sr.ConfigHash &&
-			sr.SchemaVersion == s.Version && sr.ProviderVersion == e.providerVersion(r.ProviderKey) && sr.ProviderKey == r.ProviderKey && sr.PreventDestroy == ch.PreventDestroy,
+			sr.SchemaVersion == s.Version && sr.ProviderVersion == e.providerVersion(r.ProviderKey) && sr.ProviderKey == r.ProviderKey && sr.PreventDestroy == ch.PreventDestroy && maps.Equal(sr.Labels, ch.Labels),
 	}, nil
 }
 

@@ -4,7 +4,7 @@ description: Twelve minutes from install to a first plan, an apply, a conflict a
 order: 1
 group: Get started
 minutes: 12
-needs: Go 1.26 or newer, the pravo source tree and network access.
+needs: The pravo binary and network access. Go 1.26 is needed only to build from source.
 done_when: "`pravo destroy` reports 2 destroyed and `server.env` is gone."
 level: beginner
 normalize:
@@ -391,7 +391,7 @@ config.file_permission: conflicting values "0600" and "0644":
     ./override.cue:3:26
     ./rules.cue:3:49
 config.file_permission: conflicting values "0644" and null (mismatched types string and null):
-    ./cue.mod/gen/pravo.dev/providers/hashicorp/local/local_gen.cue:97:29
+    ./cue.mod/gen/pravo.dev/providers/hashicorp/local/local_gen.cue:101:29
     ./main.cue:13:9
     ./override.cue:3:26
 ```
