@@ -170,12 +170,13 @@ One task each, for a reader who knows the basics.
 
 | File | Covers | Size |
 |---|---|---|
-| [how-to/keep-the-state-in-a-shared-store.md](how-to/keep-the-state-in-a-shared-store.md) | Keep the state in an S3 bucket, or on an HTTP server of your own, so that a team shares it. Move an existing local state into it, read another root's outputs and decide who may write it. | 15 KB |
+| [how-to/keep-the-state-in-a-shared-store.md](how-to/keep-the-state-in-a-shared-store.md) | Keep the state in an S3 bucket, or on an HTTP server of your own, so that a team shares it. Move an existing local state into it, read another root's outputs and decide who may write it. | 16 KB |
 | [how-to/seal-the-state.md](how-to/seal-the-state.md) | Encrypt the attributes, outputs and stored plans of a state in a bucket to a list of readers that the repository keeps, add and remove a reader, and let a CI job read. | 26 KB |
 | [how-to/give-people-roles.md](how-to/give-people-roles.md) | Say which readers of a sealed state may change it and which may only read and plan, pin the roles in the state so that nobody promotes themselves by editing a copy of the readers file, promote a member, take a member off, and give a CI job the role its work needs. | 16 KB |
 | [how-to/store-a-plan-and-apply-it-later.md](how-to/store-a-plan-and-apply-it-later.md) | Store a plan in the state so that a team can list it, read it, see who else plans the same resources, approve it where a policy asks for that, and apply it by its id. | 15 KB |
 | [how-to/approve-a-plan.md](how-to/approve-a-plan.md) | Make a plan wait for the approval of another member before it is applied. Write the rule, store the plan, approve it with a second key, apply it by its id, and see what an admin may skip and what a change to the rule itself needs. | 12 KB |
 | [how-to/promote-a-release.md](how-to/promote-a-release.md) | Hold prod to what dev runs. Give each environment its own readers, promote a release with a signed note, withdraw a promotion, and waive the check when dev cannot be read. | 11 KB |
+| [how-to/review-a-plan.md](how-to/review-a-plan.md) | One page for the person who reads and approves plans and does not write the specification. What to read, what to run, what an approval does and does not do, and what to commit. | 4 KB |
 
 ### Specify
 
@@ -243,7 +244,7 @@ From OpenTofu or Terraform: a runbook with its lookups.
 
 | File | Covers | Size |
 |---|---|---|
-| [migrate/m1-before-you-start.md](migrate/m1-before-you-start.md) | Make the OpenTofu plan empty, back up the state and the code, scan for constructs that need a decision, preview the conversion and write the recovery plan. | 15 KB |
+| [migrate/m1-before-you-start.md](migrate/m1-before-you-start.md) | Make the OpenTofu plan empty, back up the state and the code, scan for constructs that need a decision, preview the conversion and write the recovery plan. | 16 KB |
 | [migrate/m2-concept-map.md](migrate/m2-concept-map.md) | Each OpenTofu construct, command and function beside its pravo equivalent, with one example for each group and the rows that have none. | 24 KB |
 | [migrate/m3-worked-example.md](migrate/m3-worked-example.md) | One stack with a module, a for_each, a remote output, a sensitive value and a moved history, translated by hand, converted and planned to empty. | 28 KB |
 | [migrate/m4-translate-the-specification.md](migrate/m4-translate-the-specification.md) | Rewrite each OpenTofu construct as CUE in a fixed order, and check every step with pravo validate. | 23 KB |
