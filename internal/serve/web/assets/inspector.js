@@ -19,6 +19,14 @@ const TABS = [
   { key: 'change', label: 'Change' },
 ];
 
+// reasonItem is one reason of a change. The engine says which digests of the specification it compared; a person reads the sentence,
+// and the digests are one click away, under "details".
+function reasonItem(r) {
+  const m = /^(.*?)\s*\((hash [0-9a-f]+ -> [0-9a-f]+)\)(.*)$/.exec(String(r));
+  if (!m) return h('li', null, r);
+  return h('li', null, m[1] + m[3], ' ', h('details', { class: 'rs-det' }, h('summary', null, 'details'), h('code', null, m[2])));
+}
+
 export class Inspector {
   constructor(root, cb) {
     this.root = root;
@@ -453,9 +461,9 @@ export class Inspector {
 
     wrap.append(this.refsRow(d));
     const reach = d.reach && d.reach.length ? d.reach : null;
-    wrap.append(h('section', { class: 'sec' }, h('h3', { class: 'h' }, 'Reach'),
+    wrap.append(h('section', { class: 'sec' }, h('h3', { class: 'h' }, 'Affected by a change'),
       reach
-        ? h('div', { class: 'reach' }, h('span', { class: 'big' }, String(reach.length)), h('span', { class: 'rt' }, `${reach.length === 1 ? 'resource is' : 'resources are'} reached by a change to this one.`), h('button', { class: 'btn', type: 'button', data: { reach: node.addr } }, 'Show in graph'))
+        ? h('div', { class: 'reach' }, h('span', { class: 'big' }, String(reach.length)), h('span', { class: 'rt' }, `${reach.length === 1 ? 'resource depends' : 'resources depend'} on this one, directly or not, and ${reach.length === 1 ? 'is' : 'are'} affected by a change to it.`), h('button', { class: 'btn', type: 'button', data: { reach: node.addr } }, 'Show in graph'))
         : h('p', { class: 'dim none' }, 'No resource depends on this one.')));
 
     const t = d.times || {};
@@ -668,7 +676,7 @@ export class Inspector {
         c.action === 'replace' ? h('span', { class: 'dim' }, 'destroyed and created again') : null,
         c.action === 'defer' ? h('span', { class: 'dim' }, 'to the next plan: the apply leaves it alone') : null,
         c.applied ? h('span', { class: 'b ok' }, icon('check'), 'applied') : null),
-      (c.reasons || []).length ? h('ul', { class: 'reasons' }, c.reasons.map((r) => h('li', null, r))) : null,
+      (c.reasons || []).length ? h('ul', { class: 'reasons' }, c.reasons.map((r) => reasonItem(r))) : null,
       (c.requires_replace || []).length ? h('p', { class: 'forces' }, 'Forces replacement: ', c.requires_replace.map((p) => h('code', null, p))) : null));
     const rr = new Set(c.requires_replace || []);
     const diffs = h('section', { class: 'sec flush' });

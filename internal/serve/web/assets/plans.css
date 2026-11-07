@@ -33,6 +33,7 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: var(-
 /* the adds, changes and destroys of a plan */
 .pcnt { display: inline-flex; gap: .4rem; flex: none; font: 500 var(--fs-1)/1 var(--font-mono); }
 .pcnt b { font-weight: 500; }
+.pcnt.pcnt-w { gap: .55rem; font-size: var(--fs-2); }
 .pcnt .ok { color: var(--accent); } .pcnt .chg { color: var(--change); } .pcnt .bad { color: var(--conflict); } .pcnt .dim { color: var(--text-3); font-weight: 400; }
 
 /* ---- the list in the rail ---- */
@@ -213,7 +214,15 @@ span.au.tiny { min-width: 1rem; height: 1rem; padding: 0 .1rem; font-size: var(-
 body:has(.app[data-view="access"]) .planstrip, body:has(.app[data-view="plans"]) .planstrip { display: none; }
 .planstrip .ps-chg { padding: .3rem .5rem; }
 .planstrip .ps-prog { font-size: var(--fs-2); white-space: nowrap; }
-@media (max-width: 47.5em) { .planstrip .pcnt, .planstrip .ps-chg, .planstrip .ps-prog, .planstrip .ps-by, .planstrip .ps-id, .planstrip .ps-eyebrow, .planstrip .ps-x-t { display: none; } }
+/* on a phone the strip wraps: what the plan is, what it does and who made it stay in words */
+@media (max-width: 47.5em) {
+  .planstrip { flex-wrap: wrap; gap: .2rem .6rem; padding: .35rem .4rem .35rem .6rem; }
+  .planstrip .ps-title { flex: 1 1 100%; white-space: normal; }
+  .planstrip .ps-by { white-space: normal; }
+  .planstrip .grow { display: none; }
+  .planstrip .ps-x { margin-left: auto; }
+  .planstrip .ps-x-t { display: none; }
+}
 
 /* ---- the ring of the time that a plan has left ---- */
 .rg { display: inline-flex; align-items: center; gap: .3rem; flex: none; }

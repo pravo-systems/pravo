@@ -143,6 +143,12 @@ package pravo
 	reasons?: [...string]
 	// The attributes that force a replacement.
 	requires_replace?: [...string]
+	// $labels of the specification, such as protected: "true". Absent when the
+	// resource has none or its block is gone.
+	labels?: [string]: string
+	// $labels as the record holds them, from the last apply. Absent for a create and
+	// for a resource that had none. Read this to refuse removing a protected resource.
+	before_labels?: [string]: string
 	// The recorded state of the object. Absent for a create.
 	before?: {...}
 	// The planned state of the object. Absent for a delete. A value the provider

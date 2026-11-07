@@ -34,7 +34,7 @@ func (e *Engine) writeState(ch *Change, v tftypes.Value, private []byte, action 
 		ProviderVersion:  e.providerVersion(ch.ProviderKey), SchemaVersion: ch.Schema.Version,
 		Attributes: attrs, Private: private, Dependencies: ch.Deps, ConfigHash: ch.ConfigHash,
 		ProviderConfig: e.stamp(ch.ProviderKey, ""), RefreshedAt: now, AppliedAt: now,
-		PreventDestroy: ch.PreventDestroy,
+		PreventDestroy: ch.PreventDestroy, Labels: ch.Labels,
 	}
 	if action == "partial" || action == "partial-create" {
 		// The provider returned the state it had reached before it failed. Without

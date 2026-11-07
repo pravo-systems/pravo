@@ -75,6 +75,7 @@ random_integer: {
 	$import?: __string | {...}
 	$depends_on?: [..._]
 	$lifecycle?: #Lifecycle
+	$labels?: [string]: __string
 	max: number
 	min: number
 }
@@ -213,7 +214,7 @@ Output:
 ```text
 Error: the plan violates the policy no_destroy@1 (sha256:<digest>):
 changes.0: a: replace is not allowed:
-    no_destroy:7:3
+    ./root/policy.cue:8, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 planfile "-auto-approve" is not a usable value: it is empty or begins with "-"
 ```
 

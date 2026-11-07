@@ -166,7 +166,7 @@ Outputs:
 
 Error: the plan violates the policy no_destroy@1 (sha256:5530c1a63699):
 changes.0: pet: replace is not allowed:
-    no_destroy:6:3
+    ./infra/main.cue:20, in the field changes of the policy no_destroy: error("\(addr): \(action) is not allowed")
 ```
 
 The rule is the text of the policy, so the position `no_destroy:6:3` is a line and a column of that text. The same plan is refused by `apply`, and `apply` records the refusal as a rejected transaction.

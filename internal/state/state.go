@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -119,6 +120,9 @@ type Resource struct {
 	// $lifecycle.prevent_destroy on the node when it was last written, so that a
 	// plan that destroys the record after its block is gone can say so.
 	PreventDestroy bool `json:"prevent_destroy,omitempty"`
+	// Labels records $labels of the node when it was last written, so that a plan
+	// which destroys it after its block is gone still shows them to a policy.
+	Labels map[string]string `json:"labels,omitempty"`
 	// Revision increases on every write of the node.
 	Revision int `json:"revision"`
 	// Generation is the transaction that created the record. A record that is
@@ -765,7 +769,7 @@ func (s *Store) Refresh(r *Resource, txn string) error {
 	same := ok && prev != r && jsonSame(prev.Attributes, r.Attributes) && bytes.Equal(prev.Private, r.Private) &&
 		slices.Equal(prev.Dependencies, r.Dependencies) && prev.ConfigHash == r.ConfigHash &&
 		prev.ProviderVersion == r.ProviderVersion && prev.SchemaVersion == r.SchemaVersion &&
-		prev.Gone == r.Gone && prev.Tainted == r.Tainted && prev.PreventDestroy == r.PreventDestroy && sameTime(prev.DriftedAt, r.DriftedAt)
+		prev.Gone == r.Gone && prev.Tainted == r.Tainted && prev.PreventDestroy == r.PreventDestroy && maps.Equal(prev.Labels, r.Labels) && sameTime(prev.DriftedAt, r.DriftedAt)
 	var held Version
 	if ok {
 		held = Version{Revision: prev.Revision, Generation: prev.Generation}

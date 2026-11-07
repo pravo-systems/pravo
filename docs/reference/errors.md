@@ -1487,7 +1487,7 @@ pravo plan | sed -n '/^Error/,$p'
 ```text out
 Error: the plan violates the policy check@1 (sha256:<digest>):
 changes.0: cannot reference optional field: before:
-    check:6:5
+    ./policy.cue:6, in the field changes of the policy check: if before.id == "x" {
 ```
 
 A change to a policy is not judged, so the same rule is replaced by one that works:
@@ -1522,7 +1522,7 @@ Policies: +0 new, ~1 changed, -0 removed.
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 Error: the plan violates the policy check@2 (sha256:<digest>):
 changes.0: pet: delete is not allowed:
-    check:7:3
+    ./policy.cue:7, in the field changes of the policy check: error("\(addr): \(action) is not allowed")
 ```
 
 ```sh run

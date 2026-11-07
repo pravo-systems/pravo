@@ -15,12 +15,19 @@ export const G = {
 };
 
 // the room that the camera leaves around the picture, and the zoom that makes it fit
-export const FIT = { padX: 52, padTop: 40, padBottom: 60, maxK: 1.25, minK: 0.03 };
+export const FIT = { padX: 52, padTop: 40, padBottom: 60, maxK: 1.25, minK: 0.03, phoneW: 560, phonePadX: 14, phoneMinK: 0.62 };
+// A canvas as narrow as a phone's fits the picture to its width with less room at the sides, and does not go under phoneMinK: a
+// picture that would have to be smaller than that cannot be read whole, and is shown at a size that can, from its left end (see
+// fitOrigin), to be panned.
+export const narrow = (w) => w > 0 && w < FIT.phoneW;
+export const padX = (w) => (narrow(w) ? FIT.phonePadX : FIT.padX);
 export function fitScale(b, w, h, maxK = FIT.maxK) {
   if (!b || !b.w || !b.h || !w || !h) return 1;
-  const k = Math.min((w - FIT.padX * 2) / b.w, (h - FIT.padTop - FIT.padBottom) / b.h);
-  return Math.min(maxK, Math.max(FIT.minK, k));
+  const k = Math.min((w - padX(w) * 2) / b.w, (h - FIT.padTop - FIT.padBottom) / b.h);
+  return Math.min(maxK, Math.max(narrow(w) ? FIT.phoneMinK : FIT.minK, k));
 }
+// fitOrigin says whether the picture, at the scale it was given, is wider than the canvas: it then starts at the left edge
+export const fitOverflows = (b, k, w) => !!b && b.w * k > w - padX(w) * 2 + 0.5;
 
 // layout takes { root, items, edges, aspect, fit, route, sweeps }.
 //   root:   a lane { path, label, items: [id], sub: [lane] }; the root lane is virtual (it draws no box)

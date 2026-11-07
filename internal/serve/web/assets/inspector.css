@@ -451,3 +451,7 @@
 .attr.hit { background: color-mix(in srgb, var(--accent) 11%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent); }
 .attr.hit .av { color: var(--text); }
 .attr.hit-in .an::after { content: ""; display: inline-block; width: .38rem; height: .38rem; margin-left: .4rem; border-radius: 0; background: var(--accent); vertical-align: middle; }
+/* the digests that a reason compared: a word to open, not a string of letters in the sentence */
+.reasons .rs-det { display: inline; }
+.reasons .rs-det summary { display: inline; cursor: pointer; color: var(--text-3); text-decoration: underline; text-underline-offset: 2px; }
+.reasons .rs-det[open] code { display: block; margin-top: .2rem; font-size: var(--fs-2); color: var(--text-3); overflow-wrap: anywhere; }

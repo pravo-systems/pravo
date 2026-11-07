@@ -154,11 +154,11 @@ Outputs:
 
 Error: the plan violates the policy check@N (sha256:0c23a31e78bd):
 changes.0: seed: replace is not allowed:
-    check:7:3
+    ./infra/policy.cue:7, in the field changes of the policy check: error("\(addr): \(action) is not allowed")
 changes.1: pet: replace is not allowed:
-    check:7:3
+    ./infra/policy.cue:7, in the field changes of the policy check: error("\(addr): \(action) is not allowed")
 changes.2: ticket: replace is not allowed:
-    check:7:3
+    ./infra/policy.cue:7, in the field changes of the policy check: error("\(addr): \(action) is not allowed")
 ```
 
 Each message is the one the rule gave to `error()`, with the address of the change. The path before it, `changes.1`, is the index of the change in the document's list. The plan is printed above these lines in full, so what is judged is what the reader saw.
@@ -170,7 +170,7 @@ pravo -C infra plan --json 2>/dev/null | tail -n 1
 ```
 
 ```text out
-{"code":5,"kind":"error","message":"the plan violates the policy check@N (sha256:0c23a31e78bd):\nchanges.0: seed: replace is not allowed:\n    check:7:3\nchanges.1: pet: replace is not allowed:\n    check:7:3\nchanges.2: ticket: replace is not allowed:\n    check:7:3\n"}
+{"code":5,"kind":"error","message":"the plan violates the policy check@N (sha256:0c23a31e78bd):\nchanges.0: seed: replace is not allowed:\n    ./infra/policy.cue:7, in the field changes of the policy check: error(\"\\(addr): \\(action) is not allowed\")\nchanges.1: pet: replace is not allowed:\n    ./infra/policy.cue:7, in the field changes of the policy check: error(\"\\(addr): \\(action) is not allowed\")\nchanges.2: ticket: replace is not allowed:\n    ./infra/policy.cue:7, in the field changes of the policy check: error(\"\\(addr): \\(action) is not allowed\")\n"}
 ```
 
 With `--out`, a refused plan writes no plan file:
@@ -231,7 +231,7 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```text out
 Error: the plan violates the policy check@N (sha256:396a91be1092):
 changes.0.after.keepers.owner: incomplete value !="":
-    check:8:12
+    ./infra/policy.cue:7, in the field changes of the policy check: owner: !=""
 ```
 
 Null:
@@ -244,9 +244,11 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```text out
 Error: the plan violates the policy check@N (sha256:396a91be1092):
 changes.0.after.keepers: conflicting values null and {owner:!=""} (mismatched types null and struct):
-    check:5:2
-    check:7:13
+    ./infra/policy.cue:7, in the field changes of the policy check: if type == "random_pet" && action == "create" {
+    ./infra/policy.cue:7, in the field changes of the policy check: keepers: {
     plan:1:N
+
+Hint: an attribute that is not set is null in the plan document: declare a field that can be null as field?: null | {...} in the template, and test it, if field != null {...}
 ```
 
 Unknown:
@@ -259,9 +261,11 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```text out
 Error: the plan violates the policy check@N (sha256:396a91be1092):
 changes.1.after.keepers.owner: conflicting values {$unknown:true} and !="" (mismatched types struct and string):
-    check:5:2
-    check:8:12
+    ./infra/policy.cue:7, in the field changes of the policy check: if type == "random_pet" && action == "create" {
+    ./infra/policy.cue:7, in the field changes of the policy check: owner: !=""
     plan:1:N
+
+Hint: a value the provider computes at apply is {"$unknown": true}, not a string or a number: test for it or leave it out of the comparison
 ```
 
 Empty string:
@@ -274,7 +278,7 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```text out
 Error: the plan violates the policy check@N (sha256:396a91be1092):
 changes.0.after.keepers.owner: invalid value "" (out of bound !=""):
-    check:8:12
+    ./infra/policy.cue:7, in the field changes of the policy check: owner: !=""
     plan:1:N
 ```
 
@@ -310,12 +314,12 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 Error: the plan violates the policy check@N (sha256:5cbce9a1aaf9):
 changes.0.after.prefix: 2 errors in empty disjunction:
 changes.0.after.prefix: conflicting values "App" and null (mismatched types string and null):
-    check:5:2
-    check:7:12
+    ./infra/policy.cue:7, in the field changes of the policy check: if type == "random_pet" && action == "create" {
+    ./infra/policy.cue:7, in the field changes of the policy check: prefix: null | =~"^[a-z]+$"
     plan:1:N
 changes.0.after.prefix: invalid value "App" (out of bound =~"^[a-z]+$"):
-    check:7:19
-    check:7:12
+    ./infra/policy.cue:7, in the field changes of the policy check: prefix: null | =~"^[a-z]+$"
+    ./infra/policy.cue:7, in the field changes of the policy check: prefix: null | =~"^[a-z]+$"
     plan:1:N
 ```
 
@@ -369,17 +373,17 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```text out
 Error: the plan violates the policy check@N (sha256:492bd73e4d25):
 changes.0: extra1: the separator must not be a dot:
-    check:11:4
+    ./infra/policy.cue:7, in the field changes of the policy check: error("\(addr): the separator must not be a dot")
 
 Error: the plan violates the policy check@N (sha256:2e2901345a21):
 changes.0.after.separator: 2 errors in empty disjunction:
 changes.0.after.separator: conflicting values "-" and ".":
-    check:4:2
-    check:6:15
+    ./infra/policy.cue:7, in the field changes of the policy check: if type == "random_pet" {
+    ./infra/policy.cue:7, in the field changes of the policy check: separator: "-" | "_"
     plan:1:N
 changes.0.after.separator: conflicting values "_" and ".":
-    check:4:2
-    check:6:21
+    ./infra/policy.cue:7, in the field changes of the policy check: if type == "random_pet" {
+    ./infra/policy.cue:7, in the field changes of the policy check: separator: "-" | "_"
     plan:1:N
 ```
 
@@ -399,13 +403,15 @@ Policies: 1 satisfied.
 Error: the plan violates the policy check@N (sha256:2e2901345a21):
 changes.1.after.separator: 2 errors in empty disjunction:
 changes.1.after.separator: conflicting values {$unknown:true} and "-" (mismatched types struct and string):
-    check:4:2
-    check:6:15
+    ./infra/policy.cue:7, in the field changes of the policy check: if type == "random_pet" {
+    ./infra/policy.cue:7, in the field changes of the policy check: separator: "-" | "_"
     plan:1:N
 changes.1.after.separator: conflicting values {$unknown:true} and "_" (mismatched types struct and string):
-    check:4:2
-    check:6:21
+    ./infra/policy.cue:7, in the field changes of the policy check: if type == "random_pet" {
+    ./infra/policy.cue:7, in the field changes of the policy check: separator: "-" | "_"
     plan:1:N
+
+Hint: a value the provider computes at apply is {"$unknown": true}, not a string or a number: test for it or leave it out of the comparison
 ```
 
 Write the allowed set as a constraint, and an unknown value is refused until it is known.
@@ -452,7 +458,7 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```text out
 Error: the plan violates the policy check@N (sha256:29d8e1994ed6):
 changes.0: cannot reference optional field: before:
-    check:7:5
+    ./infra/policy.cue:7, in the field changes of the policy check: if before.id == "desired-mosquito" {
 
 Policies: 1 satisfied.
 ```
@@ -495,7 +501,7 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```text out
 Error: the plan violates the policy check@N (sha256:9b3387b6279a):
 changes.0: cannot reference optional field: drifted:
-    check:5:5
+    ./infra/policy.cue:7, in the field changes of the policy check: if drifted {
 
 Policies: 1 satisfied.
 ```
@@ -554,9 +560,9 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```text out
 Error: the plan violates the policy check@N (sha256:72bded88f82e):
 changes.1.after.length: conflicting values 2 and 3:
-    check:8:2
-    check:10:3
-    check:12:13
+    ./infra/policy.cue:7, in the field changes of the policy check: if template != _|_ // explicit error (_|_ literal) in source
+    ./infra/policy.cue:7, in the field changes of the policy check: if template.name == "pair" && type == "random_pet" {
+    ./infra/policy.cue:7, in the field changes of the policy check: length: 2
     plan:1:N
 ```
 
@@ -580,7 +586,7 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 ```text out
 Error: the plan violates the policy check@N (sha256:b6a833958875):
 summary.add: invalid value 2 (out of bound <=1):
-    check:2:7
+    ./infra/policy.cue:7, in the field summary of the policy check: add: <=1
     plan:1:N
 ```
 

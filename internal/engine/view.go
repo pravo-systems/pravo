@@ -79,9 +79,13 @@ type ChangeView struct {
 	Provider        string   `json:"provider,omitempty"`
 	Reasons         []string `json:"reasons,omitempty"`
 	RequiresReplace []string `json:"requires_replace,omitempty"`
-	Before          any      `json:"before,omitempty"`
-	After           any      `json:"after,omitempty"`
-	Deferred        bool     `json:"deferred,omitempty"`
+	// Labels is $labels of the specification, and BeforeLabels the ones the record
+	// holds; a resource whose block is gone has only the second.
+	Labels       map[string]string `json:"labels,omitempty"`
+	BeforeLabels map[string]string `json:"before_labels,omitempty"`
+	Before       any               `json:"before,omitempty"`
+	After        any               `json:"after,omitempty"`
+	Deferred     bool              `json:"deferred,omitempty"`
 	// DeferReason says why a change of action "defer" waits for the next plan.
 	DeferReason  string   `json:"defer_reason,omitempty"`
 	Skipped      bool     `json:"skipped,omitempty"`
@@ -272,7 +276,7 @@ func addOutputs(v *View, plan *Plan) {
 func changeViewOf(ch *Change) ChangeView {
 	cv := ChangeView{Addr: ch.Addr, Mode: ch.Mode, Type: ch.Type, Name: ch.Name, Action: ch.Action, Provider: ch.ProviderKey,
 		Reasons: ch.Reasons, Deferred: ch.Deferred, DeferReason: ch.DeferReason, Skipped: ch.Skipped, Refreshed: ch.Refreshed, Drifted: ch.Drifted,
-		Applied: ch.Applied, Dependencies: ch.Deps, Template: ch.Template}
+		Applied: ch.Applied, Dependencies: ch.Deps, Template: ch.Template, Labels: ch.Labels, BeforeLabels: ch.PriorLabels}
 	for _, p := range ch.RequiresReplace {
 		if steps := p.Steps(); len(steps) > 0 {
 			if n, ok := steps[0].(tftypes.AttributeName); ok {

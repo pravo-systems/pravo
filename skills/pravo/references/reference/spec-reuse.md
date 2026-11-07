@@ -402,7 +402,7 @@ Output:
 Error: evaluating .:
 a.prefix: invalid value "us-" (out of bound =~"^eu-"):
     ./strict/strict.cue:6:33
-    ./cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue:238:12
+    ./cue.mod/gen/pravo.dev/providers/hashicorp/random/random_gen.cue:258:12
     ./main.cue:7:51
 ```
 

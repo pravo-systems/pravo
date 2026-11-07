@@ -156,6 +156,8 @@ Every entry has `addr`, `mode`, `type`, `name` and `action`.
 | `provider` | when a provider runs it | The provider instance key, such as `random` or `local.$primary`. |
 | `reasons` | when there are any | Why the plan chose the action, in words. The wording is for people. |
 | `requires_replace` | for a replacement | The attributes that force it. |
+| `labels` | when the specification sets `$labels` | The labels the specification gives the resource, such as `{"protected": "true"}`. Absent for a resource whose block is gone. |
+| `before_labels` | when the record holds labels | The labels the record kept at the last apply. Present for a resource whose block is gone, so a plan that destroys it still shows them. |
 | `before` | by action | The recorded state of the object. |
 | `after` | by action | The planned state of the object. |
 | `deferred` | when true | A data source whose read waits for the apply. |

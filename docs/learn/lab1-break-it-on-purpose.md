@@ -324,10 +324,23 @@ pravo plan
 ```
 
 ```text out
-...
+extra: Refreshing state... [id=c069a830e7cebcf9a8deae36ad08519f369fab77]
+
+pravo will perform the following actions:
+
   # extra (local_file) will be destroyed
   - extra: {
-...
+  -     content:              "extra 51\n"
+  -     content_base64sha256: "9ZHUwZzMLtztquUwP5Jz/L0WjvVL4I9plAu2zbVZL0M="
+  -     content_base64sha512: "nG70eu+hftWuxZOGiAPTEme4Af4gh51YrLpddYfSMvDHJPtWBsUdz75WBt8CkRg1vtHJhDvlfwZx7K0heVhQxQ=="
+  -     content_md5:          "dba4162619ec04638be3ff8ec071210e"
+  -     content_sha1:         "c069a830e7cebcf9a8deae36ad08519f369fab77"
+  -     content_sha256:       "f591d4c19ccc2edcedaae5303f9273fcbd168ef54be08f69940bb6cdb5592f43"
+  -     content_sha512:       "9c6ef47aefa17ed5aec593868803d31267b801fe20879d58acba5d7587d232f0c724fb5606c51dcfbe5606df02911835bed1c9843be57f0671ecad21795850c5"
+  -     directory_permission: "0777"
+  -     file_permission:      "0777"
+  -     filename:             "extra-dev.txt"
+  -     id:                   "c069a830e7cebcf9a8deae36ad08519f369fab77"
     }
 
 Plan: 0 to add, 0 to change, 1 to destroy.
@@ -335,7 +348,7 @@ Graph: planned 0 · skipped 2 · removed 1 · refreshed 1 · not read 2
 
 Error: the plan violates the policy no_delete@1 (sha256:a1757b6a34e5):
 changes.0: extra: delete is not allowed:
-    no_delete:7:3
+    ./no_delete.cue:8, in the field changes of the policy no_delete: error("\(addr): delete is not allowed")
 ```
 
 Exit code 5 is a policy. Nothing was applied. Revert by writing the file again.

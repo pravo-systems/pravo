@@ -40,7 +40,7 @@ A pravo command takes the same place in a pipeline as the tofu command it replac
 | `tofu refresh` | None | `pravo drift` reads every resource and reports drift. `pravo drift --due --limit N` reads the oldest records past their refresh age. `pravo plan -refresh=all` refreshes every record. |
 | `tofu taint`, `tofu untaint` | None | `pravo plan -replace addr` and `pravo apply -replace addr`. |
 | `tofu force-unlock` | `pravo state unlock addr` | `pravo state locks` lists the locks and marks the stale ones; `pravo state unlock --stale` releases them. Locks are per resource. |
-| `tofu workspace ...` | None | A tag selects the environment: `-t env=prod`. |
+| `tofu workspace ...` | None | A tag selects the environment: `-t env=prod`. Also set `$settings: state: path: "state/\(env)"`, or every tag value shares one state and a plan for `prod` reads the state of `dev`. |
 | `tofu test` | None | `pravo validate`, `pravo eval -c` and a policy on a saved plan. |
 | `tofu get` | `pravo mod get path@version` | `pravo init` installs providers. |
 | `tofu login`, `tofu logout` | None | A registry reads its credentials from the environment. |

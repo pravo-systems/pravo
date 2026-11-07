@@ -84,8 +84,8 @@ export class StateView {
     if (attrs.length && !d.bare) {
       const input = h('input', { class: 'sfilter', type: 'search', placeholder: 'Filter attributes and values', 'aria-label': 'Filter the attributes', autocomplete: 'off', spellcheck: 'false' });
       input.addEventListener('input', () => { this.q = input.value.trim().toLowerCase(); this.draw(); });
-      const sw = h('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': this.showComputed ? 'true' : 'false', 'data-tip': 'Computed attributes are filled in by the provider: ids, hashes, timestamps.' },
-        h('span', { class: 'knob', 'aria-hidden': 'true' }), 'computed');
+      const sw = h('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': this.showComputed ? 'true' : 'false', 'data-tip': 'Attributes the provider fills in itself: ids, hashes, timestamps.' },
+        h('span', { class: 'knob', 'aria-hidden': 'true' }), 'from provider');
       sw.addEventListener('click', () => {
         this.showComputed = !this.showComputed;
         store.set('pravo.computed', this.showComputed ? '1' : '0');
@@ -136,7 +136,7 @@ export class StateView {
         ? [['configured', 'Variable', 'Read from the environment'], ['sensitive', 'Sensitive', 'Withheld by the server'], ['computed', 'Value', '']]
         : this.d.node && isSecret(this.d.node)
           ? [['configured', 'Secret', 'Read from the sealed state'], ['sensitive', 'Sensitive', 'Never sent: the viewer has no key for it'], ['computed', 'Value', '']]
-          : [['configured', 'Configured', 'Set by the specification'], ['sensitive', 'Sensitive', 'Withheld by the server'], ['computed', 'Computed', 'Filled in by the provider']];
+          : [['configured', 'Configured', 'Set by the specification'], ['sensitive', 'Sensitive', 'Withheld by the server'], ['computed', 'From the provider', 'Ids, hashes and timestamps it fills in']];
     for (const [key, title, hint] of order) {
       const list = this.buckets[key];
       if (!list.length) continue;
@@ -153,11 +153,11 @@ export class StateView {
       host.append(h('section', { class: 'grp g-' + key },
         h('header', { class: 'grp-h' }, h('h3', null, title), h('span', { class: 'gc' }, String(q ? n : list.length - unset.length)), h('span', { class: 'gh' }, hint)),
         hidden
-          ? h('button', { class: 'grp-hide', type: 'button', on: { click: () => this.toggleComputed() } }, icon('eye-off'), `${plural(list.length, 'computed attribute')} hidden`, h('b', null, 'Show'))
+          ? h('button', { class: 'grp-hide', type: 'button', on: { click: () => this.toggleComputed() } }, icon('eye-off'), `${plural(list.length, 'attribute')} from the provider, hidden`, h('b', null, 'Show'))
           : unset.length
-            ? [rows, h('button', { class: 'grp-hide', type: 'button', on: { click: () => { this.unsetOpen.add(this.nodeKey()); this.drawKeep(); } } }, icon('eye-off'), `${plural(unset.length, 'unset attribute')} hidden`, h('b', null, 'Show'))]
+            ? [rows, h('button', { class: 'grp-hide', type: 'button', on: { click: () => { this.unsetOpen.add(this.nodeKey()); this.drawKeep(); } } }, icon('eye-off'), `${plural(unset.length, 'optional attribute')} not set, hidden`, h('b', null, 'Show'))]
             : key === 'configured' && this.showUnset() && list.some((a) => this.isUnset(a)) && !q
-              ? [rows, h('button', { class: 'grp-hide', type: 'button', on: { click: () => { this.unsetOpen.delete(this.nodeKey()); this.drawKeep(); } } }, icon('eye-off'), 'Unset attributes shown', h('b', null, 'Hide'))]
+              ? [rows, h('button', { class: 'grp-hide', type: 'button', on: { click: () => { this.unsetOpen.delete(this.nodeKey()); this.drawKeep(); } } }, icon('eye-off'), 'Optional attributes not set, shown', h('b', null, 'Hide'))]
               : rows));
     }
     if (q && !shown) host.append(h('div', { class: 'blank' }, icon('search'), h('p', null, 'No attribute or value matches.')));
@@ -218,7 +218,7 @@ export class StateView {
     const kind = (a.kind || '').split(',').filter(Boolean);
     const tags = [];
     if (kind.includes('required')) tags.push(h('em', { class: 'tg req' }, 'required'));
-    if (kind.includes('computed') && (kind.includes('optional') || kind.includes('required'))) tags.push(h('em', { class: 'tg cmp' }, 'computed'));
+    if (kind.includes('computed') && (kind.includes('optional') || kind.includes('required'))) tags.push(h('em', { class: 'tg cmp', 'data-tip': 'Optional: when the specification leaves it out, the provider fills it in' }, 'optional'));
     if (a.deprecated) tags.push(h('em', { class: 'tg dep' }, 'deprecated'));
     const nameEl = h('span', { class: 'an' + (idx ? ' idx' : '') }, idx ? `[${a.name}]` : softBreaks(a.name));
     const row = h('div', { class: 'attr' + (isChanged ? ' changed' : '') + (hasKids ? ' group' + (open ? ' open-kids' : '') : '') + (locked ? ' locked' : '') + (hitHere ? (hasKids ? ' hit-in' : ' hit') : '') + (v.block ? ' blk' : '') + (depth ? ' nested' : '') + (flash ? ' flash' : ''), role: 'listitem', style: `--d:${depth}` },

@@ -453,6 +453,11 @@ type Policy struct {
 	Description string
 	// Rule is the source of the rule struct, formatted, so that the same rule has one text and one digest. It is standalone CUE, unified with the judged plan document.
 	Rule string
+	// File is the file where the rule is written, and Fields the line of each of its
+	// fields in that file, so that an error in the stored text can name the place the
+	// author edits. Both are empty when the positions are not known.
+	File   string
+	Fields map[string]int
 }
 
 // ValuePath is where the published value sits.

@@ -133,6 +133,9 @@ function applyMotion(on) {
 // ---------------------------------------------------------------------------------------------------------
 // the fragment
 
+// onPhone says whether the page has the width of a phone, the width at which the bar is one row and the graph is too small to read whole
+const onPhone = () => { try { return window.matchMedia('(max-width: 40em)').matches; } catch { return false; } };
+
 function readFragment() {
   const p = parseFragment(location.hash);
   return {
@@ -147,7 +150,8 @@ function readFragment() {
     plq: p.plq || '',
     q: Object.hasOwn(LEGACY_FILTERS, p.filter) ? addTerm(p.q || '', LEGACY_FILTERS[p.filter].col, LEGACY_FILTERS[p.filter].value, false) : p.q || '',
     // an address from before the view was renamed says table, or tree
-    view: p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : p.view === 'discovery' ? 'discovery' : p.view === 'policies' ? 'policies' : p.view === 'secrets' ? 'secrets' : p.view === 'templates' ? 'templates' : p.view === 'traces' ? 'traces' : p.view === 'environments' ? 'environments' : 'graph',
+    // a phone opens the list: the graph of a real estate cannot be read at the width of a hand (it stays a tap away, and then the address says so)
+    view: !p.view && onPhone() ? 'list' : p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : p.view === 'discovery' ? 'discovery' : p.view === 'policies' ? 'policies' : p.view === 'secrets' ? 'secrets' : p.view === 'templates' ? 'templates' : p.view === 'traces' ? 'traces' : p.view === 'environments' ? 'environments' : 'graph',
     trace: /^[0-9a-f]{32}-[0-9a-f]{16}$/.test(p.trace || '') ? p.trace : '',
     span: /^[0-9a-f]{16}$/.test(p.span || '') ? p.span : '',
     pol: (p.pol || '').slice(0, 512),
@@ -182,7 +186,7 @@ function currentHash() {
   expand = expand.concat([...S.clusters.keys()].sort());
   return writeFragment({
     sel: S.sel, tab: S.sel && S.model.nodes.has(S.sel) ? S.tab : null, collapse, expand, plan: planFragment(), q: S.q, dq: S.dq, plq: S.plq,
-    view: S.view, ...(S.view === 'traces' && tracesView ? tracesView.route() : {}), ...(S.view === 'policies' && policiesView ? policiesView.route() : {}), ...(S.view === 'templates' && templatesView ? templatesView.route() : {}), theme: S.theme && (store.get('pravo.theme') === S.theme || new URLSearchParams(location.hash.replace(/^#\/?\??/, '')).has('theme')) ? S.theme : null,
+    view: S.view, graphChosen: onPhone(), ...(S.view === 'traces' && tracesView ? tracesView.route() : {}), ...(S.view === 'policies' && policiesView ? policiesView.route() : {}), ...(S.view === 'templates' && templatesView ? templatesView.route() : {}), theme: S.theme && (store.get('pravo.theme') === S.theme || new URLSearchParams(location.hash.replace(/^#\/?\??/, '')).has('theme')) ? S.theme : null,
     motion: S.motion ? '' : 'off', zoom: S.zoom,
   });
 }
@@ -401,6 +405,7 @@ function renderPlans() {
   const gp = !p && S.graph && S.graph.plan && !S.graph.plan.id ? S.graph.plan : null;
   planStrip($('planstrip'), p || (gp && { id: baseName(gp.file), status: gp.stale ? 'stale' : '', author: gp.actor || '', created: gp.created, summary: gp.summary, planned: gp.planned }), {
     reason: p && reasons.get(p.id),
+    replace: S.model ? S.model.list.filter((n) => n.action === 'replace').length : 0,
     onList: p ? () => openPlan(p.id) : null,
     signatures: p && S.graph && S.graph.plan && S.graph.plan.id === p.id ? S.graph.plan.signatures : null,
     approvals: p && S.graph && S.graph.plan && S.graph.plan.id === p.id ? S.graph.plan.approvals : null,
@@ -412,9 +417,12 @@ function renderPlans() {
 function renderPlanLede() {
   const lede = $('pl-lede');
   const open = S.plans.filter((p) => p.open).length;
-  lede.textContent = !S.plans.length ? 'The state holds no plan. Make one with pravo plan --store.'
+  // a plan that the server was started with is laid over the graph and is not in the state: the page says so, so that the strip and this page do not seem to disagree
+  const gp = S.graph && S.graph.plan && !S.graph.plan.id ? S.graph.plan : null;
+  const fromFile = gp ? ` Showing ${baseName(gp.file)} from a file; it is not stored in the state.` : '';
+  lede.textContent = (!S.plans.length ? 'The state holds no stored plan. Make one with pravo plan --store.'
     : open ? `${plural(open, 'stored plan')} can still be applied, of ${S.plans.length} in the state.`
-      : `No stored plan can be applied. The state holds ${plural(S.plans.length, 'plan')}, applied or expired.`;
+      : `No stored plan can be applied. The state holds ${plural(S.plans.length, 'plan')}, applied or expired.`) + fromFile;
   $('pl-head').classList.toggle('none', !open);
 }
 
@@ -1841,6 +1849,9 @@ function wire() {
   $('sec-plans').addEventListener('click', () => setView('plans'));
   $('sec-access').addEventListener('click', () => setView('access'));
   $('search-btn').addEventListener('click', () => palette.open());
+  $('help-btn').addEventListener('click', () => sheet.open());
+  // the hint of the search says the key that opens it where the person is
+  try { if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) $('search-kbd').textContent = '\u2318K'; } catch { /* the hint stays Ctrl K */ }
 
   $('theme-btn').addEventListener('click', toggleTheme);
   $('btn-fit').addEventListener('click', () => gv.fit(true));

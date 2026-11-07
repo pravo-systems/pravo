@@ -15,7 +15,7 @@ cmd/pravo/statecmd.go stateLogCmd 110
 cmd/pravo/unseal.go protectRun.unseal 108
 internal/config/config.go parseState 101
 internal/config/config.go readSettingsSource 156
-internal/config/discover.go Root.register 149
+internal/config/discover.go Root.register 148
 internal/config/providers.go Root.resolveProviders 136
 internal/config/providers.go ScanProviders 104
 internal/convert/fromtf.go fillValue 105
