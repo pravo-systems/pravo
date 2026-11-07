@@ -159,6 +159,7 @@ Output:
 Error: evaluating .:
 oops.lenght: field not allowed:
     ./typo.cue:3:39
+  hint (oops.lenght): did you mean length? oops has: id, keepers, length, prefix, separator. `pravo schema <type>` prints every field of a type.
 ```
 
 No provider process has started. The check needs the generated package and nothing else. The next block adds three resources, removes the typo and validates again with `-v`. The filter keeps the line that discovery prints and any line that reports a provider process.

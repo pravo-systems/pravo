@@ -31,7 +31,7 @@ A pravo command takes the same place in a pipeline as the tofu command it replac
 | `tofu apply f` | `pravo apply f` | Asks nothing. `-only addr` applies part of the plan. |
 | `tofu destroy` | `pravo destroy` | `--auto-approve` skips the question. |
 | `tofu show f` | `pravo show f` | Prints a saved plan. `--json` prints the plan document. |
-| `tofu show` (state) | `pravo state list`, `pravo state show addr` | One record at a time. It prints sensitive attributes in clear, unlike `tofu state show`: `--redact` withholds them. `pravo plan --json` carries the values of the plan in clear. |
+| `tofu show` (state) | `pravo state list`, `pravo state show addr` | One record at a time. It prints sensitive attributes in clear, where `tofu state show` masks them: `--redact` withholds them. `pravo plan --json` carries the values of the plan in clear. |
 | `tofu output` | `pravo output [name]` | `--json` for JSON. A string prints quoted. A sensitive output prints as `(sensitive)`, but `--json` and a named output print the value in clear, as `tofu output -json` does. |
 | `tofu console` | `pravo eval -e EXPR` | `pravo eval` prints the whole evaluated specification. `-c` fails unless every value is concrete. `-e` sees top-level locals (`_x`) and resources. It prints once and exits: there is no interactive prompt. A local nested inside a struct is not visible: reach it by a path from the top. |
 | `tofu fmt` | `pravo fmt` | Formats the `.cue` files of the current directory. `--check` writes nothing and exits with code 2 when a file would change. |

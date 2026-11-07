@@ -111,6 +111,7 @@ pravo -C check validate
 Error: evaluating ./check:
 pet.$lifecycle.replace_triggered_by: field not allowed:
     ./check/main.cue:9:14
+  hint (pet.$lifecycle.replace_triggered_by): pet.$lifecycle has: create_before_destroy, ignore_changes, prevent_destroy, refresh. `pravo schema <type>` prints every field of a type.
 ```
 
 ## Environments without workspaces

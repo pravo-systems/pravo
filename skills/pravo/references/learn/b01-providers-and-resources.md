@@ -263,6 +263,7 @@ Output:
 Error: evaluating .:
 backup.filnename: field not allowed:
     ./typo.cue:4:2
+  hint (backup.filnename): did you mean filename? `pravo schema <type>` prints every field of a type.
 ```
 
 Read it as path, rule, location. The path is `backup.filnename`. The rule is `field not allowed`. The definition of `local_file` is closed, as in [A8](https://pravo.systems/learn/a08-definitions-reject-typos.html), and lists the only attributes a struct may carry. The location is line 4, column 2 of `typo.cue`.
@@ -321,9 +322,9 @@ pravo plan
 Output:
 
 ```text
-Error: lonely: Missing Configuration for Required Attribute (at max): Must set a configuration value for the max attribute as the provider has marked it as required.
+Error: lonely: Missing Configuration for Required Attribute (at max, ./lonely.cue:3:1): Must set a configuration value for the max attribute as the provider has marked it as required.
 
-Refer to the provider documentation or contact the provider developers for additional information about configurable attributes that are required.
+Refer to the provider documentation or contact the provider developers for additional information about configurable attributes that are required. (checked by the provider when it read the configuration, so pravo validate cannot report it)
 ```
 
 ## Exercise

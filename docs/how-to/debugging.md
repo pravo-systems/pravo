@@ -102,7 +102,7 @@ pravo validate
 Error: evaluating .:
 note.filenam: field not allowed:
     ./bad.cue:3:7
-  hint (note.filenam): did you mean filename? note has: content, content_base64, content_base64sha256, content_base64sha512, content_md5, content_sha1, content_sha256, content_sha512, directory_permission, file_permission, filename, id, .... `pravo schema <type>` prints every field of a type.
+  hint (note.filenam): did you mean filename? `pravo schema <type>` prints every field of a type.
 ```
 
 `field not allowed` means that a definition is closed and the field is not in it. The hint after the error names the closest field and lists the ones the resource has. A resource is built from a closed definition, so a typo is an error before any provider starts. [Closed or open?](../learn/closed-or-open.md) explains it.

@@ -436,7 +436,7 @@ Output:
 
 ```text
 Success! 1 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 1 providers.
-Error: note: Missing Configuration for Required Attribute (at filename): Must set a configuration value for the filename attribute as the provider has marked it as required.
+Error: note: Missing Configuration for Required Attribute (at filename, ./selfref/main.cue:9:1): Must set a configuration value for the filename attribute as the provider has marked it as required.
 ```
 
 `validate` passes. The plan fails, because the provider receives no `filename`: a field that refers to itself is not set. Fix: give the variable another name, or alias it outside the resource.

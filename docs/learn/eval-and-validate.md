@@ -347,6 +347,7 @@ pravo validate
 Error: evaluating .:
 pet.lenght: field not allowed:
     ./estate.cue:8:2
+  hint (pet.lenght): did you mean length? pet has: id, keepers, length, prefix, separator. `pravo schema <type>` prints every field of a type.
 ```
 
 `pravo validate` exits with 6 when the specification does not evaluate or validate. `pravo eval` exits with 6 for the same file.
@@ -359,6 +360,7 @@ pravo eval
 Error: evaluating .:
 pet.lenght: field not allowed:
     ./estate.cue:8:2
+  hint (pet.lenght): did you mean length? pet has: id, keepers, length, prefix, separator. `pravo schema <type>` prints every field of a type.
 ```
 
 Restore the field name. A resource has attributes that the provider computes, such as `id`. They are unknown before an apply, so `-c` over the whole file fails, and `validate` passes.

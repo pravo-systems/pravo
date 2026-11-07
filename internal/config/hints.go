@@ -17,7 +17,8 @@ import (
 // the fields of the struct the name was looked up in, and, when the name was found
 // one level up, why the reference did not reach it. v is the value that produced err.
 func DetailsWithHints(v cue.Value, err error) string {
-	text := cueerrors.Details(err, nil)
+	var out strings.Builder
+	out.WriteString(cueerrors.Details(err, nil))
 	seen := map[string]bool{}
 	for _, e := range cueerrors.Errors(err) {
 		hint := hintFor(v, e)
@@ -28,9 +29,9 @@ func DetailsWithHints(v cue.Value, err error) string {
 		if p := strings.Join(e.Path(), "."); p != "" {
 			hint = strings.Replace(hint, "  hint:", "  hint ("+p+"):", 1)
 		}
-		text += hint + "\n"
+		out.WriteString(hint + "\n")
 	}
-	return text
+	return out.String()
 }
 
 var selectorBefore = regexp.MustCompile(`([\$#_A-Za-z][\w\$#]*(?:\.[\$#_A-Za-z][\w\$#]*)*)\.$`)
@@ -88,7 +89,7 @@ func hintFor(v cue.Value, e cueerrors.Error) string {
 				pool = append(pool, n)
 			}
 		}
-		listed = len(pool) > 0
+		listed = len(pool) > 0 && len(pool) <= 8 && !strings.HasPrefix(name, "$")
 	}
 	if len(pool) == 0 {
 		pool = fieldNames(v)
@@ -103,11 +104,6 @@ func hintFor(v cue.Value, e cueerrors.Error) string {
 		b.WriteString(" did you mean " + strings.Join(near, " or ") + "?")
 	}
 	if listed {
-		shown := pool
-		more := ""
-		if len(shown) > 12 {
-			shown, more = shown[:12], ", ..."
-		}
 		what := "this struct has"
 		if notAllowed {
 			what = strings.Join(path[:len(path)-1], ".") + " has"
@@ -115,7 +111,7 @@ func hintFor(v cue.Value, e cueerrors.Error) string {
 		if chain != "" {
 			what = chain + " has"
 		}
-		b.WriteString(" " + what + ": " + strings.Join(shown, ", ") + more + ".")
+		b.WriteString(" " + what + ": " + strings.Join(pool, ", ") + ".")
 	}
 	if len(near) == 0 && !listed {
 		return ""

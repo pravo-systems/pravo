@@ -1462,7 +1462,7 @@ that declares none, so it also serves to try out CUE.
   pravo eval -e logs.tags          one expression: a path, a top-level local _x, or any CUE
   pravo eval -c                    fail unless every value is concrete
   pravo eval -e guard.rule --raw   the value as written, with its comprehensions, as a file
-  pravo eval -t env=prod           inject a value for an @tag() field`+evalNote,
+  pravo eval -t env=prod           inject a value for an @tag() field` + evalNote,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, readOnlyState: true})

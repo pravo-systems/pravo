@@ -198,7 +198,7 @@ The tutorial on pravo (track B), the team track (track C) and the companion page
 | [learn/reading-a-cue-error.md](learn/reading-a-cue-error.md) | The four parts of a pravo error, the three stages that produce one, and the messages you meet first. | 8 KB |
 | [learn/why-is-my-value-incomplete.md](learn/why-is-my-value-incomplete.md) | The three causes of an incomplete value, each with the error pravo prints, how to read it and the fix. | 12 KB |
 | [learn/closed-or-open.md](learn/closed-or-open.md) | Which structs refuse a field they do not declare, how definitions combine, and the real errors when they do not. | 9 KB |
-| [learn/eval-and-validate.md](learn/eval-and-validate.md) | What pravo eval and pravo validate check, what they print, and what the flags -c, -e and -O change. | 11 KB |
+| [learn/eval-and-validate.md](learn/eval-and-validate.md) | What pravo eval and pravo validate check, what they print, and what the flags -c, -e and -O change. | 12 KB |
 | [learn/cue-cheat-sheet.md](learn/cue-cheat-sheet.md) | Every construct of Track A on one page. Each has a short example and the output that pravo prints. | 15 KB |
 
 ### Track B · pravo
