@@ -500,7 +500,7 @@ func release(n *node, ready chan<- *node, closed bool) {
 // and returns the configuration value with all fills applied.
 func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 	e.current, e.seeded = e.Value, false
-	e.pending, e.pendingOrder = nil, nil
+	e.pending, e.pendingOrder, e.refused = nil, nil, nil
 	_, endGraph := setup(ctx, "build task graph")
 	nodes, err := e.buildGraph()
 	endGraph(err)
@@ -628,6 +628,12 @@ type pendingFill struct {
 func (e *Engine) snapshot(r *config.Resource) (cue.Value, error) {
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
+	// A fill that the specification refused is dropped, and the run is ending.
+	// A task that was ready at the same time as the one that found it starts
+	// all the same, and would read the task as if it had computed nothing.
+	if e.refused != nil {
+		return cue.Value{}, e.refused
+	}
 	deps := e.deps[r.Address()]
 	if e.scope != nil && e.scope.reads != nil {
 		// The walk of an apply leaves nodes out. What a task reads through them is
@@ -802,6 +808,7 @@ func (e *Engine) settleAllLocked() error {
 	if first == nil {
 		first = errors.New("filling values into the configuration: the configuration does not hold")
 	}
+	e.refused = first
 	return first
 }
 

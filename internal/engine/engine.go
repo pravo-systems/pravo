@@ -174,6 +174,9 @@ type cueState struct {
 	inert        map[string]convert.InertField
 	pending      map[string]*pendingFill
 	pendingOrder []string
+	// refused is the error of a fill that did not fit the configuration in this
+	// run: every task that starts after it fails with it. See snapshot.
+	refused error
 	// seeded reports that the first batch of fills of the run carried the seed
 	// fills; see seedFills. iterated holds the containers of tasks that something
 	// reads, by path.
