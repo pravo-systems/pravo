@@ -53,24 +53,31 @@ func (s *Store) ReloadOutputs() (map[string]json.RawMessage, error) {
 // object outputs.json at all. A state whose outputs were never written has no
 // such object, and a root that reads these outputs refuses it.
 func (s *Store) LoadOutputs() (outputs map[string]json.RawMessage, present bool, err error) {
-	data, err := s.b.Get(s.cx(), "outputs.json")
+	outputs, _, present, err = s.loadOutputsRaw()
+	return outputs, present, err
+}
+
+// loadOutputsRaw is LoadOutputs that also returns the bytes of outputs.json as the
+// backend holds them.
+func (s *Store) loadOutputsRaw() (outputs map[string]json.RawMessage, raw []byte, present bool, err error) {
+	raw, err = s.b.Get(s.cx(), "outputs.json")
 	out := map[string]json.RawMessage{}
 	switch {
 	case err == nil:
 		present = true
-		if out, err = s.decodeOutputs(data); err != nil {
-			return nil, false, err
+		if out, err = s.decodeOutputs(raw); err != nil {
+			return nil, nil, false, err
 		}
 		if out == nil {
 			out = map[string]json.RawMessage{}
 		}
 	case !errors.Is(err, ErrNotFound):
-		return nil, false, err
+		return nil, nil, false, err
 	}
 	s.mu.Lock()
 	s.outputs = out
 	s.mu.Unlock()
-	return s.Outputs(), present, nil
+	return s.Outputs(), raw, present, nil
 }
 
 // SetOutputs replaces the recorded outputs.
@@ -111,11 +118,20 @@ var (
 	outputsLockWait  = outputsLockStale + 10*time.Second
 )
 
+// outputsTries is how many times an update of the outputs merges again after it
+// found that outputs.json is not what it read.
+const outputsTries = 8
+
 // UpdateOutputs reads the recorded outputs from the backend while it holds the
 // lock on them, passes them to fn and records what fn returns. present says
 // whether the backend holds outputs.json at all. fn returns the outputs to
 // record and whether to write them. Two commands that finish together each
 // merge their outputs into what the other wrote.
+//
+// The lock is held for a minute at most and is not renewed, so it does not by
+// itself keep a write that arrives late from replacing what another command
+// recorded meanwhile. The write is therefore made only if outputs.json is still
+// what was read; when it is not, the outputs are read and fn is called again.
 func (s *Store) UpdateOutputs(fn func(recorded map[string]json.RawMessage, present bool) (updated map[string]json.RawMessage, write bool, err error)) error {
 	if err := s.writable(); err != nil {
 		return err
@@ -127,15 +143,61 @@ func (s *Store) UpdateOutputs(fn func(recorded map[string]json.RawMessage, prese
 		return err
 	}
 	defer unlock()
-	recorded, present, err := s.LoadOutputs()
+	for try := 1; ; try++ {
+		recorded, raw, present, err := s.loadOutputsRaw()
+		if err != nil {
+			return err
+		}
+		updated, write, err := fn(recorded, present)
+		if err != nil || !write {
+			return err
+		}
+		done, err := s.replaceOutputs(updated, raw, present)
+		if err != nil || done {
+			return err
+		}
+		if try == outputsTries {
+			return fmt.Errorf("outputs.json was changed by another command each of the %d times this one tried to record its outputs", try)
+		}
+	}
+}
+
+// replaceOutputs records outputs if outputs.json is still read, the bytes that
+// the caller merged them into, or still absent when present is false. It reports
+// whether it wrote.
+func (s *Store) replaceOutputs(outputs map[string]json.RawMessage, read []byte, present bool) (bool, error) {
+	if outputs == nil {
+		outputs = map[string]json.RawMessage{}
+	}
+	data, err := s.encodeOutputs(outputs)
 	if err != nil {
-		return err
+		return false, err
 	}
-	updated, write, err := fn(recorded, present)
-	if err != nil || !write {
-		return err
+	var wrote bool
+	if present {
+		wrote, err = s.b.ReplaceIf(s.cx(), "outputs.json", func(current []byte) ([]byte, bool) {
+			return data, bytes.Equal(current, read)
+		})
+	} else {
+		wrote, err = s.b.PutIfAbsent(s.cx(), "outputs.json", data)
 	}
-	return s.setOutputs(updated)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return false, nil // deleted since it was read
+	case errors.Is(err, ErrUnknownOutcome):
+		// The write was made if the object holds its bytes. When it does not, the next
+		// round reads what is there and merges again.
+		current, gerr := s.b.Get(s.cx(), "outputs.json")
+		wrote = gerr == nil && bytes.Equal(current, data)
+	case err != nil:
+		return false, err
+	}
+	if wrote {
+		s.mu.Lock()
+		s.outputs = outputs
+		s.mu.Unlock()
+	}
+	return wrote, nil
 }
 
 // lockOutputs takes the lock on outputs.json, waiting for a holder that is

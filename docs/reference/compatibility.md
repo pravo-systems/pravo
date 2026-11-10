@@ -51,11 +51,13 @@ pravo calls these operations of the protocol:
 | `UpgradeResourceState` | A record written under an older schema version of a type. |
 | `ReadResource`, `ReadDataSource` | Refresh and data sources. |
 | `PlanResourceChange`, `ApplyResourceChange` | Plan and apply. |
-| `ImportResourceState` | `$import` and `pravo import`. |
+| `ImportResourceState` | `$import`, `pravo import` and the adoption of an object that `pravo discover` found. |
+| `ListResource` | `pravo discover`, for a type that the provider can list. |
+| `GetResourceIdentitySchemas` | The identity of a listed object, when it is imported by its identity. |
 | `OpenEphemeralResource`, `RenewEphemeralResource`, `CloseEphemeralResource` | Ephemeral resources. |
 | `CallFunction` | Provider-defined functions. |
 
-Ephemeral resources, write-only attributes, provider-defined functions and the nested attributes of protocol 6 are supported. pravo does not call the operations for provider actions, list resources, state storage or resource identity.
+Ephemeral resources, write-only attributes, provider-defined functions and the nested attributes of protocol 6 are supported. pravo does not call the operations for provider actions or state storage, and it does not upgrade a resource identity that was stored under an older version.
 
 The plugin protocol is the only family pravo speaks.
 
