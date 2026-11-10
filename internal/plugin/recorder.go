@@ -343,11 +343,14 @@ func (r *Recorder) ApplyResourceChange(ctx context.Context, typ string, prior, p
 		if err != nil {
 			return nil, nil, r.replayErr("ApplyResourceChange " + typ)
 		}
-		return &ApplyResult{NewState: unpacked(rec.Values["state"], prior.Type()), Private: rec.Bytes["private"]}, rec.Diags, nil
+		var extra planExtra
+		_ = json.Unmarshal(rec.Extra, &extra)
+		return &ApplyResult{NewState: unpacked(rec.Values["state"], prior.Type()), Private: rec.Bytes["private"], LegacyTypeSystem: extra.Legacy}, rec.Diags, nil
 	}
 	res, diags, err := r.inner.ApplyResourceChange(ctx, typ, prior, planned, config, plannedPrivate)
 	if err == nil && res != nil {
-		r.save(key, &record{Method: "ApplyResourceChange", Request: req, Values: map[string][]byte{"state": packed(res.NewState)}, Bytes: map[string][]byte{"private": res.Private}, Diags: diags})
+		eb, _ := json.Marshal(planExtra{Legacy: res.LegacyTypeSystem})
+		r.save(key, &record{Method: "ApplyResourceChange", Request: req, Values: map[string][]byte{"state": packed(res.NewState)}, Bytes: map[string][]byte{"private": res.Private}, Diags: diags, Extra: eb})
 	}
 	return res, diags, err
 }
