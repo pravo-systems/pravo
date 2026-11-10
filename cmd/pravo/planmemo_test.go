@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/env"
@@ -93,4 +94,39 @@ func TestThePlanMemoOfARoot(t *testing.T) {
 	if n := planMemo(env.Map(nil), root); n != nil {
 		t.Errorf("an environment without directories gave the memo %+v", n)
 	}
+}
+
+// A memo that no command has used for a month is removed when another is
+// used, and the one that is used is kept, whatever its age.
+func TestPlanMemosThatNothingUsesAreRemoved(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	old := now.Add(-planMemoAge - time.Hour)
+	for _, name := range []string{"used.json", "stale.json", "fresh.json", "stale.json.123"} {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		at := old
+		if name == "fresh.json" {
+			at = now.Add(-time.Hour)
+		}
+		if err := os.Chtimes(path, at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tidyPlanMemos(dir, filepath.Join(dir, "used.json"), now)
+	var left []string
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ent := range entries {
+		left = append(left, ent.Name())
+	}
+	if strings.Join(left, " ") != "fresh.json used.json" {
+		t.Errorf("the directory holds %v, want the memo that was used and the one of an hour ago", left)
+	}
+	// A directory that does not exist is no error.
+	tidyPlanMemos(filepath.Join(dir, "none"), filepath.Join(dir, "none", "x.json"), now)
 }

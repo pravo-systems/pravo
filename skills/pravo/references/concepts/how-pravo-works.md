@@ -54,7 +54,7 @@ The file says "unchanged since the plan that wrote this" and nothing else. It ho
 
 The file answers for a body that reads other resources through plain references and in no other way: `subnet_id: subnet.id`, or a field of the variable of a loop that reads its own element. A body that builds a value from another resource, with an interpolation, a call, a condition or a comprehension, is converted by every plan. So is a resource that reads a secret or an ephemeral resource. The value of an environment variable, the outputs of another root and the result of a function call are read by every plan and are part of the digest of what reads them, and so is what a data source returned.
 
-The file is kept in the cache directory of the user, under `pravo/plan-memo`, one for each root and environment. Its digests are made with a key that is kept apart from it, `plan-memo.key` in the [configuration directory](../reference/global-flags.md#environment-variables), so the file alone does not let anyone test a guess of a value against it.
+The file is kept in the cache directory of the user, under `pravo/plan-memo`, one for each root and environment, and a file that no command has used for 30 days is removed. Its digests are made with a key that is kept apart from it, `plan-memo.key` in the [configuration directory](../reference/global-flags.md#environment-variables), so the file alone does not let anyone test a guess of a value against it.
 
 `PRAVO_PLAN=full` plans without the file. `PRAVO_PLAN=check` plans with it, converts every body it answered for as well, and fails when the two differ.
 

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
@@ -58,10 +59,31 @@ func planMemo(e env.Env, root *config.Root) *engine.PlanMemo {
 		return nil
 	}
 	id := sha256.Sum256([]byte(root.Dir + "\x00" + root.Environment))
-	return &engine.PlanMemo{
-		Path:  filepath.Join(cache, "pravo", "plan-memo", hex.EncodeToString(id[:16])+".json"),
-		Key:   key,
-		Check: planMode == "check",
+	dir := filepath.Join(cache, "pravo", "plan-memo")
+	path := filepath.Join(dir, hex.EncodeToString(id[:16])+".json")
+	tidyPlanMemos(dir, path, time.Now())
+	return &engine.PlanMemo{Path: path, Key: key, Check: planMode == "check"}
+}
+
+// planMemoAge is how long a memo that no command used is kept.
+const planMemoAge = 30 * 24 * time.Hour
+
+// tidyPlanMemos marks the memo at used as used now, and removes the memos of
+// dir that no command has used for planMemoAge: the ones of roots that are
+// gone, such as a checkout in a temporary directory. A plan whose memo was
+// removed evaluates every resource once.
+func tidyPlanMemos(dir, used string, now time.Time) {
+	_ = os.Chtimes(used, now, now)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, ent := range entries {
+		info, err := ent.Info()
+		if err != nil || ent.IsDir() || now.Sub(info.ModTime()) < planMemoAge {
+			continue
+		}
+		os.Remove(filepath.Join(dir, ent.Name()))
 	}
 }
 
