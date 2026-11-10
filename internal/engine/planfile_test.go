@@ -38,6 +38,16 @@ func TestConsistent(t *testing.T) {
 	if consistent(saved, mk("abc", big.NewFloat(3), nil)) {
 		t.Error("nulling a known map must be inconsistent")
 	}
+	// An empty map and a null map are one value: a plan made from a read (tags {}) is
+	// consistent with an apply that plans from the record (tags null), and the other way.
+	empty := map[string]tftypes.Value{}
+	if !consistent(mk("a", big.NewFloat(1), empty), mk("a", big.NewFloat(1), nil)) ||
+		!consistent(mk("a", big.NewFloat(1), nil), mk("a", big.NewFloat(1), empty)) {
+		t.Error("an empty map and a null map must be consistent")
+	}
+	if consistent(mk("a", big.NewFloat(1), empty), mk("a", big.NewFloat(2), nil)) {
+		t.Error("an empty map must not hide another change")
+	}
 	if !consistent(tftypes.NewValue(obj, tftypes.UnknownValue), mk("a", big.NewFloat(1), nil)) {
 		t.Error("a wholly unknown saved value accepts anything")
 	}

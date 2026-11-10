@@ -556,7 +556,13 @@ func consistent(saved, actual tftypes.Value) bool {
 		return false
 	}
 	if saved.IsNull() || actual.IsNull() {
-		return saved.IsNull() == actual.IsNull()
+		if saved.IsNull() == actual.IsNull() {
+			return true
+		}
+		// A list, set or map that one side leaves null and the other holds empty is the
+		// same value, as sameAttributes says for drift: a plan made from a read (tags {})
+		// and an apply that plans from the record (tags null) must agree.
+		return emptyCollection(saved) || emptyCollection(actual)
 	}
 	t := saved.Type()
 	switch {
@@ -957,4 +963,21 @@ func stringSet(list []string) map[string]bool {
 		m[s] = true
 	}
 	return m
+}
+
+// emptyCollection reports whether v is a known list, set or map with no elements.
+func emptyCollection(v tftypes.Value) bool {
+	if v.IsNull() || !v.IsKnown() {
+		return false
+	}
+	t := v.Type()
+	switch {
+	case t.Is(tftypes.Map{}):
+		var m map[string]tftypes.Value
+		return v.As(&m) == nil && len(m) == 0
+	case t.Is(tftypes.List{}) || t.Is(tftypes.Set{}):
+		var l []tftypes.Value
+		return v.As(&l) == nil && len(l) == 0
+	}
+	return false
 }
