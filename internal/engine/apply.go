@@ -829,7 +829,7 @@ func (e *Engine) applyWalk(ctx context.Context, plan *Plan, result *ApplyResult)
 func changedOutputs(baseline, now map[string]json.RawMessage) []string {
 	var names []string
 	for name, raw := range now {
-		if prev, ok := baseline[name]; !ok || !jsonEqual(prev, raw) {
+		if prev, ok := baseline[name]; !ok || !sameOutput(prev, raw) {
 			names = append(names, name)
 		}
 	}
@@ -953,7 +953,7 @@ func sameOutputs(a, b map[string]json.RawMessage) bool {
 	}
 	for name, raw := range a {
 		other, ok := b[name]
-		if !ok || !jsonEqual(raw, other) {
+		if !ok || !sameOutput(raw, other) {
 			return false
 		}
 	}
@@ -1179,7 +1179,7 @@ func mergeOutputs(recorded, baseline, computed map[string]json.RawMessage, decla
 		}
 	}
 	for name, raw := range computed {
-		if old, ok := baseline[name]; !ok || !jsonEqual(old, raw) || out[name] == nil {
+		if old, ok := baseline[name]; !ok || !sameOutput(old, raw) || out[name] == nil {
 			out[name] = raw
 		}
 	}

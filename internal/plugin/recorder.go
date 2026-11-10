@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
+	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/telemetry"
@@ -149,23 +150,32 @@ func writePrivate(path string, data []byte) error {
 	return err
 }
 
-func packed(v tftypes.Value) []byte {
-	if v.Type() == nil {
-		return nil
+// unpacked reads a recorded value. A record that holds none stands for a null of the type;
+// bytes that do not decode are an error, so a replay of a corrupt recording fails where a
+// saved plan does, instead of going on with a null.
+func unpacked(b []byte, t tftypes.Type) (tftypes.Value, error) {
+	if len(b) == 0 {
+		return tftypes.NewValue(t, nil), nil
 	}
-	b, _ := v.MarshalMsgPack(v.Type())
-	return b
+	v, err := convert.Unpack(b, t)
+	if err != nil {
+		return tftypes.Value{}, fmt.Errorf("recorded value: %w", err)
+	}
+	return v, nil
 }
 
-func unpacked(b []byte, t tftypes.Type) tftypes.Value {
-	if len(b) == 0 {
-		return tftypes.NewValue(t, nil)
+// put saves a record with the values it holds. A value that cannot be packed makes no record,
+// so that a replay says there is none instead of replaying a gap.
+func (r *Recorder) put(key string, rec *record, values map[string]tftypes.Value) {
+	rec.Values = map[string][]byte{}
+	for k, v := range values {
+		b, err := convert.Pack(v)
+		if err != nil {
+			return
+		}
+		rec.Values[k] = b
 	}
-	v, err := tftypes.ValueFromMsgPack(b, t)
-	if err != nil {
-		return tftypes.NewValue(t, nil)
-	}
-	return v
+	r.save(key, rec)
 }
 
 // reqOf builds a stable request document from msgpack-encoded values and
@@ -181,7 +191,8 @@ func reqOf(fields map[string]any, values ...tftypes.Value) map[string]any {
 		out[k] = fields[k]
 	}
 	for i, v := range values {
-		out[fmt.Sprintf("v%d", i)] = packed(v)
+		b, _ := convert.Pack(v) // a value that does not pack leaves the key without it: a replay then finds no recording
+		out[fmt.Sprintf("v%d", i)] = b
 	}
 	return out
 }
@@ -273,11 +284,12 @@ func (r *Recorder) UpgradeResourceState(ctx context.Context, typ string, version
 			v, err := tftypes.ValueFromJSON(jsonState, want)
 			return v, nil, err
 		}
-		return unpacked(rec.Values["state"], want), rec.Diags, nil
+		v, err := unpacked(rec.Values["state"], want)
+		return v, rec.Diags, err
 	}
 	v, diags, err := r.inner.UpgradeResourceState(ctx, typ, version, jsonState, want)
 	if err == nil {
-		r.save(key, &record{Method: "UpgradeResourceState", Request: req, Values: map[string][]byte{"state": packed(v)}, Diags: diags})
+		r.put(key, &record{Method: "UpgradeResourceState", Request: req, Diags: diags}, map[string]tftypes.Value{"state": v})
 	}
 	return v, diags, err
 }
@@ -290,11 +302,12 @@ func (r *Recorder) ReadResource(ctx context.Context, typ string, state tftypes.V
 			// Unrecorded reads return the state unchanged: no drift.
 			return state, private, nil, nil
 		}
-		return unpacked(rec.Values["state"], state.Type()), rec.Bytes["private"], rec.Diags, nil
+		v, err := unpacked(rec.Values["state"], state.Type())
+		return v, rec.Bytes["private"], rec.Diags, err
 	}
 	v, p, diags, err := r.inner.ReadResource(ctx, typ, state, private)
 	if err == nil {
-		r.save(key, &record{Method: "ReadResource", Request: req, Values: map[string][]byte{"state": packed(v)}, Bytes: map[string][]byte{"private": p}, Diags: diags})
+		r.put(key, &record{Method: "ReadResource", Request: req, Bytes: map[string][]byte{"private": p}, Diags: diags}, map[string]tftypes.Value{"state": v})
 	}
 	return v, p, diags, err
 }
@@ -313,7 +326,11 @@ func (r *Recorder) PlanResourceChange(ctx context.Context, typ string, prior, pr
 		}
 		var extra planExtra
 		_ = json.Unmarshal(rec.Extra, &extra)
-		res := &PlanResult{PlannedState: unpacked(rec.Values["planned"], prior.Type()), PlannedPrivate: rec.Bytes["private"], LegacyTypeSystem: extra.Legacy}
+		planned, err := unpacked(rec.Values["planned"], prior.Type())
+		if err != nil {
+			return nil, nil, err
+		}
+		res := &PlanResult{PlannedState: planned, PlannedPrivate: rec.Bytes["private"], LegacyTypeSystem: extra.Legacy}
 		for _, n := range extra.RequiresReplace {
 			res.RequiresReplace = append(res.RequiresReplace, tftypes.NewAttributePath().WithAttributeName(n))
 		}
@@ -331,7 +348,7 @@ func (r *Recorder) PlanResourceChange(ctx context.Context, typ string, prior, pr
 			}
 		}
 		eb, _ := json.Marshal(extra)
-		r.save(key, &record{Method: "PlanResourceChange", Request: req, Values: map[string][]byte{"planned": packed(res.PlannedState)}, Bytes: map[string][]byte{"private": res.PlannedPrivate}, Diags: diags, Extra: eb})
+		r.put(key, &record{Method: "PlanResourceChange", Request: req, Bytes: map[string][]byte{"private": res.PlannedPrivate}, Diags: diags, Extra: eb}, map[string]tftypes.Value{"planned": res.PlannedState})
 	}
 	return res, diags, err
 }
@@ -345,12 +362,16 @@ func (r *Recorder) ApplyResourceChange(ctx context.Context, typ string, prior, p
 		}
 		var extra planExtra
 		_ = json.Unmarshal(rec.Extra, &extra)
-		return &ApplyResult{NewState: unpacked(rec.Values["state"], prior.Type()), Private: rec.Bytes["private"], LegacyTypeSystem: extra.Legacy}, rec.Diags, nil
+		newState, err := unpacked(rec.Values["state"], prior.Type())
+		if err != nil {
+			return nil, nil, err
+		}
+		return &ApplyResult{NewState: newState, Private: rec.Bytes["private"], LegacyTypeSystem: extra.Legacy}, rec.Diags, nil
 	}
 	res, diags, err := r.inner.ApplyResourceChange(ctx, typ, prior, planned, config, plannedPrivate)
 	if err == nil && res != nil {
 		eb, _ := json.Marshal(planExtra{Legacy: res.LegacyTypeSystem})
-		r.save(key, &record{Method: "ApplyResourceChange", Request: req, Values: map[string][]byte{"state": packed(res.NewState)}, Bytes: map[string][]byte{"private": res.Private}, Diags: diags, Extra: eb})
+		r.put(key, &record{Method: "ApplyResourceChange", Request: req, Bytes: map[string][]byte{"private": res.Private}, Diags: diags, Extra: eb}, map[string]tftypes.Value{"state": res.NewState})
 	}
 	return res, diags, err
 }
@@ -369,11 +390,12 @@ func (r *Recorder) ReadDataSource(ctx context.Context, typ string, cfg tftypes.V
 		if err != nil {
 			return tftypes.Value{}, nil, r.replayErr("ReadDataSource " + typ)
 		}
-		return unpacked(rec.Values["state"], cfg.Type()), rec.Diags, nil
+		v, err := unpacked(rec.Values["state"], cfg.Type())
+		return v, rec.Diags, err
 	}
 	v, diags, err := r.inner.ReadDataSource(ctx, typ, cfg)
 	if err == nil {
-		r.save(key, &record{Method: "ReadDataSource", Request: req, Values: map[string][]byte{"state": packed(v)}, Diags: diags})
+		r.put(key, &record{Method: "ReadDataSource", Request: req, Diags: diags}, map[string]tftypes.Value{"state": v})
 	}
 	return v, diags, err
 }
@@ -385,11 +407,15 @@ func (r *Recorder) OpenEphemeral(ctx context.Context, typ string, cfg tftypes.Va
 		if err != nil {
 			return nil, nil, r.replayErr("OpenEphemeral " + typ)
 		}
-		return &EphemeralResult{Result: unpacked(rec.Values["result"], cfg.Type()), Private: rec.Bytes["private"]}, rec.Diags, nil
+		result, err := unpacked(rec.Values["result"], cfg.Type())
+		if err != nil {
+			return nil, nil, err
+		}
+		return &EphemeralResult{Result: result, Private: rec.Bytes["private"]}, rec.Diags, nil
 	}
 	res, diags, err := r.inner.OpenEphemeral(ctx, typ, cfg)
 	if err == nil && res != nil {
-		r.save(key, &record{Method: "OpenEphemeral", Request: req, Values: map[string][]byte{"result": packed(res.Result)}, Bytes: map[string][]byte{"private": res.Private}, Diags: diags})
+		r.put(key, &record{Method: "OpenEphemeral", Request: req, Bytes: map[string][]byte{"private": res.Private}, Diags: diags}, map[string]tftypes.Value{"result": res.Result})
 	}
 	return res, diags, err
 }
@@ -447,15 +473,16 @@ func (r *Recorder) CallFunction(ctx context.Context, name string, args []tftypes
 		if rec.Error != "" {
 			return tftypes.Value{}, &FunctionError{Text: rec.Error}, nil
 		}
-		return unpacked(rec.Values["result"], ret), nil, nil
+		v, err := unpacked(rec.Values["result"], ret)
+		return v, nil, err
 	}
 	v, ferr, err := r.inner.CallFunction(ctx, name, args, argTypes, ret)
 	if err == nil {
-		rec := &record{Method: "CallFunction", Request: req, Values: map[string][]byte{"result": packed(v)}}
+		rec := &record{Method: "CallFunction", Request: req}
 		if ferr != nil {
 			rec.Error = ferr.Text
 		}
-		r.save(key, rec)
+		r.put(key, rec, map[string]tftypes.Value{"result": v})
 	}
 	return v, ferr, err
 }

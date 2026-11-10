@@ -14,7 +14,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -652,16 +651,6 @@ func (e *Engine) summary(plan *Plan) string {
 	add, change, destroy, _ := plan.Counts()
 	return fmt.Sprintf("%d to add, %d to change, %d to destroy; %d of %d reached, %d skipped, %d refreshed, %d within refresh age, %d not read, %d ephemeral opened, %d functions called, %d imported, %d moved",
 		add, change, destroy, plan.Stats.Reached, plan.Stats.Total, plan.Stats.Skipped, plan.Stats.Refreshed, plan.Stats.Fresh, plan.Stats.NotRead, plan.Stats.Opened, plan.Stats.Called, plan.Stats.Imported, plan.Stats.Moved)
-}
-
-func jsonEqual(a, b []byte) bool {
-	var x, y any
-	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
-		return string(a) == string(b)
-	}
-	ax, _ := json.Marshal(x)
-	by, _ := json.Marshal(y)
-	return string(ax) == string(by)
 }
 
 // versionOf returns the revision and the generation of the record at addr, 0 and
