@@ -964,20 +964,3 @@ func stringSet(list []string) map[string]bool {
 	}
 	return m
 }
-
-// emptyCollection reports whether v is a known list, set or map with no elements.
-func emptyCollection(v tftypes.Value) bool {
-	if v.IsNull() || !v.IsKnown() {
-		return false
-	}
-	t := v.Type()
-	switch {
-	case t.Is(tftypes.Map{}):
-		var m map[string]tftypes.Value
-		return v.As(&m) == nil && len(m) == 0
-	case t.Is(tftypes.List{}) || t.Is(tftypes.Set{}):
-		var l []tftypes.Value
-		return v.As(&l) == nil && len(l) == 0
-	}
-	return false
-}
