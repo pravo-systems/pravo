@@ -33,7 +33,7 @@ import rnd "pravo.dev/providers/hashicorp/random"
 
 // The platform defines a provider with a rule on the resources built through it.
 #Platform: rnd.#Provider & {
-	#Resource: random_pet: keepers: owner: =~"^team-"
+	#Resource: random_pet: keepers: owner: =~"^team-[a-z0-9-]+$"
 }
 
 $random: #Platform
@@ -95,7 +95,7 @@ Output:
 exit 6
 
 Error: evaluating .:
-stray.keepers.owner: invalid value "sales" (out of bound =~"^team-"):
+stray.keepers.owner: invalid value "sales" (out of bound =~"^team-[a-z0-9-]+$"):
 ```
 
 The check runs in evaluation. No provider has started, and nothing is saved.
@@ -110,7 +110,7 @@ package estate
 import rnd "pravo.dev/providers/hashicorp/random"
 
 #Platform: rnd.#Provider & {
-	#Resource: random_pet: keepers: owner: =~"^team-"
+	#Resource: random_pet: keepers: owner: =~"^team-[a-z0-9-]+$"
 }
 
 $random: #Platform
@@ -171,7 +171,7 @@ owner: pravo.#Policy & {
 			type:   string
 			action: string
 			if type == "random_pet" && (action == "create" || action == "replace") {
-				after: keepers: owner: =~"^team-"
+				after: keepers: owner: =~"^team-[a-z0-9-]+$"
 			}
 		}]
 	}
@@ -190,7 +190,7 @@ Output:
 
 ```text
 Policies: +1 new, ~0 changed, -0 removed.
-  + owner (sha256:4127cdd1e4e7)
+  + owner (sha256:ae3364a27026)
 Graph: planned 0 · skipped 2 · not read 2
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 owner@00000001.json
@@ -216,10 +216,10 @@ Output:
 
 ```text
 exit 5
-Error: the plan violates the policy owner@1 (sha256:4127cdd1e4e7):
-changes.0.after.keepers.owner: conflicting values null and =~"^team-" (mismatched types null and string):
+Error: the plan violates the policy owner@1 (sha256:ae3364a27026):
+changes.0.after.keepers.owner: conflicting values null and =~"^team-[a-z0-9-]+$" (mismatched types null and string):
     ./policy.cue:8, in the field changes of the policy owner: if type == "random_pet" && (action == "create" || action == "replace") {
-    ./policy.cue:8, in the field changes of the policy owner: owner: =~"^team-"
+    ./policy.cue:8, in the field changes of the policy owner: owner: =~"^team-[a-z0-9-]+$"
     plan:1:<col>
 
 Hint: an attribute that is not set is null in the plan document: declare a field that can be null as field?: null | {...} in the template, and test it, if field != null {...}

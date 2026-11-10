@@ -63,7 +63,7 @@ import "pravo.dev/pravo"
 	// Lowercase letters, digits and dashes. It names the config file.
 	name: string & =~"^[a-z][a-z0-9-]{2,30}$"
 	// The team that answers for the service.
-	owner: string & =~"^team-"
+	owner: string & =~"^team-[a-z0-9-]+$"
 	// Where it runs.
 	env: *"dev" | "staging" | "prod"
 	// The port it listens on.

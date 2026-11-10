@@ -55,7 +55,7 @@ package estate
 	// Lowercase letters, digits and dashes. It names the config file.
 	name: string & =~"^[a-z][a-z0-9-]{2,30}$"
 	// The team that answers for the service.
-	owner: string & =~"^team-"
+	owner: string & =~"^team-[a-z0-9-]+$"
 	// Where it runs.
 	env: *"dev" | "staging" | "prod"
 	// The port it listens on.
@@ -96,7 +96,7 @@ import "pravo.dev/pravo"
 	// Lowercase letters, digits and dashes. It names the config file.
 	name: string & =~"^[a-z][a-z0-9-]{2,30}$"
 	// The team that answers for the service.
-	owner: string & =~"^team-"
+	owner: string & =~"^team-[a-z0-9-]+$"
 	// Where it runs.
 	env: *"dev" | "staging" | "prod"
 	// The port it listens on.
@@ -148,7 +148,7 @@ import "pravo.dev/pravo"
 	// Lowercase letters, digits and dashes. It names the config file.
 	name: string & =~"^[a-z][a-z0-9-]{2,30}$"
 	// The team that answers for the service.
-	owner: string & =~"^team-"
+	owner: string & =~"^team-[a-z0-9-]+$"
 	// Where it runs.
 	env: *"dev" | "staging" | "prod"
 	// The port it listens on.
@@ -211,6 +211,10 @@ pravo -C estate apply --auto-approve | grep '^Apply complete'
 ```text out
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <id>]
 ```
+
+A pattern that checks a value says where the value ends: `=~"^team-"` also accepts `"team-x\nPORT=22"`, and the line break puts a second line into the file that the template renders. End the pattern with `$` and allow only the characters that belong in the value.
+
+A constraint on one instance cannot see the others. The name of this template makes the file name, so two instances that carry the same `name` write one file, and the second hides the first. Tie the name to the key of the instance, `services: [Name=string]: name: Name`, and two instances cannot share one.
 
 ## 5. Open the catalog
 
