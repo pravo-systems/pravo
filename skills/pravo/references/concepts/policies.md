@@ -155,7 +155,7 @@ Output:
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <id>]
 ```
 
-Declare a policy that requires an owner on every pet that is created:
+Declare a policy that requires an owner on every pet that is created or replaced. A replacement is an action of its own in the plan, so a guard that names only `"create"` lets a replaced pet through:
 
 File `policy.cue`:
 
@@ -165,12 +165,12 @@ package estate
 import "pravo.dev/pravo"
 
 owner: pravo.#Policy & {
-	description: "Every pet that is created carries an owner."
+	description: "Every pet that is created or replaced carries an owner."
 	rule: {
 		changes: [...{
 			type:   string
 			action: string
-			if type == "random_pet" && action == "create" {
+			if type == "random_pet" && (action == "create" || action == "replace") {
 				after: keepers: owner: =~"^team-"
 			}
 		}]
@@ -190,7 +190,7 @@ Output:
 
 ```text
 Policies: +1 new, ~0 changed, -0 removed.
-  + owner (sha256:0f1d1ef14fae)
+  + owner (sha256:4127cdd1e4e7)
 Graph: planned 0 · skipped 2 · not read 2
 Apply complete! Resources: 0 added, 0 changed, 0 destroyed. [txn <id>]
 owner@00000001.json
@@ -216,9 +216,9 @@ Output:
 
 ```text
 exit 5
-Error: the plan violates the policy owner@1 (sha256:0f1d1ef14fae):
+Error: the plan violates the policy owner@1 (sha256:4127cdd1e4e7):
 changes.0.after.keepers.owner: conflicting values null and =~"^team-" (mismatched types null and string):
-    ./policy.cue:8, in the field changes of the policy owner: if type == "random_pet" && action == "create" {
+    ./policy.cue:8, in the field changes of the policy owner: if type == "random_pet" && (action == "create" || action == "replace") {
     ./policy.cue:8, in the field changes of the policy owner: owner: =~"^team-"
     plan:1:<col>
 

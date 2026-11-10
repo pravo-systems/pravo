@@ -287,16 +287,16 @@ changes.0.after.keepers.owner: invalid value "" (out of bound !=""):
 
 A rule that requires a value is not satisfied by leaving it out, by a provider default that is null, or by a value that is not known until apply. `string` alone is satisfied by the empty string. Require `string & !=""` for a value that must say something.
 
-Where an unset attribute is acceptable, write the alternative: `null | <constraint>`. This rule lets a created pet either set no `prefix` or set a lowercase one:
+Where an unset attribute is acceptable, write the alternative: `null | <constraint>`. This rule lets a created or replaced pet either set no `prefix` or set a lowercase one. A replacement is an action of its own in the plan, so a guard that names only `"create"` lets a replaced pet through:
 
 File `policy/prefix.cue`:
 
 ```cue
-// A random_pet that is created either sets no prefix or sets a lowercase one.
+// A random_pet that is created or replaced either sets no prefix or sets a lowercase one.
 changes: [...{
 	type:   string
 	action: string
-	if type == "random_pet" && action == "create" {
+	if type == "random_pet" && (action == "create" || action == "replace") {
 		after: prefix: null | =~"^[a-z]+$"
 	}
 }]
@@ -318,10 +318,10 @@ pravo -C infra plan 2>&1 | grep -A20 -E '^(Policies|Error)'
 Output:
 
 ```text
-Error: the plan violates the policy check@N (sha256:5cbce9a1aaf9):
+Error: the plan violates the policy check@N (sha256:0815f527c485):
 changes.0.after.prefix: 2 errors in empty disjunction:
 changes.0.after.prefix: conflicting values "App" and null (mismatched types string and null):
-    ./infra/policy.cue:7, in the field changes of the policy check: if type == "random_pet" && action == "create" {
+    ./infra/policy.cue:7, in the field changes of the policy check: if type == "random_pet" && (action == "create" || action == "replace") {
     ./infra/policy.cue:7, in the field changes of the policy check: prefix: null | =~"^[a-z]+$"
     plan:1:N
 changes.0.after.prefix: invalid value "App" (out of bound =~"^[a-z]+$"):
