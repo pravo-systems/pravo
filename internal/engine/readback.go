@@ -105,7 +105,7 @@ func (e *Engine) readBackOne(ctx context.Context, sr *state.Resource, s *schema.
 		return false
 	}
 	attrs, err := convert.ToJSON(newState)
-	if err != nil || jsonEqual(attrs, sr.Attributes) {
+	if err != nil || sameAttributes(attrs, sr.Attributes) {
 		return false
 	}
 	e.persistRead(addr, sr, s, attrs, newPrivate, false)

@@ -149,20 +149,6 @@ type savedChange struct {
 	MovedFrom      string `json:"moved_from,omitempty"`
 }
 
-func packValue(v tftypes.Value) ([]byte, error) {
-	if v.Type() == nil {
-		return nil, nil
-	}
-	return v.MarshalMsgPack(v.Type())
-}
-
-func unpackValue(data []byte, t tftypes.Type) (tftypes.Value, error) {
-	if len(data) == 0 {
-		return tftypes.Value{}, nil
-	}
-	return tftypes.ValueFromMsgPack(data, t)
-}
-
 // commandLine is the command line as it was typed. Options.Command is what a
 // sealed state shows of it, and Options.Args, when the caller set them, are the
 // arguments it was made from. The plan file keeps the original: it is sealed
@@ -224,16 +210,16 @@ func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFi
 		if ch.Schema != nil {
 			cfg = withoutWriteOnly(ch.Schema.Block, cfg)
 		}
-		if sc.Config, err = packValue(cfg); err != nil {
+		if sc.Config, err = convert.Pack(cfg); err != nil {
 			return nil, fmt.Errorf("%s: %w", ch.Addr, err)
 		}
-		if sc.Prior, err = packValue(ch.Prior); err != nil {
+		if sc.Prior, err = convert.Pack(ch.Prior); err != nil {
 			return nil, fmt.Errorf("%s: %w", ch.Addr, err)
 		}
-		if sc.Planned, err = packValue(ch.Planned); err != nil {
+		if sc.Planned, err = convert.Pack(ch.Planned); err != nil {
 			return nil, fmt.Errorf("%s: %w", ch.Addr, err)
 		}
-		if sc.PlannedCreate, err = packValue(ch.PlannedCreate); err != nil {
+		if sc.PlannedCreate, err = convert.Pack(ch.PlannedCreate); err != nil {
 			return nil, fmt.Errorf("%s: %w", ch.Addr, err)
 		}
 		for _, p := range ch.RequiresReplace {
@@ -521,16 +507,16 @@ func (e *Engine) restoreChange(sc savedChange) (*Change, error) {
 	ch.Schema = s
 	t := s.Block.Type()
 	var err error
-	if ch.Config, err = unpackValue(sc.Config, t); err != nil {
+	if ch.Config, err = convert.Unpack(sc.Config, t); err != nil {
 		return nil, fmt.Errorf("%s: config: %w", sc.Addr, err)
 	}
-	if ch.Prior, err = unpackValue(sc.Prior, t); err != nil {
+	if ch.Prior, err = convert.Unpack(sc.Prior, t); err != nil {
 		return nil, fmt.Errorf("%s: prior state: %w", sc.Addr, err)
 	}
-	if ch.Planned, err = unpackValue(sc.Planned, t); err != nil {
+	if ch.Planned, err = convert.Unpack(sc.Planned, t); err != nil {
 		return nil, fmt.Errorf("%s: planned state: %w", sc.Addr, err)
 	}
-	if ch.PlannedCreate, err = unpackValue(sc.PlannedCreate, t); err != nil {
+	if ch.PlannedCreate, err = convert.Unpack(sc.PlannedCreate, t); err != nil {
 		return nil, fmt.Errorf("%s: planned replacement: %w", sc.Addr, err)
 	}
 	if ch.Prior.Type() == nil {
@@ -560,7 +546,7 @@ func consistent(saved, actual tftypes.Value) bool {
 			return true
 		}
 		// A list, set or map that one side leaves null and the other holds empty is the
-		// same value, as sameAttributes says for drift: a plan made from a read (tags {})
+		// same value, as nullempty.go says for drift: a plan made from a read (tags {})
 		// and an apply that plans from the record (tags null) must agree.
 		return emptyCollection(saved) || emptyCollection(actual)
 	}
@@ -593,7 +579,7 @@ func consistent(saved, actual tftypes.Value) bool {
 		// Sets cannot be correlated element-wise when they hold unknowns;
 		// require equality only when both are fully known.
 		if saved.IsFullyKnown() {
-			return saved.Equal(actual)
+			return equivalent(saved, actual)
 		}
 		return true
 	}

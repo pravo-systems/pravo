@@ -241,7 +241,7 @@ outputs:
 			if !eval {
 				b, err := outputJSON(v)
 				old, ok := recorded[o.Name]
-				eval = err != nil || !ok || !jsonEqual(old, WrapOutput(b, o.Sensitive))
+				eval = err != nil || !ok || !sameOutput(old, WrapOutput(b, o.Sensitive))
 			}
 		}
 		if eval {

@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+
+	"github.com/pravo-systems/pravo/internal/convert"
 )
 
 // recordedProvider is a provider that answers every call with a fixed value.
@@ -257,10 +259,12 @@ func TestRecordingKeepsNoRequestValues(t *testing.T) {
 			sawConfigure = true
 		}
 		for _, secret := range []string{secretToken, secretWriteOnl} {
-			if packed := packed(providerConfig(secret)); strings.Contains(string(data), secret) || strings.Contains(string(data), base64.StdEncoding.EncodeToString(packed)) {
+			packedConfig, _ := convert.Pack(providerConfig(secret))
+			if strings.Contains(string(data), secret) || strings.Contains(string(data), base64.StdEncoding.EncodeToString(packedConfig)) {
 				t.Errorf("%s holds the value %q that a request carried", filepath.Base(f), secret)
 			}
-			if packed := packed(thingValue("", "web", secret)); strings.Contains(string(data), base64.StdEncoding.EncodeToString(packed)) {
+			packedThing, _ := convert.Pack(thingValue("", "web", secret))
+			if strings.Contains(string(data), base64.StdEncoding.EncodeToString(packedThing)) {
 				t.Errorf("%s holds the request that carried %q", filepath.Base(f), secret)
 			}
 		}
@@ -363,5 +367,24 @@ func TestRecordingReplaysLegacyApply(t *testing.T) {
 	}
 	if !app.LegacyTypeSystem {
 		t.Error("a replayed apply lost the legacy type system flag")
+	}
+}
+
+// TestUnpackedFailsOnACorruptRecording: a recorded value that does not decode is an error, as it
+// is for a saved plan, and not a null that the replay goes on with.
+func TestUnpackedFailsOnACorruptRecording(t *testing.T) {
+	obj := tftypes.Object{AttributeTypes: map[string]tftypes.Type{"id": tftypes.String}}
+	if v, err := unpacked(nil, obj); err != nil || !v.IsNull() {
+		t.Errorf("an empty record = %v, %v; want a null of the type", v, err)
+	}
+	if _, err := unpacked([]byte("\xff\xfe not msgpack"), obj); err == nil {
+		t.Error("a corrupt record unpacked without an error")
+	}
+	b, err := convert.Pack(tftypes.NewValue(obj, map[string]tftypes.Value{"id": tftypes.NewValue(tftypes.String, "x")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, err := unpacked(b, obj); err != nil || v.IsNull() {
+		t.Errorf("a good record = %v, %v", v, err)
 	}
 }

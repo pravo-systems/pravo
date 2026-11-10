@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -177,7 +178,13 @@ func changedKeys(before, after any) []string {
 	return keys
 }
 
-func sameData(a, b any) bool { return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b) }
+// sameData is sameAttributes on decoded values: the comment of a plan names no change that
+// a plan does not make, so a null and an empty collection are one value here as well.
+func sameData(a, b any) bool {
+	x, errx := json.Marshal(a)
+	y, erry := json.Marshal(b)
+	return errx == nil && erry == nil && sameAttributes(x, y)
+}
 
 // code writes a name as inline code that cannot break a table cell.
 func code(s string) string {

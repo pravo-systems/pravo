@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
+	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/schema"
 )
 
@@ -129,7 +130,7 @@ func TestSavedPlanHoldsNoWriteOnlyValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := unpackValue(pf.Changes[0].Config, marked.Type())
+	cfg, err := convert.Unpack(pf.Changes[0].Config, marked.Type())
 	if err != nil {
 		t.Fatal(err)
 	}
