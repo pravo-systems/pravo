@@ -192,7 +192,7 @@ func (e *Engine) startPlan(r *config.Resource, v cue.Value, strict bool) (*resou
 		return nil, fmt.Errorf("%s: $lifecycle.refresh: %w", addr, err)
 	}
 	ch := &Change{Addr: addr, Mode: r.Mode, Type: r.Type, Name: r.Name, ProviderKey: r.ProviderKey, Schema: s, Config: cfg, Deps: e.deps[addr]}
-	ch.ConfigHash = configHash(cfg)
+	ch.ConfigHash = e.recordedHash(s.Block, cfg)
 	ch.CreateBeforeDestroy, ch.PreventDestroy = cbd, prevent
 	ch.Labels = labels
 	sr := e.State.Get(addr)
@@ -222,6 +222,11 @@ func (e *Engine) explainChange(p *resourcePlan) {
 		// An apply that stopped halfway recorded the state it had reached and
 		// no hash: the provider has not seen this configuration through.
 		ch.Reasons = append(ch.Reasons, "the last apply of it did not finish")
+	case ch.ConfigHash != sr.ConfigHash && e.hasWriteOnly(s.Block) && sr.ConfigHash == configHash(p.cfg):
+		// The record is of a pravo whose hash covered the write-only values, and the
+		// configuration is the one it saw. The provider is asked, plans nothing, and
+		// the next apply records the hash that leaves them out.
+		ch.Reasons = append(ch.Reasons, "its record holds a hash that covers write-only values, from an earlier pravo: the next apply replaces it (hash "+sr.ConfigHash+" -> "+ch.ConfigHash+")")
 	case ch.ConfigHash != sr.ConfigHash:
 		ch.Reasons = append(ch.Reasons, "the specification changed since the last apply (hash "+sr.ConfigHash+" -> "+ch.ConfigHash+")")
 	}

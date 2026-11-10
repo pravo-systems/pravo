@@ -334,6 +334,10 @@ Output:
 not found
 ```
 
+The record keeps a digest of the configuration, which is how a plan knows that nothing changed. The digest leaves write-only values out, so nothing in the record depends on the key, and nobody who reads the record can try guesses of a value against it. It follows that a new value alone plans nothing: neither pravo nor the provider can see that it changed. Change the version attribute next to it, here `private_key_pem_wo_version`, and the plan shows an update that hands the provider the new value. A value that is new on every run, such as a short-lived token, does not make every plan reach the resource.
+
+A provider answers null for a write-only attribute. If one answers the value it was given, pravo sets it to null before anything is recorded and warns that the provider has a fault.
+
 A `pravo.#SecretEnv` and a `pravo.#Secret` are accepted in the same place. [Keep secrets out of the state](../how-to/secrets.md) shows the first, and [Store secrets in the sealed state](../how-to/store-secrets-in-the-state.md) the second. Remove the certificate before the next section.
 
 ```sh

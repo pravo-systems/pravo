@@ -537,9 +537,23 @@ func (m *Providers) instance(ctx context.Context, key string) (*instance, error)
 		_, _, _ = p.GetSchema(ctx)
 	}
 	plog.Debug(ctx, "provider started", "provider", key, "version", rp.Version, "path", rp.Path)
-	inst = &instance{p: p, key: key, reattached: rp.Reattached()}
+	inst = &instance{p: m.guard(p, local), key: key, reattached: rp.Reattached()}
 	m.instances[key] = inst
 	return inst, nil
+}
+
+// guard returns p as a provider whose answers hold no write-only value.
+func (m *Providers) guard(p plugin.Provider, local string) plugin.Provider {
+	return &writeOnlyGuard{Provider: p, block: func(ctx context.Context, typ string) (*schema.Block, error) {
+		ps, err := m.Schema(ctx, local)
+		if err != nil {
+			return nil, err
+		}
+		if s := ps.Resource(typ); s != nil {
+			return s.Block, nil
+		}
+		return nil, nil
+	}}
 }
 
 // start launches a provider binary, or in replay mode serves recordings
