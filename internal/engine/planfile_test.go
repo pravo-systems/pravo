@@ -448,3 +448,31 @@ func TestSavedPlanThatFailedIsStale(t *testing.T) {
 		t.Error("a plan whose apply failed halfway can be applied again")
 	}
 }
+
+// TestNullEmptyOneRule: the JSON comparison of records and the value comparison of plans agree
+// on every case of null against an empty collection (nullempty.go).
+func TestNullEmptyOneRule(t *testing.T) {
+	m := tftypes.Map{ElementType: tftypes.String}
+	l := tftypes.List{ElementType: tftypes.String}
+	obj := func(ty tftypes.Type, v any) tftypes.Value {
+		return tftypes.NewValue(tftypes.Object{AttributeTypes: map[string]tftypes.Type{"x": ty}}, map[string]tftypes.Value{"x": tftypes.NewValue(ty, v)})
+	}
+	for _, c := range []struct {
+		name   string
+		a, b   []byte
+		va, vb tftypes.Value
+		want   bool
+	}{
+		{"map null vs empty", []byte(`{"x":null}`), []byte(`{"x":{}}`), obj(m, nil), obj(m, map[string]tftypes.Value{}), true},
+		{"list null vs empty", []byte(`{"x":null}`), []byte(`{"x":[]}`), obj(l, nil), obj(l, []tftypes.Value{}), true},
+		{"map empty vs filled", []byte(`{"x":{}}`), []byte(`{"x":{"a":"b"}}`), obj(m, map[string]tftypes.Value{}),
+			obj(m, map[string]tftypes.Value{"a": tftypes.NewValue(tftypes.String, "b")}), false},
+	} {
+		if got := sameAttributes(c.a, c.b); got != c.want {
+			t.Errorf("%s: sameAttributes = %v", c.name, got)
+		}
+		if got := consistent(c.va, c.vb) && consistent(c.vb, c.va); got != c.want {
+			t.Errorf("%s: consistent = %v", c.name, got)
+		}
+	}
+}

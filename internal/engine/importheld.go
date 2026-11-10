@@ -45,22 +45,3 @@ func idAttr(attrs []byte) string {
 func ErrHeld(addr, label, holder string) error {
 	return fmt.Errorf("%s: %q is already managed as %s; one object cannot have two records", addr, label, holder)
 }
-
-// readWithin reports whether every attribute of read that is not null or empty is the same in held.
-func readWithin(read, held []byte) bool {
-	var r, h map[string]any
-	if json.Unmarshal(read, &r) != nil || json.Unmarshal(held, &h) != nil {
-		return false
-	}
-	for k, v := range r {
-		if v == "" || emptyAsNull(v) == nil {
-			continue
-		}
-		a, _ := json.Marshal(emptyAsNull(v))
-		b, _ := json.Marshal(emptyAsNull(h[k]))
-		if string(a) != string(b) {
-			return false
-		}
-	}
-	return true
-}
