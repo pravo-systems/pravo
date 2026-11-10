@@ -623,22 +623,11 @@ func newPlanMeta(pf *PlanFile, author string, ttl time.Duration, size int) *Plan
 	}
 	for _, sc := range pf.Changes {
 		touches := true
+		m.Summary.count(sc.Addr, sc.Action, sc.Skipped, len(sc.Prior) == 1 && sc.Prior[0] == 0xc0)
 		switch {
-		case sc.Action == ActionCreate:
-			m.Summary.Add++
-		case sc.Action == ActionUpdate:
-			m.Summary.Change++
-		case sc.Action == ActionDelete:
-			m.Summary.Destroy++
-		case sc.Action == ActionReplace:
-			m.Summary.Add++
-			m.Summary.Destroy++
+		case sc.Action == ActionCreate, sc.Action == ActionUpdate, sc.Action == ActionDelete, sc.Action == ActionReplace:
 		case sc.Action == ActionRead:
-			// Reads are counted as the plan counts them; only a deferred read is a
-			// change that an apply makes.
-			if !sc.Skipped {
-				m.Summary.Read++
-			}
+			// Only a deferred read is a change that an apply makes.
 			touches = sc.Deferred
 		case sc.Action == ActionMove || sc.Imported:
 		default:

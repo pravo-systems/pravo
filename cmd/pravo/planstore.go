@@ -833,9 +833,7 @@ func applyStored(rt *runContext, cmd *cobra.Command, ref, refresh string, full b
 			s.readersInto(rt, o)
 			o.AllowCreate = allowCreate
 		},
-		Selected: func(id string, selected, left int) {
-			rt.out.Printf("Applying %d of %d remaining changes from %s.\n", selected, left, id)
-		},
+		Selected: func(id string, selected, left int) { reportSelected(rt, id, selected, left) },
 	}
 	if rt.flags.JSON {
 		o.Event = func(ev engine.Event) { emitLine(ev) }
@@ -858,12 +856,9 @@ func applyStored(rt *runContext, cmd *cobra.Command, ref, refresh string, full b
 			reportPartial(rt, res.Partial, res.ID)
 		}
 		if err == nil {
-			switch {
-			case res.NothingLeft && rt.flags.JSON:
-				emitLine(map[string]any{"kind": "apply", "phase": "done", "message": "nothing left to apply", "plan": res.ID})
-			case res.NothingLeft:
-				rt.out.Println(rt.out.C(ui.Bold+ui.Green, "No changes.") + " The saved plan has nothing left to apply.")
-			default:
+			if res.NothingLeft {
+				reportNothingLeft(rt, "plan", res.ID)
+			} else {
 				reportApply(rt, res.Result, res.Destroy, "plan", res.ID, res.Again, res.Left)
 				if res.Result != nil && res.Result.Deferred > 0 && !res.Destroy {
 					return storeFollowUp(ctx, rt, s, res.ID, res.Result.Deferred)

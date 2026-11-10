@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -24,7 +23,6 @@ import (
 // set, what is write-only, and what is null. A sensitive attribute is named in a
 // comment and its value is not written.
 func (e *Engine) ReadAdoption(ctx context.Context, providerKey, typ string, target plugin.ImportTarget) (string, error) {
-	label := target.Label()
 	ps := e.Schemas[providerLocal(providerKey)]
 	if ps == nil {
 		return "", fmt.Errorf("no schema for provider %s", providerKey)
@@ -43,39 +41,11 @@ func (e *Engine) ReadAdoption(ctx context.Context, providerKey, typ string, targ
 		return "", err
 	}
 	if e.Providers.Partial(providerKey) {
-		return "", errors.New("the provider is configured from a value that is not known before an apply (a resource that does not exist yet), so it cannot read the object; apply that resource first")
+		return "", errProviderPartial
 	}
-	types := map[string]tftypes.Type{}
-	for name, s := range ps.AllResources() {
-		types[name] = s.Block.Type()
-	}
-	imported, diags, err := prov.ImportResourceState(ctx, typ, target, types)
+	st, _, err := e.ImportObject(ctx, prov, ps, typ, target)
 	if err != nil {
-		return "", fmt.Errorf("importing %q: %w", label, err)
-	}
-	if err := diags.Err(); err != nil {
-		return "", fmt.Errorf("importing %q: %w", label, err)
-	}
-	var found *tftypes.Value
-	var private []byte
-	for i := range imported {
-		if imported[i].TypeName == typ {
-			found, private = &imported[i].State, imported[i].Private
-			break
-		}
-	}
-	if found == nil {
-		return "", fmt.Errorf("the provider returned no %s for %q", typ, label)
-	}
-	st, _, diags, err := prov.ReadResource(ctx, typ, *found, private)
-	if err != nil {
-		return "", fmt.Errorf("reading the object %q: %w", label, err)
-	}
-	if err := diags.Err(); err != nil {
-		return "", fmt.Errorf("reading the object %q: %w", label, err)
-	}
-	if st.IsNull() {
-		return "", fmt.Errorf("no %s %q exists", typ, label)
+		return "", err
 	}
 	return RenderAdoption(rs.Block, st), nil
 }

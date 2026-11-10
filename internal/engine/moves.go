@@ -280,43 +280,15 @@ func (e *Engine) markMovedOrigin(addr, action string, found *state.Resource) {
 // commitImport).
 func (e *Engine) importResource(ctx context.Context, prov plugin.Provider, r *config.Resource, s *schema.Schema, imp *config.Import, ch *Change) (tftypes.Value, []byte, error) {
 	addr := r.Address()
-	ps := e.Schemas[r.LocalProvider()]
-	types := map[string]tftypes.Type{}
-	for name, rs := range ps.AllResources() {
-		types[name] = rs.Block.Type()
-	}
 	label := imp.Label()
 	if imp.Identity != nil {
 		e.Opts.Progress("%s: Reading the object of the identity %q...", addr, label)
 	} else {
 		e.Opts.Progress("%s: Reading the object of id %q...", addr, label)
 	}
-	imported, diags, err := prov.ImportResourceState(ctx, r.Type, importTarget(imp), types)
+	st, private, err := e.ImportObject(ctx, prov, e.Schemas[r.LocalProvider()], r.Type, importTarget(imp))
 	if err != nil {
-		return tftypes.Value{}, nil, fmt.Errorf("%s: importing %q: %w", addr, label, err)
-	}
-	if err := diags.Err(); err != nil {
-		return tftypes.Value{}, nil, fmt.Errorf("%s: importing %q: %w", addr, label, err)
-	}
-	var found *plugin.ImportedResource
-	for i := range imported {
-		if imported[i].TypeName == r.Type {
-			found = &imported[i]
-			break
-		}
-	}
-	if found == nil {
-		return tftypes.Value{}, nil, fmt.Errorf("%s: the provider returned no %s for %q", addr, r.Type, label)
-	}
-	st, private, diags, err := prov.ReadResource(ctx, r.Type, found.State, found.Private)
-	if err != nil {
-		return tftypes.Value{}, nil, fmt.Errorf("%s: reading imported object: %w", addr, err)
-	}
-	if err := diags.Err(); err != nil {
-		return tftypes.Value{}, nil, fmt.Errorf("%s: reading imported object: %w", addr, err)
-	}
-	if st.IsNull() {
-		return tftypes.Value{}, nil, fmt.Errorf("%s: no object %q exists", addr, label)
+		return tftypes.Value{}, nil, fmt.Errorf("%s: %w", addr, err)
 	}
 	n, err := e.importedRecord(r, s, st, private)
 	if err != nil {
@@ -340,6 +312,73 @@ func (e *Engine) importResource(ctx context.Context, prov plugin.Provider, r *co
 	e.count(func(st *Stats) { st.Imported++ })
 	return st, private, nil
 }
+
+// ImportObject is the one way an object is brought in from a provider: the provider is
+// asked for it by id or identity, the entry of the resource's own type is picked among
+// what it returns (a provider may return related objects first), and that entry is read.
+// It is used by an $import of a plan, by `pravo import` and by `pravo discover adopt`.
+// The state it returns is never null; a missing object is an error.
+func (e *Engine) ImportObject(ctx context.Context, prov plugin.Provider, ps *schema.ProviderSchema, typ string, target plugin.ImportTarget) (tftypes.Value, []byte, error) {
+	label := target.Label()
+	types := map[string]tftypes.Type{}
+	for name, rs := range ps.AllResources() {
+		types[name] = rs.Block.Type()
+	}
+	imported, diags, err := prov.ImportResourceState(ctx, typ, target, types)
+	if err != nil {
+		return tftypes.Value{}, nil, fmt.Errorf("importing %q: %w", label, err)
+	}
+	if err := diags.Err(); err != nil {
+		return tftypes.Value{}, nil, fmt.Errorf("importing %q: %w", label, err)
+	}
+	var found *plugin.ImportedResource
+	for i := range imported {
+		if imported[i].TypeName == typ {
+			found = &imported[i]
+			break
+		}
+	}
+	if found == nil {
+		return tftypes.Value{}, nil, fmt.Errorf("the provider returned no %s for %q", typ, label)
+	}
+	st, private, diags, err := prov.ReadResource(ctx, typ, found.State, found.Private)
+	if err != nil {
+		return tftypes.Value{}, nil, fmt.Errorf("reading the object %q: %w", label, err)
+	}
+	if err := diags.Err(); err != nil {
+		return tftypes.Value{}, nil, fmt.Errorf("reading the object %q: %w", label, err)
+	}
+	if st.IsNull() {
+		return tftypes.Value{}, nil, fmt.Errorf("no %s %q exists", typ, label)
+	}
+	return st, private, nil
+}
+
+// ImportRecord reads the object that target names as ImportObject does, with the provider
+// set up as a plan sets it up, and returns the record of it, stamped as the record of an
+// $import is. Nothing is staged or written: the caller holds the lock and commits.
+func (e *Engine) ImportRecord(ctx context.Context, r *config.Resource, s *schema.Schema, target plugin.ImportTarget) (*state.Resource, error) {
+	closeInputs, err := e.prepareProvider(ctx, r.ProviderKey)
+	if err != nil {
+		return nil, err
+	}
+	defer closeInputs()
+	prov, err := e.Providers.Provider(ctx, r.ProviderKey)
+	if err != nil {
+		return nil, err
+	}
+	if e.Providers.Partial(r.ProviderKey) {
+		return nil, errProviderPartial
+	}
+	st, private, err := e.ImportObject(ctx, prov, e.Schemas[r.LocalProvider()], r.Type, target)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", r.Address(), err)
+	}
+	return e.importedRecord(r, s, st, private)
+}
+
+// errProviderPartial is what a provider configured from a value that an apply has yet to make says.
+var errProviderPartial = errors.New("the provider is configured from a value that is not known before an apply (a resource that does not exist yet), so it cannot read the object; apply that resource first")
 
 // importedRecord is the record of an object that an $import brought in: what the provider read.
 func (e *Engine) importedRecord(r *config.Resource, s *schema.Schema, st tftypes.Value, private []byte) (*state.Resource, error) {
