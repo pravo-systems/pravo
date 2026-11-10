@@ -84,6 +84,27 @@ jobs:
         with:
           key: static-${{ matrix.system }}
 
+  # No known vulnerability that pravo's code reaches, in the Go that builds the
+  # release or in a module (tools/ci/vulns.sh). A pull request runs it when it
+  # changes go.mod or CI, which is when it can change the answer; main and the
+  # release always do, and vulns.yml asks each day, for the advisories that come
+  # out between two pushes.
+  vulns:
+    needs: changes
+    if: needs.changes.outputs.all == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: vulns
+      - run: sh tools/ci/vulns.sh
+      - if: ${{ always() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: vulns
+
   # golangci-lint (.golangci.yml) on the files of each platform that pravo
   # supports, next to the other jobs and waited for by none of them. The binary,
   # its analysis cache and the build cache are kept between runs, so a run takes
@@ -469,7 +490,7 @@ jobs:
   # One check to require in the branch protection settings.
   ci:
     if: always()
-    needs: [changes, static, lint, lint-web, test, warm, windows, macos, tools, docs, demos, scale, opentofu, site]
+    needs: [changes, static, vulns, lint, lint-web, test, warm, windows, macos, tools, docs, demos, scale, opentofu, site]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed

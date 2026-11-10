@@ -600,9 +600,9 @@ func stateLocksCmd(rt *runContext, loadRead func() (*state.Store, error)) *cobra
 			// The note of a create that was interrupted while its node had a record is shown
 			// with the locks: it refuses the next create of the node as a lock does.
 			notes, _ := st.PendingCreates()
+			held := locks
 			for _, p := range notes {
-				rec := st.Get(p.Addr)
-				orphan, _ := st.Orphaned(p, rec)
+				orphan := p.OrphanedAmong(st.Get(p.Addr), held)
 				locks = append(locks, state.Lock{Addr: p.Addr, PID: p.PID, Host: p.Host, Command: p.Command, Txn: p.Txn, Since: p.Since, RenewedAt: p.Since, Kind: "note", Stale: orphan})
 			}
 			if rt.flags.JSON {

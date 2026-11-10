@@ -54,7 +54,8 @@ var NewStoreIdentity *protect.Identity
 // writeStripes is the number of mutexes that order the writes of records.
 const writeStripes = 64
 
-// revisionWidth is how many records Revisions reads at the same time.
+// revisionWidth is how many records Revisions reads at the same time from a
+// backend on this machine; from another it reads as many as an open does.
 const revisionWidth = 16
 
 // readWidthLocal and readWidthRemote are how many records a store reads at the
@@ -327,7 +328,7 @@ func openBackend(ctx context.Context, b Backend, o Options) (*Store, error) {
 			return nil, fmt.Errorf("a new state is created in format %d or %d, not %d; a sealed state is made by upgrading one", Format, FormatImmutable, format)
 		}
 		s.meta = meta{Format: format, Lineage: newID(16), Created: time.Now().UTC()}
-		if err := s.putJSON("meta.json", s.meta); err != nil {
+		if err := s.createMeta(ctx); err != nil {
 			return nil, err
 		}
 	default:
@@ -364,6 +365,43 @@ func openBackend(ctx context.Context, b Backend, o Options) (*Store, error) {
 		}
 	}
 	return s, nil
+}
+
+// createMeta writes the meta of a new store, unless another command that opened the
+// same empty store at the same moment has written its own: then that one is the
+// meta of the store, and this command takes it. Written without the condition, the
+// later of the two replaced the earlier, and the command that wrote the earlier went
+// on with a lineage that the store did not have: the plans it stored were plans of
+// another state to everyone else.
+func (s *Store) createMeta(ctx context.Context) error {
+	data, err := indentJSON(s.meta)
+	if err != nil {
+		return err
+	}
+	created, err := s.b.PutIfAbsent(ctx, "meta.json", data)
+	if created {
+		return nil
+	}
+	if err != nil && !errors.Is(err, ErrUnknownOutcome) {
+		return err
+	}
+	// Refused, or a write whose answer was lost: the store says which meta it holds.
+	got, rerr := s.b.Get(ctx, "meta.json")
+	if rerr != nil {
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("opening state at %s: %w", s.b.Name(), rerr)
+	}
+	var m meta
+	if err := json.Unmarshal(got, &m); err != nil {
+		return fmt.Errorf("reading %s/meta.json: %w", s.b.Name(), err)
+	}
+	if m.Format > MaxFormat {
+		return fmt.Errorf("state at %s was written by a newer pravo (format %d); use the pravo that wrote it, or a newer one: docs/how-to/upgrading.md", s.b.Name(), m.Format)
+	}
+	s.meta = m
+	return nil
 }
 
 // rereadMeta reads meta.json again and, if it differs from first, the bytes read
@@ -678,8 +716,12 @@ func (s *Store) Versions(addrs []string) (map[string]Version, error) {
 		mu       sync.Mutex
 		wg       sync.WaitGroup
 		firstErr error
-		sem      = make(chan struct{}, revisionWidth)
+		width    = revisionWidth
 	)
+	if !s.b.Local() {
+		width = readWidthRemote
+	}
+	sem := make(chan struct{}, width)
 	for _, addr := range addrs {
 		wg.Add(1)
 		go func(addr string) {

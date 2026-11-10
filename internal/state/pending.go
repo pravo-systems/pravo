@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -103,12 +102,21 @@ func (s *Store) Orphaned(p *PendingCreate, rec *Resource) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	return p.OrphanedAmong(rec, locks), nil
+}
+
+// OrphanedAmong is Orphaned for a caller that has read the locks of the store: one reading
+// answers for every note.
+func (p *PendingCreate) OrphanedAmong(rec *Resource, locks []Lock) bool {
+	if rec != nil && !p.Holds(rec) {
+		return false
+	}
 	for _, l := range locks {
 		if !l.Stale && l.Txn == p.Txn {
-			return false, nil
+			return false
 		}
 	}
-	return true, nil
+	return true
 }
 
 // MovePendingCreate carries the note for from to the address to, where the record went. A
@@ -136,18 +144,22 @@ func (s *Store) PendingCreates() ([]*PendingCreate, error) {
 	if err != nil {
 		return nil, err
 	}
-	var out []*PendingCreate
-	for _, k := range keys {
-		if !strings.HasSuffix(k, ".replacing") {
-			continue
-		}
-		data, err := s.b.Get(s.cx(), k)
+	keys = withSuffix(keys, ".replacing")
+	read := make([]*PendingCreate, len(keys))
+	s.eachRead(len(keys), func(i int) {
+		data, err := s.b.Get(s.cx(), keys[i])
 		if err != nil {
-			continue
+			return
 		}
 		var p PendingCreate
 		if json.Unmarshal(data, &p) == nil && p.Addr != "" {
-			out = append(out, &p)
+			read[i] = &p
+		}
+	})
+	var out []*PendingCreate
+	for _, p := range read {
+		if p != nil {
+			out = append(out, p)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Addr < out[j].Addr })

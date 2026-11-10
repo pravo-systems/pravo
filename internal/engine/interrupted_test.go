@@ -1023,3 +1023,54 @@ func TestInterruptedReplacementIsWarnedOfByAPlanThatLeavesTheNodeAlone(t *testin
 		t.Error("the warning stays after the note was cleared")
 	}
 }
+
+// getCounter counts the reads of the objects under locks/.
+type getCounter struct {
+	state.Backend
+	locks atomic.Int64
+}
+
+func (b *getCounter) Get(ctx context.Context, key string) ([]byte, error) {
+	if strings.HasPrefix(key, "locks/") {
+		b.locks.Add(1)
+	}
+	return b.Backend.Get(ctx, key)
+}
+
+// A plan and an apply that destroy many nodes do not read a note for each of them: the
+// notes are listed once, and a state with no note and no lock costs no read at all. Read one
+// after the other, as they were, the notes cost a destroy of 501 nodes on a bucket 50 ms
+// away 1,002 round trips and 50 seconds.
+func TestDestroyDoesNotReadANoteForEveryNode(t *testing.T) {
+	ctx := context.Background()
+	var count *getCounter
+	h := newHarnessOver(t, func(b state.Backend) state.Backend { count = &getCounter{Backend: b}; return count })
+	var s spec
+	for i := range 40 {
+		name := fmt.Sprintf("n%02d", i)
+		s.cue += name + ": " + thing(name, "content: \"x\"") + "\n"
+		s.resources = append(s.resources, name)
+	}
+	h.apply(s)
+	h.reopen()
+	count.locks.Store(0)
+	e := h.engine(spec{}, Options{})
+	plan := mustPlan(t, e)
+	if n := len(plan.Changes); n != 40 {
+		t.Fatalf("the plan has %d changes, want 40 deletes", n)
+	}
+	if got := count.locks.Load(); got != 0 {
+		t.Errorf("the plan of 40 deletes read %d objects under locks/, want 0", got)
+	}
+	count.locks.Store(0)
+	e.warnUntracked(plan)
+	if err := e.checkInterruptedCreates(plan); err != nil {
+		t.Fatal(err)
+	}
+	if got := count.locks.Load(); got != 0 {
+		t.Errorf("the checks for interrupted creates read %d objects under locks/ for 40 deletes, want 0", got)
+	}
+	if _, err := e.Apply(ctx, plan); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -10,9 +10,14 @@ import (
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
-// lockWidth is how many lock objects an apply takes, renews or releases at the
-// same time.
-const lockWidth = 16
+// lockWidth and lockWidthRemote are how many lock objects an apply takes, renews
+// or releases at the same time, in a state on this machine and in one that is a
+// round trip away: there the width is what the time of an apply of many nodes
+// is made of before its first change and after its last.
+const (
+	lockWidth       = 16
+	lockWidthRemote = 64
+)
 
 // The patience of an apply that finds a lock held. The command that holds the
 // lock may be taking its own locks, which it gives up again if it meets another
@@ -32,6 +37,14 @@ const patienceTries = 10
 // a try to take its locks took the given time.
 func patience(try time.Duration) time.Duration {
 	return min(max(patienceTries*try, minPatience), maxPatience)
+}
+
+// width is how many of its locks the apply works on at the same time.
+func (h *heldLocks) width() int {
+	if h.st != nil && !h.st.Backend().Local() {
+		return lockWidthRemote
+	}
+	return lockWidth
 }
 
 // inParallel calls fn(0) to fn(n-1), at most width at a time, starting them in
@@ -128,7 +141,7 @@ func (h *heldLocks) renew() {
 	defer h.renewMu.Unlock()
 	addrs := h.held()
 	errs := make([]error, len(addrs))
-	inParallel(len(addrs), lockWidth, func(i int) { errs[i] = h.st.Renew(addrs[i]) })
+	inParallel(len(addrs), h.width(), func(i int) { errs[i] = h.st.Renew(addrs[i]) })
 	failed := false
 	for i, err := range errs {
 		if err == nil {
@@ -158,7 +171,7 @@ func (h *heldLocks) drop() {
 	h.renewMu.Lock()
 	defer h.renewMu.Unlock()
 	addrs := h.held()
-	inParallel(len(addrs), lockWidth, func(i int) { _ = h.st.Unlock(addrs[i]) })
+	inParallel(len(addrs), h.width(), func(i int) { _ = h.st.Unlock(addrs[i]) })
 	h.mu.Lock()
 	h.addrs = nil
 	h.mu.Unlock()
@@ -169,7 +182,7 @@ func (h *heldLocks) drop() {
 // first, one at a time and in order, so that applies that meet at the same nodes
 // meet at the first of them. The others are taken in order, the first alone when
 // nothing is contested, so that an apply whose first lock is held tries no other,
-// and then lockWidth at a time, each group after the one before it. The try stops
+// and then as many as the width at a time, each group after the one before it. The try stops
 // at the first lock or group in which another process holds a lock; the locks
 // taken stay taken. held is the error of the smallest address that was held, and
 // all the addresses that were held are added to contested. A failure other than a
@@ -203,13 +216,14 @@ func (h *heldLocks) attempt(addrs []string, contested map[string]bool, command, 
 		}
 	}
 	if len(errs) == 0 {
+		width := h.width()
 		for tried := 0; tried < len(rest); {
-			from, to := tried, min(tried+lockWidth, len(rest))
+			from, to := tried, min(tried+width, len(rest))
 			if from == 0 && len(first) == 0 {
 				to = 1
 			}
 			begun := time.Now()
-			inParallel(to-from, lockWidth, func(i int) { take(rest[from+i]) })
+			inParallel(to-from, width, func(i int) { take(rest[from+i]) })
 			if from == 0 && len(first) == 0 {
 				rtt = time.Since(begun)
 			}
@@ -271,7 +285,7 @@ func (h *heldLocks) acquire(addrs []string, command, txn string) error {
 		h.drop()
 		lock = max(lock, rtt, 100*time.Microsecond)
 		if deadline.IsZero() {
-			try := max(time.Since(begun), lock*time.Duration(1+(len(addrs)+lockWidth-1)/lockWidth))
+			try := max(time.Since(begun), lock*time.Duration(1+(len(addrs)+h.width()-1)/h.width()))
 			deadline = time.Now().Add(patience(try))
 		}
 		if !h.waits(held.Lock) || !time.Now().Before(deadline) {
@@ -322,14 +336,15 @@ func (h *heldLocks) rejected(addrs []string, held *state.ErrLocked) error {
 	var holders []*state.ErrLocked
 	begun := time.Now()
 	more := false
-	for from := 0; from < len(addrs); from += lockWidth {
+	width := h.width()
+	for from := 0; from < len(addrs); from += width {
 		if time.Since(begun) > scanTime {
 			more = true
 			break
 		}
-		to := min(from+lockWidth, len(addrs))
+		to := min(from+width, len(addrs))
 		errs := make([]error, to-from)
-		inParallel(to-from, lockWidth, func(i int) { errs[i] = h.st.Conflict(addrs[from+i]) })
+		inParallel(to-from, width, func(i int) { errs[i] = h.st.Conflict(addrs[from+i]) })
 		for _, err := range errs {
 			var locked *state.ErrLocked
 			if errors.As(err, &locked) {
@@ -398,7 +413,7 @@ func (h *heldLocks) release() {
 		close(h.stop)
 		<-h.done // a renewal in flight would write a lock that is deleted below
 		addrs := h.held()
-		inParallel(len(addrs), lockWidth, func(i int) {
+		inParallel(len(addrs), h.width(), func(i int) {
 			// The lock of a node whose create may have reached the cloud, and that has no
 			// record, stays as the trace of the create.
 			if h.isStranded(addrs[i]) && h.st.Get(addrs[i]) == nil && h.st.Strand(addrs[i]) == nil {

@@ -369,3 +369,124 @@ func TestOpenNamesTheRecordItCannotRead(t *testing.T) {
 		t.Errorf("Open = %v, want an error that names t.b", err)
 	}
 }
+
+// The locks and the notes of interrupted creates are read at the same time, as the records
+// are: a plan reads the locks of every command that runs, and one after the other the locks of
+// a large apply cost it a round trip each.
+func TestLocksAndNotesAreReadTogether(t *testing.T) {
+	dir := t.TempDir()
+	seed, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range 40 {
+		addr := fmt.Sprintf("t.r%02d", i)
+		if err := seed.Lock(addr, "apply", "T1"); err != nil {
+			t.Fatal(err)
+		}
+		if err := seed.NotePendingCreate(addr, "id", nil, false, "T1", "apply"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	lb, err := NewLocalBackend(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := &widthBackend{Backend: lb}
+	s, err := OpenBackend(context.Background(), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.hi.Store(0)
+	locks, err := s.Locks()
+	if err != nil || len(locks) != 40 {
+		t.Fatalf("Locks: %d locks, %v; want 40", len(locks), err)
+	}
+	if !slices.IsSortedFunc(locks, func(a, b Lock) int { return strings.Compare(a.Addr, b.Addr) }) {
+		t.Error("the locks are not sorted by address")
+	}
+	if got := b.hi.Load(); got != 40 {
+		t.Errorf("%d locks read at the same time, want 40", got)
+	}
+	b.hi.Store(0)
+	notes, err := s.PendingCreates()
+	if err != nil || len(notes) != 40 {
+		t.Fatalf("PendingCreates: %d notes, %v; want 40", len(notes), err)
+	}
+	if got := b.hi.Load(); got != 40 {
+		t.Errorf("%d notes read at the same time, want 40", got)
+	}
+	for _, p := range notes {
+		if p.OrphanedAmong(nil, locks) {
+			t.Fatalf("the note of %s is orphaned while its transaction holds a lock", p.Addr)
+		}
+	}
+	if !notes[0].OrphanedAmong(nil, nil) {
+		t.Error("a note whose transaction holds no lock is not orphaned")
+	}
+}
+
+// Two commands that open the same empty store at the same moment agree on its meta: the
+// one whose write comes second takes the meta of the first, and both hold one lineage.
+func TestTwoFirstOpensShareOneLineage(t *testing.T) {
+	dir := t.TempDir()
+	lb, err := NewLocalBackend(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both read "no meta" before either writes.
+	gate := &firstGetGate{Backend: lb, wait: make(chan struct{}), n: 2}
+	stores := make([]*Store, 2)
+	errs := make([]error, 2)
+	var wg sync.WaitGroup
+	for i := range stores {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			stores[i], errs[i] = OpenBackend(context.Background(), gate)
+		}()
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if a, b := stores[0].Lineage(), stores[1].Lineage(); a != b {
+		t.Fatalf("the two commands hold the lineages %s and %s for one store", a, b)
+	}
+	again, err := OpenBackend(context.Background(), lb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Lineage() != stores[0].Lineage() {
+		t.Errorf("the store has the lineage %s, and the commands that made it hold %s", again.Lineage(), stores[0].Lineage())
+	}
+}
+
+// firstGetGate holds the first n reads of meta.json until all of them have been asked for.
+type firstGetGate struct {
+	Backend
+	mu   sync.Mutex
+	seen int
+	n    int
+	wait chan struct{}
+}
+
+func (g *firstGetGate) Get(ctx context.Context, key string) ([]byte, error) {
+	if key != "meta.json" {
+		return g.Backend.Get(ctx, key)
+	}
+	g.mu.Lock()
+	g.seen++
+	held := g.seen <= g.n
+	if g.seen == g.n {
+		close(g.wait)
+	}
+	g.mu.Unlock()
+	if held {
+		<-g.wait
+		time.Sleep(5 * time.Millisecond) // every first read has found no meta before a write is made
+	}
+	return g.Backend.Get(ctx, key)
+}

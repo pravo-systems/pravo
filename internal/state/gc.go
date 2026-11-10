@@ -191,6 +191,21 @@ func (s *Store) each(n int, fn func(i int)) {
 	if !s.b.Local() {
 		width = convertWidthRemote
 	}
+	eachAt(width, n, fn)
+}
+
+// eachRead is each for calls that only read one small object: as many at a time as the
+// store reads records at once.
+func (s *Store) eachRead(n int, fn func(i int)) {
+	width := readWidthLocal
+	if !s.b.Local() {
+		width = readWidthRemote
+	}
+	eachAt(width, n, fn)
+}
+
+// eachAt runs fn for 0 to n-1, width calls at a time.
+func eachAt(width, n int, fn func(i int)) {
 	var (
 		next atomic.Int64
 		wg   sync.WaitGroup
