@@ -196,6 +196,64 @@ func genCmd(rt *runContext) *cobra.Command {
 	return cmd
 }
 
+// planTTL is how long a stored plan is kept: the default, or what --ttl says, which goes
+// with --store.
+func planTTL(cmd *cobra.Command, store bool, ttlText string) (time.Duration, error) {
+	if !cmd.Flags().Changed("ttl") {
+		return engine.DefaultPlanTTL, nil
+	}
+	if !store {
+		return 0, errors.New("--ttl applies to --store")
+	}
+	ttl, err := parseSpan("ttl", ttlText)
+	if err != nil {
+		return 0, err
+	}
+	if ttl == 0 {
+		return 0, fmt.Errorf("--ttl %s: want a length of time above zero", ttlText)
+	}
+	return ttl, nil
+}
+
+// printPlan prints the plan: as Markdown for a comment, as one JSON document, or for a
+// terminal. stored is the stored plan when the plan was stored before it is printed.
+func printPlan(ctx context.Context, rt *runContext, s *session, eng *engine.Engine, plan *engine.Plan, view *engine.View, policyErr error, stored *storedPlan, destroy bool) error {
+	switch {
+	case rt.flags.Markdown:
+		opts := engine.MarkdownOptions{Refused: refusal(policyErr)}
+		// A comment on a pull request may hold the plans of several environments.
+		if env := s.root.Environment; env != "" {
+			opts.Title = "pravo plan for " + env
+			if !destroy {
+				if line, err := eng.EnvironmentLine(ctx, plan); err == nil && line != "" {
+					opts.Notes = append(opts.Notes, engine.MarkdownNote(line))
+				}
+			}
+		}
+		if stored != nil {
+			opts.ID, opts.Expires, opts.Apply = stored.Meta.ID, stored.Meta.Expires, stored.Meta.ApplyCommand()
+		}
+		return emitMarkdown(view.Markdown(opts))
+	case rt.flags.JSON && stored != nil:
+		return emitJSON(storedPlanDoc{View: view, Stored: storedInfoOf(stored)})
+	case rt.flags.JSON:
+		return emitJSON(view)
+	}
+	rt.out.RenderPlan(plan)
+	if h := hclHint(s.root); h != "" {
+		rt.out.Println()
+		rt.out.Println(h)
+	}
+	if plan.Reservation != nil {
+		noun := "nodes"
+		if len(plan.Reservation.Addrs) == 1 {
+			noun = "node"
+		}
+		rt.out.Printf("%s %d %s until %s.\n", rt.out.C(ui.Dim, "Reserved"), len(plan.Reservation.Addrs), noun, plan.Reservation.Until.Local().Format(time.RFC3339))
+	}
+	return nil
+}
+
 func planCmd(rt *runContext) *cobra.Command {
 	var refresh, outFile, ttlText string
 	var destroy, full, detailed, includeSkipped, store bool
@@ -213,17 +271,9 @@ func planCmd(rt *runContext) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ttl := engine.DefaultPlanTTL
-			if cmd.Flags().Changed("ttl") {
-				if !store {
-					return errors.New("--ttl applies to --store")
-				}
-				if ttl, err = parseSpan("ttl", ttlText); err != nil {
-					return err
-				}
-				if ttl == 0 {
-					return fmt.Errorf("--ttl %s: want a length of time above zero", ttlText)
-				}
+			ttl, err := planTTL(cmd, store, ttlText)
+			if err != nil {
+				return err
 			}
 			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, planning: reserve == 0})
 			if err != nil {
@@ -267,46 +317,8 @@ func planCmd(rt *runContext) *cobra.Command {
 					}
 				}
 			}
-			if rt.flags.Markdown {
-				opts := engine.MarkdownOptions{Refused: refusal(policyErr)}
-				// A comment on a pull request may hold the plans of several environments.
-				if env := s.root.Environment; env != "" {
-					opts.Title = "pravo plan for " + env
-					if !destroy {
-						if line, err := eng.EnvironmentLine(cmd.Context(), plan); err == nil && line != "" {
-							opts.Notes = append(opts.Notes, engine.MarkdownNote(line))
-						}
-					}
-				}
-				if stored != nil {
-					opts.ID, opts.Expires, opts.Apply = stored.Meta.ID, stored.Meta.Expires, stored.Meta.ApplyCommand()
-				}
-				err = emitMarkdown(view.Markdown(opts))
-				if err != nil {
-					return err
-				}
-			} else if rt.flags.JSON {
-				if stored != nil {
-					err = emitJSON(storedPlanDoc{View: view, Stored: storedInfoOf(stored)})
-				} else {
-					err = emitJSON(view)
-				}
-				if err != nil {
-					return err
-				}
-			} else {
-				rt.out.RenderPlan(plan)
-				if h := hclHint(s.root); h != "" {
-					rt.out.Println()
-					rt.out.Println(h)
-				}
-				if plan.Reservation != nil {
-					noun := "nodes"
-					if len(plan.Reservation.Addrs) == 1 {
-						noun = "node"
-					}
-					rt.out.Printf("%s %d %s until %s.\n", rt.out.C(ui.Dim, "Reserved"), len(plan.Reservation.Addrs), noun, plan.Reservation.Until.Local().Format(time.RFC3339))
-				}
+			if err := printPlan(cmd.Context(), rt, s, eng, plan, view, policyErr, stored, destroy); err != nil {
+				return err
 			}
 			if !judged {
 				policyErr = eng.JudgePlan(cmd.Context(), plan)
@@ -1113,7 +1125,14 @@ func providersCmd(rt *runContext) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.AddCommand(&cobra.Command{
+	cmd.AddCommand(providersSchemaCmd(rt), providersLockCmd(rt), providersCopyCmd(rt))
+	addTagFlags(rt, cmd)
+	return cmd
+}
+
+// providersSchemaCmd is "pravo providers schema".
+func providersSchemaCmd(rt *runContext) *cobra.Command {
+	return &cobra.Command{
 		Use: "schema <local-name>", Short: "Print a provider's full schema as CUE", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true})
@@ -1133,7 +1152,11 @@ func providersCmd(rt *runContext) *cobra.Command {
 			os.Stdout.Write(schema.GenerateCUE(ps, pkg, schema.GenOptions{Header: fmt.Sprintf("Provider %s v%s", rp.Req.Source.String(), rp.Version), Source: rp.Req.Source.String()}))
 			return nil
 		},
-	})
+	}
+}
+
+// providersLockCmd is "pravo providers lock".
+func providersLockCmd(rt *runContext) *cobra.Command {
 	var lockPlats string
 	lk := &cobra.Command{
 		Use:   "lock",
@@ -1184,7 +1207,11 @@ Platforms default to linux and darwin on amd64 and arm64.`,
 		},
 	}
 	lk.Flags().StringVar(&lockPlats, "platforms", "", "comma-separated os_arch list (default linux_amd64,linux_arm64,darwin_arm64,darwin_amd64)")
-	cmd.AddCommand(lk)
+	return lk
+}
+
+// providersCopyCmd is "pravo providers copy".
+func providersCopyCmd(rt *runContext) *cobra.Command {
 	var plats string
 	cp := &cobra.Command{
 		Use:   "copy <source> <version> <oci://host/path/type>",
@@ -1221,9 +1248,7 @@ Platforms default to linux and darwin on amd64 and arm64.`,
 		},
 	}
 	cp.Flags().StringVar(&plats, "platforms", "", "comma-separated os_arch list (default linux_amd64,linux_arm64,darwin_arm64,darwin_amd64)")
-	cmd.AddCommand(cp)
-	addTagFlags(rt, cmd)
-	return cmd
+	return cp
 }
 
 func validateCmd(rt *runContext) *cobra.Command {

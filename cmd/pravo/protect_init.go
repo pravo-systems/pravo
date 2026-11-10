@@ -105,20 +105,9 @@ func (p *protectRun) init(rt *runContext, yes, allowLocal, force bool, recoveryS
 	if err := p.rf.require(); err != nil {
 		return err
 	}
-	// Several identity files and none named like the user: the one on the list.
-	var listed []protect.ReaderPublic
-	for _, r := range p.rf.Readers {
-		listed = append(listed, r.Key)
-	}
-	id, err := resolveIdentity(identityOptions{Name: rt.flags.Identity, Prompt: identityPrompt, Readers: listed})
+	id, err := p.sealingIdentity(rt)
 	if err != nil {
-		if errors.Is(err, errNoIdentity) {
-			return engine.WithCode(engine.ExitRefused, fmt.Errorf("%w; sealing to a list you are not on would lock you out", err))
-		}
 		return err
-	}
-	if !readersInclude(p.rf.Readers, id) {
-		return engine.WithCode(engine.ExitRefused, fmt.Errorf("your identity %s is not in %s. Sealing to a list you are not on would lock you out.", id.Name, p.rf.shown()))
 	}
 	// Everything before the yes only reads.
 	b, err := p.backend(false)
@@ -150,24 +139,8 @@ func (p *protectRun) init(rt *runContext, yes, allowLocal, force bool, recoveryS
 		return err
 	}
 	names := nameList(readerNames(p.rf.Readers))
-	rt.out.Printf("%-8s %s  (%s)\n", "Readers", p.rf.shown(), names)
-	if m := prot.Migration; prot.State == "migrating" && m != nil {
-		rt.out.Printf("A seal was started by %s and did not finish: %s of %s records are done.\n", safeName(m.By), commas(m.Done), commas(m.Total))
-	}
-	rt.out.Println("This will:")
-	rt.out.Printf("  1  write %s as immutable objects  rec/<sha256>\n", counted(prot.Records, "record", "records"))
-	rt.out.Printf("  2  encrypt their attributes and private data to %s (%s)\n", plural(len(p.rf.Readers), "reader", "readers"), names)
-	rt.out.Println("  3  seal outputs.json, stored-plan values and the values in transaction command lines the same way")
-	step := 4
-	if rec != nil {
-		rt.out.Printf("  %d  add a recovery recipient: %d shares, any %d rebuild the key\n", step, rec.N, rec.K)
-		step++
-	}
-	rt.out.Printf("  %d  set the state to format %d. Earlier versions of pravo will refuse it\n", step, state.FormatSealed)
-	if ok, err := confirm(rt, "Proceed?", yes); err != nil {
+	if err := p.askToSeal(rt, prot, rec, names, yes); err != nil {
 		return err
-	} else if !ok {
-		return errors.New("protect init cancelled; nothing was written")
 	}
 	if sb, ok := b.(state.Prober); ok {
 		if err := sb.ProbeSteps(p.ctx, nil); err != nil {
@@ -203,6 +176,86 @@ func (p *protectRun) init(rt *runContext, yes, allowLocal, force bool, recoveryS
 		}
 		return err
 	}
+	return p.reportSealed(rt, res, rec, shares, names, began)
+}
+
+// elapsed writes a duration as 41 s, or 0.4 s when it is short.
+func elapsed(d time.Duration) string {
+	if d < 10*time.Second {
+		return fmt.Sprintf("%.1f s", d.Seconds())
+	}
+	return fmt.Sprintf("%d s", int(d.Round(time.Second).Seconds()))
+}
+
+// confirm asks a question that is answered with y or yes. With assume set it
+// asks nothing. It refuses to ask when stdin is not a terminal, or when the
+// output is JSON, because then nobody sees the question.
+func confirm(rt *runContext, prompt string, assume bool) (bool, error) {
+	if assume {
+		return true, nil
+	}
+	if rt.flags.JSON {
+		return false, errors.New("refusing to ask with --json; pass --yes")
+	}
+	if !stdinIsTerminal() {
+		return false, errors.New("refusing to ask, stdin is not a terminal; pass --yes")
+	}
+	rt.out.Printf("%s [y/N] ", prompt)
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes":
+		return true, nil
+	}
+	return false, nil
+}
+
+// sealingIdentity is the identity that seals the state: one that is on the readers file.
+// With several identity files and none named like the user, it is the one on the list.
+func (p *protectRun) sealingIdentity(rt *runContext) (*protect.Identity, error) {
+	var listed []protect.ReaderPublic
+	for _, r := range p.rf.Readers {
+		listed = append(listed, r.Key)
+	}
+	id, err := resolveIdentity(identityOptions{Name: rt.flags.Identity, Prompt: identityPrompt, Readers: listed})
+	if err != nil {
+		if errors.Is(err, errNoIdentity) {
+			return nil, engine.WithCode(engine.ExitRefused, fmt.Errorf("%w; sealing to a list you are not on would lock you out", err))
+		}
+		return nil, err
+	}
+	if !readersInclude(p.rf.Readers, id) {
+		return nil, engine.WithCode(engine.ExitRefused, fmt.Errorf("your identity %s is not in %s. Sealing to a list you are not on would lock you out.", id.Name, p.rf.shown()))
+	}
+	return id, nil
+}
+
+// askToSeal prints what the seal will do and asks before anything is written.
+func (p *protectRun) askToSeal(rt *runContext, prot state.Protection, rec *protect.Recovery, names string, yes bool) error {
+	rt.out.Printf("%-8s %s  (%s)\n", "Readers", p.rf.shown(), names)
+	if m := prot.Migration; prot.State == "migrating" && m != nil {
+		rt.out.Printf("A seal was started by %s and did not finish: %s of %s records are done.\n", safeName(m.By), commas(m.Done), commas(m.Total))
+	}
+	rt.out.Println("This will:")
+	rt.out.Printf("  1  write %s as immutable objects  rec/<sha256>\n", counted(prot.Records, "record", "records"))
+	rt.out.Printf("  2  encrypt their attributes and private data to %s (%s)\n", plural(len(p.rf.Readers), "reader", "readers"), names)
+	rt.out.Println("  3  seal outputs.json, stored-plan values and the values in transaction command lines the same way")
+	step := 4
+	if rec != nil {
+		rt.out.Printf("  %d  add a recovery recipient: %d shares, any %d rebuild the key\n", step, rec.N, rec.K)
+		step++
+	}
+	rt.out.Printf("  %d  set the state to format %d. Earlier versions of pravo will refuse it\n", step, state.FormatSealed)
+	if ok, err := confirm(rt, "Proceed?", yes); err != nil {
+		return err
+	} else if !ok {
+		return errors.New("protect init cancelled; nothing was written")
+	}
+	return nil
+}
+
+// reportSealed says what the seal did, and writes the recovery file and prints the shares
+// when it set a recovery.
+func (p *protectRun) reportSealed(rt *runContext, res state.UpgradeResult, rec *protect.Recovery, shares []protect.Share, names string, began time.Time) error {
 	rt.out.Println(rt.out.C(ui.Green, fmt.Sprintf("%s sealed in %s", counted(res.Records, "record", "records"), elapsed(time.Since(began)))))
 	rt.out.Println(rt.out.C(ui.Green, "outputs sealed · recipients written to meta.json"))
 	if res.PlansSkipped > 0 {
@@ -234,34 +287,4 @@ func (p *protectRun) init(rt *runContext, yes, allowLocal, force bool, recoveryS
 	}
 	printShares(rt, rec, shares, rcf)
 	return nil
-}
-
-// elapsed writes a duration as 41 s, or 0.4 s when it is short.
-func elapsed(d time.Duration) string {
-	if d < 10*time.Second {
-		return fmt.Sprintf("%.1f s", d.Seconds())
-	}
-	return fmt.Sprintf("%d s", int(d.Round(time.Second).Seconds()))
-}
-
-// confirm asks a question that is answered with y or yes. With assume set it
-// asks nothing. It refuses to ask when stdin is not a terminal, or when the
-// output is JSON, because then nobody sees the question.
-func confirm(rt *runContext, prompt string, assume bool) (bool, error) {
-	if assume {
-		return true, nil
-	}
-	if rt.flags.JSON {
-		return false, errors.New("refusing to ask with --json; pass --yes")
-	}
-	if !stdinIsTerminal() {
-		return false, errors.New("refusing to ask, stdin is not a terminal; pass --yes")
-	}
-	rt.out.Printf("%s [y/N] ", prompt)
-	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-	switch strings.ToLower(strings.TrimSpace(line)) {
-	case "y", "yes":
-		return true, nil
-	}
-	return false, nil
 }

@@ -130,41 +130,11 @@ func (s *Store) Unseal(ctx context.Context, o UnsealOptions) (UnsealResult, erro
 		return res, err
 	}
 
-	var noted atomic.Int64
-	progress := func(done, total int) {
-		if last := noted.Load(); int64(done)-last >= migrationNoteEvery && noted.CompareAndSwap(last, int64(done)) {
-			_ = s.updateMeta(func(m *meta) error {
-				if m.Migration != nil {
-					m.Migration.Done, m.Migration.Total = done, total
-				}
-				return nil
-			})
-		}
-		if o.Progress != nil {
-			o.Progress(done, total)
-		}
-	}
-	n, err := s.convertNodes(ctx, rewrite{
-		needs: func(group string, _ bool) bool { return group != "" },
-		encode: func(r *Resource, _ []byte) ([]byte, string, error) {
-			data, err := indentJSON(r)
-			return data, "", err
-		},
-		dropOld: true,
-	}, progress)
+	n, err := s.unsealRecords(ctx, o)
 	res.Records = n
 	if err != nil {
-		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
-			err = fmt.Errorf("interrupted after %d records were unsealed in this run; the rest are left as they were, and the state is left unsealing. Run the command again to finish: %w", n, err)
-		}
 		return res, err
 	}
-	_ = s.updateMeta(func(m *meta) error {
-		if m.Migration != nil {
-			m.Migration.Done = m.Migration.Total
-		}
-		return nil
-	})
 	if err := ctx.Err(); err != nil {
 		return res, fmt.Errorf("interrupted before the outputs and the stored plans were unsealed; run the command again to finish: %w", err)
 	}
@@ -191,7 +161,53 @@ func (s *Store) Unseal(ctx context.Context, o UnsealOptions) (UnsealResult, erro
 	if err := s.verifyUnsealed(ctx); err != nil {
 		return res, err
 	}
-	err = s.updateMeta(func(m *meta) error {
+	return res, s.finishUnseal(by, wasLocked)
+}
+
+// unsealRecords writes every sealed record again in the open and returns how many it
+// wrote, noting the progress in meta.json as it goes.
+func (s *Store) unsealRecords(ctx context.Context, o UnsealOptions) (int, error) {
+	var noted atomic.Int64
+	progress := func(done, total int) {
+		if last := noted.Load(); int64(done)-last >= migrationNoteEvery && noted.CompareAndSwap(last, int64(done)) {
+			_ = s.updateMeta(func(m *meta) error {
+				if m.Migration != nil {
+					m.Migration.Done, m.Migration.Total = done, total
+				}
+				return nil
+			})
+		}
+		if o.Progress != nil {
+			o.Progress(done, total)
+		}
+	}
+	n, err := s.convertNodes(ctx, rewrite{
+		needs: func(group string, _ bool) bool { return group != "" },
+		encode: func(r *Resource, _ []byte) ([]byte, string, error) {
+			data, err := indentJSON(r)
+			return data, "", err
+		},
+		dropOld: true,
+	}, progress)
+	if err != nil {
+		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			err = fmt.Errorf("interrupted after %d records were unsealed in this run; the rest are left as they were, and the state is left unsealing. Run the command again to finish: %w", n, err)
+		}
+		return n, err
+	}
+	_ = s.updateMeta(func(m *meta) error {
+		if m.Migration != nil {
+			m.Migration.Done = m.Migration.Total
+		}
+		return nil
+	})
+	return n, nil
+}
+
+// finishUnseal replaces meta.json without its sealed part, and makes the store one of a
+// state that is not sealed: a store that was locked reads the state again.
+func (s *Store) finishUnseal(by string, wasLocked bool) error {
+	err := s.updateMeta(func(m *meta) error {
 		if m.Sealed == nil || m.Migration == nil || !m.Migration.Unseal {
 			return errors.New("the state is not being unsealed")
 		}
@@ -201,7 +217,7 @@ func (s *Store) Unseal(ctx context.Context, o UnsealOptions) (UnsealResult, erro
 		return nil
 	})
 	if err != nil {
-		return res, err
+		return err
 	}
 	s.mu.Lock()
 	s.openable, s.locked, s.you = nil, false, You{}
@@ -213,10 +229,10 @@ func (s *Store) Unseal(ctx context.Context, o UnsealOptions) (UnsealResult, erro
 	s.ring.set(nil)
 	if wasLocked {
 		if err := s.load(); err != nil {
-			return res, fmt.Errorf("the seal is off, and the state could not be read again: %w", err)
+			return fmt.Errorf("the seal is off, and the state could not be read again: %w", err)
 		}
 	}
-	return res, nil
+	return nil
 }
 
 // waitForWriters waits until every process that could still write to the store sealed
