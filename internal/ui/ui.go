@@ -33,6 +33,9 @@ type Printer struct {
 	// output is its answer (a secret, a value, a schema) sets it, so that a warning
 	// never lands in the middle of what a script captures.
 	Warnings io.Writer
+	// Errors, when set, receives Error instead of Out: the error that ends a command is
+	// standard error's, so that a script that captures standard output finds none in it.
+	Errors io.Writer
 }
 
 // NewPrinter detects whether colour should be used for w. noColor turns it off:
@@ -75,7 +78,11 @@ func (p *Printer) Println(args ...any) {
 
 // Error prints an error message.
 func (p *Printer) Error(err error) {
-	fmt.Fprintf(p.Out, "\n%s %s\n", p.C(Red+Bold, "Error:"), err)
+	w := p.Out
+	if p.Errors != nil {
+		w = p.Errors
+	}
+	fmt.Fprintf(w, "\n%s %s\n", p.C(Red+Bold, "Error:"), err)
 }
 
 // Warning prints a warning message.

@@ -347,6 +347,7 @@ func inReverse(changes []*Change, width int, do func(*Change) error) error {
 		mu       sync.Mutex
 		wake     = sync.NewCond(&mu)
 		firstErr error
+		firstAt  string // the address of the change whose error firstErr is
 		ran      = make([]bool, len(changes))
 		queue    = &byRank{rank: rank}
 		running  int
@@ -374,8 +375,10 @@ func inReverse(changes []*Change, width int, do func(*Change) error) error {
 			mu.Lock()
 			running--
 			if err != nil {
-				if firstErr == nil {
-					firstErr = err
+				// Changes that run side by side fail in any order: the error that is
+				// reported is the one of the lowest address, the same on every run.
+				if firstErr == nil || changes[i].Addr < firstAt {
+					firstErr, firstAt = err, changes[i].Addr
 				}
 			} else {
 				ran[i] = true

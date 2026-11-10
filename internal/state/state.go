@@ -322,11 +322,16 @@ func openBackend(ctx context.Context, b Backend, o Options) (*Store, error) {
 	data, err := b.Get(ctx, "meta.json")
 	switch {
 	case err == nil:
+		// The format is read first and alone: a newer pravo may have changed the shape of
+		// another field, and the answer then is that the state is newer, not a parse error.
+		var head struct {
+			Format int `json:"format"`
+		}
+		if json.Unmarshal(data, &head) == nil && head.Format > MaxFormat {
+			return nil, fmt.Errorf("state at %s was written by a newer pravo (format %d); use the pravo that wrote it, or a newer one: docs/how-to/upgrading.md", b.Name(), head.Format)
+		}
 		if err := json.Unmarshal(data, &s.meta); err != nil {
 			return nil, fmt.Errorf("reading %s/meta.json: %w", b.Name(), err)
-		}
-		if s.meta.Format > MaxFormat {
-			return nil, fmt.Errorf("state at %s was written by a newer pravo (format %d); use the pravo that wrote it, or a newer one: docs/how-to/upgrading.md", b.Name(), s.meta.Format)
 		}
 	case errors.Is(err, ErrNotFound):
 		format := o.NewFormat

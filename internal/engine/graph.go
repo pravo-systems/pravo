@@ -543,13 +543,16 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 		mu       sync.Mutex
 		wg       sync.WaitGroup
 		firstErr error
+		firstAt  string // the address of the task whose error firstErr is
 		done     int
 		closed   bool
 		ready    = make(chan *node, len(nodes))
 		sem      = make(chan struct{}, Parallelism)
 	)
-	for _, n := range nodes {
-		if n.pending == 0 {
+	// The tasks that wait for nothing start in the order of their addresses, not in
+	// the order a map gives them, so that two runs start the same ones first.
+	for _, addr := range slices.Sorted(maps.Keys(nodes)) {
+		if n := nodes[addr]; n.pending == 0 {
 			ready <- n
 		}
 	}
@@ -558,8 +561,13 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 		defer mu.Unlock()
 		done++
 		if err != nil {
-			if firstErr == nil {
-				firstErr = err
+			// Tasks that run side by side fail in whatever order they get there. The error
+			// that is reported is the one of the task with the lowest address, so that two
+			// runs of one specification report the same one. A task that stopped because
+			// another failed says only that, and does not take the place.
+			stopped := errors.Is(err, context.Canceled)
+			if firstErr == nil || (!stopped && (errors.Is(firstErr, context.Canceled) || n.res.Address() < firstAt)) {
+				firstErr, firstAt = err, n.res.Address()
 			}
 			cancel()
 		} else {
