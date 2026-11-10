@@ -31,6 +31,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -912,7 +913,7 @@ func independent(a, b optInfo) bool {
 
 // NoReduce turns the sleep sets off: every order of every pair of steps is played.
 // It is for checking the reduction against the plain search.
-var NoReduce = os.Getenv("DST_NOREDUCE") != ""
+var NoReduce = env.OS().Get("DST_NOREDUCE") != ""
 
 type dfs struct {
 	stack []*frame
@@ -1158,10 +1159,10 @@ func Describe(res Result) string {
 // Full reports whether the searches that take more than a few seconds run: the
 // variable DST_BUDGET is "full" or "big". Without it a test run plays the short
 // ones, which is every scenario at its smallest size.
-func Full() bool { return os.Getenv("DST_BUDGET") == "full" || Big() }
+func Full() bool { return env.OS().Get("DST_BUDGET") == "full" || Big() }
 
 // Big reports whether the bounded searches run with their large limits.
-func Big() bool { return os.Getenv("DST_BUDGET") == "big" }
+func Big() bool { return env.OS().Get("DST_BUDGET") == "big" }
 
 // Budget picks the size of a search by DST_BUDGET: short in a run of the tests,
 // full when it is "full" (the nightly run), big when it is "big" (a search of
@@ -1183,7 +1184,7 @@ func Budget(short, full, big int) int {
 func Publish(t *testing.T, rep Report, knownLimit bool) {
 	t.Helper()
 	t.Logf("DST %s", rep)
-	if dir := os.Getenv("DST_OUT"); dir != "" {
+	if dir := env.OS().Get("DST_OUT"); dir != "" {
 		_ = os.MkdirAll(dir, 0o755)
 		if f, err := os.OpenFile(filepath.Join(dir, "summary.txt"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
 			fmt.Fprintf(f, "%s\n", rep)
