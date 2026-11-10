@@ -824,19 +824,25 @@ $settings: state: {backend: "s3", bucket: "state", prefix: "team/app", region: "
 	waitFor(t, "the collected plan to go", func() bool { return len(p.plans().Plans) == 1 })
 }
 
-// The watcher of a bucket reads only the progress objects of plans, and does not
-// hold its lock while the bucket answers: a request for the revision is not kept
-// waiting by a slow bucket.
+// The watcher of a bucket reads no object of a plan, since the listing of a bucket says
+// which version of each object it holds, and does not hold its lock while the bucket
+// answers: a request for the revision is not kept waiting by a slow bucket.
 func TestWatcherOfABucketDoesNotWaitOnIt(t *testing.T) {
 	f := fakes3.New()
 	var mu sync.Mutex
 	reads := map[string]int{}
+	listings := 0
 	hold := make(chan struct{})
 	var holding atomic.Bool
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, ".progress.json") {
 			mu.Lock()
 			reads[r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]]++
+			mu.Unlock()
+		}
+		if r.Method == http.MethodGet && strings.HasSuffix(strings.TrimSuffix(r.URL.Query().Get("prefix"), "/"), "/plans") {
+			mu.Lock()
+			listings++
 			mu.Unlock()
 			if holding.Load() {
 				<-hold
@@ -851,14 +857,7 @@ func TestWatcherOfABucketDoesNotWaitOnIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	ids := []string{"plan-aaaaaaaa", "plan-bbbbbbbb", "plan-cccccccc"}
-	for _, id := range ids {
-		if _, err := b.PutIfAbsent(ctx, "plans/"+id+".progress.json", []byte("{}")); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// Objects under plans/ that are not the progress of a plan are listed and not read.
-	for _, key := range []string{"plans/other.progress.json", "plans/plan-zz.progress.json", "plans/plan-aaaaaaaa.progress.json.bak"} {
+	for _, key := range []string{"plans/plan-aaaaaaaa.progress.json", "plans/plan-bbbbbbbb.progress.json", "plans/other.progress.json"} {
 		if _, err := b.PutIfAbsent(ctx, key, []byte("{}")); err != nil {
 			t.Fatal(err)
 		}
@@ -867,18 +866,13 @@ func TestWatcherOfABucketDoesNotWaitOnIt(t *testing.T) {
 	w.setState("", b)
 	w.sample()
 	mu.Lock()
-	got := map[string]int{}
-	for k, v := range reads {
-		got[k] = v
+	if len(reads) != 0 {
+		t.Errorf("progress objects read: %v, want none: the listing says what changed", reads)
 	}
+	before := listings
 	mu.Unlock()
-	if len(got) != len(ids) {
-		t.Errorf("progress objects read: %v, want only the %d of plans", got, len(ids))
-	}
-	for _, id := range ids {
-		if got[id+".progress.json"] != 1 {
-			t.Errorf("%s read %d times, want once", id, got[id+".progress.json"])
-		}
+	if before == 0 {
+		t.Fatal("the sample did not list the plans of the bucket")
 	}
 	// The bucket is slow: a request for the revision is answered meanwhile.
 	w.mu.Lock()
@@ -890,7 +884,7 @@ func TestWatcherOfABucketDoesNotWaitOnIt(t *testing.T) {
 	waitFor(t, "the watcher to ask the bucket", func() bool {
 		mu.Lock()
 		defer mu.Unlock()
-		return reads["plan-aaaaaaaa.progress.json"] > 1
+		return listings > before
 	})
 	answered := make(chan struct{})
 	go func() { w.revision(); close(answered) }()

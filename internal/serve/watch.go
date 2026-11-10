@@ -332,6 +332,9 @@ func localPlansSignature(location string) string {
 // are small and which only a plan that something was done with has, are read and
 // digested. The cost of a sample is a listing and a read for each of them.
 func remotePlansSignature(ctx context.Context, b state.Backend) string {
+	if sig, ok := versionsSignature(ctx, b, "plans", 0); ok {
+		return sig
+	}
 	keys, err := b.List(ctx, "plans")
 	if err != nil {
 		return "!"
@@ -362,6 +365,34 @@ func remotePlansSignature(ctx context.Context, b state.Backend) string {
 	return digest(strings.Join(parts, ";"))
 }
 
+// versionsSignature signs the objects under prefix by the listing alone, when the listing of
+// the backend says which version of each object it holds (a bucket does, with the entity
+// tag): an object that was replaced under its key has another version, so none is read. A
+// look at a bucket is then a listing for each directory, however many plans and discoveries
+// the state holds. most bounds the objects that are signed, 0 for all. It reports false for a
+// backend that gives no versions, which is signed by reading.
+func versionsSignature(ctx context.Context, b state.Backend, prefix string, most int) (string, bool) {
+	vl, ok := state.VersionsOf(b)
+	if !ok {
+		return "", false
+	}
+	objs, err := vl.ListVersions(ctx, prefix)
+	if err != nil {
+		return "", false
+	}
+	if most > 0 && len(objs) > most {
+		objs = objs[:most]
+	}
+	parts := make([]string, len(objs))
+	for i, o := range objs {
+		if o.Tag == "" {
+			return "", false
+		}
+		parts[i] = o.Key + "|" + o.Tag
+	}
+	return digest(strings.Join(parts, ";")), true
+}
+
 // progressKeyRe matches the key of the progress object of a plan.
 var progressKeyRe = regexp.MustCompile(`^plans/plan-[0-9a-f]{6,64}\.progress\.json$`)
 
@@ -375,6 +406,10 @@ func remoteStateSignature(b state.Backend) (stateSig, locksSig, plansSig, discov
 	defer cancel()
 	var parts []string
 	for _, prefix := range []string{"resources", "txn"} {
+		if sig, ok := versionsSignature(ctx, b, prefix, 0); ok {
+			parts = append(parts, prefix+"|"+sig)
+			continue
+		}
 		keys, err := b.List(ctx, prefix)
 		if err != nil {
 			parts = append(parts, prefix+"|!")
@@ -410,6 +445,9 @@ const maxDiscoverySigned = 200
 // bucket is looked at every fifth poll, and runs are written when someone runs
 // "pravo discover".
 func remoteDiscoverySignature(ctx context.Context, b state.Backend) string {
+	if sig, ok := versionsSignature(ctx, b, state.DiscoveryRunDir, maxDiscoverySigned); ok {
+		return sig
+	}
 	keys, err := b.List(ctx, state.DiscoveryRunDir)
 	if err != nil {
 		return "!"
