@@ -85,6 +85,10 @@ type statusReport struct {
 	rf, erf               readersFile
 	rstat                 pravo.RolesStatus
 	recoveryFileState     string
+	// keys is the signature of the list of key groups for the JSON document, nil when it
+	// was not looked at. keysInvalid is set when a reader signed another list.
+	keys        map[string]any
+	keysInvalid bool
 
 	txns         []state.Transaction
 	recs         *state.RecordVerdict
@@ -157,6 +161,26 @@ func (r *statusReport) describeReaders() {
 		} else {
 			add("Readers", differsText(added, removed))
 		}
+		r.describeKeys()
+	}
+}
+
+// describeKeys adds the row for the signature of the list of key groups, when no
+// reader of the file vouches for the list.
+func (r *statusReport) describeKeys() {
+	status, signer := r.st.KeysStatus(r.rf.Readers)
+	r.keys = map[string]any{"signature": status.Key()}
+	if signer != "" {
+		r.keys["by"] = safeName(signer)
+	}
+	switch status {
+	case protect.SigUnsigned:
+		r.add("Keys", "the list of keys is not signed by a reader · the next command that writes makes a new data key and signs it")
+	case protect.SigUnknownKey:
+		r.add("Keys", fmt.Sprintf("the list of keys is signed by %s, whose key is not in the readers file · the next command that writes makes a new data key and signs it", safeName(signer)))
+	case protect.SigInvalid:
+		r.keysInvalid = true
+		r.add("Keys", fmt.Sprintf("the signature of %s on the list of keys does not verify: meta.json was changed (pravo protect rewrap)", safeName(signer)))
 	}
 }
 
@@ -329,6 +353,9 @@ func (r *statusReport) emit(rt *runContext) error {
 				doc["recovery"] = map[string]any{"k": r.K, "n": r.N, "key": r.Key.String(), "file": recoveryFileState,
 					"locked": prot.Sealed.Status(nil).Recovery.Locked}
 			}
+			if r.keys != nil {
+				doc["keys"] = r.keys
+			}
 			doc["readers_file"] = map[string]any{"path": rf.shown(), "found": rf.Found, "valid": rf.Found && rf.Err == nil, "matches": rf.Found && rf.Err == nil && len(added) == 0 && len(removed) == 0, "added": added, "removed": removed}
 		}
 		if err := emitJSON(doc); err != nil {
@@ -374,6 +401,9 @@ func (r *statusReport) verdict() error {
 	}
 	if sigs != nil && sigs.Invalid > 0 {
 		return invalidTxns(sigs.Invalid)
+	}
+	if r.keysInvalid {
+		return fmt.Errorf("%w: the signature on the list of keys does not verify", state.ErrUntrusted)
 	}
 	if envProblem != nil {
 		return envProblem

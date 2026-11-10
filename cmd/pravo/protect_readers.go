@@ -273,6 +273,9 @@ func checkReadersFile(rt *runContext, root *config.Root, st *state.Store, write 
 		problem, code = roleProblem(rf, st, pravo.RoleWriter, "change the state")
 	}
 	if problem == "" {
+		problem, code = keysProblem(rf, st, write)
+	}
+	if problem == "" {
 		return nil
 	}
 	if write {
@@ -280,6 +283,47 @@ func checkReadersFile(rt *runContext, root *config.Root, st *state.Store, write 
 	}
 	fmt.Fprintln(os.Stderr, "Warning: "+problem)
 	return nil
+}
+
+// keysProblem looks at the signature of the list of key groups of a sealed state whose
+// readers are those of the file. A lock is a public-key encryption, so whoever can write
+// meta.json can add a group with a key of their choosing; only a reader can sign the list.
+//
+// A list that no reader of the file signed was written by a pravo that predates the
+// signature, by a recovery, or by someone who changed meta.json, and nothing tells them
+// apart. A command that writes does not ask: it replaces the current group by one whose
+// key it makes, signs the list and says so, so that whoever changed the list reads nothing
+// that is written from then on. A signature of a reader that does not verify is refused:
+// the list was changed after that reader signed it.
+func keysProblem(rf readersFile, st *state.Store, write bool) (string, engine.ExitCode) {
+	st.TrustReaders(rf.Readers)
+	status, signer := st.KeysStatus(rf.Readers)
+	switch {
+	case status == protect.SigVerified:
+		return "", 0
+	case status == protect.SigInvalid:
+		return fmt.Sprintf("the list of keys in meta.json carries a signature of %s that does not verify: meta.json was changed after it was signed. Put meta.json back from a version of the bucket, or run pravo protect rewrap, which makes a new data key and signs the list. See pravo protect status.", safeName(signer)), engine.ExitUntrusted
+	case !write || !st.CanSignKeys():
+		return "", 0
+	}
+	group, err := st.AdoptKeys(commandContext(), rf.Readers)
+	if err != nil {
+		return fmt.Sprintf("the list of keys in meta.json has no signature of a reader in %s, and a new data key could not be made: %s. An admin runs pravo protect rewrap.", rf.shown(), printable(err.Error())), engine.ExitRefused
+	}
+	if group != "" {
+		fmt.Fprintln(os.Stderr, keysAdoptedNote(status, signer, group, rf))
+	}
+	return "", 0
+}
+
+// keysAdoptedNote says that a command made a new data key because the list of keys had
+// no signature of a reader.
+func keysAdoptedNote(status protect.SigStatus, signer, group string, rf readersFile) string {
+	why := "had no signature: an earlier pravo sealed the state, the state was recovered with its shares, or meta.json was changed"
+	if status == protect.SigUnknownKey {
+		why = fmt.Sprintf("was signed by %s, whose key is not in %s", safeName(signer), rf.shown())
+	}
+	return fmt.Sprintf("Note: the list of keys in meta.json %s. Made a new data key (group %s) and signed the list, so that nothing is sealed with a key that no reader vouches for. Records are sealed again as they are next written; pravo protect rewrap --all seals them all.", why, group)
 }
 
 func readersInclude(rs []pravo.Reader, id *protect.Identity) bool {

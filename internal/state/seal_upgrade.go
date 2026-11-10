@@ -298,7 +298,7 @@ func (s *Store) beginSeal(o UpgradeOptions) error {
 		by = o.Identity.Name
 	}
 	total := s.Len()
-	err = s.updateMeta(func(m *meta) error {
+	err = s.updateMetaAs(o.Identity, func(m *meta) error {
 		if m.Sealed != nil || m.GroupsUsed != used {
 			return errors.New("another command began to seal the state; run the command again")
 		}
@@ -519,63 +519,18 @@ func (s *Store) Rewrap(ctx context.Context, o RewrapOptions) (RewrapResult, erro
 		}
 	}
 	var (
-		change protect.Change
-		keys   *protect.Keys
+		change   protect.Change
+		keys     *protect.Keys
+		keysWere string
 	)
-	err := s.updateMeta(func(m *meta) error {
+	s.TrustReaders(o.Readers)
+	err := s.updateMeta(func(m *meta) (err error) {
 		if keys != nil {
 			// An earlier attempt of this update, which found meta.json changed.
 			keys.Close()
-			keys = nil
 		}
-		if o.GuardRecovery && !m.Sealed.Recovery.Equal(o.RecoveryWas) {
-			return ErrRecoveryChanged
-		}
-		k, err := m.Sealed.Unlock(m.Lineage, id.Reader)
-		if err != nil {
-			return fmt.Errorf("rewrapping the state: %w", err)
-		}
-		sealed := *m.Sealed
-		sealed.Groups = cloneGroups(sealed.Groups)
-		ch, err := sealed.Rewrap(k, o.Readers)
-		if err != nil {
-			k.Close()
-			return err
-		}
-		recovery := ""
-		switch {
-		case o.Recovery != nil && o.RemoveRecovery:
-			k.Close()
-			return errors.New("set the recovery or remove it, not both")
-		case o.Recovery != nil:
-			if err := sealed.SetRecovery(k, o.Recovery, ch.NewGroup != ""); err != nil {
-				k.Close()
-				return err
-			}
-			recovery = fmt.Sprintf("recovery set %d/%d", o.Recovery.K, o.Recovery.N)
-		case o.RemoveRecovery && sealed.Recovery != nil:
-			if err := sealed.SetRecovery(k, nil, ch.NewGroup != ""); err != nil {
-				k.Close()
-				return err
-			}
-			recovery = "recovery removed"
-		}
-		before, _ := json.Marshal(m.Sealed)
-		after, _ := json.Marshal(&sealed)
-		change = ch
-		if bytes.Equal(before, after) {
-			k.Close()
-			return errNoRewrap
-		}
-		keys = k
-		m.Sealed = &sealed
-		if len(ch.Added)+len(ch.Removed) > 0 || recovery == "" {
-			m.History = appendHistory(m.History, historyMeta{At: time.Now().UTC(), By: by, What: "rewrap", Added: ch.Added, Removed: ch.Removed})
-		}
-		if recovery != "" {
-			m.History = appendHistory(m.History, historyMeta{At: time.Now().UTC(), By: by, What: recovery})
-		}
-		return nil
+		keys, change, keysWere, err = rewrapMeta(m, id, o, by)
+		return err
 	})
 	switch {
 	case errors.Is(err, errNoRewrap):
@@ -592,6 +547,9 @@ func (s *Store) Rewrap(ctx context.Context, o RewrapOptions) (RewrapResult, erro
 		s.mu.Unlock()
 	}
 	res.Change = change
+	if err == nil {
+		res.KeysWere = keysWere
+	}
 	if !o.All {
 		return res, nil
 	}
@@ -607,6 +565,76 @@ func (s *Store) Rewrap(ctx context.Context, o RewrapOptions) (RewrapResult, erro
 		m.History = appendHistory(m.History, historyMeta{At: time.Now().UTC(), By: by, What: "rewrap --all"})
 		return nil
 	})
+}
+
+// rewrapMeta makes the sealed part of m what a rewrap with o asks for, as id: the locks,
+// a new group when a reader left or when no reader signed the list of key groups, and
+// the recovery. It returns the keys of the new sealed part, which the caller closes, and
+// errNoRewrap with no keys when nothing is to change. keysWere says what the signature
+// of the list was when the rewrap made a group because of it.
+func rewrapMeta(m *meta, id *protect.Identity, o RewrapOptions, by string) (keys *protect.Keys, ch protect.Change, keysWere string, err error) {
+	if o.GuardRecovery && !m.Sealed.Recovery.Equal(o.RecoveryWas) {
+		return nil, ch, "", ErrRecoveryChanged
+	}
+	k, err := m.Sealed.Unlock(m.Lineage, id.Reader)
+	if err != nil {
+		return nil, ch, "", fmt.Errorf("rewrapping the state: %w", err)
+	}
+	fail := func(err error) (*protect.Keys, protect.Change, string, error) {
+		k.Close()
+		return nil, ch, "", err
+	}
+	sealed := *m.Sealed
+	sealed.Groups = cloneGroups(sealed.Groups)
+	if ch, err = sealed.Rewrap(k, o.Readers); err != nil {
+		return fail(err)
+	}
+	if o.keysOnly && len(ch.Added)+len(ch.Removed) > 0 {
+		return fail(errNoRewrap)
+	}
+	// A list of key groups that no reader signed gets a new current group, whose key
+	// this process makes, unless the rewrap made one already. An identity that cannot
+	// sign would leave the new list unsigned as well, and makes none.
+	if st, _ := m.Sealed.KeysStatus(o.Readers, m.Lineage); st != protect.SigVerified && id.CanSign() {
+		sealed.Commit(k)
+		if ch.NewGroup == "" {
+			if ch.NewGroup, err = sealed.Rotate(k); err != nil {
+				return fail(err)
+			}
+		}
+		keysWere = st.Key()
+	}
+	recovery := ""
+	switch {
+	case o.Recovery != nil && o.RemoveRecovery:
+		return fail(errors.New("set the recovery or remove it, not both"))
+	case o.Recovery != nil:
+		if err := sealed.SetRecovery(k, o.Recovery, ch.NewGroup != ""); err != nil {
+			return fail(err)
+		}
+		recovery = fmt.Sprintf("recovery set %d/%d", o.Recovery.K, o.Recovery.N)
+	case o.RemoveRecovery && sealed.Recovery != nil:
+		if err := sealed.SetRecovery(k, nil, ch.NewGroup != ""); err != nil {
+			return fail(err)
+		}
+		recovery = "recovery removed"
+	}
+	before, _ := json.Marshal(m.Sealed)
+	after, _ := json.Marshal(&sealed)
+	if bytes.Equal(before, after) {
+		return fail(errNoRewrap)
+	}
+	m.Sealed = &sealed
+	switch {
+	case o.keysOnly:
+		m.History = appendHistory(m.History, historyMeta{At: time.Now().UTC(), By: by, What: "new key: the list of keys had no signature of a reader"})
+	case len(ch.Added)+len(ch.Removed) > 0 || recovery == "":
+		m.History = appendHistory(m.History, historyMeta{At: time.Now().UTC(), By: by, What: "rewrap", Added: ch.Added, Removed: ch.Removed})
+	}
+	if recovery != "" {
+		m.History = appendHistory(m.History, historyMeta{At: time.Now().UTC(), By: by, What: recovery})
+	}
+	return k, ch, keysWere, nil
 }
 
 // ErrRecoveryChanged says that another command changed the recovery recipient of the

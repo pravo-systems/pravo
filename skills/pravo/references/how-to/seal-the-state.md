@@ -436,7 +436,7 @@ The recovery key was rebuilt on this machine. Replace it: pravo protect rewrap -
 
 Fay is the reader now, and the old readers are not. If the state holds roles, recovery also stores them again with Fay's key as an admin and replaces the `roles-genesis` line of the readers file: give Fay's line `role:admin` before you run it, and commit the file afterwards. [Roles](../reference/roles.md) says what it stores. The key was rebuilt on one machine, so it has been seen in one place: replace it, which makes a new key and three new shares, and the old shares open nothing that is written afterwards.
 
-`rewrap` asks before it replaces or removes a recovery, because the shares that were given out stop working for new records. `--yes` answers the question, as it does for `init`.
+`rewrap` asks before it replaces or removes a recovery, because the shares that were given out stop working for new records. `--yes` answers the question, as it does for `init`. The recovery key is no reader and signs nothing, so the list of data keys that the recovery left carries no signature of a reader. The first command of a reader that writes gives the state a data key of its own making and signs the list, which is the two extra lines below: here that command is Fay's `rewrap`.
 
 ```sh
 rm -r recovery-shares
@@ -448,6 +448,8 @@ Output:
 ```text
 The recovery key will be replaced (2 of 3 shares, key x25519:<key>…). The shares that were given out open nothing that is written from now on.
 Readers in .pravo/access/readers.txt: fay
+The list of keys in meta.json had no signature of a reader in .pravo/access/readers.txt. It has yours now, over a data key that this command made.
+New data keys for 1 reader group. Records are sealed again as they are next written.
 meta.json updated
 
 Recovery: 3 shares written (any 2 rebuild the recovery key):

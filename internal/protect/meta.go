@@ -17,6 +17,10 @@ type Meta struct {
 	Readers string  `json:"readers"` // SetID of the reader list the locks were made from
 	// Recovery is the recovery recipient: every group has a lock for its key.
 	Recovery *Recovery `json:"recovery,omitempty"`
+	// Signed is the signature of a reader over the list of the groups and the
+	// commitment of each to its data key (see keys.go). Nobody can make it for a
+	// data key of their choosing without the signing key of a reader.
+	Signed *Signature `json:"signed,omitempty"`
 }
 
 // ErrDamaged means the sealed part of meta.json cannot be what a pravo wrote: it
@@ -146,17 +150,43 @@ func (m *Meta) Rewrap(k *Keys, readers []Reader) (Change, error) {
 		}
 	}
 	if len(extra) > 0 {
-		id := "g" + strconv.Itoa(m.nextGroupNumber())
-		g, dk, err := NewGroup(id, k.lineage, recipients)
+		id, err := m.newGroup(k, recipients)
 		if err != nil {
 			return ch, err
 		}
-		m.Groups = append(m.Groups, g)
-		m.Current, k.current, k.keys[id] = id, id, dk
 		ch.NewGroup = id
 	}
 	m.Readers = SetID(readers)
 	return ch, nil
+}
+
+// newGroup makes a group with a new data key for the readers and makes it the
+// current one.
+func (m *Meta) newGroup(k *Keys, readers []Reader) (string, error) {
+	id := "g" + strconv.Itoa(m.nextGroupNumber())
+	g, dk, err := NewGroup(id, k.lineage, readers)
+	if err != nil {
+		return "", err
+	}
+	m.Groups = append(m.Groups, g)
+	m.Current, k.current, k.keys[id] = id, id, dk
+	return id, nil
+}
+
+// Rotate replaces the current group by a new one with a new data key, locked for
+// those who have a lock in the current group. It is what a reader does with a list
+// of keys that no reader vouches for: whatever key the current group holds, what
+// is written from now on is sealed with one that this reader made.
+func (m *Meta) Rotate(k *Keys) (string, error) {
+	cur := m.group(m.Current)
+	if cur == nil {
+		return "", errors.New("protect: current group is missing")
+	}
+	rs := make([]Reader, 0, len(cur.Locks))
+	for _, l := range cur.Locks {
+		rs = append(rs, Reader{Name: l.Name, Key: l.Key})
+	}
+	return m.newGroup(k, rs)
 }
 
 // Prune drops groups, other than the current one, that inUse reports as unused.
@@ -230,6 +260,17 @@ func (m *Meta) Status(readers []Reader) Status {
 
 // Current is the group new writes are sealed in.
 func (k *Keys) Current() string { return k.current }
+
+// SealIn makes group the one that new writes are sealed in, and reports whether the
+// keys hold it. A store uses it to go on sealing in the group it trusts when the list
+// of groups changed under it and no reader vouches for the new one.
+func (k *Keys) SealIn(group string) bool {
+	if _, ok := k.keys[group]; !ok {
+		return false
+	}
+	k.current = group
+	return true
+}
 
 // Seal seals in the current group; c.Group is set for the caller.
 func (k *Keys) Seal(c Ctx, plaintext []byte) Sealed {

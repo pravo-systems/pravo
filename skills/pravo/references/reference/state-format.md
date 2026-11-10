@@ -235,11 +235,13 @@ Format 3 is the layout of format 2 with room for a seal. A state is sealed when 
         "alg": "hpke-x25519-aes256gcm",
         "locks": [
           {"name": "ada", "key": "x25519:7Hc3Kp...", "box": "..."}
-        ]
+        ],
+        "commit": "..."
       }
     ],
     "readers": "...",
-    "recovery": {"key": "x25519:Q9mT2w...", "k": 2, "n": 3}
+    "recovery": {"key": "x25519:Q9mT2w...", "k": 2, "n": 3},
+    "signed": {"signer": "ada", "key": "SHA256:...", "sig": "..."}
   },
   "migration": {"to": 3, "started": "2026-01-01T00:00:00Z", "by": "ada", "done": 1204, "total": 2001},
   "groups_used": 2,
@@ -253,13 +255,15 @@ Format 3 is the layout of format 2 with room for a seal. A state is sealed when 
 |---|---|
 | `sealed.current` | The group that new writes are sealed in. |
 | `sealed.groups` | The reader groups, oldest first. A group is one random 256-bit data key, and a lock for each reader: the data key encrypted to the reader key (HPKE: DHKEM X25519, HKDF-SHA256, AES-256-GCM), 80 bytes in base64. The lock is bound to the lineage and the group. |
+| `sealed.groups[].commit` | The commitment of the group to its data key: a keyed hash (HMAC-SHA256 under a key derived from the data key, over the lineage and the id of the group) that only the data key gives and that says nothing of it. A lock that holds another key does not open. A group made by a Pravo from before commitments has none until a reader gives the state a new key. |
 | `sealed.readers` | A digest of the reader list that the locks were made from. |
+| `sealed.signed` | The signature of a reader over the list of groups: the algorithm, the current group, and the id, the algorithm and the commitment of each group, with the lineage. It covers no lock. The reader who seals the state signs, and so does whoever makes a new group. A change that drops a group is signed when a reader of the readers file signed the list before it, and an identity that cannot sign, such as the key of a recovery, leaves the list without a signature. [Signatures and roles](../concepts/signatures-and-roles.md#what-it-does-not-do) says what a command does with a list that no reader signed. |
 | `sealed.recovery` | Present when the state has a recovery recipient: its public key and the threshold, K shares of N. It holds no secret. Every group carries a lock named `recovery` for the key, with a `check` field next to `box`: a keyed hash of the lock under the data key of the group, which lets a reader see that the box was not changed. The recovery key is not a reader of the readers file and is not counted with the readers. The name `recovery` is reserved. The shares of the private key are not in the state: they are files, one for each holder. [The recovery recipient](protect.md#the-recovery-recipient) describes them. |
 | `migration` | Present while a seal has begun and has not finished, or an unseal has: the number of records done so far, which is a note and not a count that anything relies on. An unseal adds `"unseal": true`. |
 | `groups_used` | Written by an unseal: the highest number a group of the state ever had. A state that is sealed again numbers its groups from there. |
-| `history` | The last 50 changes of the seal: `sealed`, `rewrap`, `rewrap --all`, `recover`, `unsealed` and `gc`, with the names added and removed. `gc` records that groups were dropped, and names none. A change of the recovery is recorded as `recovery set 2/3` or `recovery removed`. `by` is the name of the identity on the machine that made the change. It is a label and not a proof. |
+| `history` | The last 50 changes of the seal: `sealed`, `rewrap`, `rewrap --all`, `recover`, `unsealed`, `gc` and `new key: the list of keys had no signature of a reader`, with the names added and removed. `gc` records that groups were dropped, and names none. A change of the recovery is recorded as `recovery set 2/3` or `recovery removed`. `by` is the name of the identity on the machine that made the change. It is a label and not a proof. |
 
-`meta.json` is not signed. A writer of the bucket who edits it to a lower format is noticed by the writers that have the repository: when `.pravo/access/readers.txt` exists and the state is not sealed, or does not exist yet, a command that writes refuses with exit code 5 and a command that reads warns. A writer without the repository does not notice. [Signatures and roles](../concepts/signatures-and-roles.md) says more.
+Of `meta.json`, only the list of groups under `sealed` is signed. A writer of the bucket who edits it to a lower format is noticed by the writers that have the repository: when `.pravo/access/readers.txt` exists and the state is not sealed, or does not exist yet, a command that writes refuses with exit code 5 and a command that reads warns. A writer without the repository does not notice. [Signatures and roles](../concepts/signatures-and-roles.md) says more.
 
 The public key and the threshold of the recovery recipient are also kept in the repository, in `.pravo/access/recovery.txt`, one line `x25519:KEY K/N`, and a writer compares it with `sealed.recovery` as it compares the readers file. A share file is one line, `pravo-share-1 KEYID INDEX K/N SHARE CHECK`, with the share in base64url and a short check that catches a mistyped line.
 

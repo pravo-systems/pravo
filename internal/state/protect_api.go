@@ -319,6 +319,9 @@ type RewrapOptions struct {
 	// current group, as Upgrade's does, and returns how many it sealed and how
 	// many it left because an apply holds a claim on them.
 	Plans func(ctx context.Context) (sealed, skipped int, err error)
+	// keysOnly makes the rewrap change nothing but the list of key groups: it stops when
+	// the readers are not the readers of the state (see Store.AdoptKeys).
+	keysOnly bool
 }
 
 // RewrapResult says what a rewrap did. Change is empty when the store already
@@ -330,6 +333,10 @@ type RewrapResult struct {
 	// ones left as they were because an apply holds a claim on them. They are
 	// zero unless All is set and Plans is.
 	PlansSealed, PlansSkipped int
+	// KeysWere is set when the list of key groups had no signature of a reader, and the
+	// rewrap made a new group for that reason and signed the list: "unsigned",
+	// "key_not_in_file" or "invalid" (protect.SigStatus.Key).
+	KeysWere string
 }
 
 // VerifyResult is what VerifyAll found.
