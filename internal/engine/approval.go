@@ -132,11 +132,27 @@ func (ps *PlanStore) Approve(ctx context.Context, id string) (*PlanSignature, er
 			return nil, fmt.Errorf("approving the plan: %w", err)
 		}
 		var old PlanSignature
-		if json.Unmarshal(cur, &old) == nil && old.Signature != nil && old.Signature.Key == sig.Key && !bytes.Equal(cur, enc) {
+		if json.Unmarshal(cur, &old) == nil && old.Signature != nil && old.Signature.Key == sig.Key && ps.isMine(old, digest) {
+			if bytes.Equal(cur, enc) {
+				return obj, nil
+			}
 			return &old, nil // approved before; the first approval stays
+		}
+		// What is stored under this key is not an approval that it made: a file put there
+		// would keep this key from approving the plan, with a success to say it had.
+		if err := ps.B.Put(ctx, key, enc); err != nil {
+			return nil, fmt.Errorf("approving the plan: %w", state.Advise(err))
 		}
 	}
 	return obj, nil
+}
+
+// isMine reports whether old is the approval that this identity made of the plan with
+// this digest at the time it names. A signature of ed25519 is the same every time it is
+// made, so the identity signs it again and the two are compared.
+func (ps *PlanStore) isMine(old PlanSignature, digest string) bool {
+	again, ok, err := ps.st.SignMessage(protect.DomainPlanApproval, planSigParts(digest, old.At)...)
+	return err == nil && ok && again.Key == old.Signature.Key && bytes.Equal(again.Sig, old.Signature.Sig)
 }
 
 // Approvals reads and checks the approvals of a stored plan against the readers. The

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -183,5 +185,54 @@ func TestChangingAPolicyThatAsksForApprovalsNeedsAnAdmin(t *testing.T) {
 	}
 	if text, code := runPravo(t, rt, r.dir, "--identity", "ada", "apply", id, "--auto-approve"); code != 0 {
 		t.Fatalf("an approved apply: exit %d\n%s", code, text)
+	}
+}
+
+// An object that someone put where an approval goes keeps that key from approving no
+// longer: the approval replaces it.
+func TestAPlantedApprovalDoesNotBlockTheKey(t *testing.T) {
+	rt := &runContext{}
+
+	rule := "{summary: add: 0} | {summary: add: >0, approvals: {min: 1, role: \"admin\"}}"
+	r := newPolicyRoot(t, rt, map[string]string{"ok_first": rule})
+	if text, code := r.apply(t, rt); code != 0 {
+		t.Fatalf("storing the policy: exit %d\n%s", code, text)
+	}
+	_, dan := person(t, r.ids, "dan")
+	ada := r.ada.AsReader().String()
+	access := filepath.Join(r.dir, ".pravo", "access")
+	writeReaders(t, access, ada, dan)
+	if text, code := runPravo(t, rt, r.dir, "protect", "rewrap", "--yes"); code != 0 {
+		t.Fatalf("rewrap: exit %d\n%s", code, text)
+	}
+	writeReaders(t, access, ada+" role:writer", dan+" role:admin")
+	r.declare(t, map[string]string{"ok_first": rule}, "a")
+	text, code := runPravo(t, rt, r.dir, "--identity", "ada", "plan", "--store")
+	id := regexp.MustCompile(`plan-[0-9a-f]+`).FindString(text)
+	if code != 0 || id == "" {
+		t.Fatalf("plan --store: exit %d\n%s", code, text)
+	}
+	if text, code := runPravo(t, rt, r.dir, "--identity", "dan", "plan", "approve", id); code != 0 {
+		t.Fatalf("dan approves: exit %d\n%s", code, text)
+	}
+	// Put garbage where dan's approval is.
+	var planted string
+	_ = filepath.WalkDir(filepath.Join(r.dir, "pravo.state"), func(path string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && strings.Contains(filepath.Base(path), ".ok-") && strings.Contains(path, id) {
+			planted = path
+		}
+		return nil
+	})
+	if planted == "" {
+		t.Fatal("no approval object found")
+	}
+	if err := os.WriteFile(planted, []byte("not an approval"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if text, code := runPravo(t, rt, r.dir, "--identity", "dan", "plan", "approve", id); code != 0 {
+		t.Fatalf("dan approves again: exit %d\n%s", code, text)
+	}
+	if text, code := runPravo(t, rt, r.dir, "--identity", "ada", "apply", id, "--auto-approve"); code != 0 {
+		t.Fatalf("an apply after the planted object: exit %d\n%s", code, text)
 	}
 }
