@@ -24,7 +24,7 @@ internal/engine/providers.go Providers.Resolve 129
 internal/schema/cue.go GenerateCUE 147
 internal/serve/detail.go model.detailFor 131
 internal/serve/model.go Server.newModel 147
-internal/serve/plan.go Server.overlay 128
+internal/serve/plan.go Server.overlay 113
 internal/serve/policies.go model.buildPolicies 109
 internal/serve/secrets.go model.buildSecrets 118
 internal/serve/server.go Server.api 102
@@ -38,4 +38,3 @@ internal/state/seal_upgrade.go Store.upgradeSealed 110
 internal/telemetry/telemetry.go Setup 118
 internal/tfstate/tfstate.go Convert 116
 internal/ui/ui.go Printer.RenderPlan 117
-pravo/stored.go Workspace.ApplyStored 101
