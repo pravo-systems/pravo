@@ -37,3 +37,32 @@ second: #Server & {#from: base.id}
 		t.Errorf("a plan after the apply exited %d:\n%s", code, text)
 	}
 }
+
+// eval shows a value that the specification gives differently than the state
+// records, and fails for a specification that does not evaluate.
+func TestEvalConflictIsAnError(t *testing.T) {
+	rt := &runContext{}
+
+	newDemoProvider(t)
+	dir := demoEstate(t, rt, `
+base: $demo.#Resource.demo_server & {name: "base"}
+second: $demo.#Resource.demo_server & {name: "second", size: "\(base.id)-x"}
+`)
+	if text, code := runPravo(t, rt, dir, "apply", "-auto-approve"); code != 0 {
+		t.Fatalf("apply exited %d:\n%s", code, text)
+	}
+	mustWrite(t, dir, "main.cue", strings.Replace(readFile(t, dir, "main.cue"), `-x"`, `-y"`, 1))
+	text, code := runPravo(t, rt, dir, "eval", "-e", "second.size")
+	if code != 0 {
+		t.Fatalf("eval of a changed expression exited %d:\n%s", code, text)
+	}
+	contains(t, text, `"srv-base-y"`)
+	lacks(t, text, "_|_")
+
+	mustWrite(t, dir, "broken.cue", "package estate\n\nbroken: 1 & 2\n")
+	text, code = runPravo(t, rt, dir, "eval")
+	if code == 0 {
+		t.Errorf("eval of a conflict exited 0:\n%s", text)
+	}
+	contains(t, text, "conflicting values")
+}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -587,6 +588,10 @@ func (e *Engine) dependsOnPendingChange(addr string) bool {
 // from the prior one. A path the provider lists but leaves as it was does not
 // force a replacement; an unknown planned value counts as different.
 func changedPaths(prior, planned tftypes.Value, paths []*tftypes.AttributePath) []*tftypes.AttributePath {
+	// A provider lists the paths in the order its map gave them, which changes
+	// from one run to the next; two plans of one specification list them alike.
+	paths = append([]*tftypes.AttributePath(nil), paths...)
+	sort.SliceStable(paths, func(i, j int) bool { return paths[i].String() < paths[j].String() })
 	if prior.IsNull() {
 		return paths
 	}

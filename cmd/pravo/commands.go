@@ -1522,7 +1522,7 @@ that declares none, so it also serves to try out CUE.
 					fills = append(fills, convert.PathFill{Path: r.Path, Value: fill})
 				}
 			}
-			v = convert.FillAll(v, fills)
+			v = fillRecorded(v, fills)
 			if raw {
 				// A path names the value itself, so that its syntax is the
 				// author's; a compiled expression would be a reference to it.
@@ -1540,6 +1540,13 @@ that declares none, so it also serves to try out CUE.
 			if concrete {
 				if err := v.Validate(cue.Concrete(true)); err != nil {
 					return fmt.Errorf("the value is not concrete:\n%s", cueerrors.Details(err, nil))
+				}
+			}
+			// A conflict is an error, as in cue eval: printing it and exiting 0 let a
+			// script take a specification that cannot be evaluated for one that can.
+			if !raw {
+				if err := v.Validate(); err != nil {
+					return fmt.Errorf("the specification does not evaluate:\n%s", cueerrors.Details(err, nil))
 				}
 			}
 			opts := []cue.Option{cue.Final(), cue.Definitions(true), cue.Hidden(false), cue.Optional(optional), cue.Docs(false), cue.Attributes(false)}
@@ -1575,6 +1582,41 @@ that declares none, so it also serves to try out CUE.
 	cmd.Flags().BoolVar(&raw, "raw", false, "print the value as written, before comprehensions are evaluated: a policy rule as a file for cue vet")
 	addTagFlags(rt, cmd)
 	return cmd
+}
+
+// fillRecorded unifies the recorded values of the resources into v. A value that
+// the specification no longer gives, because the expression for it was changed
+// since the apply, conflicts with what is recorded; the specification is what
+// eval shows, so that recorded value is left out and the rest is kept.
+func fillRecorded(v cue.Value, fills []convert.PathFill) cue.Value {
+	all := convert.FillAll(v, fills)
+	if all.Validate() == nil {
+		return all
+	}
+	cur := v
+	for _, f := range fills {
+		next := convert.FillAll(cur, []convert.PathFill{f})
+		if next.Validate() == nil {
+			cur = next
+			continue
+		}
+		attrs, ok := f.Value.(map[string]any)
+		if !ok {
+			continue
+		}
+		keys := make([]string, 0, len(attrs))
+		for k := range attrs {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			one := convert.FillAll(cur, []convert.PathFill{{Path: f.Path, Value: map[string]any{k: attrs[k]}}})
+			if one.Validate() == nil {
+				cur = one
+			}
+		}
+	}
+	return cur
 }
 
 func fmtCmd() *cobra.Command {
