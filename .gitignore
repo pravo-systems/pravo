@@ -5,6 +5,7 @@
 /capture
 /sitegen
 /fakeoci
+/fakeprovider
 /fakes3
 /protogen
 /tools/capture/capture
