@@ -102,7 +102,7 @@ Output:
 +0.000s debug loaded dir=./app managed=1 data=0 ephemeral=0 calls=0 outputs=0 providers=1 moves=0 imports=0 took=<time>
 +0.000s debug state opened backend=local location=./app/pravo.state nodes=0 took=<time>
 +0.000s debug plan refresh=age full=false destroy=false tasks=1
-+0.000s debug graph built tasks=1 took=<time>
++0.000s debug graph built tasks=1 evaluator=true loops by element=0 loops unconfirmed=0 took=<time>
 +0.000s debug task addr=base phase=plan outcome=ok took=<time> action=create why="not in the state: a new resource"
 ```
 
@@ -261,6 +261,7 @@ Copying a recording, or keeping it in version control, does not keep the modes. 
 | `PRAVO_LOG` | `trace`, `debug`, `info`, `warn` or `error`. See [The debug log](#the-debug-log). |
 | `PRAVO_PARALLELISM` | How many resources a command plans, applies or reads at once, from 1 to 256. Default 10. A value outside that range is an error. |
 | `PRAVO_DEPENDENCIES` | `syntax` reads the dependencies between resources from the syntax of the specification alone. Unset, or `evaluator`, also reads CUE's evaluator, which knows the element that a loop over a collection of resources reads. See [Loops over a collection](../concepts/how-pravo-works.md#loops-over-a-collection). Any other value is an error. |
+| `PRAVO_PLAN` | `full` makes a plan evaluate the configuration of every resource. Unset, or `memo`, lets a plan skip the evaluation for a resource whose configuration is made from what the last plan on this machine saw. `check` does both and fails when they differ. See [What a plan remembers](../concepts/how-pravo-works.md#what-a-plan-remembers). Any other value is an error. |
 | `PRAVO_NO_PRUNE` | When set, the generated provider packages are loaded whole. A run loads them without the types that the specification does not use. See [Providers](../concepts/providers.md#the-generated-package). |
 | `PRAVO_S3_PROBE` | `off` skips the check that an S3 store honours conditional requests. See [S3-compatible stores](s3-stores.md). |
 | `PRAVO_ACTOR`, `PRAVO_REASON` | The values of `--actor` and `--reason` when the flags are absent. |

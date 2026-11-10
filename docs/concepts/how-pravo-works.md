@@ -143,6 +143,18 @@ This stage writes only records that it refreshed, moved or imported, and the mar
 
 The plan can leave the terminal. `plan --out` saves it to a file, and `plan --store` writes it into the state, where a colleague or a job finds it by its id and applies exactly those actions. [Stored plans and approvals](stored-plans-and-approvals.md) follows it from there.
 
+#### What a plan remembers
+
+Converting a body means evaluating it, and with thousands of resources that evaluation is most of the time of a plan in which little changed. A plan remembers the bodies it converted. For each resource it keeps one digest in a file on the machine that planned: of the body as it is written, of the values that the body reads from other resources, of the provider and the version of its schema, and of what the conversion came to. The next plan works the digest out again, which does not take evaluating the body. When the digest is the same and the record in the state holds what the conversion came to, the resource is unchanged, and the plan skips it as it skips every unchanged resource. In any other case the plan converts the body.
+
+The file says "unchanged since the plan that wrote this" and nothing else. It holds no value and it decides nothing about reading: a record is read when its refresh age has run out or when it carries a mark, and `--replace` and `--full` plan a resource whatever the file says. A plan on another machine, or after the file is deleted, converts every body once and is the same plan.
+
+The file answers for a body that reads other resources through plain references and in no other way: `subnet_id: subnet.id`, or a field of the variable of a loop that reads its own element. A body that builds a value from another resource, with an interpolation, a call, a condition or a comprehension, is converted by every plan. So is a resource that reads a secret or an ephemeral resource. The value of an environment variable, the outputs of another root and the result of a function call are read by every plan and are part of the digest of what reads them, and so is what a data source returned.
+
+The file is kept in the cache directory of the user, under `pravo/plan-memo`, one for each root and environment. Its digests are made with a key that is kept apart from it, `plan-memo.key` in the [configuration directory](../reference/global-flags.md#environment-variables), so the file alone does not let anyone test a guess of a value against it.
+
+`PRAVO_PLAN=full` plans without the file. `PRAVO_PLAN=check` plans with it, converts every body it answered for as well, and fails when the two differ.
+
 ### 5. Judge
 
 A policy is a `pravo.#Policy` node of the specification. The first apply that carries it writes it to the state as a signed version. For every plan that changes a resource, pravo unifies the rule of each version in force with the plan document. A plan that violates a policy ends the run with exit code 5. `apply` judges under the locks, before the transaction starts, and the signed start of the transaction lists the versions that judged. `plan` judges the same way, for feedback. A policy can also let a plan through on the condition that other people approve it, which only a stored plan can collect: the apply waits with exit code 5 until enough keys have approved.
@@ -278,7 +290,7 @@ pravo -v apply -auto-approve 2>&1 \
 loaded managed=2 data=0 ephemeral=0 calls=0 outputs=0 providers=2 moves=0 imports=0
 state opened backend=local nodes=0
 plan refresh=age full=false destroy=false tasks=2
-graph built tasks=2
+graph built tasks=2 evaluator=true loops by element=0 loops unconfirmed=0
 provider started provider=random version=<v>
 task addr=port phase=plan outcome=ok action=create
 provider started provider=local version=<v>
@@ -315,7 +327,7 @@ pravo -v plan 2>&1 \
 loaded managed=2 data=0 ephemeral=0 calls=0 outputs=0 providers=2 moves=0 imports=0
 state opened backend=local nodes=2
 plan refresh=age full=false destroy=false tasks=2
-graph built tasks=2
+graph built tasks=2 evaluator=true loops by element=0 loops unconfirmed=0
 task addr=port phase=plan outcome=ok action=no-op skipped=true unread=true
 task addr=web phase=plan outcome=ok action=no-op skipped=true unread=true
 No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.

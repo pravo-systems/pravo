@@ -49,6 +49,7 @@ func TestMain(m *testing.M) {
 		fmt.Printf("graph audit: %d graphs, %d tasks, %d edges (%d from the syntax alone, %d only from the evaluator), %d loops read by element, %d unconfirmed, %d probes\n",
 			audit.graphs, audit.tasks, audit.edges, audit.fromSyntax, audit.evaluatorOnly, audit.byElement, audit.unconfirmed, audit.probes)
 	}
+	code = memoAuditReport(code)
 	if len(audit.failures) > 0 {
 		shown := audit.failures
 		if len(shown) > 20 {

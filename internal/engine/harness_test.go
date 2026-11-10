@@ -785,6 +785,9 @@ type harness struct {
 	fake  *fakeProvider
 	// backend counts the calls that the state makes to its backend.
 	backend *statetest.Counting
+	// noMemo makes the engines of the harness plan without a memo; any other
+	// harness keeps one next to its state, as a command does (memo.go).
+	noMemo bool
 }
 
 func newHarness(t *testing.T) *harness { return newHarnessOver(t, nil) }
@@ -916,6 +919,9 @@ func (h *harness) engine(s spec, opts Options) *Engine {
 	}
 	if opts.Progress == nil {
 		opts.Progress = func(string, ...any) {}
+	}
+	if opts.Memo == nil && !h.noMemo {
+		opts.Memo = &PlanMemo{Path: filepath.Join(h.dir, "plan.memo"), Key: []byte("the key of the memo of the tests")}
 	}
 	return New(root, h.state, provs, map[string]*schema.ProviderSchema{"fake": fakeSchema()}, v, opts)
 }

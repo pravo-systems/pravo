@@ -168,6 +168,19 @@ func (e *Engine) planResource(ctx context.Context, r *config.Resource, v cue.Val
 	return e.planManaged(ctx, p)
 }
 
+// planFacts is what a plan needs of the configuration of a resource to tell
+// whether anything the provider saw has changed: the digest of the configuration
+// and what $lifecycle and $labels say. A plan gets it from the conversion of the
+// configuration, or from the memo of a conversion that had the same inputs
+// (memo.go).
+type planFacts struct {
+	hash         string
+	labels       map[string]string
+	cbd, prevent bool
+	ignore       []string
+	age          string
+}
+
 // startPlan converts the configuration of a resource, looks up its record and
 // decides whether anything the provider saw has changed.
 func (e *Engine) startPlan(r *config.Resource, v cue.Value, strict bool) (*resourcePlan, error) {
@@ -182,19 +195,36 @@ func (e *Engine) startPlan(r *config.Resource, v cue.Value, strict bool) (*resou
 	e.lockCUE(e.traceCtx())
 	conv := &convert.Converter{Strict: strict, Self: r.Path, Resolve: e.resolver(), IsEphemeral: e.ephemeralCheck()}
 	cfg := conv.Block(addr, s.Block, v)
-	cbd, prevent, ignore, age := lifecycle(v)
-	labels := labelsOf(v)
+	var f planFacts
+	f.cbd, f.prevent, f.ignore, f.age = lifecycle(v)
+	f.labels = labelsOf(v)
 	e.cueMu.Unlock()
 	if err := conv.Err(); err != nil {
 		return nil, err
 	}
-	if _, _, err := ParseAge(age); err != nil {
+	if _, _, err := ParseAge(f.age); err != nil {
 		return nil, fmt.Errorf("%s: $lifecycle.refresh: %w", addr, err)
 	}
-	ch := &Change{Addr: addr, Mode: r.Mode, Type: r.Type, Name: r.Name, ProviderKey: r.ProviderKey, Schema: s, Config: cfg, Deps: e.deps[addr]}
-	ch.ConfigHash = e.recordedHash(s.Block, cfg)
-	ch.CreateBeforeDestroy, ch.PreventDestroy = cbd, prevent
-	ch.Labels = labels
+	f.hash = e.recordedHash(s.Block, cfg)
+	p := e.planOf(r, s, f, strict)
+	p.conv, p.cfg, p.ch.Config = conv, cfg, cfg
+	if !strict {
+		if err := e.memoAgainst(addr, f); err != nil {
+			return nil, err
+		}
+		e.memoStore(r, p, v)
+	}
+	return p, nil
+}
+
+// planOf starts the plan of a resource whose configuration has the facts f: it
+// looks up the record and decides whether anything the provider saw has changed.
+func (e *Engine) planOf(r *config.Resource, s *schema.Schema, f planFacts, strict bool) *resourcePlan {
+	addr := r.Address()
+	ch := &Change{Addr: addr, Mode: r.Mode, Type: r.Type, Name: r.Name, ProviderKey: r.ProviderKey, Schema: s, Deps: e.deps[addr]}
+	ch.ConfigHash = f.hash
+	ch.CreateBeforeDestroy, ch.PreventDestroy = f.cbd, f.prevent
+	ch.Labels = f.labels
 	sr := e.State.Get(addr)
 	if sr != nil {
 		ch.PriorLabels = sr.Labels
@@ -202,11 +232,11 @@ func (e *Engine) startPlan(r *config.Resource, v cue.Value, strict bool) (*resou
 	tainted := sr != nil && r.Mode == "managed" && sr.Tainted
 	forced := tainted || (sr != nil && r.Mode == "managed" && e.replaceRequested(addr))
 	return &resourcePlan{
-		r: r, s: s, conv: conv, ch: ch, sr: sr, cfg: cfg, age: age, ignore: ignore, strict: strict, forced: forced,
+		r: r, s: s, ch: ch, sr: sr, age: f.age, ignore: f.ignore, strict: strict, forced: forced,
 		// A node that a read left a mark on is planned until an apply writes it.
 		unchanged: sr != nil && !forced && !sr.Marked() && !e.Opts.Full && ch.ConfigHash != "" && ch.ConfigHash == sr.ConfigHash &&
 			sr.SchemaVersion == s.Version && sr.ProviderVersion == e.providerVersion(r.ProviderKey) && sr.ProviderKey == r.ProviderKey && sr.PreventDestroy == ch.PreventDestroy && maps.Equal(sr.Labels, ch.Labels),
-	}, nil
+	}
 }
 
 // explainChange adds to the change the reasons the resource is planned, from

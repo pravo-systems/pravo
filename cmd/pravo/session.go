@@ -161,6 +161,9 @@ func (s *session) close() {
 func (s *session) engine(rt *runContext, opts engine.Options) *engine.Engine {
 	opts.Actor, opts.Reason = rt.flags.Actor, rt.flags.Reason
 	s.readersInto(rt, &opts)
+	if opts.Memo == nil {
+		opts.Memo = planMemo(environment(), s.root)
+	}
 	if rt.flags.JSON && streamEvents && opts.Event == nil {
 		// Only commands that change things stream events; plan-like
 		// commands print a single document.

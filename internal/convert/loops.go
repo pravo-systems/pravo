@@ -1,6 +1,7 @@
 package convert
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
@@ -119,7 +120,7 @@ func NewLoops(root cue.Value, resolve Resolver) (l *Loops, err error) {
 	})
 	tasks := c.Tasks()
 	if len(tasks) == 0 {
-		return nil, fmt.Errorf("the evaluator's dependency graph has no task")
+		return nil, errors.New("the evaluator's dependency graph has no task")
 	}
 	l = &Loops{
 		resolve: resolve, reads: make(map[string][]cue.Path, len(tasks)),

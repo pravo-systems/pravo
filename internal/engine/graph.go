@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -248,6 +249,7 @@ func (e *Engine) graphNodes(evaluator bool) (nodes map[string]*node, used bool) 
 		nodes[r.Address()] = &node{res: r, deps: map[string]bool{}}
 	}
 	e.loops = nil
+	bodyDeps := make(map[string][]string, len(e.Root.Resources))
 	if evaluator {
 		t := time.Now()
 		loops, err := convert.NewLoops(e.Value, e.resolver())
@@ -278,7 +280,14 @@ func (e *Engine) graphNodes(evaluator bool) (nodes map[string]*node, used bool) 
 				n.deps[dr.Address()] = true
 			}
 		}
+		own := make([]string, 0, len(n.deps))
+		for d := range n.deps {
+			own = append(own, d)
+		}
+		sort.Strings(own)
+		bodyDeps[r.Address()] = own
 	}
+	e.bodyDeps = bodyDeps
 	// Resources run after whatever their provider's configuration references.
 	e.providerDeps = e.providerDepsOf()
 	for key, pdeps := range e.providerDeps {
@@ -496,11 +505,18 @@ func release(n *node, ready chan<- *node, closed bool) {
 	}
 }
 
+// resetWalk puts the engine back to the specification as it was loaded, with
+// no value of a task in it, for the walk that starts.
+func (e *Engine) resetWalk() {
+	e.current, e.seeded = e.Value, false
+	e.pending, e.pendingOrder, e.refused = nil, nil, nil
+	e.memoRun()
+}
+
 // run executes every task in dependency order, with bounded parallelism,
 // and returns the configuration value with all fills applied.
 func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
-	e.current, e.seeded = e.Value, false
-	e.pending, e.pendingOrder, e.refused = nil, nil, nil
+	e.resetWalk()
 	_, endGraph := setup(ctx, "build task graph")
 	nodes, err := e.buildGraph()
 	endGraph(err)
@@ -597,6 +613,7 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 	// refused.
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
+	firstErr = cmp.Or(firstErr, e.fillExternalLocked())
 	e.dropChecked()
 	settled, fills := time.Now(), len(e.pending)
 	if err := e.settleAllLocked(); err != nil && firstErr == nil {
@@ -628,6 +645,11 @@ type pendingFill struct {
 func (e *Engine) snapshot(r *config.Resource) (cue.Value, error) {
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
+	return e.snapshotLocked(r)
+}
+
+// snapshotLocked is snapshot. The caller holds cueMu.
+func (e *Engine) snapshotLocked(r *config.Resource) (cue.Value, error) {
 	// A fill that the specification refused is dropped, and the run is ending.
 	// A task that was ready at the same time as the one that found it starts
 	// all the same, and would read the task as if it had computed nothing.
@@ -640,11 +662,16 @@ func (e *Engine) snapshot(r *config.Resource) (cue.Value, error) {
 		// filled by the nodes of the scope that it waited for.
 		deps = e.scope.reads[r.Address()]
 	}
+	// A node that the plan left alone on the word of its memo made no fill. It
+	// makes it now that a task reads it (memo.go).
+	if err := e.fillLazyLocked(deps); err != nil {
+		return cue.Value{}, err
+	}
 	// A task that finished and left no fill (its values are unknown, or already in
 	// its configuration) is read from the configuration, where it is built from
 	// the tasks it read; if their fills wait, it is not yet what it will be.
 	if e.hiddenPending(deps) {
-		if err := e.settleAllLocked(); err != nil {
+		if err := e.settleEveryLocked(); err != nil {
 			return cue.Value{}, err
 		}
 	}
@@ -675,8 +702,16 @@ func (e *Engine) fillFrom(r *config.Resource, fill map[string]any, v cue.Value) 
 	}
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
+	e.fillFromLocked(r, fill, v)
+	return nil
+}
+
+// fillFromLocked is fillFrom for a fill that is not empty. The caller holds
+// cueMu.
+func (e *Engine) fillFromLocked(r *config.Resource, fill map[string]any, v cue.Value) {
 	addr := r.Address()
-	if e.onFill != nil {
+	e.memoFill(r, fill)
+	if e.onFill != nil && !e.shadowing {
 		e.onFill(addr)
 	}
 	if e.pending == nil {
@@ -695,7 +730,6 @@ func (e *Engine) fillFrom(r *config.Resource, fill map[string]any, v cue.Value) 
 	if v.Exists() && len(e.readersOf(addr)) == 0 {
 		e.releaseLeaf(next)
 	}
-	return nil
 }
 
 // dropChecked leaves out of the final settle the fills that nothing reads but task
@@ -752,12 +786,15 @@ func (e *Engine) dropChecked() {
 // settleLocked unifies the pending fills into the configuration if any of the
 // tasks at addrs has one. The caller holds cueMu.
 func (e *Engine) settleLocked(addrs []string) error {
+	if err := e.fillLazyLocked(addrs); err != nil {
+		return err
+	}
 	if len(e.pending) == 0 {
 		return nil
 	}
 	for _, a := range addrs {
 		if _, ok := e.pending[a]; ok {
-			return e.settleAllLocked()
+			return e.settleEveryLocked()
 		}
 	}
 	return nil
