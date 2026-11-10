@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
@@ -316,41 +315,22 @@ func (s *Store) Transactions() ([]Transaction, error) {
 	}
 	// Remote backends pay a round trip per object, and a state has one per command that did work.
 	read := make([]*Transaction, len(jsonKeys))
-	width := readWidthLocal
-	if !s.b.Local() {
-		width = readWidthRemote
-	}
-	var (
-		wg   sync.WaitGroup
-		next atomic.Int64
-	)
-	for range min(width, len(jsonKeys)) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				i := int(next.Add(1)) - 1
-				if i >= len(jsonKeys) {
-					return
-				}
-				k := jsonKeys[i]
-				data, err := s.b.Get(s.cx(), k)
-				if err != nil {
-					continue
-				}
-				var t Transaction
-				// A transaction is in the object that has its id: a copy under another name is
-				// not another transaction.
-				if json.Unmarshal(data, &t) == nil && k == "txn/"+t.ID+".json" {
-					if t.Changes == nil {
-						t.Changes = []Change{}
-					}
-					read[i] = &t
-				}
+	s.eachRead(len(jsonKeys), func(i int) {
+		k := jsonKeys[i]
+		data, err := s.b.Get(s.cx(), k)
+		if err != nil {
+			return
+		}
+		var t Transaction
+		// A transaction is in the object that has its id: a copy under another name is
+		// not another transaction.
+		if json.Unmarshal(data, &t) == nil && k == "txn/"+t.ID+".json" {
+			if t.Changes == nil {
+				t.Changes = []Change{}
 			}
-		}()
-	}
-	wg.Wait()
+			read[i] = &t
+		}
+	})
 	out := []Transaction{}
 	for _, t := range read {
 		if t != nil {

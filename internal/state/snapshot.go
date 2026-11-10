@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -82,36 +81,17 @@ type snapshotState struct {
 // backend otherwise. The results are in the order of objs.
 func (s *Store) readListed(ctx context.Context, objs []ObjectVersion, snap map[string]snapshotEntry) (results []listed, missed int, err error) {
 	results = make([]listed, len(objs))
-	width := readWidthLocal
-	if !s.b.Local() {
-		width = readWidthRemote
-	}
-	var (
-		wg   sync.WaitGroup
-		next atomic.Int64
-		miss atomic.Int64
-	)
-	for range min(width, len(objs)) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				i := int(next.Add(1)) - 1
-				if i >= len(objs) {
-					return
-				}
-				var pre *nodeBytes
-				if e, ok := snap[objs[i].Key]; ok && e.Tag == objs[i].Tag && objs[i].Tag != "" {
-					pre = &nodeBytes{ptr: e.Ptr, rec: e.Rec}
-				} else {
-					miss.Add(1)
-				}
-				r, h, raw, err := s.readNodeRaw(ctx, objs[i].Key, pre)
-				results[i] = listed{r, h, raw, err}
-			}
-		}()
-	}
-	wg.Wait()
+	var miss atomic.Int64
+	s.eachRead(len(objs), func(i int) {
+		var pre *nodeBytes
+		if e, ok := snap[objs[i].Key]; ok && e.Tag == objs[i].Tag && objs[i].Tag != "" {
+			pre = &nodeBytes{ptr: e.Ptr, rec: e.Rec}
+		} else {
+			miss.Add(1)
+		}
+		r, h, raw, err := s.readNodeRaw(ctx, objs[i].Key, pre)
+		results[i] = listed{r, h, raw, err}
+	})
 	for _, r := range results {
 		if r.err != nil {
 			return nil, 0, r.err

@@ -4,7 +4,8 @@
 // request, notes the method, the host, the path without its query, the status, the sizes and the time, sends it on, and
 // every request is a span under the call of the provider that was running.
 //
-// Never recorded: headers, bodies, query strings. The authority lives in memory and in a file that only the provider
+// Never recorded: headers, bodies, query strings. The proxy answers only a caller that presents the token of the run,
+// which is in the address the provider process is given. The authority lives in memory and in a file that only the provider
 // process is told of, and both are gone when the provider is closed.
 //
 // What is not seen: a provider that ignores HTTPS_PROXY, traffic that is not HTTP, and, where a provider does not trust the
@@ -19,9 +20,12 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"io"
@@ -31,6 +35,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -61,6 +66,7 @@ type Capture struct {
 	leaves  map[string]*tls.Certificate
 	blind   map[string]bool // hosts whose clients did not trust the authority
 	environ env.Env         // the environment of the run: the proxy settings the provider would have had
+	token   string          // what a caller of the proxy has to present: only the provider process is told of it
 	closed  atomic.Bool
 	started time.Time
 }
@@ -93,7 +99,12 @@ func New(e env.Env) (*Capture, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &Capture{environ: e, ca: ca, caKey: key, ln: ln, leaves: map[string]*tls.Certificate{}, blind: map[string]bool{}, Upstream: http.DefaultTransport, started: time.Now()}
+	secret := make([]byte, 16)
+	if _, err := rand.Read(secret); err != nil {
+		ln.Close()
+		return nil, err
+	}
+	c := &Capture{environ: e, token: hex.EncodeToString(secret), ca: ca, caKey: key, ln: ln, leaves: map[string]*tls.Certificate{}, blind: map[string]bool{}, Upstream: http.DefaultTransport, started: time.Now()}
 	pemCA := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 	f, err := os.CreateTemp("", "pravo-capture-*.pem")
 	if err != nil {
@@ -138,9 +149,11 @@ func systemRoots(e env.Env) []byte {
 }
 
 // Env is what the provider process is given: the proxy for HTTP and HTTPS, and the bundle that holds the authority. The
-// loopback addresses are not proxied, so that the plugin's own connection to pravo is untouched.
+// loopback addresses are not proxied, so that the plugin's own connection to pravo is untouched. The address of the proxy
+// carries the token of the run, which a client sends as the credentials of the proxy: the port is open to every user of
+// the machine, and the proxy sends requests on with what the environment of the run gives it.
 func (c *Capture) Env() []string {
-	p := "http://" + c.ln.Addr().String()
+	p := "http://" + proxyUser + ":" + c.token + "@" + c.ln.Addr().String()
 	np := "127.0.0.1,localhost,::1"
 	if v := c.environ.Get("NO_PROXY"); v != "" {
 		np = v + "," + np
@@ -172,6 +185,11 @@ func (c *Capture) ctx() context.Context {
 
 // serve takes what the provider sends to its proxy: a CONNECT for HTTPS, a request with an absolute address for HTTP.
 func (c *Capture) serve(w http.ResponseWriter, r *http.Request) {
+	if !c.allowed(r) {
+		w.Header().Set("Proxy-Authenticate", `Basic realm="pravo capture"`)
+		http.Error(w, "this proxy is for the provider that pravo started", http.StatusProxyAuthRequired)
+		return
+	}
 	if r.Method == http.MethodConnect {
 		c.connect(w, r)
 		return
@@ -181,6 +199,23 @@ func (c *Capture) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.forward(w, r, "http", r.URL.Host)
+}
+
+// proxyUser is the user name of the credentials of the proxy. The token is the password.
+const proxyUser = "pravo"
+
+// allowed reports whether the request carries the token of the run as the credentials of the proxy.
+func (c *Capture) allowed(r *http.Request) bool {
+	const scheme = "Basic "
+	h := r.Header.Get("Proxy-Authorization")
+	if len(h) < len(scheme) || !strings.EqualFold(h[:len(scheme)], scheme) {
+		return false
+	}
+	got, err := base64.StdEncoding.DecodeString(h[len(scheme):])
+	if err != nil {
+		return false
+	}
+	return subtle.ConstantTimeCompare(got, []byte(proxyUser+":"+c.token)) == 1
 }
 
 func (c *Capture) connect(w http.ResponseWriter, r *http.Request) {

@@ -60,7 +60,7 @@ func setup(t *testing.T) (*Capture, *tracetest.SpanRecorder, *httptest.Server, c
 }
 
 func client(c *Capture, trust bool) *http.Client {
-	proxy, _ := url.Parse("http://" + c.ln.Addr().String())
+	proxy, _ := url.Parse(strings.TrimPrefix(c.Env()[0], "HTTPS_PROXY="))
 	pool := x509.NewCertPool()
 	if trust {
 		b, _ := os.ReadFile(c.caFile)
@@ -131,7 +131,7 @@ func TestUntrustingClientIsTunnelled(t *testing.T) {
 	t.Setenv("OTEL_SDK_DISABLED", "")
 	c, rec, up, _ := setup(t)
 	// the client trusts the upstream's certificate and not the authority's
-	proxy, _ := url.Parse("http://" + c.ln.Addr().String())
+	proxy, _ := url.Parse(strings.TrimPrefix(c.Env()[0], "HTTPS_PROXY="))
 	cl := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxy), TLSClientConfig: &tls.Config{RootCAs: up.Client().Transport.(*http.Transport).TLSClientConfig.RootCAs}, DisableKeepAlives: true}}
 	if r, err := cl.Get(up.URL + "/x"); err == nil {
 		r.Body.Close()
@@ -176,7 +176,7 @@ func TestEnvAndClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	env := strings.Join(c.Env(), "\n")
-	for _, want := range []string{"HTTPS_PROXY=http://127.0.0.1:", "SSL_CERT_FILE=" + c.caFile, "AWS_CA_BUNDLE=", "NO_PROXY=", "127.0.0.1"} {
+	for _, want := range []string{"HTTPS_PROXY=http://pravo:" + c.token + "@127.0.0.1:", "SSL_CERT_FILE=" + c.caFile, "AWS_CA_BUNDLE=", "NO_PROXY=", "127.0.0.1"} {
 		if !strings.Contains(env, want) {
 			t.Errorf("env lacks %q", want)
 		}
@@ -207,5 +207,38 @@ func TestEnabled(t *testing.T) {
 	telemetry.Configure(env.OS())
 	if Enabled() {
 		t.Error("on with PRAVO_TRACES_NET=off")
+	}
+}
+
+// The port of the proxy is open to every user of the machine, and the proxy sends requests on with what the environment
+// of the run gives it: a caller that does not present the token of the run is refused, for HTTPS and for HTTP, and leaves
+// no span.
+func TestACallerWithoutTheTokenIsRefused(t *testing.T) {
+	t.Setenv("PRAVO_TRACES", "on")
+	t.Setenv("OTEL_SDK_DISABLED", "")
+	c, rec, up, _ := setup(t)
+	if !strings.HasPrefix(c.Env()[0], "HTTPS_PROXY=http://pravo:"+c.token+"@127.0.0.1:") || len(c.token) != 32 {
+		t.Fatalf("the provider is given %q", c.Env()[0])
+	}
+	for name, user := range map[string]*url.Userinfo{"no credentials": nil, "a wrong token": url.UserPassword("pravo", strings.Repeat("0", 32))} {
+		proxy := &url.URL{Scheme: "http", Host: c.ln.Addr().String(), User: user}
+		cl := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxy), TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+		if resp, err := cl.Get(up.URL + "/things/1"); err == nil {
+			resp.Body.Close()
+			t.Errorf("%s: a request over HTTPS was sent on, with status %d", name, resp.StatusCode)
+		}
+		resp, err := cl.Get("http://example.invalid/things/1")
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusProxyAuthRequired {
+			t.Errorf("%s: a request over HTTP has the status %d, want 407", name, resp.StatusCode)
+		}
+	}
+	for _, s := range rec.Ended() {
+		if strings.HasPrefix(s.Name(), "network ") {
+			t.Errorf("a refused caller left the span %q", s.Name())
+		}
 	}
 }
