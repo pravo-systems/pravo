@@ -280,7 +280,15 @@ const replaceAttempts = 5
 func (s *Store) putNode(r *Resource) (nodeRef, error) {
 	addr := r.Address()
 	if s.Format() < FormatImmutable {
-		return nodeRef{}, s.putJSON(nodeKey(addr), r)
+		data, err := indentJSON(r)
+		if err != nil {
+			return nodeRef{}, err
+		}
+		if err := s.b.Put(s.cx(), nodeKey(addr), data); err != nil {
+			return nodeRef{}, err
+		}
+		s.noteWritten(nodeKey(addr), data, nil) // a whole record is its own pointer
+		return nodeRef{}, nil
 	}
 	s.recheckSeal()
 	data, group, err := s.encodeRecord(r)
@@ -307,6 +315,7 @@ func (s *Store) putNode(r *Resource) (nodeRef, error) {
 		if !created {
 			return nodeRef{}, fmt.Errorf("%s: %w", addr, ErrChanged)
 		}
+		s.noteWritten(nodeKey(addr), ptr, data)
 		return next, nil
 	}
 	// The pointer is replaced if it still names the revision and generation that
@@ -341,6 +350,7 @@ func (s *Store) putNode(r *Resource) (nodeRef, error) {
 			if superseded != "" && superseded != rkey && prev.Version == next.Version {
 				_ = s.b.Delete(s.cx(), superseded)
 			}
+			s.noteWritten(nodeKey(addr), ptr, data)
 			return next, nil
 		case refused:
 			return nodeRef{}, fmt.Errorf("%s: %w", addr, ErrChanged)

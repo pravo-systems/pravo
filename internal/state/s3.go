@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -158,6 +159,61 @@ type S3Backend struct {
 	name   string
 	// noSnapshot is set when the settings say snapshot: false.
 	noSnapshot bool
+	// seen holds, by key, the version of each small object that this process last read or
+	// wrote (see remember).
+	seen sync.Map
+}
+
+// seenVersion is one version of an object: its entity tag and its bytes.
+type seenVersion struct {
+	tag  string
+	data []byte
+	// wrote is set when this process made the version, and not only read it.
+	wrote bool
+}
+
+// rememberBelow is the size above which a version is not remembered. Only the locks, with
+// the notes beside them, and the pointers of the nodes are remembered: they are a few hundred
+// bytes each, and they are what an apply replaces and deletes once for every node.
+const rememberBelow = 8 << 10
+
+// remember keeps the version of an object that a request of this process just read or made,
+// so that a conditional write of the same object needs no read first. ReplaceIf and DeleteIf
+// are a read and then a write that names the entity tag of what was read. A command mostly
+// replaces and deletes what it wrote or read a moment before: the lock it took, which it
+// marks, renews and releases, and the pointer whose revision it checked. For those the tag
+// and the bytes are known, and the write is sent at once with the tag as its condition. The
+// store still decides: when the object is not that version any more the write is refused, and
+// the call reads the object and goes on as it always did. Nothing is ever read from here in
+// place of the store: a Get is a request.
+//
+// The function that a caller gives ReplaceIf or DeleteIf can so be called twice in one call,
+// first with the remembered contents and then with the ones the store holds. Only what its
+// last call returned is acted on.
+func (b *S3Backend) remember(key string, tag *string, data []byte, wrote bool) {
+	if t := aws.ToString(tag); t != "" && len(data) <= rememberBelow && (strings.HasPrefix(key, "locks/") || strings.HasPrefix(key, "resources/")) {
+		b.seen.Store(key, seenVersion{tag: t, data: bytes.Clone(data), wrote: wrote})
+		return
+	}
+	b.seen.Delete(key)
+}
+
+// remembered returns the version of key that this process last saw.
+func (b *S3Backend) remembered(key string) (seenVersion, bool) {
+	v, ok := b.seen.Load(key)
+	if !ok {
+		return seenVersion{}, false
+	}
+	return v.(seenVersion), true
+}
+
+// LastWritten returns the entity tag of the version of key that this process wrote, when its
+// last request for the key was that write: the store uses it to record a node in the snapshot
+// without reading back what it has just written. The tag is as a listing gives it, without
+// the quotes.
+func (b *S3Backend) LastWritten(key string) (string, bool) {
+	v, ok := b.remembered(key)
+	return strings.Trim(v.tag, `"`), ok && v.wrote
 }
 
 // NewS3Backend connects to the bucket. It does not create the bucket.
@@ -241,6 +297,9 @@ func (b *S3Backend) getTagged(ctx context.Context, key string) ([]byte, *string,
 	}
 	defer out.Body.Close()
 	data, err := io.ReadAll(out.Body)
+	if err == nil {
+		b.remember(key, out.ETag, data, false)
+	}
 	return data, out.ETag, err
 }
 
@@ -300,12 +359,14 @@ func conflicted(err error) bool {
 }
 
 func (b *S3Backend) Put(ctx context.Context, key string, data []byte) error {
-	_, err := b.client.PutObject(ctx, &s3.PutObjectInput{
+	b.seen.Delete(key)
+	out, err := b.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(b.bucket), Key: aws.String(b.key(key)), Body: bytes.NewReader(data), ContentType: aws.String("application/json"),
 	})
 	if err != nil {
 		return fmt.Errorf("s3 put %s: %w", key, err)
 	}
+	b.remember(key, out.ETag, data, true)
 	return nil
 }
 
@@ -315,7 +376,7 @@ func (b *S3Backend) Put(ctx context.Context, key string, data []byte) error {
 // the same way.
 func (b *S3Backend) PutIfAbsent(ctx context.Context, key string, data []byte) (bool, error) {
 	tries, opt := b.counting()
-	_, err := b.client.PutObject(ctx, &s3.PutObjectInput{
+	out, err := b.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(b.bucket), Key: aws.String(b.key(key)), Body: bytes.NewReader(data),
 		ContentType: aws.String("application/json"), IfNoneMatch: aws.String("*"),
 	}, opt)
@@ -327,6 +388,7 @@ func (b *S3Backend) PutIfAbsent(ctx context.Context, key string, data []byte) (b
 		}
 		return false, fmt.Errorf("s3 conditional put %s: %w", key, err)
 	}
+	b.remember(key, out.ETag, data, true)
 	return true, nil
 }
 
@@ -350,7 +412,25 @@ func noEntityTag(op, key string) error {
 // resend that is refused with 412 means that the object is no longer the one
 // that was read: a delete that was made leaves no object to be refused for, so
 // the refusal is another writer's and (false, nil) is exact.
+//
+// When this process holds a version of the object (see remember) that match accepts, the
+// delete is sent at once with the tag of that version. A store that still holds the version
+// deletes it, which is what a read that found it would have led to. A store that holds
+// another version refuses, and the object is read as above.
 func (b *S3Backend) DeleteIf(ctx context.Context, key string, match func(current []byte) bool) (bool, error) {
+	if v, ok := b.remembered(key); ok && match(v.data) {
+		b.seen.Delete(key)
+		_, err := b.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(b.bucket), Key: aws.String(b.key(key)), IfMatch: aws.String(v.tag)})
+		switch {
+		case err == nil:
+			return true, nil
+		case notFound(err):
+			return false, ErrNotFound
+		case !preconditionFailed(err):
+			return false, fmt.Errorf("s3 conditional delete %s: %w", key, err)
+		}
+	}
+	b.seen.Delete(key)
 	data, etag, err := b.getTagged(ctx, key)
 	if err != nil {
 		return false, err
@@ -361,6 +441,7 @@ func (b *S3Backend) DeleteIf(ctx context.Context, key string, match func(current
 	if !match(data) {
 		return false, nil
 	}
+	b.seen.Delete(key)
 	_, err = b.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(b.bucket), Key: aws.String(b.key(key)), IfMatch: etag})
 	switch {
 	case err == nil:
@@ -375,7 +456,21 @@ func (b *S3Backend) DeleteIf(ctx context.Context, key string, match func(current
 
 // ReplaceIf reads the object and writes the new contents over the version that
 // it read, with an If-Match condition on its entity tag.
+//
+// When this process holds a version of the object (see remember) that update accepts, the
+// write is sent at once with the tag of that version, as DeleteIf does. A refusal, unless an
+// earlier attempt of the same write is what made it, leads to the read: update is then
+// called a second time, with the contents that the store holds.
 func (b *S3Backend) ReplaceIf(ctx context.Context, key string, update func(current []byte) ([]byte, bool)) (bool, error) {
+	if v, ok := b.remembered(key); ok {
+		if next, ok := update(v.data); ok {
+			done, wrote, err := b.replaceVersion(ctx, key, aws.String(v.tag), next)
+			if done || wrote {
+				return wrote, err
+			}
+		}
+	}
+	b.seen.Delete(key)
 	data, etag, err := b.getTagged(ctx, key)
 	if err != nil {
 		return false, err
@@ -387,23 +482,36 @@ func (b *S3Backend) ReplaceIf(ctx context.Context, key string, update func(curre
 	if !ok {
 		return false, nil
 	}
+	_, wrote, err := b.replaceVersion(ctx, key, etag, next)
+	return wrote, err
+}
+
+// replaceVersion writes next over the version of key that has the tag. done is false when the
+// store refused because it holds another version and no attempt of this write made it: the
+// caller that sent a remembered tag then reads the object, and the caller that has just read
+// it reports that nothing was written.
+func (b *S3Backend) replaceVersion(ctx context.Context, key string, tag *string, next []byte) (done, wrote bool, err error) {
+	b.seen.Delete(key)
 	tries, opt := b.counting()
-	_, err = b.client.PutObject(ctx, &s3.PutObjectInput{
+	out, err := b.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(b.bucket), Key: aws.String(b.key(key)), Body: bytes.NewReader(next),
-		ContentType: aws.String("application/json"), IfMatch: etag,
+		ContentType: aws.String("application/json"), IfMatch: tag,
 	}, opt)
 	switch {
 	case err == nil:
-		return true, nil
+		b.remember(key, out.ETag, next, true)
+		return true, true, nil
 	case notFound(err):
-		return false, ErrNotFound
+		return true, false, ErrNotFound
 	case preconditionFailed(err):
-		return b.landed(ctx, tries, "put", key, next)
+		wrote, err := b.landed(ctx, tries, "put", key, next)
+		return wrote || err != nil, wrote, err
 	}
-	return false, fmt.Errorf("s3 conditional put %s: %w", key, err)
+	return true, false, fmt.Errorf("s3 conditional put %s: %w", key, err)
 }
 
 func (b *S3Backend) Delete(ctx context.Context, key string) error {
+	b.seen.Delete(key)
 	_, err := b.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(b.bucket), Key: aws.String(b.key(key))})
 	if err != nil {
 		return fmt.Errorf("s3 delete %s: %w", key, err)

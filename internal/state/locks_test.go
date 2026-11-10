@@ -701,44 +701,48 @@ func TestHeartbeatIsRare(t *testing.T) {
 	}
 }
 
-// On a bucket the condition is on the entity tag of the version that was read:
-// an object that another writer replaced between the read and the delete, or the
-// replace, is left as it is.
+// On a bucket the condition is on the entity tag of a version that the function accepted:
+// an object that another writer replaced between that and the delete, or the
+// replace, is left as it is. The other writer writes each time the function is called, as a
+// command that renews its lock does, because the function is called once for the version
+// that the backend remembers and once for the one that it then reads.
 func TestBucketConditionsHoldAgainstAWriterInBetween(t *testing.T) {
-	_, b := newFakeS3(t)
+	f, b := newFakeS3(t)
 	ctx := context.Background()
+	const object = "team/app/locks/a.lock"
 	if err := b.Put(ctx, "locks/a.lock", []byte("one")); err != nil {
 		t.Fatal(err)
 	}
+	n := 0
+	other := func() string { // another command renews it: no request of this one is running
+		n++
+		f.Set(object, fmt.Appendf(nil, "another %d", n))
+		return fmt.Sprintf("another %d", n)
+	}
+	last := ""
 	ok, err := b.DeleteIf(ctx, "locks/a.lock", func(cur []byte) bool {
-		if err := b.Put(ctx, "locks/a.lock", []byte("two")); err != nil { // another command renews it
-			t.Fatal(err)
-		}
+		last = other()
 		return true
 	})
 	if ok || err != nil {
 		t.Fatalf("DeleteIf over a replaced object: %v, %v; want false", ok, err)
 	}
-	if got, _ := b.Get(ctx, "locks/a.lock"); string(got) != "two" {
+	if got, _ := b.Get(ctx, "locks/a.lock"); string(got) != last {
 		t.Fatalf("the object is %q: the delete went through", got)
 	}
 	ok, err = b.ReplaceIf(ctx, "locks/a.lock", func(cur []byte) ([]byte, bool) {
-		if err := b.Put(ctx, "locks/a.lock", []byte("three")); err != nil {
-			t.Fatal(err)
-		}
+		last = other()
 		return []byte("mine"), true
 	})
 	if ok || err != nil {
 		t.Fatalf("ReplaceIf over a replaced object: %v, %v; want false", ok, err)
 	}
-	if got, _ := b.Get(ctx, "locks/a.lock"); string(got) != "three" {
+	if got, _ := b.Get(ctx, "locks/a.lock"); string(got) != last {
 		t.Fatalf("the object is %q: the replace went through", got)
 	}
 	// Removed in between: the object is not found, and not written again.
 	ok, err = b.ReplaceIf(ctx, "locks/a.lock", func(cur []byte) ([]byte, bool) {
-		if err := b.Delete(ctx, "locks/a.lock"); err != nil {
-			t.Fatal(err)
-		}
+		f.Set(object, nil)
 		return []byte("mine"), true
 	})
 	if ok || !errors.Is(err, ErrNotFound) {

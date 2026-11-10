@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -75,6 +76,46 @@ type snapshotState struct {
 	kept bool
 	// on is set by an open that could use snapshots.
 	on bool
+	// fresh holds, by key, the nodes that this process wrote since the open, with the tag
+	// the store gave for the pointer (see noteWritten). mu guards it.
+	mu    sync.Mutex
+	fresh map[string]snapshotEntry
+}
+
+// writeTagger is implemented by a backend that knows the tag of the version of an object
+// that this process wrote, when nothing was done to the object since (see S3Backend.remember).
+type writeTagger interface {
+	LastWritten(key string) (tag string, ok bool)
+}
+
+// noteWritten keeps the pointer and the record that this process has just written for a node,
+// with the tag that the store gave the pointer. When the command ends, the snapshot is brought
+// up to date from them (see settleSnapshot): a node whose pointer still has that tag in the
+// listing is what was written, and is not read back. A backend that does not tell the tag of
+// a write has its nodes read, as before.
+func (s *Store) noteWritten(key string, ptr, rec []byte) {
+	if !s.snap.on {
+		return
+	}
+	b := s.b
+	if t, ok := b.(*tracedBackend); ok {
+		b = t.Backend
+	}
+	w, ok := b.(writeTagger)
+	if !ok {
+		return
+	}
+	tag, ok := w.LastWritten(key)
+	s.snap.mu.Lock()
+	defer s.snap.mu.Unlock()
+	if !ok {
+		delete(s.snap.fresh, key)
+		return
+	}
+	if s.snap.fresh == nil {
+		s.snap.fresh = map[string]snapshotEntry{}
+	}
+	s.snap.fresh[key] = snapshotEntry{Key: key, Tag: tag, Ptr: ptr, Rec: rec}
 }
 
 // readListed reads the nodes at the listed keys, from snap where it is still true and from the
@@ -184,6 +225,11 @@ func (s *Store) settleSnapshot() {
 	for _, e := range s.snap.entries {
 		old[e.Key] = e
 	}
+	s.snap.mu.Lock()
+	for k, e := range s.snap.fresh {
+		old[k] = e
+	}
+	s.snap.mu.Unlock()
 	results, _, err := s.readListed(ctx, objs, old)
 	if err != nil {
 		return
@@ -191,6 +237,9 @@ func (s *Store) settleSnapshot() {
 	if entries := entriesOf(objs, results); len(entries) >= snapshotMin && s.putSnapshot(ctx, entries) {
 		s.snap.kept, s.snap.missed, s.snap.entries = true, 0, entries
 		s.snap.written.Store(0)
+		s.snap.mu.Lock()
+		s.snap.fresh = nil
+		s.snap.mu.Unlock()
 	}
 }
 
