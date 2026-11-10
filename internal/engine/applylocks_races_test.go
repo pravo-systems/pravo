@@ -144,10 +144,11 @@ func TestRejectionCountsOnlyWhatItCanLookAt(t *testing.T) {
 	h := newHarnessOver(t, func(b state.Backend) state.Backend { return statetest.NewLatency(b, 10*time.Millisecond) })
 	other := h.process()
 	var addrs []string
-	for i := range 96 {
+	// More than the store can look at in the time: it looks at lockWidthRemote at a time.
+	for i := range 4 * lockWidthRemote {
 		addrs = append(addrs, fmt.Sprintf("r%03d", i))
 	}
-	inParallel(len(addrs), lockWidth, func(i int) {
+	inParallel(len(addrs), lockWidthRemote, func(i int) {
 		if err := other.Lock(addrs[i], "pravo apply", ""); err != nil {
 			t.Error(err)
 		}

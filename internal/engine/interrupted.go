@@ -22,7 +22,7 @@ func (e *Engine) checkInterruptedCreates(plan *Plan) error {
 	if err != nil {
 		return nil
 	}
-	replacing := e.orphanedReplacements(plan)
+	replacing := e.orphanedReplacements(plan, e.pendingNotes())
 	if len(suspects) == 0 && len(replacing) == 0 {
 		return nil
 	}
@@ -67,10 +67,64 @@ func (e *Engine) checkInterruptedCreates(plan *Plan) error {
 	return WithCode(ExitRefused, fmt.Errorf("apply refused: it would create %s that an interrupted apply may already have created.\n%sIf the create reached the cloud the object exists but is not tracked, and creating it again makes a second one. Nothing was changed. For each node above, either:\n  - find the object and adopt it: pravo discover (with a #Discovery rule), or %s; the lock is cleared by the next apply; or\n  - if you know the create never reached the cloud, create it anyway: %s", nodes(len(all)), b.String(), e.importCommand(all[0], "ID"), e.allowCreateCommand(all)))
 }
 
+// pendingNotes is one reading of the notes of interrupted creates, and of the locks that say
+// whether the command of a note still runs. A plan or an apply asks about every node that it
+// deletes, replaces or creates over a record, and one listing answers for all of them: a
+// read for each node would cost a destroy of five hundred nodes five hundred round trips,
+// one after the other.
+type pendingNotes struct {
+	st *state.Store
+	// The notes are listed when the first node asks: an apply that only creates nodes with
+	// no record asks about none, and makes no request for them.
+	listed bool
+	all    []*state.PendingCreate
+	byAddr map[string]*state.PendingCreate
+	// locks is read when the first note asks, which a store with no note never does.
+	locks    []state.Lock
+	locksErr error
+	asked    bool
+}
+
+func (e *Engine) pendingNotes() *pendingNotes { return &pendingNotes{st: e.State} }
+
+// notes returns every note of the store, which it lists once.
+func (n *pendingNotes) notes() []*state.PendingCreate {
+	if !n.listed {
+		n.listed = true
+		n.all, _ = n.st.PendingCreates()
+		n.byAddr = make(map[string]*state.PendingCreate, len(n.all))
+		for _, p := range n.all {
+			n.byAddr[p.Addr] = p
+		}
+	}
+	return n.all
+}
+
+// of returns the note of addr, or nil.
+func (n *pendingNotes) of(addr string) *state.PendingCreate {
+	n.notes()
+	return n.byAddr[addr]
+}
+
+// orphaned is Store.Orphaned for the note p of a node whose record is rec.
+func (n *pendingNotes) orphaned(p *state.PendingCreate, rec *state.Resource) (bool, error) {
+	if rec != nil && !p.Holds(rec) {
+		return false, nil
+	}
+	if !n.asked {
+		n.locks, n.locksErr = n.st.Locks()
+		n.asked = true
+	}
+	if n.locksErr != nil {
+		return false, n.locksErr
+	}
+	return p.OrphanedAmong(rec, n.locks), nil
+}
+
 // orphanedReplacements returns, by address, the notes of replacements that create before
 // they destroy, that a command left when it stopped, for the nodes the plan replaces that way.
 // A note the record has outgrown is deleted.
-func (e *Engine) orphanedReplacements(plan *Plan) map[string]*state.PendingCreate {
+func (e *Engine) orphanedReplacements(plan *Plan, notes *pendingNotes) map[string]*state.PendingCreate {
 	var out map[string]*state.PendingCreate
 	// A node that the plan moves has its note under the address it comes from, until the
 	// apply carries it along.
@@ -87,14 +141,14 @@ func (e *Engine) orphanedReplacements(plan *Plan) map[string]*state.PendingCreat
 		if ch.Action == ActionCreate && e.State.Get(ch.Addr) == nil {
 			continue // a create over no record is marked on its lock
 		}
-		p, err := e.State.PendingCreateOf(ch.Addr)
-		if err == nil && p == nil && movedFrom[ch.Addr] != "" {
-			p, err = e.State.PendingCreateOf(movedFrom[ch.Addr])
+		p := notes.of(ch.Addr)
+		if p == nil && movedFrom[ch.Addr] != "" {
+			p = notes.of(movedFrom[ch.Addr])
 		}
-		if err != nil || p == nil {
+		if p == nil {
 			continue
 		}
-		orphan, err := e.State.Orphaned(p, e.State.Get(ch.Addr))
+		orphan, err := notes.orphaned(p, e.State.Get(ch.Addr))
 		if err != nil {
 			continue
 		}
@@ -208,11 +262,12 @@ func (e *Engine) warnUntracked(plan *Plan) {
 			imported[ch.Addr] = true
 		}
 	}
-	replacing := e.orphanedReplacements(plan)
+	notes := e.pendingNotes()
+	replacing := e.orphanedReplacements(plan, notes)
 	for _, addr := range slices.Sorted(maps.Keys(replacing)) {
 		e.Opts.Progress("Warning: %s: %s. Adopt it (pravo state rm %s, then %s) or delete it in the cloud, before you apply", addr, stoppedReplacement(replacing[addr]), addr, e.importCommand(addr, "ID"))
 	}
-	e.warnStrayNotes(plan, replacing)
+	e.warnStrayNotes(plan, notes, replacing)
 	for _, addr := range slices.Sorted(maps.Keys(e.suspects)) {
 		// Only a node whose create began can have an object nothing tracks; a node the stopped
 		// apply had locked and never started has none.
@@ -229,9 +284,8 @@ func (e *Engine) warnUntracked(plan *Plan) {
 // says nothing of it lets the person forget it. Only the warning: the plan and its exit
 // code are as they were. A note whose command is gone and that the record has outgrown is
 // deleted.
-func (e *Engine) warnStrayNotes(plan *Plan, covered map[string]*state.PendingCreate) {
-	notes, err := e.State.PendingCreates()
-	if err != nil || len(notes) == 0 {
+func (e *Engine) warnStrayNotes(plan *Plan, notes *pendingNotes, covered map[string]*state.PendingCreate) {
+	if len(notes.notes()) == 0 {
 		return
 	}
 	movedFrom := map[string]bool{}
@@ -240,12 +294,12 @@ func (e *Engine) warnStrayNotes(plan *Plan, covered map[string]*state.PendingCre
 			movedFrom[ch.MovedFrom] = true
 		}
 	}
-	for _, p := range notes {
+	for _, p := range notes.notes() {
 		if covered[p.Addr] != nil || movedFrom[p.Addr] {
 			continue
 		}
 		rec := e.State.Get(p.Addr)
-		orphan, err := e.State.Orphaned(p, rec)
+		orphan, err := notes.orphaned(p, rec)
 		if err != nil {
 			continue
 		}

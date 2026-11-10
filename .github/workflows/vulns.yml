@@ -1,0 +1,24 @@
+name: Vulnerabilities
+
+# Each day, whether pravo's code reaches a vulnerability that has become known
+# since the last push: an advisory for the Go that builds the release, or for a
+# module. CI asks the same on main, on a release and on a pull request that
+# changes go.mod (the job vulns of ci.yml); this run is for the days between.
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vulns:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: vulns
+      - run: sh tools/ci/vulns.sh

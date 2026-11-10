@@ -670,29 +670,56 @@ func (s *Store) TryLock(addr, command, txn string) (bool, error) {
 
 // Locks lists the locks currently held on the store. Stale is set on each lock
 // that may be reclaimed: its process is gone on this host, it has not been
-// renewed for StaleAfter, or it is a reservation that has expired.
+// renewed for StaleAfter, or it is a reservation that has expired. The locks are
+// read at the same time: a plan reads the locks of every command that runs, and
+// read one after the other each lock of a large apply would cost it a round trip.
 func (s *Store) Locks() ([]Lock, error) {
 	keys, err := s.b.List(s.cx(), "locks")
 	if err != nil {
 		return nil, err
 	}
-	out := []Lock{}
-	for _, k := range keys {
-		if !strings.HasSuffix(k, ".lock") {
-			continue
-		}
-		data, err := s.b.Get(s.cx(), k)
+	keys = withSuffix(keys, ".lock")
+	read := make([]*Lock, len(keys))
+	failed := make([]error, len(keys))
+	s.eachRead(len(keys), func(i int) {
+		data, err := s.b.Get(s.cx(), keys[i])
 		if err != nil {
-			continue
+			// A lock that was released since the listing is not held. One that is there and
+			// cannot be read is not left out: the commands that ask whether anything holds
+			// the state would take the answer for "nothing does".
+			if !errors.Is(err, ErrNotFound) {
+				failed[i] = fmt.Errorf("read the lock %s: %w", keys[i], err)
+			}
+			return
 		}
 		var l Lock
 		if json.Unmarshal(data, &l) == nil {
 			l.Stale = s.stale(l)
-			out = append(out, l)
+			read[i] = &l
+		}
+	})
+	if err := errors.Join(failed...); err != nil {
+		return nil, err
+	}
+	out := []Lock{}
+	for _, l := range read {
+		if l != nil {
+			out = append(out, *l)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Addr < out[j].Addr })
 	return out, nil
+}
+
+// withSuffix returns the keys that end in suffix, in a list of their own.
+func withSuffix(keys []string, suffix string) []string {
+	var out []string
+	for _, k := range keys {
+		if strings.HasSuffix(k, suffix) {
+			out = append(out, k)
+		}
+	}
+	return out
 }
 
 // Suspects returns, by address, the locks that may be reclaimed: the command that

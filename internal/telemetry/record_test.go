@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -148,6 +149,28 @@ func TestTraceDirKeepsTheNewestRuns(t *testing.T) {
 	files, _ := filepath.Glob(filepath.Join(dir, "*.json"))
 	if len(files) != 2 {
 		t.Fatalf("kept %v", files)
+	}
+}
+
+// A recorded run names the hosts and the paths that the providers called and the command
+// line: the directory and the files are the owner's alone.
+func TestRecordedRunsAreTheOwnersAlone(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the mode of a file is not its access on Windows")
+	}
+	dir := filepath.Join(t.TempDir(), ".pravo", "traces")
+	rt := &RunTrace{Version: TraceFormat, TraceID: "a0000000000000000000000000000000"}
+	if err := writeTrace(dir, rt); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]os.FileMode{dir: 0o700, filepath.Join(dir, rt.ID()+".json"): 0o600} {
+		fi, err := os.Stat(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := fi.Mode().Perm(); got&^want != 0 {
+			t.Errorf("%s has the mode %o, want no more than %o", name, got, want)
+		}
 	}
 }
 

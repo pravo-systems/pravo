@@ -13,12 +13,15 @@ runs:
   steps:
     # On Linux the Go of go.mod comes straight from go.dev: setup-go copies it into
     # the tool cache as well, which takes as long as the download. Anything that
-    # goes wrong, and the other systems, fall back to setup-go.
+    # goes wrong, and the other systems, fall back to setup-go. The Go of go.mod is
+    # its line `toolchain`, the release that pravo is built with, and the line `go`
+    # (the oldest Go that builds it) when it has none: setup-go reads it the same way.
     - id: fast
       if: runner.os == 'Linux'
       shell: bash
       run: |
-        v=$(awk '$1 == "go" { print $2; exit }' go.mod)
+        v=$(awk '$1 == "toolchain" { sub(/^go/, "", $2); print $2; exit }' go.mod)
+        [ -n "$v" ] || v=$(awk '$1 == "go" { print $2; exit }' go.mod)
         dir=$HOME/.local/go$v
         if [ "$(uname -m)" = x86_64 ] && [ -n "$v" ]; then
           if [ ! -x "$dir/bin/go" ]; then

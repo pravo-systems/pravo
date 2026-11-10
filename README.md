@@ -172,7 +172,7 @@ go run ./tools/sitegen -pravo-bin bin/pravo
 go run ./tools/serveshots -bin bin/pravo -out docs/img/serve
 ```
 
-`.github/workflows/ci.yml` runs on every push to `main` and on every pull request: formatting, vet and a build for every platform, the linters, the Go tests, the tools, every page of the documentation, the demos, the OpenTofu listings and the site. The job `ci` passes when all of them do, and is the one check to require.
+`.github/workflows/ci.yml` runs on every push to `main` and on every pull request: formatting, vet and a build for every platform, the known vulnerabilities that the code reaches (`vulns.yml` asks again each day), the linters, the Go tests, the tools, every page of the documentation, the demos, the OpenTofu listings and the site. The job `ci` passes when all of them do, and is the one check to require.
 
 <details>
 <summary>Layout of the repository</summary>

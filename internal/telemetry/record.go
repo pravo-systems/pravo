@@ -254,7 +254,10 @@ func writeTrace(dir string, rt *RunTrace) error {
 		return err
 	}
 	if _, err := os.Stat(dir); err != nil {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		// A run names the hosts and the paths that the providers called, the command line and
+		// the reason: it is the person's own, as the plan files are, and not for the other
+		// users of the machine.
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
 		}
 		// Runs are local to a checkout: keep them out of git.
@@ -262,7 +265,7 @@ func writeTrace(dir string, rt *RunTrace) error {
 	}
 	final := filepath.Join(dir, rt.ID()+".json")
 	tmp := final + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return err
 	}
 	if err := os.Rename(tmp, final); err != nil {

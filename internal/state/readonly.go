@@ -64,8 +64,20 @@ func (b *readOnlyBackend) Put(ctx context.Context, key string, data []byte) erro
 	return b.refuse()
 }
 
+// PutIfAbsent refuses every write but the meta of a location that has none, which the
+// store makes with it: that one is kept in memory, as Put keeps it.
 func (b *readOnlyBackend) PutIfAbsent(ctx context.Context, key string, data []byte) (bool, error) {
-	return false, b.refuse()
+	if key != metaKey {
+		return false, b.refuse()
+	}
+	if b.meta != nil {
+		return false, nil
+	}
+	if _, err := b.b.Get(ctx, key); !errors.Is(err, ErrNotFound) {
+		return false, err // the location has a meta by now, or cannot be read
+	}
+	b.meta = data
+	return true, nil
 }
 
 func (b *readOnlyBackend) Delete(ctx context.Context, key string) error { return b.refuse() }

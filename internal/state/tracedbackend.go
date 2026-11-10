@@ -124,6 +124,14 @@ func (t *tracedBackend) ListVersions(ctx context.Context, prefix string) ([]Obje
 	return objs, err
 }
 
+// VersionsOf is b as a VersionLister when its listing says which version of each object it
+// holds, under any wrapper: a caller that only wants to know whether objects changed asks
+// for the listing and reads none of them.
+func VersionsOf(b Backend) (VersionLister, bool) {
+	vl, _, ok := versionLister(b)
+	return vl, ok
+}
+
 // versionLister is b as a VersionLister, if it is one under any wrapper, and whether the
 // store may keep a snapshot through it. A backend may refuse to list versions (ListsVersions
 // reports false: the s3 setting snapshot: false, or a wrapper whose store does not), and a

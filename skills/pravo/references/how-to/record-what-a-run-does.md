@@ -46,7 +46,7 @@ Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <id>]
 <trace id>-<span id>.json
 ```
 
-The file is named by the trace and its first span, and it is written in the directory the command ran in. It holds every span of the run with its name, its timing, its attributes and the lines of the debug log that were attached to it, and no attribute value: not a password, not an id, not the content of the file. A command that did no work, `pravo version` or `pravo state log`, writes nothing. The directory keeps the newest 100 runs and has a `.gitignore` that ignores the whole of it.
+The file is named by the trace and its first span, and it is written in the directory the command ran in. It holds every span of the run with its name, its timing, its attributes and the lines of the debug log that were attached to it, and no attribute value: not a password, not an id, not the content of the file. A command that did no work, `pravo version` or `pravo state log`, writes nothing. The directory keeps the newest 100 runs and has a `.gitignore` that ignores the whole of it. The directory and its files are readable by their owner alone, since a run names the hosts and the paths that the providers called.
 
 ## 2. Read it in the viewer
 

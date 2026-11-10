@@ -29,8 +29,10 @@ func SetDir(dir string) { cacheDir.Store(&dir) }
 // of one path waits for any other that takes it, in this process or another on
 // the same machine. The lock is not on the file at the path, which the callers
 // replace by a rename; it is on a file of its own in the cache directory of the
-// user, which nothing replaces. A system that cannot lock a file gives a lock
-// that holds nothing.
+// user, which nothing replaces. When that directory cannot be written (a home
+// that is read-only, as in some containers) the file is in the temporary directory,
+// so that the commands of one machine still wait for each other. A system that
+// cannot lock a file gives a lock that holds nothing.
 func Exclusive(name string) (unlock func()) {
 	if abs, err := filepath.Abs(name); err == nil {
 		name = abs
@@ -44,16 +46,8 @@ func Exclusive(name string) (unlock func()) {
 		name = strings.ToLower(name)
 	}
 	sum := sha256.Sum256([]byte(name))
-	dir := os.TempDir()
-	if d := cacheDir.Load(); d != nil {
-		dir = *d
-	}
-	dir = filepath.Join(dir, "pravo", "mutex")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return func() {}
-	}
-	f, err := os.OpenFile(filepath.Join(dir, hex.EncodeToString(sum[:16])), os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
+	f := openLockFile(hex.EncodeToString(sum[:16]))
+	if f == nil {
 		return func() {}
 	}
 	if err := lock(f); err != nil {
@@ -64,4 +58,23 @@ func Exclusive(name string) (unlock func()) {
 		unlockFile(f)
 		_ = f.Close()
 	}
+}
+
+// openLockFile opens the lock file base in the first of the cache directory and the
+// temporary directory that takes it, or returns nil.
+func openLockFile(base string) *os.File {
+	dirs := []string{os.TempDir()}
+	if d := cacheDir.Load(); d != nil && *d != dirs[0] {
+		dirs = []string{*d, dirs[0]}
+	}
+	for _, dir := range dirs {
+		dir = filepath.Join(dir, "pravo", "mutex")
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			continue
+		}
+		if f, err := os.OpenFile(filepath.Join(dir, base), os.O_CREATE|os.O_RDWR, 0o600); err == nil {
+			return f
+		}
+	}
+	return nil
 }
