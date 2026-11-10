@@ -28,7 +28,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
@@ -464,29 +463,10 @@ func (s *Store) loadOnce() error {
 		err error
 	}
 	results := make([]res, len(jsonKeys))
-	width := readWidthLocal
-	if !s.b.Local() {
-		width = readWidthRemote
-	}
-	var (
-		wg   sync.WaitGroup
-		next atomic.Int64
-	)
-	for range min(width, len(jsonKeys)) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				i := int(next.Add(1)) - 1
-				if i >= len(jsonKeys) {
-					return
-				}
-				r, h, err := s.readNode(s.cx(), jsonKeys[i])
-				results[i].r, results[i].h, results[i].err = r, h, err
-			}
-		}()
-	}
-	wg.Wait()
+	s.eachRead(len(jsonKeys), func(i int) {
+		r, h, err := s.readNode(s.cx(), jsonKeys[i])
+		results[i].r, results[i].h, results[i].err = r, h, err
+	})
 	for _, r := range results {
 		if r.err != nil {
 			return r.err
@@ -714,30 +694,21 @@ func (s *Store) Versions(addrs []string) (map[string]Version, error) {
 	out := make(map[string]Version, len(addrs))
 	var (
 		mu       sync.Mutex
-		wg       sync.WaitGroup
 		firstErr error
 		width    = revisionWidth
 	)
 	if !s.b.Local() {
 		width = readWidthRemote
 	}
-	sem := make(chan struct{}, width)
-	for _, addr := range addrs {
-		wg.Add(1)
-		go func(addr string) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			v, _, err := s.head(addr)
-			mu.Lock()
-			defer mu.Unlock()
-			if err != nil && firstErr == nil {
-				firstErr = err
-			}
-			out[addr] = v
-		}(addr)
-	}
-	wg.Wait()
+	eachAt(width, len(addrs), func(i int) {
+		v, _, err := s.head(addrs[i])
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+		out[addrs[i]] = v
+	})
 	return out, firstErr
 }
 

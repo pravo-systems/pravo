@@ -217,55 +217,39 @@ func (s *Store) convertNodes(ctx context.Context, rw rewrite, progress func(done
 		mu              sync.Mutex
 		changed         []string
 		firstErr        error
-		next            atomic.Int64
-		wg              sync.WaitGroup
 	)
-	width := convertWidthLocal
-	if !s.b.Local() {
-		width = convertWidthRemote
-	}
-	for range min(width, len(keys)) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				i := int(next.Add(1)) - 1
-				if i >= len(keys) {
-					return
-				}
-				// A record that is begun is finished, and no other is begun once the
-				// context is done: what is left is converted when the upgrade is run
-				// again.
-				if err := ctx.Err(); err != nil {
-					mu.Lock()
-					if firstErr == nil {
-						firstErr = err
-					}
-					mu.Unlock()
-					return
-				}
-				did, err := s.convertNode(ctx, keys[i], rw)
-				switch {
-				case errors.Is(err, errConvertChanged):
-					mu.Lock()
-					changed = append(changed, addrOfKey(keys[i]))
-					mu.Unlock()
-				case err != nil:
-					mu.Lock()
-					if firstErr == nil {
-						firstErr = err
-					}
-					mu.Unlock()
-				case did:
-					converted.Add(1)
-				}
-				if progress != nil {
-					progress(int(done.Add(1)), len(keys))
-				}
+	eachWhile(s.convertWidth(), len(keys), func(i int) bool {
+		// A record that is begun is finished, and no other is begun once the
+		// context is done: what is left is converted when the upgrade is run
+		// again.
+		if err := ctx.Err(); err != nil {
+			mu.Lock()
+			if firstErr == nil {
+				firstErr = err
 			}
-		}()
-	}
-	wg.Wait()
+			mu.Unlock()
+			return false
+		}
+		did, err := s.convertNode(ctx, keys[i], rw)
+		switch {
+		case errors.Is(err, errConvertChanged):
+			mu.Lock()
+			changed = append(changed, addrOfKey(keys[i]))
+			mu.Unlock()
+		case err != nil:
+			mu.Lock()
+			if firstErr == nil {
+				firstErr = err
+			}
+			mu.Unlock()
+		case did:
+			converted.Add(1)
+		}
+		if progress != nil {
+			progress(int(done.Add(1)), len(keys))
+		}
+		return true
+	})
 	if firstErr != nil {
 		return int(converted.Load()), firstErr
 	}
@@ -385,38 +369,21 @@ func (s *Store) VerifyAll(ctx context.Context) (VerifyResult, error) {
 	var (
 		mu       sync.Mutex
 		firstErr error
-		next     atomic.Int64
-		wg       sync.WaitGroup
 	)
-	width := readWidthLocal
-	if !s.b.Local() {
-		width = readWidthRemote
-	}
-	for range min(width, len(keys)) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				i := int(next.Add(1)) - 1
-				if i >= len(keys) {
-					return
-				}
-				checked, bad, err := s.verifyNode(ctx, keys[i])
-				mu.Lock()
-				if err != nil && firstErr == nil {
-					firstErr = err
-				}
-				if checked {
-					res.Checked++
-				}
-				if bad != "" {
-					res.Bad = append(res.Bad, bad)
-				}
-				mu.Unlock()
-			}
-		}()
-	}
-	wg.Wait()
+	s.eachRead(len(keys), func(i int) {
+		checked, bad, err := s.verifyNode(ctx, keys[i])
+		mu.Lock()
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+		if checked {
+			res.Checked++
+		}
+		if bad != "" {
+			res.Bad = append(res.Bad, bad)
+		}
+		mu.Unlock()
+	})
 	sort.Strings(res.Bad)
 	return res, firstErr
 }

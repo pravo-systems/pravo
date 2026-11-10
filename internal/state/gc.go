@@ -186,26 +186,38 @@ func (s *Store) readHead(ctx context.Context, key string, keep bool) (*recHead, 
 }
 
 // each runs fn for 0 to n-1 on several goroutines.
-func (s *Store) each(n int, fn func(i int)) {
-	width := convertWidthLocal
-	if !s.b.Local() {
-		width = convertWidthRemote
-	}
-	eachAt(width, n, fn)
-}
+func (s *Store) each(n int, fn func(i int)) { eachAt(s.convertWidth(), n, fn) }
 
 // eachRead is each for calls that only read one small object: as many at a time as the
 // store reads records at once.
-func (s *Store) eachRead(n int, fn func(i int)) {
-	width := readWidthLocal
-	if !s.b.Local() {
-		width = readWidthRemote
+func (s *Store) eachRead(n int, fn func(i int)) { eachAt(s.readWidth(), n, fn) }
+
+// readWidth is how many records the store reads at once.
+func (s *Store) readWidth() int {
+	if s.b.Local() {
+		return readWidthLocal
 	}
-	eachAt(width, n, fn)
+	return readWidthRemote
+}
+
+// convertWidth is how many records the store rewrites at once.
+func (s *Store) convertWidth() int {
+	if s.b.Local() {
+		return convertWidthLocal
+	}
+	return convertWidthRemote
 }
 
 // eachAt runs fn for 0 to n-1, width calls at a time.
 func eachAt(width, n int, fn func(i int)) {
+	eachWhile(width, n, func(i int) bool { fn(i); return true })
+}
+
+// eachWhile is eachAt for work that may stop: a worker whose call returns false takes no
+// other index, and the other workers go on until one of theirs does. Every loop of the
+// package that works on many objects at once is one of the two, so that how wide a
+// backend is read is decided in one place.
+func eachWhile(width, n int, fn func(i int) bool) {
 	var (
 		next atomic.Int64
 		wg   sync.WaitGroup
@@ -216,10 +228,9 @@ func eachAt(width, n int, fn func(i int)) {
 			defer wg.Done()
 			for {
 				i := int(next.Add(1)) - 1
-				if i >= n {
+				if i >= n || !fn(i) {
 					return
 				}
-				fn(i)
 			}
 		}()
 	}

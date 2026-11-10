@@ -220,13 +220,7 @@ func (s *Store) firstSealedRecord(ctx context.Context) (string, error) {
 		mu       sync.Mutex
 		firstErr error
 		found    string
-		next     atomic.Int64
-		wg       sync.WaitGroup
 	)
-	width := convertWidthLocal
-	if !s.b.Local() {
-		width = convertWidthRemote
-	}
 	fail := func(err error) {
 		mu.Lock()
 		if firstErr == nil {
@@ -234,50 +228,43 @@ func (s *Store) firstSealedRecord(ctx context.Context) (string, error) {
 		}
 		mu.Unlock()
 	}
-	for range min(width, len(keys)) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				i := int(next.Add(1)) - 1
-				if i >= len(keys) || ctx.Err() != nil {
-					return
-				}
-				raw, err := s.b.Get(s.cx(), keys[i])
-				if errors.Is(err, ErrNotFound) {
-					continue
-				}
-				if err != nil {
-					fail(fmt.Errorf("reading %s: %w", keys[i], err))
-					return
-				}
-				p, isPtr, err := parsePointer(raw)
-				if err != nil || !isPtr {
-					continue // convertNode reports it
-				}
-				rec, err := s.b.Get(s.cx(), p.Record)
-				if errors.Is(err, ErrNotFound) {
-					continue
-				}
-				if err != nil {
-					fail(fmt.Errorf("reading %s: %w", p.Record, err))
-					return
-				}
-				var probe struct {
-					Sealed json.RawMessage `json:"sealed"`
-				}
-				if json.Unmarshal(rec, &probe) == nil && len(probe.Sealed) > 0 && string(probe.Sealed) != "null" {
-					mu.Lock()
-					if found == "" {
-						found = keys[i]
-					}
-					mu.Unlock()
-					return
-				}
+	eachWhile(s.convertWidth(), len(keys), func(i int) bool {
+		if ctx.Err() != nil {
+			return false
+		}
+		raw, err := s.b.Get(s.cx(), keys[i])
+		if errors.Is(err, ErrNotFound) {
+			return true
+		}
+		if err != nil {
+			fail(fmt.Errorf("reading %s: %w", keys[i], err))
+			return false
+		}
+		p, isPtr, err := parsePointer(raw)
+		if err != nil || !isPtr {
+			return true // convertNode reports it
+		}
+		rec, err := s.b.Get(s.cx(), p.Record)
+		if errors.Is(err, ErrNotFound) {
+			return true
+		}
+		if err != nil {
+			fail(fmt.Errorf("reading %s: %w", p.Record, err))
+			return false
+		}
+		var probe struct {
+			Sealed json.RawMessage `json:"sealed"`
+		}
+		if json.Unmarshal(rec, &probe) == nil && len(probe.Sealed) > 0 && string(probe.Sealed) != "null" {
+			mu.Lock()
+			if found == "" {
+				found = keys[i]
 			}
-		}()
-	}
-	wg.Wait()
+			mu.Unlock()
+			return false
+		}
+		return true
+	})
 	if firstErr != nil {
 		return "", firstErr
 	}
@@ -416,40 +403,23 @@ func (s *Store) namedRecords() (map[string]bool, error) {
 	keys = jsonKeysOf(keys)
 	var (
 		mu   sync.Mutex
-		wg   sync.WaitGroup
-		next atomic.Int64
 		out  = map[string]bool{}
 		fail error
 	)
-	width := readWidthLocal
-	if !s.b.Local() {
-		width = readWidthRemote
-	}
-	for range min(width, len(keys)) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				i := int(next.Add(1)) - 1
-				if i >= len(keys) {
-					return
-				}
-				data, err := s.b.Get(s.cx(), keys[i])
-				mu.Lock()
-				switch {
-				case errors.Is(err, ErrNotFound):
-				case err != nil:
-					fail = errors.Join(fail, fmt.Errorf("reading %s: %w", keys[i], err))
-				default:
-					if p, isPtr, err := parsePointer(data); err == nil && isPtr {
-						out[p.Record] = true
-					}
-				}
-				mu.Unlock()
+	s.eachRead(len(keys), func(i int) {
+		data, err := s.b.Get(s.cx(), keys[i])
+		mu.Lock()
+		switch {
+		case errors.Is(err, ErrNotFound):
+		case err != nil:
+			fail = errors.Join(fail, fmt.Errorf("reading %s: %w", keys[i], err))
+		default:
+			if p, isPtr, err := parsePointer(data); err == nil && isPtr {
+				out[p.Record] = true
 			}
-		}()
-	}
-	wg.Wait()
+		}
+		mu.Unlock()
+	})
 	return out, fail
 }
 
