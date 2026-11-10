@@ -428,11 +428,21 @@ func FieldLabel(k string) string {
 }
 
 // quoteCUE writes s as a quoted CUE string. The characters <, > and & stay
-// as they are; they are not written as \u003c, \u003e and \u0026.
+// as they are; they are not written as \u003c, \u003e and \u0026. The characters
+// that change the direction of the text around them are written as escapes: a
+// terminal would otherwise show the value in another order than it has.
 func quoteCUE(s string) string {
 	var b bytes.Buffer
 	enc := json.NewEncoder(&b)
 	enc.SetEscapeHTML(false)
 	_ = enc.Encode(s)
-	return strings.TrimSuffix(b.String(), "\n")
+	return bidiEscaper.Replace(strings.TrimSuffix(b.String(), "\n"))
 }
+
+var bidiEscaper = func() *strings.Replacer {
+	var pairs []string
+	for _, r := range []rune{'\u200e', '\u200f', '\u202a', '\u202b', '\u202c', '\u202d', '\u202e', '\u2066', '\u2067', '\u2068', '\u2069'} {
+		pairs = append(pairs, string(r), fmt.Sprintf("\\u%04x", r))
+	}
+	return strings.NewReplacer(pairs...)
+}()
