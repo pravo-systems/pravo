@@ -36,7 +36,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/environments.md](reference/environments.md) | Show what the state of each environment runs and how the release of this directory stands there, compare two environments, and record the place of a state in the promotion flow. | 9 KB |
 | [reference/promote.md](reference/promote.md) | Bring the release that the environments before one run into it, apply it there, withdraw a promotion or waive the check. Flags, checks, roles and exit codes. | 11 KB |
 | [reference/version.md](reference/version.md) | Print the version of pravo and the version of CUE that is built into it. | 2 KB |
-| [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 17 KB |
+| [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 18 KB |
 
 ### Language
 
@@ -102,7 +102,7 @@ How pravo behaves: evaluation, plans, state, providers, policies.
 
 | File | Covers | Size |
 |---|---|---|
-| [concepts/how-pravo-works.md](concepts/how-pravo-works.md) | One run of pravo in seven stages, from the CUE files of a directory to the providers, the state and the output. | 13 KB |
+| [concepts/how-pravo-works.md](concepts/how-pravo-works.md) | One run of pravo in seven stages, from the CUE files of a directory to the providers, the state and the output. | 17 KB |
 | [concepts/evaluation.md](concepts/evaluation.md) | How pravo turns the CUE files of a directory into one value, finds resources by identity and builds the dependency graph before any provider is asked anything. | 13 KB |
 | [concepts/resources-and-addresses.md](concepts/resources-and-addresses.md) | What makes a struct a resource, how its address is its path, and what renaming, moving or reordering does to the record of an object. | 11 KB |
 | [concepts/plans.md](concepts/plans.md) | What a plan contains, how pravo decides which resources a plan reaches, what an unknown value is, how refresh age works, and how a saved plan is checked when it is applied. | 55 KB |
@@ -143,7 +143,7 @@ One task each, for a reader who knows the basics.
 | [how-to/explore-your-estate.md](how-to/explore-your-estate.md) | Start pravo serve, read the graph, find a resource, open and close groups, read the source and the history of a resource, overlay a plan, read what your team planned, find drift, see the policies, read a recorded run, share a view, see who can read the state and ask for an instance from a template. | 36 KB |
 | [how-to/record-what-a-run-does.md](how-to/record-what-a-run-does.md) | Keep a trace of every command in the project, read it in the viewer as a timeline, find the slow resource and the call that failed, see the requests a run made over the network, and send the same spans to a collector. | 13 KB |
 | [how-to/ask-questions-about-your-estate.md](how-to/ask-questions-about-your-estate.md) | Turn on the read-only assistant of the viewer with environment variables, point it at Anthropic, OpenRouter or a model on your machine, ask in words, follow the links in an answer, read what was sent to the model and start a new chat. | 9 KB |
-| [how-to/debugging.md](how-to/debugging.md) | Read an evaluation error, ask pravo what it decided with -v, ask why a resource changes, check for drift and follow a run in a trace. | 15 KB |
+| [how-to/debugging.md](how-to/debugging.md) | Read an evaluation error, ask pravo what it decided with -v, ask why a resource changes, check for drift and follow a run in a trace. | 16 KB |
 
 ### Operate
 

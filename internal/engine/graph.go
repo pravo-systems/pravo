@@ -1,9 +1,11 @@
 package engine
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -179,19 +181,85 @@ func (e *Engine) atRoot(p cue.Path) cue.Value {
 // references in its body, independent of whether values are known yet. A
 // cycle among the tasks is an error: nothing could run first. The graph is
 // built once; later walks of the engine use it.
+//
+// The references are read from the syntax and from CUE's evaluator; see
+// loopdeps.go. If the graph that uses the evaluator has a cycle, the graph of
+// the syntax alone is tried: an edge that only the evaluator finds must not stop
+// a specification that worked without it.
 func (e *Engine) buildGraph() (map[string]*node, error) {
 	if e.graph != nil {
 		return e.graph, nil
 	}
 	began := time.Now()
-	nodes := map[string]*node{}
-	for _, r := range e.Root.Resources {
-		nodes[r.Address()] = &node{res: r, deps: map[string]bool{}}
-	}
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
 	e.inert = map[string]convert.InertField{}
 	defer func() { e.inert = nil }()
+	var syntax map[string][]string
+	wantEvaluator := !DependenciesFromSyntax && !e.depsFromSyntax
+	if graphAudit != nil && wantEvaluator {
+		// The audit compares with the syntax alone. What that reading marks as
+		// iterated is put back, so that a run under the audit seeds as any other.
+		e.iterMu.Lock()
+		iterated := maps.Clone(e.iterated)
+		e.iterMu.Unlock()
+		e.graphNodes(false)
+		syntax = maps.Clone(e.deps)
+		e.iterMu.Lock()
+		e.iterated = iterated
+		e.iterMu.Unlock()
+	}
+	nodes, evaluator := e.graphNodes(wantEvaluator)
+	err := checkCycles(nodes)
+	if err != nil && evaluator {
+		plog.Debug(context.Background(), "the graph with the evaluator's edges has a cycle; trying the syntax alone", "cycle", err.Error())
+		nodes, evaluator = e.graphNodes(false)
+		err = checkCycles(nodes)
+	}
+	e.graphBuilds++
+	narrowed, unconfirmed := 0, 0
+	if e.loops != nil {
+		narrowed, unconfirmed = e.loops.Narrowed, e.loops.Unconfirmed
+	}
+	plog.Debug(context.Background(), "graph built", "tasks", len(nodes), "evaluator", evaluator, "loops by element", narrowed, "loops unconfirmed", unconfirmed, "took", time.Since(began).Round(time.Millisecond))
+	if err != nil {
+		return nil, err
+	}
+	e.evaluatorEdges = evaluator
+	e.graph = nodes
+	if syntax != nil && evaluator {
+		graphAudit(e, syntax)
+	}
+	return nodes, nil
+}
+
+// graphAudit, when it is set, is given every graph that is built with the
+// evaluator's edges, next to the edges that the syntax alone gives for the same
+// specification. The tests set it and check each graph that any of them builds.
+// The caller holds cueMu.
+var graphAudit func(e *Engine, syntax map[string][]string)
+
+// graphNodes reads the dependencies of every task and sets what the engine
+// keeps of them (deps, readers, providerDeps, outputDeps, loops). With evaluator
+// set it adds what CUE's evaluator finds and reads the loops that qualify by
+// element; used reports whether it did. The caller holds cueMu.
+func (e *Engine) graphNodes(evaluator bool) (nodes map[string]*node, used bool) {
+	nodes = map[string]*node{}
+	for _, r := range e.Root.Resources {
+		nodes[r.Address()] = &node{res: r, deps: map[string]bool{}}
+	}
+	e.loops = nil
+	bodyDeps := make(map[string][]string, len(e.Root.Resources))
+	if evaluator {
+		t := time.Now()
+		loops, err := convert.NewLoops(e.Value, e.resolver())
+		if err != nil {
+			plog.Debug(context.Background(), "dependencies come from the syntax alone", "reason", err.Error())
+		} else {
+			e.loops, used = loops, true
+			plog.Debug(context.Background(), "evaluator dependencies", "tasks", loops.Tasks(), "took", time.Since(t).Round(time.Millisecond))
+		}
+	}
 	for _, r := range e.Root.Resources {
 		v := e.at(r.Path)
 		if f, ok := v.Source().(*ast.Field); ok {
@@ -200,14 +268,26 @@ func (e *Engine) buildGraph() (map[string]*node, error) {
 			}
 			e.fieldSrc[r.Address()] = f
 		}
-		deps, _ := convert.Dependencies(v, r.Path, e.resolver())
+		var deps []cue.Path
+		if e.loops != nil {
+			deps, _ = e.loops.Dependencies(v, r.Path, e.resolver())
+		} else {
+			deps, _ = convert.Dependencies(v, r.Path, e.resolver())
+		}
 		n := nodes[r.Address()]
 		for _, d := range deps {
 			if dr, ok := e.byPath[d.String()]; ok && dr != r {
 				n.deps[dr.Address()] = true
 			}
 		}
+		own := make([]string, 0, len(n.deps))
+		for d := range n.deps {
+			own = append(own, d)
+		}
+		sort.Strings(own)
+		bodyDeps[r.Address()] = own
 	}
+	e.bodyDeps = bodyDeps
 	// Resources run after whatever their provider's configuration references.
 	e.providerDeps = e.providerDepsOf()
 	for key, pdeps := range e.providerDeps {
@@ -251,13 +331,7 @@ func (e *Engine) buildGraph() (map[string]*node, error) {
 		}
 	}
 	e.readers, e.outputDeps = readers, outputDeps
-	e.graphBuilds++
-	plog.Debug(context.Background(), "graph built", "tasks", len(nodes), "took", time.Since(began).Round(time.Millisecond))
-	if err := checkCycles(nodes); err != nil {
-		return nil, err
-	}
-	e.graph = nodes
-	return nodes, nil
+	return nodes, used
 }
 
 // outputReadsLocked lists, per output, the addresses of the tasks its value
@@ -431,11 +505,18 @@ func release(n *node, ready chan<- *node, closed bool) {
 	}
 }
 
+// resetWalk puts the engine back to the specification as it was loaded, with
+// no value of a task in it, for the walk that starts.
+func (e *Engine) resetWalk() {
+	e.current, e.seeded = e.Value, false
+	e.pending, e.pendingOrder, e.refused = nil, nil, nil
+	e.memoRun()
+}
+
 // run executes every task in dependency order, with bounded parallelism,
 // and returns the configuration value with all fills applied.
 func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
-	e.current, e.seeded = e.Value, false
-	e.pending, e.pendingOrder = nil, nil
+	e.resetWalk()
 	_, endGraph := setup(ctx, "build task graph")
 	nodes, err := e.buildGraph()
 	endGraph(err)
@@ -532,6 +613,7 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 	// refused.
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
+	firstErr = cmp.Or(firstErr, e.fillExternalLocked())
 	e.dropChecked()
 	settled, fills := time.Now(), len(e.pending)
 	if err := e.settleAllLocked(); err != nil && firstErr == nil {
@@ -563,17 +645,33 @@ type pendingFill struct {
 func (e *Engine) snapshot(r *config.Resource) (cue.Value, error) {
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
+	return e.snapshotLocked(r)
+}
+
+// snapshotLocked is snapshot. The caller holds cueMu.
+func (e *Engine) snapshotLocked(r *config.Resource) (cue.Value, error) {
+	// A fill that the specification refused is dropped, and the run is ending.
+	// A task that was ready at the same time as the one that found it starts
+	// all the same, and would read the task as if it had computed nothing.
+	if e.refused != nil {
+		return cue.Value{}, e.refused
+	}
 	deps := e.deps[r.Address()]
 	if e.scope != nil && e.scope.reads != nil {
 		// The walk of an apply leaves nodes out. What a task reads through them is
 		// filled by the nodes of the scope that it waited for.
 		deps = e.scope.reads[r.Address()]
 	}
+	// A node that the plan left alone on the word of its memo made no fill. It
+	// makes it now that a task reads it (memo.go).
+	if err := e.fillLazyLocked(deps); err != nil {
+		return cue.Value{}, err
+	}
 	// A task that finished and left no fill (its values are unknown, or already in
 	// its configuration) is read from the configuration, where it is built from
 	// the tasks it read; if their fills wait, it is not yet what it will be.
 	if e.hiddenPending(deps) {
-		if err := e.settleAllLocked(); err != nil {
+		if err := e.settleEveryLocked(); err != nil {
 			return cue.Value{}, err
 		}
 	}
@@ -604,8 +702,16 @@ func (e *Engine) fillFrom(r *config.Resource, fill map[string]any, v cue.Value) 
 	}
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
+	e.fillFromLocked(r, fill, v)
+	return nil
+}
+
+// fillFromLocked is fillFrom for a fill that is not empty. The caller holds
+// cueMu.
+func (e *Engine) fillFromLocked(r *config.Resource, fill map[string]any, v cue.Value) {
 	addr := r.Address()
-	if e.onFill != nil {
+	e.memoFill(r, fill)
+	if e.onFill != nil && !e.shadowing {
 		e.onFill(addr)
 	}
 	if e.pending == nil {
@@ -624,7 +730,6 @@ func (e *Engine) fillFrom(r *config.Resource, fill map[string]any, v cue.Value) 
 	if v.Exists() && len(e.readersOf(addr)) == 0 {
 		e.releaseLeaf(next)
 	}
-	return nil
 }
 
 // dropChecked leaves out of the final settle the fills that nothing reads but task
@@ -681,12 +786,15 @@ func (e *Engine) dropChecked() {
 // settleLocked unifies the pending fills into the configuration if any of the
 // tasks at addrs has one. The caller holds cueMu.
 func (e *Engine) settleLocked(addrs []string) error {
+	if err := e.fillLazyLocked(addrs); err != nil {
+		return err
+	}
 	if len(e.pending) == 0 {
 		return nil
 	}
 	for _, a := range addrs {
 		if _, ok := e.pending[a]; ok {
-			return e.settleAllLocked()
+			return e.settleEveryLocked()
 		}
 	}
 	return nil
@@ -737,6 +845,7 @@ func (e *Engine) settleAllLocked() error {
 	if first == nil {
 		first = errors.New("filling values into the configuration: the configuration does not hold")
 	}
+	e.refused = first
 	return first
 }
 

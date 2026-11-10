@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"runtime/debug"
 	"strconv"
 
 	"github.com/pravo-systems/pravo/internal/engine"
@@ -41,13 +42,31 @@ func colourOff(flag bool) bool { return flag || environment().Get("NO_COLOR") !=
 
 // applyProcessSettings hands the settings that are process-wide to the packages
 // that keep them: telemetry is configured by the environment, the ssh-agent is
-// found by it, and the lock files are kept in the cache directory of the user.
-// They are reached from places that carry no environment of their own.
+// found by it, the lock files are kept in the cache directory of the user, and
+// the garbage collector is set (applyCollector). They are reached from places
+// that carry no environment of their own.
 func applyProcessSettings(e env.Env) {
 	telemetry.Configure(e)
 	protect.SetAgentEnv(e)
 	if d, ok := e.UserCacheDir(); ok {
 		filelock.SetDir(d)
+	}
+	applyCollector(e)
+}
+
+// collectorPercent is the GOGC that a command runs with when the environment
+// sets none: the collector starts when the heap has grown to five times what
+// was live after the last collection, where Go's own default is twice. A
+// command evaluates a specification once and ends. Most of what it allocates
+// is live until it does, and with the default about four tenths of the time of
+// a plan of thousands of resources went to collections that freed little.
+const collectorPercent = 400
+
+// applyCollector sets collectorPercent unless GOGC is set, which Go's runtime
+// has read by now and which wins.
+func applyCollector(e env.Env) {
+	if e.Get("GOGC") == "" {
+		debug.SetGCPercent(collectorPercent)
 	}
 }
 
@@ -67,5 +86,21 @@ func applyParallelism(e env.Env) error {
 		return fmt.Errorf("PRAVO_PARALLELISM=%q: want a whole number from 1 to %d", v, maxParallelism)
 	}
 	engine.Parallelism = n
+	return nil
+}
+
+// applyDependencies sets where the dependencies between resources are read from.
+// PRAVO_DEPENDENCIES=syntax reads them from the syntax of the specification
+// alone; unset, empty or "evaluator" also reads CUE's evaluator, which knows the
+// element that a loop over a collection of resources reads.
+func applyDependencies(e env.Env) error {
+	switch v := e.Get("PRAVO_DEPENDENCIES"); v {
+	case "", "evaluator":
+		engine.DependenciesFromSyntax = false
+	case "syntax":
+		engine.DependenciesFromSyntax = true
+	default:
+		return fmt.Errorf("PRAVO_DEPENDENCIES=%q: want syntax or evaluator", v)
+	}
 	return nil
 }

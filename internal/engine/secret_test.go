@@ -58,7 +58,8 @@ func (h *harness) setSecret(name, value string) state.SecretInfo {
 }
 
 // leaks lists where the text is found in what a run leaves behind: the records, the
-// transactions, the outputs, the plan, the saved plan, and the plan that is stored.
+// transactions, the outputs, the plan memo, the plan, the saved plan, and the
+// plan that is stored.
 func (h *harness) leaks(t *testing.T, e *Engine, plan *Plan, text string) []string {
 	t.Helper()
 	var found []string
@@ -80,6 +81,9 @@ func (h *harness) leaks(t *testing.T, e *Engine, plan *Plan, text string) []stri
 	}
 	look("the transactions", txns)
 	look("the outputs", h.state.Outputs())
+	if raw, err := os.ReadFile(filepath.Join(h.dir, "plan.memo")); err == nil && strings.Contains(string(raw), text) {
+		found = append(found, "the plan memo")
+	}
 	if plan != nil {
 		for _, ch := range plan.Changes {
 			look("the plan change "+ch.Addr, []any{ch.Config.String(), ch.Prior.String(), ch.Planned.String(), ch.Reasons, ch.Warnings})

@@ -28,6 +28,14 @@ Definitions, hidden fields and the top-level `$settings` field are not searched.
 
 pravo reads every field of every resource and records each reference to another resource as a dependency. A reference in provider configuration is a dependency of every resource that uses the provider. The result is a graph in which a resource runs after everything it refers to. Resources that refer to each other in a circle stop the run with `dependency cycle between` and the names of the resources on the cycle.
 
+#### Loops over a collection
+
+A comprehension can make one resource for each resource of a collection: one route table association for each subnet in `subnets`. In `for name, subnet in subnets`, the resource that an iteration makes reads the subnet of that iteration, through `subnet.id` or through `subnets[name].id`, and waits for that one subnet. pravo takes the element from CUE's evaluator, which knows what the loop variable was bound to.
+
+Where the evaluator does not name the element, the resource waits for every resource of the collection, which is always safe. That is the case for a collection whose elements are only references to a definition or to another field, for a collection that holds plain values beside its resources, and for a loop whose source is an expression and not the name of the collection. A reference to the collection as a whole, such as `json.Marshal(subnets)` or `$depends_on: [subnets]`, is a dependency on every resource in it.
+
+`PRAVO_DEPENDENCIES=syntax` reads the dependencies from the syntax of the specification alone. Every loop over a collection then waits for the whole collection. The result of an apply is the same; the order in which independent resources are applied differs, and a collection of thousands of resources takes longer to load, since the number of dependencies grows with the square of its size.
+
 ### 4. Plan
 
 pravo visits the graph in dependency order, at most ten resources at a time (`PRAVO_PARALLELISM` changes the number). For each resource it reads the recorded node from the state and converts the body to a value that the provider understands. A resource that is unchanged since the last apply is skipped. The plan reads the record of a resource from its provider only for the resources it reaches and for the resources they read, and only when the record is older than its refresh age. The other records are not read.
@@ -37,6 +45,18 @@ Every other resource goes to its provider, which returns the planned state. From
 This stage writes only records that it refreshed, moved or imported, and the marks that a read leaves on a record whose object differs or is gone. [Plans](plans.md) covers it.
 
 The plan can leave the terminal. `plan --out` saves it to a file, and `plan --store` writes it into the state, where a colleague or a job finds it by its id and applies exactly those actions. [Stored plans and approvals](stored-plans-and-approvals.md) follows it from there.
+
+#### What a plan remembers
+
+Converting a body means evaluating it, and with thousands of resources that evaluation is most of the time of a plan in which little changed. A plan remembers the bodies it converted. For each resource it keeps one digest in a file on the machine that planned: of the body as it is written, of the values that the body reads from other resources, of the provider and the version of its schema, and of what the conversion came to. The next plan works the digest out again, which does not take evaluating the body. When the digest is the same and the record in the state holds what the conversion came to, the resource is unchanged, and the plan skips it as it skips every unchanged resource. In any other case the plan converts the body.
+
+The file says "unchanged since the plan that wrote this" and nothing else. It holds no value and it decides nothing about reading: a record is read when its refresh age has run out or when it carries a mark, and `--replace` and `--full` plan a resource whatever the file says. A plan on another machine, or after the file is deleted, converts every body once and is the same plan.
+
+The file answers for a body that reads other resources through plain references and in no other way: `subnet_id: subnet.id`, or a field of the variable of a loop that reads its own element. A body that builds a value from another resource, with an interpolation, a call, a condition or a comprehension, is converted by every plan. So is a resource that reads a secret or an ephemeral resource. The value of an environment variable, the outputs of another root and the result of a function call are read by every plan and are part of the digest of what reads them, and so is what a data source returned.
+
+The file is kept in the cache directory of the user, under `pravo/plan-memo`, one for each root and environment, and a file that no command has used for 30 days is removed. Its digests are made with a key that is kept apart from it, `plan-memo.key` in the [configuration directory](../reference/global-flags.md#environment-variables), so the file alone does not let anyone test a guess of a value against it.
+
+`PRAVO_PLAN=full` plans without the file. `PRAVO_PLAN=check` plans with it, converts every body it answered for as well, and fails when the two differ.
 
 ### 5. Judge
 
@@ -121,7 +141,7 @@ Output:
 loaded managed=2 data=0 ephemeral=0 calls=0 outputs=0 providers=2 moves=0 imports=0
 state opened backend=local nodes=0
 plan refresh=age full=false destroy=false tasks=2
-graph built tasks=2
+graph built tasks=2 evaluator=true loops by element=0 loops unconfirmed=0
 provider started provider=random version=<v>
 task addr=port phase=plan outcome=ok action=create
 provider started provider=local version=<v>
@@ -160,7 +180,7 @@ Output:
 loaded managed=2 data=0 ephemeral=0 calls=0 outputs=0 providers=2 moves=0 imports=0
 state opened backend=local nodes=2
 plan refresh=age full=false destroy=false tasks=2
-graph built tasks=2
+graph built tasks=2 evaluator=true loops by element=0 loops unconfirmed=0
 task addr=port phase=plan outcome=ok action=no-op skipped=true unread=true
 task addr=web phase=plan outcome=ok action=no-op skipped=true unread=true
 No changes. The specification matches the state. 2 records were not read, so a change made outside pravo would not show here; run pravo drift to compare them with the infrastructure.

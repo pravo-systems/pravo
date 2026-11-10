@@ -251,6 +251,22 @@ func TestPravoParallelismComesFromTheEnvironment(t *testing.T) {
 	}
 }
 
+func TestPravoDependenciesComesFromTheEnvironment(t *testing.T) {
+	old := engine.DependenciesFromSyntax
+	defer func() { engine.DependenciesFromSyntax = old }()
+	if err := applyDependencies(env.New([]string{"PRAVO_DEPENDENCIES=flow"})); err == nil {
+		t.Errorf("an unknown value was accepted")
+	}
+	if err := applyDependencies(env.New([]string{"PRAVO_DEPENDENCIES=syntax"})); err != nil || !engine.DependenciesFromSyntax {
+		t.Errorf("syntax: %v, %v", err, engine.DependenciesFromSyntax)
+	}
+	for _, v := range []string{"PRAVO_DEPENDENCIES=evaluator", "PRAVO_DEPENDENCIES="} {
+		if err := applyDependencies(env.New([]string{v})); err != nil || engine.DependenciesFromSyntax {
+			t.Errorf("%s: %v, %v", v, err, engine.DependenciesFromSyntax)
+		}
+	}
+}
+
 // The tools that print a plan document run with --withhold-sensitive, so that an agent
 // does not read the values of sensitive attributes.
 func TestPlanDocumentToolsWithholdSensitiveValues(t *testing.T) {

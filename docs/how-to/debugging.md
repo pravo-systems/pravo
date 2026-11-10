@@ -154,7 +154,7 @@ pravo plan -v 2>&1 | grep -E 'debug (state opened|provider version from the lock
 ```
 
 ```text out
-debug graph built tasks=2 took=0ms
+debug graph built tasks=2 evaluator=true loops by element=0 loops unconfirmed=0 took=0ms
 debug plan refresh=age full=false destroy=false tasks=2
 debug provider version from the lock file provider=local version=2.9.1 constraint=
 debug provider version from the lock file provider=random version=3.9.1 constraint=
@@ -191,13 +191,13 @@ pravo plan -v 2>&1 | grep -E 'debug (loaded|state opened|schemas ready|graph bui
 debug loaded dir=. managed=2 data=0 ephemeral=0 calls=0 outputs=0 providers=2 moves=0 imports=0 took=0ms
 debug state opened backend=local location=./pravo.state nodes=2 took=0ms
 debug schemas ready providers=2 took=0ms
-debug graph built tasks=2 took=0ms
+debug graph built tasks=2 evaluator=true loops by element=0 loops unconfirmed=0 took=0ms
 debug tasks run phase=plan tasks=2 took=0ms
 debug settled phase=plan fills=0 took=0ms
 debug finished command="pravo plan" exit=0 took=0ms
 ```
 
-The first four phases do not depend on what changed. They are the floor of every command: a specification that imports a large provider, such as `hashicorp/aws`, spends most of its floor in `loaded` and `schemas ready`, and an estate of thousands of resources spends it in `loaded`, `state opened` and `graph built`. What a command does for the change is in `tasks run`.
+The first four phases do not depend on what changed. They are the floor of every command: a specification that imports a large provider, such as `hashicorp/aws`, spends most of its floor in `loaded` and `schemas ready`, and an estate of thousands of resources spends it in `loaded`, `state opened` and `graph built`. What a command does for the change is in `tasks run`. A plan also logs a line `memo`: `left alone` counts the resources whose configuration it did not evaluate, because nothing the configuration is made from has changed. See [What a plan remembers](../concepts/how-pravo-works.md#what-a-plan-remembers).
 
 `-vv` adds the finest detail, such as each task's dependencies, and turns on the providers' own log.
 

@@ -104,6 +104,10 @@ type Options struct {
 	// Reserve, when positive, makes Plan take reservations of this duration
 	// on every node with a pending change.
 	Reserve time.Duration
+	// Memo, when set, lets a plan leave a resource alone without evaluating its
+	// configuration when nothing that the configuration is made from has changed
+	// since a plan that did evaluate it. See memo.go.
+	Memo *PlanMemo
 }
 
 // Engine runs plans and applies. Its state is grouped by what uses it: the
@@ -121,6 +125,7 @@ type Engine struct {
 
 	cueState
 	graphState
+	memoState
 	readState
 	applyState
 	testHooks
@@ -174,6 +179,9 @@ type cueState struct {
 	inert        map[string]convert.InertField
 	pending      map[string]*pendingFill
 	pendingOrder []string
+	// refused is the error of a fill that did not fit the configuration in this
+	// run: every task that starts after it fails with it. See snapshot.
+	refused error
 	// seeded reports that the first batch of fills of the run carried the seed
 	// fills; see seedFills. iterated holds the containers of tasks that something
 	// reads, by path.
@@ -213,6 +221,15 @@ type graphState struct {
 	// outputReadsLocked. graphBuilds counts the times the graph was worked out.
 	outputReads map[string][]string
 	graphBuilds int
+	// evaluatorEdges reports that the graph holds the edges that CUE's evaluator
+	// found next to the ones of the syntax; loops is what it found out about the
+	// loops that make tasks, nil when the graph is the syntax alone. See
+	// loopdeps.go.
+	evaluatorEdges bool
+	loops          *convert.Loops
+	// bodyDeps lists, per task, the tasks that its body reads: deps without the
+	// tasks that the configuration of its provider reads.
+	bodyDeps map[string][]string
 }
 
 // readState is what a plan found out about the records and the providers.
@@ -294,6 +311,9 @@ type testHooks struct {
 	// readOnce, when set, stands in for the read of the inputs of the reached
 	// nodes that readInputs makes in each round.
 	readOnce func(ctx context.Context) ([]string, error)
+	// depsFromSyntax makes the graph of this engine the analysis of the syntax
+	// alone, as DependenciesFromSyntax does for every engine.
+	depsFromSyntax bool
 }
 
 // New creates an engine. value must already have provider schemas unified in.
@@ -430,6 +450,23 @@ func (e *Engine) replaceRequested(addr string) bool {
 	return false
 }
 
+// planWalk walks the graph for a plan, and in RefreshAge reads the inputs of
+// the nodes that the walk reached, which may walk again. The plan memo is read
+// before and written after (memo.go).
+func (e *Engine) planWalk(ctx context.Context) (cue.Value, error) {
+	pctx, done := e.phase(ctx, "evaluate and refresh", attribute.Int("pravo.tasks", len(e.Root.Resources)))
+	e.memoBegin()
+	final, err := e.run(pctx, false)
+	done(err)
+	if err == nil && e.Opts.Refresh == RefreshAge {
+		rctx, done := e.phase(ctx, "read inputs")
+		final, err = e.readInputs(rctx, final)
+		done(err)
+	}
+	e.memoEnd(ctx, err)
+	return final, err
+}
+
 // Plan computes the changes needed to reach the configuration.
 func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 	_, done := e.phase(ctx, "check specification")
@@ -479,14 +516,7 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		return nil, err
 	}
 	plan.Changes = append(plan.Changes, moves...)
-	pctx, done := e.phase(ctx, "evaluate and refresh", attribute.Int("pravo.tasks", len(e.Root.Resources)))
-	final, err := e.run(pctx, false)
-	done(err)
-	if err == nil && e.Opts.Refresh == RefreshAge {
-		rctx, done := e.phase(ctx, "read inputs")
-		final, err = e.readInputs(rctx, final)
-		done(err)
-	}
+	final, err := e.planWalk(ctx)
 	if err != nil {
 		e.finishError("failed", err, false)
 		return nil, err
@@ -757,6 +787,13 @@ func (e *Engine) countPlannable() int {
 // runTask plans (or applies) one task against the current configuration and
 // fills the resulting values back in.
 func (e *Engine) runTaskInner(ctx context.Context, r *config.Resource, apply bool) error {
+	if !apply && !r.Builtin && (r.Mode == "managed" || r.Mode == "data") {
+		// A node whose configuration is known to be what its record holds is left
+		// alone without evaluating its body.
+		if done, err := e.planFromMemo(r); done || err != nil {
+			return err
+		}
+	}
 	v, err := e.snapshot(r)
 	if err != nil {
 		return err
@@ -790,6 +827,9 @@ func (e *Engine) runTaskInner(ctx context.Context, r *config.Resource, apply boo
 	}
 	if err != nil {
 		return err
+	}
+	if !apply {
+		e.memoOut(r.Address(), final)
 	}
 	if final.Type() == nil {
 		// A node that the plan did not look at and that nothing reads has no value
