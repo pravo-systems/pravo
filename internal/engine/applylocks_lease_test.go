@@ -110,6 +110,19 @@ func TestALockThatLandsLateIsNotTrusted(t *testing.T) {
 	}
 }
 
+// renewals counts the renewals of locks that reach the backend.
+type renewals struct {
+	state.Backend
+	n atomic.Int64
+}
+
+func (b *renewals) ReplaceIf(ctx context.Context, key string, update func([]byte) ([]byte, bool)) (bool, error) {
+	if strings.HasPrefix(key, "locks/") {
+		b.n.Add(1)
+	}
+	return b.Backend.ReplaceIf(ctx, key, update)
+}
+
 // A computer that sleeps stops the clock that Go measures intervals with, and
 // the time of day goes on: the other commands judge the lock by the time of day.
 // An apply that wakes renews its locks before its next change, and finds out
@@ -123,7 +136,8 @@ func TestAnApplyThatSleptRenewsBeforeItChanges(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			mem := state.NewMemBackend("mem")
 			ctx := context.Background()
-			st, err := state.OpenBackend(ctx, mem)
+			counted := &renewals{Backend: mem}
+			st, err := state.OpenBackend(ctx, counted)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -135,7 +149,9 @@ func TestAnApplyThatSleptRenewsBeforeItChanges(t *testing.T) {
 			if err := h.fence(); err != nil {
 				t.Fatal(err)
 			}
-			before := h.lastBeat()
+			if n := counted.n.Load(); n != 0 {
+				t.Fatalf("the fence of an apply that has just taken its locks renewed them %d times", n)
+			}
 			if taken {
 				keys, _ := mem.List(ctx, "locks/")
 				if len(keys) != 1 {
@@ -170,8 +186,10 @@ func TestAnApplyThatSleptRenewsBeforeItChanges(t *testing.T) {
 				t.Fatalf("the fence of an apply that slept while its lock was taken: %v", err)
 			case !taken && err != nil:
 				t.Fatal(err)
-			case !taken && !h.lastBeat().After(before):
-				t.Fatal("the fence of an apply that slept passed without a renewal")
+			case !taken && counted.n.Load() != 1:
+				// Counted, and not read from the time of the last renewal: the clock of
+				// Windows moves in steps that are longer than this test.
+				t.Fatalf("the fence of an apply that slept renewed its locks %d times; want once", counted.n.Load())
 			}
 		})
 	}
