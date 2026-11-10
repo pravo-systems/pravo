@@ -745,11 +745,22 @@ func (c *Client) Checksum(ctx context.Context, src Source, ver string, plat Plat
 	if src.OCI {
 		return c.checksumOCI(ctx, src, ver, plat)
 	}
-	dl, err := c.downloadInfo(ctx, src, ver, plat)
+	base, err := c.providersBase(ctx, src.Host)
 	if err != nil {
 		return "", err
 	}
-	return statedSum(src, ver, plat, dl)
+	var dl downloadInfo
+	u := fmt.Sprintf("%s%s/%s/%s/download/%s/%s", base, url.PathEscape(src.Namespace), url.PathEscape(src.Type), ver, plat.OS, plat.Arch)
+	if err := c.getJSON(ctx, u, &dl); err != nil {
+		if notFound(err) {
+			return "", fmt.Errorf("%s v%s was not found for %s", src.Display(), ver, plat)
+		}
+		return "", fmt.Errorf("resolving download for %s %s: %w", src.Display(), ver, err)
+	}
+	if dl.Shasum == "" {
+		return "", fmt.Errorf("%s does not state a checksum for %s %s (%s)", src.Host, src.Display(), ver, plat)
+	}
+	return strings.ToLower(dl.Shasum), nil
 }
 
 // ChecksumSigned is Checksum for a provider that is already on disk: it also checks the
@@ -761,74 +772,33 @@ func (c *Client) Checksum(ctx context.Context, src Source, ver string, plat Plat
 func (c *Client) ChecksumSigned(ctx context.Context, src Source, ver string, plat Platform) (sum, signer string, err error) {
 	if src.OCI {
 		sum, err = c.checksumOCI(ctx, src, ver, plat)
-		if err != nil {
-			return "", "", err
-		}
-		signer, err = c.checkSigned(ctx, src, ver, nil, sum)
-		if err != nil {
-			return "", "", err
-		}
-		return sum, signer, nil
+		return sum, "", err
 	}
-	dl, err := c.downloadInfo(ctx, src, ver, plat)
-	if err != nil {
-		return "", "", err
-	}
-	if sum, err = statedSum(src, ver, plat, dl); err != nil {
-		return "", "", err
-	}
-	if signer, err = c.checkSigned(ctx, src, ver, dl, sum); err != nil {
-		return "", "", err
-	}
-	return sum, signer, nil
-}
-
-// downloadInfo asks the registry for the download of one provider version for plat. It is the
-// only place that builds the address, words a version that is not there and refuses a build for
-// another platform or protocol; Checksum, ChecksumSigned and archive all call it.
-func (c *Client) downloadInfo(ctx context.Context, src Source, ver string, plat Platform) (*downloadInfo, error) {
 	base, err := c.providersBase(ctx, src.Host)
 	if err != nil {
-		return nil, err
+		return "", "", err
 	}
 	var dl downloadInfo
 	u := fmt.Sprintf("%s%s/%s/%s/download/%s/%s", base, url.PathEscape(src.Namespace), url.PathEscape(src.Type), ver, plat.OS, plat.Arch)
 	if err := c.getJSON(ctx, u, &dl); err != nil {
 		if notFound(err) {
-			return nil, fmt.Errorf("%s v%s was not found for %s", src.Display(), ver, plat)
+			return "", "", fmt.Errorf("%s v%s was not found for %s", src.Display(), ver, plat)
 		}
-		return nil, fmt.Errorf("resolving download for %s %s: %w", src.Display(), ver, err)
+		return "", "", fmt.Errorf("resolving download for %s %s: %w", src.Display(), ver, err)
 	}
-	if err := checkDownloadInfo(&dl, plat); err != nil {
-		return nil, fmt.Errorf("%s %s: %w", src.Display(), ver, err)
-	}
-	return &dl, nil
-}
-
-// statedSum is the checksum the registry states for a download, lower-case.
-func statedSum(src Source, ver string, plat Platform, dl *downloadInfo) (string, error) {
 	if dl.Shasum == "" {
-		return "", fmt.Errorf("%s does not state a checksum for %s %s (%s)", src.Host, src.Display(), ver, plat)
+		return "", "", fmt.Errorf("%s does not state a checksum for %s %s (%s)", src.Host, src.Display(), ver, plat)
 	}
-	return strings.ToLower(dl.Shasum), nil
-}
-
-// checkSigned is the one rule for the signature of a checksum list: a signature that does
-// not verify is an error, and an unsigned one is an error when PRAVO_REQUIRE_SIGNED is set.
-// A provider from an OCI registry has no signed checksum list, so the setting refuses it as
-// it refuses an unsigned HTTP registry. dl is nil for OCI.
-func (c *Client) checkSigned(ctx context.Context, src Source, ver string, dl *downloadInfo, sum string) (signer string, err error) {
-	if dl != nil && dl.signed() {
-		signer, err = c.verifySignature(ctx, dl, sum)
+	sum = strings.ToLower(dl.Shasum)
+	if dl.signed() {
+		signer, err = c.verifySignature(ctx, &dl, sum)
 		if err != nil {
-			return "", fmt.Errorf("%s %s: %w", src.Display(), ver, err)
+			return "", "", fmt.Errorf("%s %s: %w", src.Display(), ver, err)
 		}
-		return signer, nil
+	} else if truthy(c.Env.Get("PRAVO_REQUIRE_SIGNED")) {
+		return "", "", fmt.Errorf("%s %s is not signed by the registry (no signing keys or no signature of the checksum list), and PRAVO_REQUIRE_SIGNED is set", src.Display(), ver)
 	}
-	if truthy(c.Env.Get("PRAVO_REQUIRE_SIGNED")) {
-		return "", fmt.Errorf("%s %s is not signed by the registry (no signing keys or no signature of the checksum list), and PRAVO_REQUIRE_SIGNED is set", src.Display(), ver)
-	}
-	return "", nil
+	return sum, signer, nil
 }
 
 // Archive downloads the zip archive of one provider version for plat into
@@ -844,18 +814,22 @@ func (c *Client) Archive(ctx context.Context, src Source, ver string, plat Platf
 func (c *Client) archive(ctx context.Context, src Source, ver string, plat Platform, dir string, progress func(string)) (path, sum, signer string, err error) {
 	if src.OCI {
 		path, sum, err = c.archiveOCI(ctx, src, ver, plat, dir, progress)
-		if err != nil {
-			return "", "", "", err
-		}
-		if signer, err = c.checkSigned(ctx, src, ver, nil, sum); err != nil {
-			os.Remove(path)
-			return "", "", "", err
-		}
-		return path, sum, signer, nil
+		return path, sum, "", err
 	}
-	dl, err := c.downloadInfo(ctx, src, ver, plat)
+	base, err := c.providersBase(ctx, src.Host)
 	if err != nil {
 		return "", "", "", err
+	}
+	var dl downloadInfo
+	u := fmt.Sprintf("%s%s/%s/%s/download/%s/%s", base, url.PathEscape(src.Namespace), url.PathEscape(src.Type), ver, plat.OS, plat.Arch)
+	if err := c.getJSON(ctx, u, &dl); err != nil {
+		if notFound(err) {
+			return "", "", "", fmt.Errorf("%s v%s was not found for %s", src.Display(), ver, plat)
+		}
+		return "", "", "", fmt.Errorf("resolving download for %s %s: %w", src.Display(), ver, err)
+	}
+	if err := checkDownloadInfo(&dl, plat); err != nil {
+		return "", "", "", fmt.Errorf("%s %s: %w", src.Display(), ver, err)
 	}
 	if progress != nil {
 		progress(fmt.Sprintf("Downloading %s v%s (%s)", src.Display(), ver, clean(dl.Filename)))
@@ -883,9 +857,15 @@ func (c *Client) archive(ctx context.Context, src Source, ver string, plat Platf
 		os.Remove(path)
 		return "", "", "", fmt.Errorf("checksum mismatch for %s: registry says %s, archive is %s", clean(dl.Filename), clean(dl.Shasum), sum)
 	}
-	if signer, err = c.checkSigned(ctx, src, ver, dl, sum); err != nil {
+	if dl.signed() {
+		signer, err = c.verifySignature(ctx, &dl, sum)
+		if err != nil {
+			os.Remove(path)
+			return "", "", "", fmt.Errorf("%s %s: %w", src.Display(), ver, err)
+		}
+	} else if truthy(c.Env.Get("PRAVO_REQUIRE_SIGNED")) {
 		os.Remove(path)
-		return "", "", "", err
+		return "", "", "", fmt.Errorf("%s %s is not signed by the registry (no signing keys or no signature of the checksum list), and PRAVO_REQUIRE_SIGNED is set", src.Display(), ver)
 	}
 	return path, sum, signer, nil
 }

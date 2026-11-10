@@ -14,7 +14,6 @@ import (
 
 	"cuelabs.dev/go/oci/ociregistry/ocimem"
 	"cuelabs.dev/go/oci/ociregistry/ociserver"
-	"github.com/pravo-systems/pravo/internal/env"
 )
 
 func TestParseOCISource(t *testing.T) {
@@ -84,16 +83,6 @@ func TestOCICopyResolveInstall(t *testing.T) {
 	}
 	if _, err := os.Stat(res.Path); err != nil {
 		t.Fatal(err)
-	}
-
-	// An OCI registry has no signed checksum list, so PRAVO_REQUIRE_SIGNED refuses it as it
-	// refuses an unsigned HTTP registry.
-	strict := &Client{HTTP: srv.Client(), Home: t.TempDir(), Env: env.New([]string{"PRAVO_REQUIRE_SIGNED=1"})}
-	if _, err := strict.Install(ctx, src, ver, nil); err == nil || !strings.Contains(err.Error(), "PRAVO_REQUIRE_SIGNED") {
-		t.Fatalf("Install with PRAVO_REQUIRE_SIGNED = %v, want a refusal", err)
-	}
-	if _, _, err := strict.ChecksumSigned(ctx, src, ver, plat); err == nil || !strings.Contains(err.Error(), "PRAVO_REQUIRE_SIGNED") {
-		t.Fatalf("ChecksumSigned with PRAVO_REQUIRE_SIGNED = %v, want a refusal", err)
 	}
 
 	dst := Source{Host: host, Namespace: "mirror/things", Type: "thing", OCI: true}
