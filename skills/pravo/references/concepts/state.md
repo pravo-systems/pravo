@@ -131,7 +131,7 @@ Output:
 | `attributes` | The attributes as the provider returned them. |
 | `private` | Opaque provider data, base64 encoded. |
 | `dependencies` | The addresses the node depended on when it was applied. These are the outgoing edges. |
-| `config_hash` | A digest of the configuration that the provider last saw. A plan compares it to skip a resource. An apply that stopped halfway leaves it empty, so the next plan changes the resource again. |
+| `config_hash` | A digest of the configuration that the provider last saw, without its write-only values. A plan compares it to skip a resource. An apply that stopped halfway leaves it empty, so the next plan changes the resource again. A record whose digest covers a write-only value was written by an earlier pravo: a plan shows no change for it, and the next `pravo apply` records the digest without the value. |
 | `provider_config` | A digest of the configuration of the provider instance that last wrote the node, where the instance has an attribute that says where it points. A plan reads a node whose digest differs from the one of its provider now. |
 | `drifted_at`, `gone` | A mark. A read found that the object differs from the record, or that it is gone. A node with a mark is planned until an apply writes it. Both are absent from a record without a mark. |
 | `tainted` | Set when a create failed after the provider returned an id. The object may lack what the rest of the create would have made, and an update sends only the difference. The next plan replaces the node, as `--replace` does, and the apply that does so writes a record without the mark. Absent from a record without it. |

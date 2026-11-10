@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -107,6 +108,12 @@ type fakeProvider struct {
 	afterApply func(name string) error
 	// beforeDestroy, when set, runs when a destroy of the object called name begins.
 	beforeDestroy func(name string)
+	// secrets lists the values of secret_wo that the configuration of an apply held,
+	// in order. returnsWriteOnly makes the provider answer the value where it is to
+	// answer null, in a plan and in the state after an apply: a provider with that
+	// fault.
+	secrets          []string
+	returnsWriteOnly bool
 	// order lists the creates, updates and destroys that reached the provider, as "create NAME" and so on.
 	order []string
 	// fixedID, when set, is the id of every object that is created.
@@ -487,6 +494,9 @@ func (f *fakeProvider) PlanResourceChange(_ context.Context, _ string, prior, pr
 	if err := proposed.As(&m); err != nil {
 		return nil, nil, err
 	}
+	// The object is a copy: the one it was read from can be the configuration that
+	// the engine holds.
+	m = maps.Clone(m)
 	res := &plugin.PlanResult{}
 	var planned string
 	_ = m["name"].As(&planned)
@@ -511,12 +521,37 @@ func (f *fakeProvider) PlanResourceChange(_ context.Context, _ string, prior, pr
 			res.RequiresReplace = []*tftypes.AttributePath{tftypes.NewAttributePath().WithAttributeName("name")}
 		}
 	}
+	m = f.writeOnly(m)
 	res.PlannedState = tftypes.NewValue(proposed.Type(), m)
 	return res, nil, nil
 }
-func (f *fakeProvider) ApplyResourceChange(ctx context.Context, _ string, prior, planned, _ tftypes.Value, private []byte) (*plugin.ApplyResult, plugin.Diagnostics, error) {
+
+// writeOnly answers null for the write-only attribute of an object, as the
+// protocol has a provider do.
+func (f *fakeProvider) writeOnly(m map[string]tftypes.Value) map[string]tftypes.Value {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := m["secret_wo"]; ok && !f.returnsWriteOnly {
+		m["secret_wo"] = tftypes.NewValue(tftypes.String, nil)
+	}
+	return m
+}
+func (f *fakeProvider) ApplyResourceChange(ctx context.Context, _ string, prior, planned, cfg tftypes.Value, private []byte) (*plugin.ApplyResult, plugin.Diagnostics, error) {
 	f.count("ApplyResourceChange")
 	f.noteOrder(prior, planned)
+	var cm map[string]tftypes.Value
+	given := tftypes.NewValue(tftypes.String, nil)
+	if !cfg.IsNull() && cfg.As(&cm) == nil {
+		var secret string
+		if x, ok := cm["secret_wo"]; ok && x.IsKnown() && !x.IsNull() && x.As(&secret) == nil {
+			f.mu.Lock()
+			f.secrets = append(f.secrets, secret)
+			if f.returnsWriteOnly {
+				given = x
+			}
+			f.mu.Unlock()
+		}
+	}
 	if planned.IsNull() {
 		if f.destroy(prior) {
 			return nil, plugin.Diagnostics{{Severity: "error", Summary: "the provider could not destroy the object"}}, nil
@@ -526,6 +561,11 @@ func (f *fakeProvider) ApplyResourceChange(ctx context.Context, _ string, prior,
 	var m map[string]tftypes.Value
 	if err := planned.As(&m); err != nil {
 		return nil, nil, err
+	}
+	// The object is a copy: the one it was read from is the plan that the engine holds.
+	m = maps.Clone(m)
+	if _, ok := m["secret_wo"]; ok {
+		m["secret_wo"] = given
 	}
 	if !m["id"].IsKnown() || m["id"].IsNull() {
 		f.mu.Lock()
@@ -635,6 +675,7 @@ func (f *fakeProvider) ImportResourceState(_ context.Context, typ string, target
 	st := tftypes.NewValue(t, map[string]tftypes.Value{
 		"id": tftypes.NewValue(tftypes.String, id), "name": tftypes.NewValue(tftypes.String, name),
 		"content": tftypes.NewValue(tftypes.String, content), "pin": tftypes.NewValue(tftypes.String, nil),
+		"secret_wo": tftypes.NewValue(tftypes.String, nil), "secret_wo_version": tftypes.NewValue(tftypes.String, nil),
 	})
 	return []plugin.ImportedResource{{TypeName: typ, State: st}}, nil, nil
 }
@@ -716,6 +757,8 @@ func fakeSchema() *schema.ProviderSchema {
 		Resources: map[string]*schema.Schema{"fake_thing": {Block: &schema.Block{Attributes: []*schema.Attribute{
 			attr("id", false, false, true), attr("name", true, false, false), attr("content", false, true, false),
 			{Name: "pin", TypeJSON: json.RawMessage(`"string"`), Optional: true, Sensitive: true},
+			{Name: "secret_wo", TypeJSON: json.RawMessage(`"string"`), Optional: true, WriteOnly: true},
+			attr("secret_wo_version", false, true, false),
 		}}}},
 		DataSources: map[string]*schema.Schema{"fake_data": {Block: &schema.Block{Attributes: []*schema.Attribute{
 			attr("id", false, false, true), attr("name", true, false, false), attr("content", false, false, true),

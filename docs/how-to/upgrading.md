@@ -46,6 +46,8 @@ After you replace the binary:
 
 A store and a saved plan file carry a format number, and a pravo refuses one with a number above the one it writes: `written by a newer pravo`. Every command that shares a state must be the same build or a newer one, so upgrade every machine that uses a shared state together. A state that serves an environment, is sealed and pins its roles is at format 7, and a pravo from before that stops at it with `written by a newer pravo (format 7)`. Upgrade the machines that apply it, such as a CI image that pins the version, before the first apply that raises the format. With a bucket policy by role, only an admin may put `meta.json`, so an admin runs `pravo environments record --env NAME` (or applies) once before a writer or CI applies; a writer's apply is refused otherwise, before anything is changed, with exit code 5 and that command.
 
+A record of a resource with a [write-only value](../concepts/secrets-and-ephemeral-values.md#write-only-attributes), written by an earlier pravo, holds a digest of its configuration that covers the value. The plan shows no change for the resource. Run `pravo apply` once after the upgrade: it changes no object and records the digest without the value.
+
 A record that was written before the digest of its provider's configuration was recorded has none. A plan reads a record when the provider now points somewhere else only if the record carries the digest, so after you change where a provider points, read the records once with `pravo plan -refresh=all`. Every record that is written or read after that carries the digest.
 
 ## 2. See what the lock file pins

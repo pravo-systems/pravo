@@ -157,6 +157,10 @@ type cueState struct {
 	belowOnce sync.Once
 	belowIdx  map[string][]cue.Path
 
+	// writeOnly holds, by the block of a schema, whether it has a write-only
+	// attribute.
+	writeOnly sync.Map
+
 	// cueMu serialises all CUE evaluation; current is the configuration
 	// with the settled fills applied. pending holds the fills of finished
 	// tasks that are not unified into current yet, by address, in the order
