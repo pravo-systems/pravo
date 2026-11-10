@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pravo-systems/pravo/internal/state"
-
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // TestOneEquivalenceForEveryComparison runs one table through every comparison of values that
