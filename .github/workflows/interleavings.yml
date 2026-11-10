@@ -1,0 +1,27 @@
+name: Interleavings
+
+# Each night, the searches of the lock protocol that take minutes: every order of
+# the requests of two or three commands that share one state, with crashes, lost
+# answers and requests that arrive late (internal/dst). CI plays the short ones
+# with the other tests of internal/state and internal/engine; this run plays
+# them all, and a schedule that breaks an invariant fails it with its trace.
+on:
+  schedule:
+    - cron: "43 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  interleavings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DST_BUDGET: full
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: test
+      - run: go test ./internal/state ./internal/engine -run '^TestDST' -count=1 -v -timeout 40m

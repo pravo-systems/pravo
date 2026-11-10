@@ -30,6 +30,10 @@ var (
 	maxPatience = 3 * time.Second
 )
 
+// applyJitter is the random part of a pause. A test replaces it, so that a
+// schedule replays.
+var applyJitter = mrand.N[time.Duration]
+
 // patienceTries is how many tries the patience is.
 const patienceTries = 10
 
@@ -309,7 +313,7 @@ func (h *heldLocks) acquire(addrs []string, command, txn string) error {
 		// apply that has taken more than this one.
 		last := held
 		for pause := lock; ; pause = min(pause*3/2, 100*time.Millisecond) {
-			time.Sleep(pause/2 + mrand.N(pause))
+			time.Sleep(pause/2 + applyJitter(pause))
 			err := h.st.Conflict(last.Lock.Addr)
 			if err == nil {
 				break
@@ -326,7 +330,7 @@ func (h *heldLocks) acquire(addrs []string, command, txn string) error {
 		// Another apply that was turned away by the locks released here starts
 		// again at about the same moment. A pause of random length, longer after
 		// each try, keeps the two from meeting again every time.
-		time.Sleep(mrand.N(lock << min(round+1, 6)))
+		time.Sleep(applyJitter(lock << min(round+1, 6)))
 	}
 }
 

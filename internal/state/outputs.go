@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	mrand "math/rand/v2"
 	"os"
 	"time"
 )
@@ -231,7 +230,7 @@ func (s *Store) lockOutputs() (func(), error) {
 				if time.Now().After(deadline) {
 					return nil, fmt.Errorf("outputs.json stayed locked for %s: the store refuses to create the lock and has none to read", outputsLockWait)
 				}
-				time.Sleep(delay + mrand.N(delay))
+				time.Sleep(delay + lockJitter(delay))
 				if delay < 100*time.Millisecond {
 					delay *= 2
 				}
@@ -254,7 +253,7 @@ func (s *Store) lockOutputs() (func(), error) {
 			}
 			return nil, fmt.Errorf("outputs.json stayed locked for %s: %w", outputsLockWait, &ErrLocked{Lock: holder})
 		}
-		time.Sleep(delay + mrand.N(delay))
+		time.Sleep(delay + lockJitter(delay))
 		if delay < 100*time.Millisecond {
 			delay *= 2
 		}
@@ -292,5 +291,5 @@ func (s *Store) outputsLockStale(l Lock) bool {
 			return true
 		}
 	}
-	return time.Since(l.Since) > outputsLockStale
+	return lockClock().Sub(l.Since) > outputsLockStale
 }
