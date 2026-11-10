@@ -222,8 +222,16 @@ func TestReleaseStaleLeavesTheLockThatWasRenewedSince(t *testing.T) {
 	b.Clock = clock.Now
 	stores := openMany(t, b, 2)
 	holder, reader := stores[0], stores[1]
+	// The clock of the machine moves only with the clock of the store. A renewal writes
+	// the time of the machine into the lock, which is what makes it another object, and a
+	// clock of coarse steps, as on Windows, gives the same reading twice within a test.
+	machine := time.Now()
+	before := lockClock
+	lockClock = func() time.Time { return machine }
+	t.Cleanup(func() { lockClock = before })
 	mustLock(t, holder, "web")
 	clock.pass(StaleAfter + time.Second)
+	machine = machine.Add(StaleAfter + time.Second)
 	// The holder comes back between the listing of the reader and its delete.
 	reader.b = &beforeDelete{Backend: b, key: lockKey("web"), do: func() {
 		if err := holder.Renew("web"); err != nil {
