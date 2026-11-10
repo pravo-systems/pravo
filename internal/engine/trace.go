@@ -67,7 +67,7 @@ func (e *Engine) Plan(ctx context.Context) (*Plan, error) {
 	e.traceID = telemetry.TraceID(ctx)
 	e.State.SetTrace(e.traceID)
 	e.State.SetContext(ctx)
-	if err := e.State.CheckNodes(ctx, e.Opts.Readers); err != nil {
+	if err := e.State.CheckLoadedNodes(ctx, e.Opts.Readers); err != nil {
 		span.End()
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (e *Engine) Apply(ctx context.Context, plan *Plan) (*ApplyResult, error) {
 	e.traceID = telemetry.TraceID(ctx)
 	e.State.SetTrace(e.traceID)
 	e.State.SetContext(ctx)
-	if err := e.State.CheckNodes(ctx, e.Opts.Readers); err != nil {
+	if err := e.State.CheckLoadedNodes(ctx, e.Opts.Readers); err != nil {
 		span.End()
 		return nil, err
 	}

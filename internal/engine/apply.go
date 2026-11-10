@@ -605,13 +605,8 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	}
 	defer held.release()
 	locked := len(held.held())
-	if locked > 0 || e.txn.Started() {
-		// An apply that is killed from here on leaves a transaction that is still
-		// running, and locks that go stale. One that started for the moves it committed
-		// is written again, with the policies that judged the plan.
-		if err := e.txn.Start(); err != nil {
-			return fail(err)
-		}
+	if err := e.startApply(plan, locked); err != nil {
+		return fail(err)
 	}
 	e.held = held
 	defer func() { e.held = nil }()
@@ -969,9 +964,8 @@ func sameOutputs(a, b map[string]json.RawMessage) bool {
 // reserved: the reservation is a declaration of intent that others honour. A
 // node that the plan only reads, and that another actor has reserved, is
 // reported and does not stop the plan.
-func (e *Engine) checkReservations(plan *Plan) error {
-	locks, err := e.State.Locks()
-	if err != nil || len(locks) == 0 {
+func (e *Engine) checkReservations(plan *Plan, locks []state.Lock) error {
+	if len(locks) == 0 {
 		return nil
 	}
 	held := map[string]state.Lock{}
@@ -1199,6 +1193,48 @@ func (e *Engine) isUnsettled(addr string) bool {
 	return ok
 }
 
+// startApply writes the transaction of an apply that holds locked locks as running, with the
+// pointers it may remove. An apply that is killed from here on leaves a transaction that is
+// still running, and locks that go stale. One that started for the moves it committed is
+// written again, with the policies that judged the plan. An apply that holds no lock and
+// committed nothing has nothing to start.
+func (e *Engine) startApply(plan *Plan, locked int) error {
+	if err := e.txn.WillRemove(e.removals(plan)...); err != nil {
+		return err
+	}
+	if locked > 0 || e.txn.Started() {
+		return e.txn.Start()
+	}
+	return nil
+}
+
+// removals returns the addresses whose pointers the apply of plan may delete: the nodes it
+// destroys, forgets or replaces, and the record that a create_before_destroy replacement
+// keeps of the old object until that is destroyed. The transaction names them when it starts
+// (see state.Txn.WillRemove).
+func (e *Engine) removals(plan *Plan) []string {
+	var out []string
+	for _, ch := range plan.Changes {
+		switch {
+		case ch.Action == ActionDelete:
+			out = append(out, ch.Addr)
+		case ch.Action == ActionReplace && !ch.CreateBeforeDestroy:
+			out = append(out, ch.Addr)
+		case ch.Action == ActionReplace:
+			if old := e.State.Get(ch.Addr); old != nil {
+				out = append(out, deposedAddr(ch.Addr, old.ID()))
+			}
+		}
+	}
+	return out
+}
+
+// deposedAddr is the address of the record that keeps the old object of addr, whose id is id.
+func deposedAddr(addr, id string) string {
+	sels := cue.ParsePath(addr).Selectors()
+	return cue.MakePath(append(append([]cue.Selector{}, sels...), cue.Str("deposed "+id))...).String()
+}
+
 // depose writes the record of the old object that a create_before_destroy replacement
 // replaced under an address of its own, and returns the address ("" when it could not be
 // written, in which case the old object is destroyed with nothing to keep it).
@@ -1206,9 +1242,8 @@ func (e *Engine) depose(addr string, old *state.Resource) string {
 	if old == nil {
 		return ""
 	}
-	sels := cue.ParsePath(addr).Selectors()
 	label := "deposed " + old.ID()
-	dep := cue.MakePath(append(append([]cue.Selector{}, sels...), cue.Str(label))...).String()
+	dep := deposedAddr(addr, old.ID())
 	cp := *old
 	cp.Addr, cp.Name, cp.Revision, cp.Generation = dep, label, 0, ""
 	if err := e.State.Set(&cp, e.txnID()); err != nil {

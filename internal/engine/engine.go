@@ -530,18 +530,34 @@ func (e *Engine) planRun(ctx context.Context) (*Plan, error) {
 		e.finishError("failed", err, false)
 		return nil, err
 	}
-	_, done = e.phase(ctx, "reservations")
-	err = e.checkReservations(plan)
+	if err := e.reservePlan(ctx, plan); err != nil {
+		e.finishError("rejected", err, true)
+		return nil, err
+	}
+	return plan, e.finishPhase(ctx, "planned", e.summary(plan), false)
+}
+
+// reservePlan is the end of a plan: it refuses a plan that changes what another plan has
+// reserved, reserves what this one changes, and warns of the creates that were interrupted.
+// One listing answers the two questions it has about the locks: who has reserved what, and
+// which creates were interrupted.
+func (e *Engine) reservePlan(ctx context.Context, plan *Plan) error {
+	_, done := e.phase(ctx, "reservations")
+	notes := e.pendingNotes()
+	locks, pending, lerr := e.State.LocksAndNotes()
+	if lerr == nil {
+		notes.have(pending, locks)
+	}
+	err := e.checkReservations(plan, locks)
 	if err == nil {
 		err = e.reserve(plan)
 	}
 	done(err)
 	if err != nil {
-		e.finishError("rejected", err, true)
-		return nil, err
+		return err
 	}
-	e.warnUntracked(plan)
-	return plan, e.finishPhase(ctx, "planned", e.summary(plan), false)
+	e.warnUntrackedWith(plan, notes)
+	return nil
 }
 
 // checkSpec runs the checks of the specification that need no provider.

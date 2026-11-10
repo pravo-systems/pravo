@@ -66,14 +66,15 @@ func TestUnlabelledInvokerIsNotLockedOutByTheirReservation(t *testing.T) {
 
 	again := reserveRun(t, dir, "")
 	again.Opts.Reserve = 15 * time.Minute
-	if err := again.checkReservations(plan); err != nil {
+	if err := again.checkReservations(plan, locksOf(again)); err != nil {
 		t.Errorf("plan by the same user: %v", err)
 	}
 	if err := again.reserve(plan); err != nil {
 		t.Errorf("second plan -reserve by the same user: %v", err)
 	}
 	// Other actors are still told to wait.
-	if err := reserveRun(t, dir, "bob").checkReservations(plan); exitCodeOf(err) != ExitLocked {
+	other := reserveRun(t, dir, "bob")
+	if err := other.checkReservations(plan, locksOf(other)); exitCodeOf(err) != ExitLocked {
 		t.Errorf("plan by another actor: %v", err)
 	}
 	bob := reserveRun(t, dir, "bob")
@@ -238,4 +239,10 @@ func TestFailedReserveKeepsWhatTheActorHeldBefore(t *testing.T) {
 	if got["c"].Actor != "bob" {
 		t.Errorf("c = %+v", got["c"])
 	}
+}
+
+// locksOf lists the locks of the state of e, as the end of a plan does.
+func locksOf(e *Engine) []state.Lock {
+	locks, _ := e.State.Locks()
+	return locks
 }

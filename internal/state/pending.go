@@ -144,6 +144,11 @@ func (s *Store) PendingCreates() ([]*PendingCreate, error) {
 	if err != nil {
 		return nil, err
 	}
+	return s.notesAmong(keys), nil
+}
+
+// notesAmong reads the notes among the listed keys, sorted by address.
+func (s *Store) notesAmong(keys []string) []*PendingCreate {
 	keys = withSuffix(keys, ".replacing")
 	read := make([]*PendingCreate, len(keys))
 	s.eachRead(len(keys), func(i int) {
@@ -163,5 +168,5 @@ func (s *Store) PendingCreates() ([]*PendingCreate, error) {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Addr < out[j].Addr })
-	return out, nil
+	return out
 }

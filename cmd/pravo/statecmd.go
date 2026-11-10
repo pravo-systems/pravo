@@ -258,6 +258,9 @@ func stateRmCmd(rt *runContext, load func() (*state.Store, error)) *cobra.Comman
 				return notInState(args[0])
 			}
 			txn := st.Begin("edit", "pravo state rm "+args[0])
+			if err := txn.WillRemove(args[0]); err != nil {
+				return err
+			}
 			if err := txn.Start(); err != nil {
 				return err
 			}
@@ -315,6 +318,9 @@ func stateMvCmd(rt *runContext, load func() (*state.Store, error)) *cobra.Comman
 				}
 			}
 			txn := st.Begin("edit", "pravo state mv "+args[0]+" "+args[1])
+			if err := txn.WillRemove(args[0]); err != nil {
+				return err
+			}
 			if err := txn.Start(); err != nil {
 				return err
 			}
@@ -921,6 +927,9 @@ once.`,
 				return fmt.Errorf("%s already holds %d resources and %d outputs; use -force to replace them", st.Dir(), st.Len(), len(st.Outputs()))
 			}
 			txn := st.Begin("import", "pravo state import-tfstate "+args[0])
+			if err := txn.WillRemove(st.Addresses()...); err != nil {
+				return err
+			}
 			if err := txn.Start(); err != nil {
 				return err
 			}

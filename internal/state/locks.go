@@ -678,6 +678,25 @@ func (s *Store) Locks() ([]Lock, error) {
 	if err != nil {
 		return nil, err
 	}
+	return s.locksAmong(keys)
+}
+
+// LocksAndNotes is Locks and PendingCreates from one listing: the locks and the notes of
+// interrupted creates are objects of one directory, and a plan asks for both when it ends.
+func (s *Store) LocksAndNotes() ([]Lock, []*PendingCreate, error) {
+	keys, err := s.b.List(s.cx(), "locks")
+	if err != nil {
+		return nil, nil, err
+	}
+	locks, err := s.locksAmong(keys)
+	if err != nil {
+		return nil, nil, err
+	}
+	return locks, s.notesAmong(keys), nil
+}
+
+// locksAmong reads the locks among the listed keys.
+func (s *Store) locksAmong(keys []string) ([]Lock, error) {
 	keys = withSuffix(keys, ".lock")
 	read := make([]*Lock, len(keys))
 	failed := make([]error, len(keys))

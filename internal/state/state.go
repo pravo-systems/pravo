@@ -207,8 +207,20 @@ type Store struct {
 	// transaction id (see PolicyListings).
 	listedMu sync.Mutex
 	listed   map[string]txnFacts
-	roles    *RolesChain
-	rolesAt  time.Time
+	// facts is the last answer of signedFacts, for the readers of factsKey, from a listing
+	// made at factsAt. listedMu guards them.
+	facts    map[string]txnFacts
+	factsAt  time.Time
+	factsKey string
+	// runMu guards run: the transactions of this store that were written as running and
+	// are not finished, oldest first (see Txn.WillRemove).
+	runMu sync.Mutex
+	run   []*Txn
+	// txnRead holds the bytes of the finished and signed transactions that this process
+	// read, by id (see txnBytes).
+	txnRead sync.Map
+	roles   *RolesChain
+	rolesAt time.Time
 
 	// snap is what the store remembers of the snapshot of its state (see snapshot.go).
 	snap snapshotState
@@ -929,6 +941,9 @@ func (s *Store) Remove(addr string) (bool, error) {
 		return false, nil
 	}
 	if err := s.writable(); err != nil {
+		return true, err
+	}
+	if err := s.announceRemoval(addr); err != nil {
 		return true, err
 	}
 	if err := s.removeNode(addr, ref); err != nil {
