@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
@@ -39,7 +40,7 @@ type Attribute struct {
 	Deprecated  bool            `json:"deprecated,omitempty"`
 	WriteOnly   bool            `json:"write_only,omitempty"`
 
-	typ tftypes.Type
+	typ lazyType
 }
 
 // Object is a nested attribute type (protocol 6 only).
@@ -103,15 +104,27 @@ type Parameter struct {
 	AllowUnknown bool            `json:"allow_unknown,omitempty"`
 	Description  string          `json:"description,omitempty"`
 
-	typ tftypes.Type
+	typ lazyType
+}
+
+// lazyType is a type that is worked out when it is first asked for. The tasks
+// of a plan ask for the types of one schema at the same time, so it is kept
+// behind an atomic pointer: two that ask first both work it out, and come to
+// the same type.
+type lazyType struct{ p atomic.Pointer[tftypes.Type] }
+
+func (l *lazyType) get(work func() tftypes.Type) tftypes.Type {
+	if t := l.p.Load(); t != nil {
+		return *t
+	}
+	t := work()
+	l.p.Store(&t)
+	return t
 }
 
 // Type returns the parameter's tftypes type.
 func (p *Parameter) Type() tftypes.Type {
-	if p.typ == nil {
-		p.typ = parseType(p.TypeJSON)
-	}
-	return p.typ
+	return p.typ.get(func() tftypes.Type { return parseType(p.TypeJSON) })
 }
 
 // Function is a provider-defined function.
@@ -123,15 +136,12 @@ type Function struct {
 	Description string          `json:"description,omitempty"`
 	Deprecated  bool            `json:"deprecated,omitempty"`
 
-	ret tftypes.Type
+	ret lazyType
 }
 
 // ReturnType returns the function's declared result type.
 func (f *Function) ReturnType() tftypes.Type {
-	if f.ret == nil {
-		f.ret = parseType(f.ReturnJSON)
-	}
-	return f.ret
+	return f.ret.get(func() tftypes.Type { return parseType(f.ReturnJSON) })
 }
 
 func parseType(raw json.RawMessage) tftypes.Type {
@@ -150,25 +160,14 @@ func (p *ProviderSchema) SortedFunctionNames() []string { return p.names(kindFun
 
 // Type returns the tftypes type of the attribute.
 func (a *Attribute) Type() tftypes.Type {
-	if a.typ != nil {
-		return a.typ
-	}
-	if a.NestedType != nil {
-		a.typ = a.NestedType.Type()
-		return a.typ
-	}
-	if len(a.TypeJSON) == 0 {
-		a.typ = tftypes.DynamicPseudoType
-		return a.typ
-	}
-	t, err := tftypes.ParseJSONType(a.TypeJSON)
-	if err != nil {
+	return a.typ.get(func() tftypes.Type {
+		if a.NestedType != nil {
+			return a.NestedType.Type()
+		}
 		// Unparseable types are treated as dynamic; the provider would reject
 		// anything we send anyway.
-		t = tftypes.DynamicPseudoType
-	}
-	a.typ = t
-	return t
+		return parseType(a.TypeJSON)
+	})
 }
 
 // Type returns the tftypes type implied by a nested attribute object.

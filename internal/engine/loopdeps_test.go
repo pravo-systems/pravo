@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -373,14 +375,15 @@ func TestLoopsOfRandomShapeAreSound(t *testing.T) {
 		seed = seed*1664525 + 1013904223
 		return int(seed>>8) % n
 	}
-	built, byElement := 0, 0
-	evaluatorOnly := 0
-	// A pull request builds a third of them (-short); main builds them all.
+	// A run with the race detector, which main makes, builds the first third of
+	// them: it takes several times as long for each. A run without it builds
+	// them all, and a pull request makes one.
 	specs, wantBuilt, wantByElement := 400, 150, 300
-	if testing.Short() {
+	if raceOn {
 		specs, wantBuilt, wantByElement = 130, 50, 100
 	}
-	for i := range specs {
+	texts := make([]string, specs)
+	for i := range texts {
 		var b strings.Builder
 		b.WriteString(loopPrelude)
 		b.WriteString("_tmpl: #T & {tag: \"t\"}\n_shared: {i: \"1\"}\n")
@@ -389,40 +392,57 @@ func TestLoopsOfRandomShapeAreSound(t *testing.T) {
 		b.WriteString(strings.ReplaceAll(loops[next(len(loops))](0, 1, reads[next(len(reads))]), "SRC", "c1"))
 		src := next(2)
 		b.WriteString(strings.ReplaceAll(loops[next(len(loops))](1, src, reads[next(len(reads))]), "SRC", fmt.Sprintf("c%d", src)))
-		text := b.String()
+		texts[i] = b.String()
+	}
+	// Each specification is evaluated some twenty times, and none has to do with
+	// another, so they are shared out and checked side by side.
+	var built, byElement, evaluatorOnly atomic.Int64
+	check := func(t *testing.T, i int, text string) {
 		v := cuecontext.New().CompileString(text)
 		if v.Err() != nil || v.Validate() != nil {
-			continue // a combination that is not a specification
+			return // a combination that is not a specification
 		}
 		h := newHarness(t)
 		e := h.engine(thingsIn(t, text), Options{})
 		if _, err := e.buildGraph(); err != nil {
 			t.Fatalf("specification %d: %v\n%s", i, err, text)
 		}
-		built++
+		built.Add(1)
 		if e.loops != nil {
-			byElement += e.loops.Narrowed
+			byElement.Add(int64(e.loops.Narrowed))
 		}
 		// The graph of the syntax alone is held to the same check.
 		_, se := edgesOf(t, text, true)
+		base := &probeBase{e: se}
 		for _, r := range se.Root.Resources {
-			if _, diff := probeIndependence(se, r.Address()); diff != "" {
+			if _, diff := probeIndependence(se, r.Address(), base); diff != "" {
 				t.Errorf("specification %d, from the syntax alone: %s\n%s", i, diff, text)
 			}
 		}
 		for addr, deps := range e.deps {
 			if !subset(strings.Join(deps, ","), strings.Join(se.deps[addr], ",")) {
-				evaluatorOnly++
+				evaluatorOnly.Add(1)
 			}
 		}
 	}
-	if built < wantBuilt || byElement < wantByElement {
-		t.Fatalf("%d specifications built and %d loops read by element: the generator no longer makes what this test is for", built, byElement)
+	t.Run("specifications", func(t *testing.T) {
+		const shares = 4
+		for share := range shares {
+			t.Run(strconv.Itoa(share), func(t *testing.T) {
+				t.Parallel()
+				for i := share; i < len(texts); i += shares {
+					check(t, i, texts[i])
+				}
+			})
+		}
+	})
+	if built.Load() < int64(wantBuilt) || byElement.Load() < int64(wantByElement) {
+		t.Fatalf("%d specifications built and %d loops read by element: the generator no longer makes what this test is for", built.Load(), byElement.Load())
 	}
 	audit.mu.Lock()
 	defer audit.mu.Unlock()
 	if len(audit.failures) > 0 {
 		t.Fatalf("the audit of the graphs found %d failures; the first:\n%s", len(audit.failures), audit.failures[0])
 	}
-	t.Logf("%d specifications, %d loops read by element, %d tasks with a read that only the evaluator found", built, byElement, evaluatorOnly)
+	t.Logf("%d specifications, %d loops read by element, %d tasks with a read that only the evaluator found", built.Load(), byElement.Load(), evaluatorOnly.Load())
 }
