@@ -213,6 +213,12 @@ type graphState struct {
 	// outputReadsLocked. graphBuilds counts the times the graph was worked out.
 	outputReads map[string][]string
 	graphBuilds int
+	// evaluatorEdges reports that the graph holds the edges that CUE's evaluator
+	// found next to the ones of the syntax; loops is what it found out about the
+	// loops that make tasks, nil when the graph is the syntax alone. See
+	// loopdeps.go.
+	evaluatorEdges bool
+	loops          *convert.Loops
 }
 
 // readState is what a plan found out about the records and the providers.
@@ -294,6 +300,9 @@ type testHooks struct {
 	// readOnce, when set, stands in for the read of the inputs of the reached
 	// nodes that readInputs makes in each round.
 	readOnce func(ctx context.Context) ([]string, error)
+	// depsFromSyntax makes the graph of this engine the analysis of the syntax
+	// alone, as DependenciesFromSyntax does for every engine.
+	depsFromSyntax bool
 }
 
 // New creates an engine. value must already have provider schemas unified in.

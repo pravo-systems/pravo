@@ -328,6 +328,9 @@ func newRootCmd(rt *runContext) *cobra.Command {
 			if err := applyParallelism(e); err != nil {
 				return err
 			}
+			if err := applyDependencies(e); err != nil {
+				return err
+			}
 			if rt.flags.JSON || rt.flags.Markdown {
 				// Human output moves to stderr; stdout carries JSON or Markdown only.
 				rt.out = ui.NewPrinter(os.Stderr, true)

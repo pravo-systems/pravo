@@ -225,7 +225,13 @@ type specResolver struct {
 	outputs map[string]*config.Output
 	below   map[string][]cue.Path
 	inert   map[string]convert.InertField
+	// loops knows the element that a loop over a collection of resources reads,
+	// as the engine's graph does; nil reads every loop whole.
+	loops *convert.Loops
 }
+
+// LoopRead answers what a loop variable stands for; see convert.Loops.
+func (r *specResolver) LoopRead(rd convert.LoopRead) ([]cue.Path, bool) { return r.loops.Read(rd) }
 
 // InertFields is the memo of the reference analysis: the resolver reads one
 // unchanging value.
@@ -294,14 +300,26 @@ var _ convert.Resolver = (*specResolver)(nil)
 
 // computeEdges finds what each declared resource reads, as the engine does
 // when it builds its graph: the references in its body, and the references in
-// the configuration of its provider.
+// the configuration of its provider. A resource that a loop over a collection
+// of resources makes reads its own element, where the engine's graph says so.
 func (ss *specState) computeEdges() {
 	root := ss.root
 	res := newSpecResolver(root)
+	var loops *convert.Loops
+	if !engine.DependenciesFromSyntax {
+		if l, err := convert.NewLoops(root.Value, res); err == nil {
+			loops, res.loops = l, l
+		}
+	}
 	deps := map[string]map[string]bool{}
 	for _, r := range root.Resources {
 		v := root.At(r.Path)
-		ds, _ := convert.Dependencies(v, r.Path, res)
+		var ds []cue.Path
+		if loops != nil {
+			ds, _ = loops.Dependencies(v, r.Path, res)
+		} else {
+			ds, _ = convert.Dependencies(v, r.Path, res)
+		}
 		set := deps[r.Address()]
 		if set == nil {
 			set = map[string]bool{}

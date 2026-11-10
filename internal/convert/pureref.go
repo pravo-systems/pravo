@@ -158,7 +158,7 @@ func containerFree(v cue.Value, self cue.Path, resolve Resolver, pending func(cu
 			}
 		}
 		follow := func(cue.Path) bool { return true }
-		scanComprehensions(src, resolve, &self, scanned, add, follow, func(*ast.LetClause) { found = true })
+		scanComprehensions(src, resolve, &self, scanned, add, follow, func(*ast.LetClause) { found = true }, func(LoopRead) { found = true })
 		if found {
 			return false
 		}
@@ -207,7 +207,7 @@ func ExternalReads(root cue.Value, isTask, holdsTask func(cue.Path) bool, resolv
 						return !all
 					}, nil)
 				} else {
-					scanComprehensions(src, resolve, nil, map[ast.Node]bool{}, add, func(cue.Path) bool { return true }, func(*ast.LetClause) {})
+					scanComprehensions(src, resolve, nil, map[ast.Node]bool{}, add, func(cue.Path) bool { return true }, func(*ast.LetClause) {}, nil)
 					ast.Walk(src, func(n ast.Node) bool {
 						if _, ok := n.(*ast.EmbedDecl); ok {
 							all = true

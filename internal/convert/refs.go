@@ -86,6 +86,37 @@ type FieldObserver interface {
 	SetField(name string)
 }
 
+// LoopRead is one place where the syntax reads a variable that a for clause
+// binds: v or k in "for k, v in subnets", read as v, v.id or v.tags.Name.
+type LoopRead struct {
+	// Clause is the for clause that binds the variable.
+	Clause *ast.ForClause
+	// Name is the variable where it is read.
+	Name *ast.Ident
+	// Key is set when the variable is the key of the clause and not its value.
+	Key bool
+	// Depth counts the selectors that follow the name: 0 for v, 1 for v.id.
+	Depth int
+	// Nested is set for a read that was found in the syntax of a comprehension
+	// or of a let, and not in the expression tree of the value.
+	Nested bool
+	// Self is the task whose body is analysed, nil when the value is no task's.
+	Self *cue.Path
+}
+
+// LoopReader is a Resolver that knows which elements a loop variable stands for
+// in the body of a task. A resource that a comprehension over a collection of
+// resources makes reads, through the variable, the one element its iteration was
+// bound to. The syntax does not say which one that is, so without a LoopReader
+// the variable stands for the whole source of its clause. The evaluator knows:
+// see the engine, which reads the element from CUE's own dependency analysis.
+type LoopReader interface {
+	// LoopRead returns the tasks the read stands for and true. It returns false
+	// when it knows nothing better than the source of the clause, which the
+	// analysis then reads whole.
+	LoopRead(rd LoopRead) ([]cue.Path, bool)
+}
+
 // HasTaskRef reports whether the expression depends on another task.
 func (r RefInfo) HasTaskRef() bool { return len(r.TaskRefs) > 0 }
 
@@ -113,6 +144,7 @@ func analyse(v cue.Value, resolve Resolver, self *cue.Path, deep bool) RefInfo {
 	if m, ok := resolve.(Memo); ok {
 		a.inert = m.InertFields()
 	}
+	a.loops, _ = resolve.(LoopReader)
 	a.walk(v, 0, false)
 	return a.info
 }
@@ -129,6 +161,8 @@ type analysis struct {
 	seen, tasks, aliasSeen map[string]bool
 	// inert is the memo of the resolver, nil when it keeps none.
 	inert map[string]InertField
+	// loops is the resolver when it knows what a loop variable stands for.
+	loops LoopReader
 	// touched counts the tasks that were reached, those of self among them.
 	touched int
 	scanned map[ast.Node]bool
@@ -177,8 +211,28 @@ func (a *analysis) scanSyntax(node ast.Node) {
 	if a.self != nil {
 		anc = a.self.Selectors()
 	}
-	sc := &refScan{resolve: a.resolve, anc: anc, add: a.addTask, follow: func(p cue.Path) bool { return a.follow(p, 0) }, local: map[string]bool{}, let: a.scanLet}
+	sc := &refScan{resolve: a.resolve, anc: anc, add: a.addTask, follow: func(p cue.Path) bool { return a.follow(p, 0) }, local: map[string]bool{}, let: a.scanLet, loop: a.loopVariable}
 	ast.Walk(node, sc.visit, nil)
+}
+
+// loopVariable reads a variable that a for clause binds. Where the resolver
+// knows the element the variable stands for, that element is read. It is the
+// source of the clause otherwise, read for the tasks it names: CUE shows no
+// path for the variable.
+func (a *analysis) loopVariable(rd LoopRead) {
+	if a.loops != nil {
+		rd.Self = a.self
+		if tasks, ok := a.loops.LoopRead(rd); ok {
+			for _, t := range tasks {
+				a.addTask(t, t)
+			}
+			return
+		}
+	}
+	if fc := rd.Clause; fc.Source != nil && !a.loopSeen[fc] {
+		a.loopSeen[fc] = true
+		a.scanSyntax(fc.Source)
+	}
 }
 
 func (a *analysis) scanLet(lc *ast.LetClause) {
@@ -207,8 +261,20 @@ func (a *analysis) walk(v cue.Value, depth int, nav bool) {
 		a.scanLet(lc)
 		return
 	}
-	// A loop variable is bound by the source of its for clause, and CUE shows
-	// no path for it: the source is read for the tasks it names.
+	// A loop variable that the resolver knows the element of stands for that
+	// element, whatever selectors follow it.
+	if a.loops != nil {
+		if rd, ok := loopRead(v.Source()); ok {
+			rd.Self = a.self
+			if tasks, ok := a.loops.LoopRead(rd); ok {
+				for _, t := range tasks {
+					a.addTask(t, t)
+				}
+				return
+			}
+		}
+	}
+	// A loop variable on its own is bound by the source of its for clause.
 	if fc := loopReference(v.Source()); fc != nil && fc.Source != nil {
 		if !a.loopSeen[fc] {
 			a.loopSeen[fc] = true
@@ -225,7 +291,7 @@ func (a *analysis) walk(v cue.Value, depth int, nav bool) {
 	if op == cue.NoOp {
 		// The expression tree stops at a comprehension: what its clauses
 		// and its body refer to is found in the syntax.
-		scanComprehensions(v.Source(), a.resolve, a.self, a.scanned, a.addTask, func(p cue.Path) bool { return a.follow(p, depth) }, a.scanLet)
+		scanComprehensions(v.Source(), a.resolve, a.self, a.scanned, a.addTask, func(p cue.Path) bool { return a.follow(p, depth) }, a.scanLet, a.loopVariable)
 		switch {
 		case v.IncompleteKind() == cue.ListKind:
 			if it, err := v.List(); err == nil {
@@ -372,7 +438,10 @@ func dependencies(v cue.Value, self cue.Path, resolve Resolver, deep bool) (deps
 		}
 		switch v.IncompleteKind() {
 		case cue.StructKind:
-			if it, err := v.Fields(); err == nil {
+			// The hidden fields and the definitions of a body are read too: a
+			// field of the body may be set from one (_id: net.id, subnet: _id),
+			// and such a reference stays inside the body.
+			if it, err := v.Fields(cue.Hidden(true), cue.Definitions(true)); err == nil {
 				for it.Next() {
 					if obs != nil && depth == 0 {
 						if sel := it.Selector(); sel.LabelType() == cue.StringLabel {
@@ -445,7 +514,10 @@ func isPrefixPath(p, self cue.Path) bool {
 // comprehension is not part of the expression tree that cue.Value.Expr
 // returns, so a value such as [for k, v in net.outputs.subnets {v}] shows no
 // reference to net in it.
-func scanComprehensions(src ast.Node, resolve Resolver, self *cue.Path, scanned map[ast.Node]bool, add func(task, alias cue.Path), follow func(p cue.Path) bool, let func(*ast.LetClause)) {
+//
+// loop is called for a variable that a for clause outside the comprehension
+// binds, as let is for a name that a let outside it binds.
+func scanComprehensions(src ast.Node, resolve Resolver, self *cue.Path, scanned map[ast.Node]bool, add func(task, alias cue.Path), follow func(p cue.Path) bool, let func(*ast.LetClause), loop func(LoopRead)) {
 	if src == nil || resolve == nil || scanned[src] {
 		return
 	}
@@ -467,7 +539,7 @@ func scanComprehensions(src ast.Node, resolve Resolver, self *cue.Path, scanned 
 		}
 		if !scanned[c] {
 			scanned[c] = true
-			s := &refScan{resolve: resolve, anc: anc, add: add, follow: follow, local: map[string]bool{}, let: let}
+			s := &refScan{resolve: resolve, anc: anc, add: add, follow: follow, local: map[string]bool{}, let: let, loop: loop}
 			ast.Walk(c, s.visit, nil)
 		}
 		return false
@@ -489,11 +561,23 @@ type refScan struct {
 	// let reads the expression of a let that was declared outside the syntax
 	// being scanned, when the syntax uses its name.
 	let func(*ast.LetClause)
+	// clauses holds the for clauses of the syntax being scanned, and loop reads
+	// a variable that a for clause outside it binds: the variable of the loop
+	// that makes the task, read in a condition or in a comprehension of its
+	// body, or in a let.
+	clauses map[*ast.ForClause]bool
+	loop    func(LoopRead)
+	// dynamic counts the computed indexes of the chain being resolved.
+	dynamic int
 }
 
 func (s *refScan) visit(n ast.Node) bool {
 	switch x := n.(type) {
 	case *ast.ForClause:
+		if s.clauses == nil {
+			s.clauses = map[*ast.ForClause]bool{}
+		}
+		s.clauses[x] = true
 		for _, id := range []*ast.Ident{x.Key, x.Value} {
 			if id != nil {
 				s.local[id.Name] = true
@@ -533,7 +617,9 @@ func (s *refScan) visit(n ast.Node) bool {
 			}
 			return false
 		}
+		s.dynamic = len(dyn)
 		s.reference(head, sels)
+		s.dynamic = 0
 		for _, d := range dyn {
 			ast.Walk(d, s.visit, nil)
 		}
@@ -549,25 +635,29 @@ func (s *refScan) visit(n ast.Node) bool {
 // the search: a name found at the top of a file is a field of the root, and a
 // name found in a struct is not.
 func (s *refScan) reference(head *ast.Ident, sels []cue.Selector) {
+	// The parser knows the clause that binds a loop variable, whatever else
+	// has the same name.
+	if fc := forClauseOf(head); fc != nil {
+		if !s.clauses[fc] && s.loop != nil {
+			s.loop(LoopRead{
+				Clause: fc, Name: head, Nested: true,
+				Key:   fc.Key != nil && fc.Value != nil && fc.Key.Name == head.Name,
+				Depth: len(sels) + s.dynamic,
+			})
+		}
+		return
+	}
 	if s.local[head.Name] {
 		return
 	}
-	first, last := max(len(s.anc)-1, 0), 0
 	if lc := letOf(head); lc != nil {
 		if s.let != nil {
 			s.let(lc)
 		}
 		return
 	}
-	switch head.Scope.(type) {
-	case *ast.ImportSpec, *ast.ForClause:
-		return
-	case *ast.File:
-		first = 0
-	case *ast.StructLit:
-		last = 1
-	}
-	if _, ok := head.Node.(*ast.ImportSpec); ok {
+	first, last, ok := scopeRange(head, len(s.anc))
+	if !ok {
 		return
 	}
 	chain := append([]cue.Selector{cue.Str(head.Name)}, sels...)
@@ -727,6 +817,14 @@ func loopReference(src ast.Node) *ast.ForClause {
 	if !ok {
 		return nil
 	}
+	return forClauseOf(id)
+}
+
+// forClauseOf returns the for clause that binds a name, or nil.
+func forClauseOf(id *ast.Ident) *ast.ForClause {
+	if id == nil {
+		return nil
+	}
 	if fc, ok := id.Node.(*ast.ForClause); ok {
 		return fc
 	}
@@ -734,6 +832,89 @@ func loopReference(src ast.Node) *ast.ForClause {
 		return fc
 	}
 	return nil
+}
+
+// loopRead describes src when it is a loop variable followed by selectors that
+// are all names or literal strings: v, v.id, v["id"], or the value of a field
+// that is one of these. An index that is computed (v[other.id]) is not such a
+// read: what it reads besides the element is found by the walk of its parts.
+func loopRead(src ast.Node) (LoopRead, bool) {
+	if f, ok := src.(*ast.Field); ok {
+		src = f.Value
+	}
+	e, ok := src.(ast.Expr)
+	if !ok {
+		return LoopRead{}, false
+	}
+	head, sels, dyn := refChain(e)
+	if head == nil || len(dyn) > 0 {
+		return LoopRead{}, false
+	}
+	fc := forClauseOf(head)
+	if fc == nil || fc.Source == nil {
+		return LoopRead{}, false
+	}
+	return LoopRead{Clause: fc, Name: head, Key: fc.Key != nil && fc.Value != nil && fc.Key.Name == head.Name, Depth: len(sels)}, true
+}
+
+// LoopContainer returns the container of tasks that the source of fc names, for
+// a task at self: the path p that the scan of the source resolves the name to
+// when it is neither a task nor built from one, and tasks sit below it. It is
+// false for any other source: an attribute of a task, a plain field, a let, a
+// call, another loop's variable.
+func LoopContainer(fc *ast.ForClause, self cue.Path, resolve Resolver) (cue.Path, bool) {
+	if fc == nil || fc.Source == nil || resolve == nil {
+		return cue.Path{}, false
+	}
+	head, sels, dyn := refChain(fc.Source)
+	if head == nil || len(dyn) > 0 || letOf(head) != nil || forClauseOf(head) != nil {
+		return cue.Path{}, false
+	}
+	anc := self.Selectors()
+	first, last, ok := scopeRange(head, len(anc))
+	if !ok {
+		return cue.Path{}, false
+	}
+	chain := append([]cue.Selector{cue.Str(head.Name)}, sels...)
+	if strings.HasPrefix(head.Name, "#") {
+		chain[0] = cue.Def(head.Name)
+	}
+	for n := first; n >= last; n-- {
+		p := cue.MakePath(append(append([]cue.Selector{}, anc[:n]...), chain...)...)
+		if _, _, ok := resolve.Task(p); ok {
+			return cue.Path{}, false
+		}
+		if isPrefixPath(p, self) {
+			return cue.Path{}, false
+		}
+		if len(resolve.Below(p)) > 0 {
+			return p, true
+		}
+		if resolve.Value(p).Exists() {
+			return cue.Path{}, false
+		}
+	}
+	return cue.Path{}, false
+}
+
+// scopeRange gives the structs around a task in which the name head is looked
+// up, as indexes into the selectors of the task from the innermost (first) to
+// the outermost (last); see refScan.reference. ok is false for a name that is no
+// field: an import.
+func scopeRange(head *ast.Ident, depth int) (first, last int, ok bool) {
+	first, last = max(depth-1, 0), 0
+	switch head.Scope.(type) {
+	case *ast.ImportSpec, *ast.ForClause:
+		return 0, 0, false
+	case *ast.File:
+		first = 0
+	case *ast.StructLit:
+		last = 1
+	}
+	if _, isImport := head.Node.(*ast.ImportSpec); isImport {
+		return 0, 0, false
+	}
+	return first, last, true
 }
 
 // shadowedName returns the name that a struct literal in the syntax of v

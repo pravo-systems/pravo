@@ -28,6 +28,14 @@ Definitions, hidden fields and the top-level `$settings` field are not searched.
 
 pravo reads every field of every resource and records each reference to another resource as a dependency. A reference in provider configuration is a dependency of every resource that uses the provider. The result is a graph in which a resource runs after everything it refers to. Resources that refer to each other in a circle stop the run with `dependency cycle between` and the names of the resources on the cycle.
 
+#### Loops over a collection
+
+A comprehension can make one resource for each resource of a collection: one route table association for each subnet in `subnets`. In `for name, subnet in subnets`, the resource that an iteration makes reads the subnet of that iteration, through `subnet.id` or through `subnets[name].id`, and waits for that one subnet. pravo takes the element from CUE's evaluator, which knows what the loop variable was bound to.
+
+Where the evaluator does not name the element, the resource waits for every resource of the collection, which is always safe. That is the case for a collection whose elements are only references to a definition or to another field, for a collection that holds plain values beside its resources, and for a loop whose source is an expression and not the name of the collection. A reference to the collection as a whole, such as `json.Marshal(subnets)` or `$depends_on: [subnets]`, is a dependency on every resource in it.
+
+`PRAVO_DEPENDENCIES=syntax` reads the dependencies from the syntax of the specification alone. Every loop over a collection then waits for the whole collection. The result of an apply is the same; the order in which independent resources are applied differs, and a collection of thousands of resources takes longer to load, since the number of dependencies grows with the square of its size.
+
 ### 4. Plan
 
 pravo visits the graph in dependency order, at most ten resources at a time (`PRAVO_PARALLELISM` changes the number). For each resource it reads the recorded node from the state and converts the body to a value that the provider understands. A resource that is unchanged since the last apply is skipped. The plan reads the record of a resource from its provider only for the resources it reaches and for the resources they read, and only when the record is older than its refresh age. The other records are not read.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -179,19 +180,84 @@ func (e *Engine) atRoot(p cue.Path) cue.Value {
 // references in its body, independent of whether values are known yet. A
 // cycle among the tasks is an error: nothing could run first. The graph is
 // built once; later walks of the engine use it.
+//
+// The references are read from the syntax and from CUE's evaluator; see
+// loopdeps.go. If the graph that uses the evaluator has a cycle, the graph of
+// the syntax alone is tried: an edge that only the evaluator finds must not stop
+// a specification that worked without it.
 func (e *Engine) buildGraph() (map[string]*node, error) {
 	if e.graph != nil {
 		return e.graph, nil
 	}
 	began := time.Now()
-	nodes := map[string]*node{}
-	for _, r := range e.Root.Resources {
-		nodes[r.Address()] = &node{res: r, deps: map[string]bool{}}
-	}
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
 	e.inert = map[string]convert.InertField{}
 	defer func() { e.inert = nil }()
+	var syntax map[string][]string
+	wantEvaluator := !DependenciesFromSyntax && !e.depsFromSyntax
+	if graphAudit != nil && wantEvaluator {
+		// The audit compares with the syntax alone. What that reading marks as
+		// iterated is put back, so that a run under the audit seeds as any other.
+		e.iterMu.Lock()
+		iterated := maps.Clone(e.iterated)
+		e.iterMu.Unlock()
+		e.graphNodes(false)
+		syntax = maps.Clone(e.deps)
+		e.iterMu.Lock()
+		e.iterated = iterated
+		e.iterMu.Unlock()
+	}
+	nodes, evaluator := e.graphNodes(wantEvaluator)
+	err := checkCycles(nodes)
+	if err != nil && evaluator {
+		plog.Debug(context.Background(), "the graph with the evaluator's edges has a cycle; trying the syntax alone", "cycle", err.Error())
+		nodes, evaluator = e.graphNodes(false)
+		err = checkCycles(nodes)
+	}
+	e.graphBuilds++
+	narrowed, unconfirmed := 0, 0
+	if e.loops != nil {
+		narrowed, unconfirmed = e.loops.Narrowed, e.loops.Unconfirmed
+	}
+	plog.Debug(context.Background(), "graph built", "tasks", len(nodes), "evaluator", evaluator, "loops by element", narrowed, "loops unconfirmed", unconfirmed, "took", time.Since(began).Round(time.Millisecond))
+	if err != nil {
+		return nil, err
+	}
+	e.evaluatorEdges = evaluator
+	e.graph = nodes
+	if syntax != nil && evaluator {
+		graphAudit(e, syntax)
+	}
+	return nodes, nil
+}
+
+// graphAudit, when it is set, is given every graph that is built with the
+// evaluator's edges, next to the edges that the syntax alone gives for the same
+// specification. The tests set it and check each graph that any of them builds.
+// The caller holds cueMu.
+var graphAudit func(e *Engine, syntax map[string][]string)
+
+// graphNodes reads the dependencies of every task and sets what the engine
+// keeps of them (deps, readers, providerDeps, outputDeps, loops). With evaluator
+// set it adds what CUE's evaluator finds and reads the loops that qualify by
+// element; used reports whether it did. The caller holds cueMu.
+func (e *Engine) graphNodes(evaluator bool) (nodes map[string]*node, used bool) {
+	nodes = map[string]*node{}
+	for _, r := range e.Root.Resources {
+		nodes[r.Address()] = &node{res: r, deps: map[string]bool{}}
+	}
+	e.loops = nil
+	if evaluator {
+		t := time.Now()
+		loops, err := convert.NewLoops(e.Value, e.resolver())
+		if err != nil {
+			plog.Debug(context.Background(), "dependencies come from the syntax alone", "reason", err.Error())
+		} else {
+			e.loops, used = loops, true
+			plog.Debug(context.Background(), "evaluator dependencies", "tasks", loops.Tasks(), "took", time.Since(t).Round(time.Millisecond))
+		}
+	}
 	for _, r := range e.Root.Resources {
 		v := e.at(r.Path)
 		if f, ok := v.Source().(*ast.Field); ok {
@@ -200,7 +266,12 @@ func (e *Engine) buildGraph() (map[string]*node, error) {
 			}
 			e.fieldSrc[r.Address()] = f
 		}
-		deps, _ := convert.Dependencies(v, r.Path, e.resolver())
+		var deps []cue.Path
+		if e.loops != nil {
+			deps, _ = e.loops.Dependencies(v, r.Path, e.resolver())
+		} else {
+			deps, _ = convert.Dependencies(v, r.Path, e.resolver())
+		}
 		n := nodes[r.Address()]
 		for _, d := range deps {
 			if dr, ok := e.byPath[d.String()]; ok && dr != r {
@@ -251,13 +322,7 @@ func (e *Engine) buildGraph() (map[string]*node, error) {
 		}
 	}
 	e.readers, e.outputDeps = readers, outputDeps
-	e.graphBuilds++
-	plog.Debug(context.Background(), "graph built", "tasks", len(nodes), "took", time.Since(began).Round(time.Millisecond))
-	if err := checkCycles(nodes); err != nil {
-		return nil, err
-	}
-	e.graph = nodes
-	return nodes, nil
+	return nodes, used
 }
 
 // outputReadsLocked lists, per output, the addresses of the tasks its value

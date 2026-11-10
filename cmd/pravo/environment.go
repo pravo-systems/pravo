@@ -69,3 +69,19 @@ func applyParallelism(e env.Env) error {
 	engine.Parallelism = n
 	return nil
 }
+
+// applyDependencies sets where the dependencies between resources are read from.
+// PRAVO_DEPENDENCIES=syntax reads them from the syntax of the specification
+// alone; unset, empty or "evaluator" also reads CUE's evaluator, which knows the
+// element that a loop over a collection of resources reads.
+func applyDependencies(e env.Env) error {
+	switch v := e.Get("PRAVO_DEPENDENCIES"); v {
+	case "", "evaluator":
+		engine.DependenciesFromSyntax = false
+	case "syntax":
+		engine.DependenciesFromSyntax = true
+	default:
+		return fmt.Errorf("PRAVO_DEPENDENCIES=%q: want syntax or evaluator", v)
+	}
+	return nil
+}
