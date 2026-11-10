@@ -138,7 +138,9 @@ type reply struct {
 	status int
 	body   []byte
 	etag   string
-	sent   int
+	// at is what the answer says about the time of the server (see HTTPBackend.GetTimed).
+	at   StoreTime
+	sent int
 }
 
 // busy reports whether a status says to ask again.
@@ -211,6 +213,10 @@ func (b *HTTPBackend) do(ctx context.Context, method, target string, body []byte
 			continue
 		}
 		r.status, r.body, r.etag = resp.StatusCode, data, resp.Header.Get("ETag")
+		r.at = StoreTime{}
+		if modified, err := http.ParseTime(resp.Header.Get("Last-Modified")); err == nil {
+			r.at = headerTime(resp.Header, modified)
+		}
 		if busy(r.status) {
 			lastErr = &httpStatusError{status: r.status, body: snippet(data)}
 			continue
@@ -245,17 +251,30 @@ func (b *HTTPBackend) Get(ctx context.Context, key string) ([]byte, error) {
 }
 
 func (b *HTTPBackend) getTagged(ctx context.Context, key string) ([]byte, string, error) {
+	r, err := b.get(ctx, key)
+	return r.body, r.etag, err
+}
+
+// GetTimed is Get with the times of the server, for one that sends Last-Modified and Date
+// with an object: when it last wrote the object, and its own time when it answered. A
+// server that leaves either out has its locks judged by the clocks of the machines.
+func (b *HTTPBackend) GetTimed(ctx context.Context, key string) ([]byte, StoreTime, error) {
+	r, err := b.get(ctx, key)
+	return r.body, r.at, err
+}
+
+func (b *HTTPBackend) get(ctx context.Context, key string) (reply, error) {
 	r, err := b.do(ctx, http.MethodGet, b.objectURL(key), nil, nil)
 	if err != nil {
-		return nil, "", fmt.Errorf("http get %s: %w", key, err)
+		return reply{}, fmt.Errorf("http get %s: %w", key, err)
 	}
 	switch {
 	case r.status == http.StatusNotFound:
-		return nil, "", ErrNotFound
+		return reply{}, ErrNotFound
 	case r.status/100 != 2:
-		return nil, "", b.fail("get", key, r)
+		return reply{}, b.fail("get", key, r)
 	}
-	return r.body, r.etag, nil
+	return r, nil
 }
 
 func (b *HTTPBackend) Put(ctx context.Context, key string, data []byte) error {

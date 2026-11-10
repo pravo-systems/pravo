@@ -121,7 +121,7 @@ func locksScenario(name string, o locksOpts) dst.Scenario {
 					w.T.Fatal(err)
 				}
 			}
-			w.OnMutate = func(p *dst.Proc, key string, before, after []byte, now time.Time) error {
+			w.OnMutate = func(p *dst.Proc, key string, before, after []byte, written, now time.Time) error {
 				if !strings.HasPrefix(key, "locks/") {
 					return nil
 				}
@@ -135,6 +135,10 @@ func locksScenario(name string, o locksOpts) dst.Scenario {
 				last := b.RenewedAt
 				if last.IsZero() {
 					last = b.Since
+				}
+				if w.TellsTime {
+					// The store says when it wrote the lock, and the lock is judged by that.
+					last = written
 				}
 				if now.Sub(last) <= state.StaleAfter {
 					return fmt.Errorf("foreign lock: %s removed or replaced the lock %s of another apply, which was stamped %s ago", p.Name, key, now.Sub(last))

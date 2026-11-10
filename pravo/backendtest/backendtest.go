@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/pravo-systems/pravo/pravo"
 )
@@ -47,6 +48,7 @@ func Run(t *testing.T, fresh func(t *testing.T) pravo.Backend) {
 		{"DeleteIfRace", deleteIfRace},
 		{"Delete", deleteKey},
 		{"List", list},
+		{"StoreTime", storeTime},
 	} {
 		t.Run(c.name, func(t *testing.T) { c.run(t, fresh(t)) })
 	}
@@ -265,6 +267,48 @@ func list(t *testing.T, b pravo.Backend) {
 	got, err := b.List(ctx, "locks")
 	if err != nil || len(got) != 0 {
 		t.Errorf("List of a prefix with no objects = %v, %v, want none and no error", got, err)
+	}
+}
+
+// storeTime checks the times of a Backend that is a pravo.TimedReader as well, and is
+// skipped for one that is not, or that gives no times. The age of a lock is counted by
+// them, so an object that was just written must be about no time old, and a later write
+// must not make it older.
+func storeTime(t *testing.T, b pravo.Backend) {
+	tr, ok := b.(pravo.TimedReader)
+	if !ok {
+		t.Skip("the backend is no TimedReader: its locks are judged by the clocks of the machines")
+	}
+	const slack = 30 * time.Second
+	ctx := context.Background()
+	if _, _, err := tr.GetTimed(ctx, "locks/missing.lock"); !errors.Is(err, pravo.ErrNotFound) {
+		t.Errorf("GetTimed of a missing key = %v, want an error that wraps pravo.ErrNotFound", err)
+	}
+	began := time.Now()
+	if err := b.Put(ctx, "locks/a.lock", []byte("one")); err != nil {
+		t.Fatal(err)
+	}
+	data, first, err := tr.GetTimed(ctx, "locks/a.lock")
+	if err != nil || string(data) != "one" {
+		t.Fatalf("GetTimed = %q, %v, want what Put wrote", data, err)
+	}
+	if !first.Known() {
+		t.Skip("GetTimed gives no times: the locks are judged by the clocks of the machines")
+	}
+	if age, took := first.Age(), time.Since(began); age < -slack || age > took+slack {
+		t.Errorf("an object written %s ago is %s old by the times of the store (written %s, now %s): Modified must be the time of the last write and Now the time of the read, both by one clock",
+			took.Round(time.Millisecond), age, first.Modified.Format(time.RFC3339), first.Now.Format(time.RFC3339))
+	}
+	if ok, err := b.ReplaceIf(ctx, "locks/a.lock", func([]byte) ([]byte, bool) { return []byte("two"), true }); err != nil || !ok {
+		t.Fatalf("ReplaceIf = %v, %v", ok, err)
+	}
+	_, second, err := tr.GetTimed(ctx, "locks/a.lock")
+	if err != nil || !second.Known() {
+		t.Fatalf("GetTimed after a replace = %+v, %v, want the times of the store again", second, err)
+	}
+	if second.Modified.Before(first.Modified) || second.Now.Before(first.Now) {
+		t.Errorf("the times of the store went back: written %s then %s, read %s then %s",
+			first.Modified.Format(time.RFC3339Nano), second.Modified.Format(time.RFC3339Nano), first.Now.Format(time.RFC3339Nano), second.Now.Format(time.RFC3339Nano))
 	}
 }
 

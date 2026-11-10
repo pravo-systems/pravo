@@ -97,6 +97,11 @@ func (p s3Probe) get(ctx context.Context, key string) (string, string, error) {
 	return string(data), aws.ToString(tag), err
 }
 
+func (p s3Probe) getTimed(ctx context.Context, key string) (string, StoreTime, error) {
+	data, at, err := p.b.GetTimed(ctx, key)
+	return string(data), at, err
+}
+
 func (p s3Probe) list(ctx context.Context, prefix string) ([]string, error) {
 	return p.b.List(ctx, prefix)
 }

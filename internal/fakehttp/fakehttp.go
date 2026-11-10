@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 // New returns an empty server.
@@ -34,6 +35,25 @@ type Server struct {
 	// IgnoreConditions makes the server accept every write, as a plain file
 	// server would.
 	IgnoreConditions bool
+	// Clock, when set, is the clock of the server: every write stamps the object with
+	// its reading, and the answer to a GET of an object carries the stamp as
+	// Last-Modified and a new reading as Date. Without it the server sends no
+	// Last-Modified. ModifiedOff is added to every Last-Modified it sends, as by a
+	// server that writes its local time and calls it GMT.
+	Clock       func() time.Time
+	ModifiedOff time.Duration
+	written     map[string]time.Time
+}
+
+// stamp notes that the object at key is written now. The caller holds the mutex.
+func (s *Server) stamp(key string) {
+	if s.Clock == nil {
+		return
+	}
+	if s.written == nil {
+		s.written = map[string]time.Time{}
+	}
+	s.written[key] = s.Clock()
 }
 
 // Tag is the entity tag of the contents.
@@ -128,6 +148,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("ETag", Tag(cur))
+		if at, ok := s.written[key]; ok && s.Clock != nil {
+			w.Header().Set("Last-Modified", at.Add(s.ModifiedOff).UTC().Format(http.TimeFormat))
+			w.Header().Set("Date", s.Clock().UTC().Format(http.TimeFormat))
+		}
 		_, _ = w.Write(cur)
 	case http.MethodPut:
 		body, _ := io.ReadAll(r.Body)
@@ -148,6 +172,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		s.Objects[key] = body
+		s.stamp(key)
 		w.Header().Set("ETag", Tag(body))
 		w.WriteHeader(http.StatusNoContent)
 	case http.MethodDelete:

@@ -11,6 +11,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/pravo-systems/pravo/internal/filelock"
 	"github.com/pravo-systems/pravo/internal/protect"
@@ -72,6 +73,48 @@ type ObjectVersion struct{ Key, Tag string }
 // nodes (see snapshot.go) instead of reading each of them.
 type VersionLister interface {
 	ListVersions(ctx context.Context, prefix string) ([]ObjectVersion, error)
+}
+
+// StoreTime is what a store says, by its own clock, about an object it has just given:
+// when it last wrote the object, and what time it was for the store when it answered. The
+// difference of the two is the age of the object, and no clock of a machine that runs
+// pravo is part of it. The zero value says that the store did not tell.
+type StoreTime struct {
+	// Modified is when the store last wrote the object.
+	Modified time.Time
+	// Now is the time of the store when it gave the object.
+	Now time.Time
+}
+
+// Known reports whether the store gave both times.
+func (t StoreTime) Known() bool { return !t.Modified.IsZero() && !t.Now.IsZero() }
+
+// Age is how long ago the store wrote the object, by the clock of the store. It means
+// nothing unless Known reports true.
+func (t StoreTime) Age() time.Duration { return t.Now.Sub(t.Modified) }
+
+// TimedReader is implemented by a backend whose store stamps each object with the time of
+// its last write and tells its own time with the object. The age of a lock is counted by
+// these two times when the backend gives them, so that a machine whose clock is wrong
+// neither takes over a lock that is held nor holds one that others take for abandoned. A
+// backend that does not implement it, or returns a zero StoreTime, has its locks judged
+// by the time the holder wrote into the lock and the clock of the command that reads it.
+//
+// Both times must come from the same clock, and from the answer to this read: a time that
+// a cache or the client added is not the store's. Every write of the object, a replacement
+// included, must move Modified.
+type TimedReader interface {
+	// GetTimed is Get with the times of the store.
+	GetTimed(ctx context.Context, key string) ([]byte, StoreTime, error)
+}
+
+// getTimed reads key from b, with the times of the store when b gives them.
+func getTimed(ctx context.Context, b Backend, key string) ([]byte, StoreTime, error) {
+	if tr, ok := b.(TimedReader); ok {
+		return tr.GetTimed(ctx, key)
+	}
+	data, err := b.Get(ctx, key)
+	return data, StoreTime{}, err
 }
 
 // LocalBackend keeps objects as files under a directory.

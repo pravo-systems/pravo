@@ -2,6 +2,7 @@ package backendtest_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/pravo"
@@ -10,6 +11,14 @@ import (
 
 func TestMemoryBackendHonoursTheContract(t *testing.T) {
 	backendtest.Run(t, func(t *testing.T) pravo.Backend { return pravo.NewMemoryBackend("memory") })
+}
+
+func TestMemoryBackendWithAClockHonoursTheContract(t *testing.T) {
+	backendtest.Run(t, func(t *testing.T) pravo.Backend {
+		b := state.NewMemBackend("memory")
+		b.Clock = time.Now
+		return b
+	})
 }
 
 func TestLocalBackendHonoursTheContract(t *testing.T) {

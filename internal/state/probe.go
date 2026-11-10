@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"time"
 )
 
 // ProbeError says that the store does not honour a conditional request that
@@ -58,6 +59,9 @@ type probeIO interface {
 	del(ctx context.Context, key, ifMatch string) probeAnswer
 	// get reads an object and its entity tag; a missing object is ErrNotFound.
 	get(ctx context.Context, key string) (body, tag string, err error)
+	// getTimed reads an object and what the store says about its own time, if it
+	// says anything.
+	getTimed(ctx context.Context, key string) (body string, at StoreTime, err error)
 	list(ctx context.Context, prefix string) ([]string, error)
 	// cleanup deletes scratch objects, ignoring failures: an object that stays under
 	// probe/ is read by nothing.
@@ -83,7 +87,9 @@ func probeReports(names []string, report func(check string, err error), checks .
 // store honours create only (If-None-Match: *), replace (If-Match on a put) and
 // delete (If-Match on a delete), each with a tag that must be refused and one that
 // must be accepted, and the contents are read back after a refused request. Eight
-// concurrent creates of one key must leave one winner.
+// concurrent creates of one key must leave one winner. A store that tells its own
+// time with an object must give the object it has just created an age of about
+// nothing; that is part of the first check, and costs no request.
 func runProbe(ctx context.Context, p probeIO, report func(check string, err error)) error {
 	id := newID(8)
 	r := &probeRun{ctx: ctx, p: p, name: p.storeName(), one: "probe/" + id, race: "probe/" + id + "-race"}
@@ -129,7 +135,31 @@ func (r *probeRun) put(header, key, body, ifNone, ifMatch string) (bool, probeAn
 	return ok, a, err
 }
 
+// probeClockSlack is how far the age that a store gives for an object it has just
+// written may be from the truth: the two times have whole seconds, and a store of
+// several machines stamps and answers with clocks that are a little apart. An hour
+// that the store counts in another time zone, and a time that is not that of the
+// write at all, are far outside it.
+const probeClockSlack = 30 * time.Second
+
+// storeClock checks what the store said about its time when it gave an object that
+// this run created after began. The age of a lock is counted by these two times
+// (see TimedReader), and a store that sends them wrong makes a lock that is held
+// look abandoned, which the conditions do not catch. A store that sends neither
+// passes: its locks are judged by the clocks of the machines.
+func (r *probeRun) storeClock(at StoreTime, began time.Time) error {
+	if !at.Known() {
+		return nil
+	}
+	if age, took := at.Age(), time.Since(began); age < -probeClockSlack || age > took+probeClockSlack {
+		return r.fail("an object created %s ago is %s old by the times the store gives with it (Last-Modified %s, Date %s). The age of a lock is counted by these: the store must send the time of the write as Last-Modified and its own time as Date, both in GMT and off one clock, or no Last-Modified",
+			took.Round(time.Second), age.Round(time.Second), at.Modified.UTC().Format(time.RFC3339), at.Now.UTC().Format(time.RFC3339))
+	}
+	return nil
+}
+
 func (r *probeRun) createOnly() error {
+	began := time.Now()
 	ok, a, err := r.put("If-None-Match", r.one, "one", "*", "")
 	if err != nil {
 		return err
@@ -144,10 +174,11 @@ func (r *probeRun) createOnly() error {
 	if ok {
 		return r.fail("a second create of the same key succeeded, so If-None-Match is ignored")
 	}
-	if got, _, err := r.p.get(r.ctx, r.one); err != nil || got != "one" {
+	got, at, err := r.p.getTimed(r.ctx, r.one)
+	if err != nil || got != "one" {
 		return r.fail("a refused create changed the object (it holds %q)", got)
 	}
-	return nil
+	return r.storeClock(at, began)
 }
 
 func (r *probeRun) replace() error {

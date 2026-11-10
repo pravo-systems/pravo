@@ -26,6 +26,8 @@ A key such as `resources/api.config.json` is the path below the URL. Every reque
 
 The listing is not paged: the server sends every key below the prefix. A key that ends in `/` is not an object and is skipped.
 
+A server may send two more headers with the answer to `GET URL/KEY`: `Last-Modified`, the time at which it last wrote the object, and `Date`, its own time when it answered, both in the format of HTTP and in GMT. The age of a lock is then counted on the clock of the server, and the clocks of the machines that run pravo need not agree: see [The clock of the store](s3-stores.md#the-clock-of-the-store). Every write of an object must move its `Last-Modified`, and both times must be read off one clock. A server that cannot promise that sends no `Last-Modified`, and its locks are judged by the clocks of the machines.
+
 Locks, the replacement of a record that a command read, and the stored plans rest on the three conditional requests, as they do for [S3-compatible stores](s3-stores.md). A server that honours all three keeps two applies apart. A server that ignores one lets two commands hold the same lock, and nothing says so. The tag of an object must change whenever its contents change, and the server must apply a conditional request and the write it guards as one step.
 
 ## Retries

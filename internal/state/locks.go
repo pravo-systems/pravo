@@ -38,6 +38,47 @@ type Lock struct {
 	Creating bool `json:"creating,omitempty"`
 	// Stale is set by Locks on a lock that may be reclaimed. It is not stored.
 	Stale bool `json:"stale,omitempty"`
+	// at is what the store said about its own time when it gave the lock: when it last
+	// wrote it, and what time it was. It is set by the read and is not stored. When the
+	// store told, the age of the lock is the difference of the two, and neither the clock
+	// of the holder nor the clock of the reader is part of it (see TimedReader).
+	at StoreTime
+}
+
+// stranded is what Strand writes as the time of the last renewal: a time that no clock
+// gives, which says that the holder gave the lock up and left it for the next command to
+// find.
+var stranded = time.Unix(0, 0).UTC()
+
+// idle is how long the lock has gone without a renewal, and whether that can be told. A
+// store that stamps its objects tells by its own clock: every renewal writes the lock, so
+// the time since the store last wrote it is the time since the holder last renewed it. For
+// a store that does not, it is the time on the clock of this process since the time that the
+// holder wrote into the lock by its own clock, which is right as far as the two clocks agree.
+func (l Lock) idle() (time.Duration, bool) {
+	if l.RenewedAt.Equal(stranded) {
+		return lockClock().Sub(stranded), true
+	}
+	if l.at.Known() {
+		return l.at.Age(), true
+	}
+	last := l.RenewedAt
+	if last.IsZero() {
+		last = l.Since
+	}
+	if last.IsZero() {
+		return 0, false
+	}
+	return lockClock().Sub(last), true
+}
+
+// now is the time by which a time written into the lock is judged: that of the store when
+// it gave the lock, if it told, and that of this process otherwise.
+func (l Lock) now() time.Time {
+	if l.at.Known() {
+		return l.at.Now
+	}
+	return lockClock()
 }
 
 // Holder is the name a lock or reservation is shown and matched under: the
@@ -103,11 +144,8 @@ func (l Lock) Live() bool {
 	if l.Host == host && l.PID > 0 && l.PID != os.Getpid() {
 		return processAlive(l.PID)
 	}
-	last := l.RenewedAt
-	if last.IsZero() {
-		last = l.Since
-	}
-	return !last.IsZero() && time.Since(last) < LiveAfter
+	idle, ok := l.idle()
+	return ok && idle < LiveAfter
 }
 
 // LockOf reads the lock on addr, or ErrNotFound when there is none.
@@ -134,8 +172,9 @@ func (s *Store) Owner() string {
 	return osUser()
 }
 
-// lockClock is the clock the locks are stamped and judged by. A test of the
-// protocol replaces it, to give two stores clocks that disagree.
+// lockClock is the clock the locks are stamped by, and judged by when the store does not
+// tell its own time (see Lock.idle). A test of the protocol replaces it, to give two stores
+// clocks that disagree.
 var lockClock = time.Now
 
 // lockJitter is the random part of a pause. A test replaces it, so that a
@@ -149,11 +188,14 @@ func (s *Store) newLock(addr, command, txn string) Lock {
 }
 
 // stale reports whether a lock may be reclaimed: its process is gone on
-// this host, or it has not been renewed for StaleAfter.
+// this host, or it has not been renewed for StaleAfter. The lock is one that a
+// read of the store gave, which is where the time of the store comes from.
 func (s *Store) stale(l Lock) bool {
 	if l.Kind == "reservation" {
-		// A reservation outlives the process that took it; only time ends it.
-		return l.Expires == nil || lockClock().After(*l.Expires)
+		// A reservation outlives the process that took it; only time ends it. The end is
+		// a time of day that its owner chose and is shown, so it is compared with the
+		// time of the store and not counted from the write.
+		return l.Expires == nil || l.now().After(*l.Expires)
 	}
 	if s.b.Local() {
 		host, _ := os.Hostname()
@@ -161,11 +203,8 @@ func (s *Store) stale(l Lock) bool {
 			return true
 		}
 	}
-	last := l.RenewedAt
-	if last.IsZero() {
-		last = l.Since
-	}
-	return !last.IsZero() && lockClock().Sub(last) > StaleAfter
+	idle, ok := l.idle()
+	return ok && idle > StaleAfter
 }
 
 // Lock takes the lock for addr on behalf of this process, reclaiming a
@@ -478,7 +517,7 @@ func (s *Store) readLock(addr string) (Lock, error) {
 // are returned when the lock cannot be parsed.
 func (s *Store) readLockRaw(addr string) ([]byte, Lock, error) {
 	var l Lock
-	data, err := s.b.Get(s.cx(), lockKey(addr))
+	data, at, err := getTimed(s.cx(), s.b, lockKey(addr))
 	if err != nil {
 		return nil, l, err
 	}
@@ -486,6 +525,7 @@ func (s *Store) readLockRaw(addr string) ([]byte, Lock, error) {
 	if l.Addr == "" {
 		l.Addr = addr
 	}
+	l.at = at
 	return data, l, err
 }
 
@@ -573,7 +613,7 @@ func (s *Store) Strand(addr string) error {
 			return nil, false
 		}
 		l.Creating = true
-		l.RenewedAt = time.Unix(0, 0).UTC()
+		l.RenewedAt = stranded
 		data, _ := indentJSON(l)
 		return data, true
 	})
@@ -633,27 +673,29 @@ func (s *Store) ForceUnlock(addr string) (bool, error) {
 }
 
 // ReleaseStale releases every lock and reservation that may be reclaimed, and
-// returns their addresses. A lock is deleted only if it is stale at the moment it
-// is deleted: one that its holder renewed, or that another process took, since
-// the listing is left alone.
+// returns their addresses. A lock is deleted only if it is still the object that
+// was judged: one that its holder renewed, or that another process took, since
+// it was read is another object and is left alone.
 func (s *Store) ReleaseStale() ([]string, error) { return s.ReleaseStaleExcept(nil) }
 
 // ReleaseStaleExcept is ReleaseStale for the stale locks that keep does not name: a lock
 // for which keep returns true stays.
 func (s *Store) ReleaseStaleExcept(keep func(Lock) bool) ([]string, error) {
-	locks, err := s.Locks()
+	keys, err := s.b.List(s.cx(), "locks")
+	if err != nil {
+		return nil, err
+	}
+	locks, raws, err := s.readLocks(keys)
 	if err != nil {
 		return nil, err
 	}
 	var released []string
-	for _, l := range locks {
+	for i, l := range locks {
 		if !l.Stale || (keep != nil && keep(l)) {
 			continue
 		}
-		ok, err := s.b.DeleteIf(s.cx(), lockKey(l.Addr), func(current []byte) bool {
-			var cur Lock
-			return json.Unmarshal(current, &cur) == nil && s.stale(cur)
-		})
+		raw := raws[i]
+		ok, err := s.b.DeleteIf(s.cx(), lockKey(l.Addr), func(current []byte) bool { return bytes.Equal(current, raw) })
 		if errors.Is(err, ErrNotFound) {
 			continue
 		}
@@ -706,11 +748,19 @@ func (s *Store) LocksAndNotes() ([]Lock, []*PendingCreate, error) {
 
 // locksAmong reads the locks among the listed keys.
 func (s *Store) locksAmong(keys []string) ([]Lock, error) {
+	locks, _, err := s.readLocks(keys)
+	return locks, err
+}
+
+// readLocks reads the locks among the listed keys, sorted by address, and the bytes that
+// each was read from.
+func (s *Store) readLocks(keys []string) ([]Lock, [][]byte, error) {
 	keys = withSuffix(keys, ".lock")
 	read := make([]*Lock, len(keys))
+	raws := make([][]byte, len(keys))
 	failed := make([]error, len(keys))
 	s.eachRead(len(keys), func(i int) {
-		data, err := s.b.Get(s.cx(), keys[i])
+		data, at, err := getTimed(s.cx(), s.b, keys[i])
 		if err != nil {
 			// A lock that was released since the listing is not held. One that is there and
 			// cannot be read is not left out: the commands that ask whether anything holds
@@ -722,21 +772,26 @@ func (s *Store) locksAmong(keys []string) ([]Lock, error) {
 		}
 		var l Lock
 		if json.Unmarshal(data, &l) == nil {
+			l.at = at
 			l.Stale = s.stale(l)
-			read[i] = &l
+			read[i], raws[i] = &l, data
 		}
 	})
 	if err := errors.Join(failed...); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	out := []Lock{}
-	for _, l := range read {
+	order := make([]int, 0, len(read))
+	for i, l := range read {
 		if l != nil {
-			out = append(out, *l)
+			order = append(order, i)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Addr < out[j].Addr })
-	return out, nil
+	sort.SliceStable(order, func(i, j int) bool { return read[order[i]].Addr < read[order[j]].Addr })
+	out, bytesOf := make([]Lock, len(order)), make([][]byte, len(order))
+	for n, i := range order {
+		out[n], bytesOf[n] = *read[i], raws[i]
+	}
+	return out, bytesOf, nil
 }
 
 // withSuffix returns the keys that end in suffix, in a list of their own.
