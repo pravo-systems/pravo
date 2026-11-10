@@ -340,6 +340,7 @@ func newRootCmd(rt *runContext) *cobra.Command {
 				rt.out = ui.NewPrinter(os.Stderr, true)
 			} else {
 				rt.out = ui.NewPrinter(os.Stdout, colourOff(rt.flags.NoColor))
+				rt.out.Errors = os.Stderr
 			}
 			if answersOnStdout(cmd) {
 				rt.out.Warnings = os.Stderr

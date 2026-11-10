@@ -344,12 +344,12 @@ func inReverse(changes []*Change, width int, do func(*Change) error) error {
 	}
 
 	var (
-		mu       sync.Mutex
-		wake     = sync.NewCond(&mu)
-		firstErr error
-		ran      = make([]bool, len(changes))
-		queue    = &byRank{rank: rank}
-		running  int
+		mu      sync.Mutex
+		wake    = sync.NewCond(&mu)
+		first   firstFailure
+		ran     = make([]bool, len(changes))
+		queue   = &byRank{rank: rank}
+		running int
 	)
 	for i := range changes {
 		if waiting[i] == 0 {
@@ -359,7 +359,7 @@ func inReverse(changes []*Change, width int, do func(*Change) error) error {
 	worker := func() {
 		mu.Lock()
 		defer mu.Unlock()
-		for firstErr == nil {
+		for first.err == nil {
 			if queue.Len() == 0 {
 				if running == 0 {
 					break
@@ -374,9 +374,7 @@ func inReverse(changes []*Change, width int, do func(*Change) error) error {
 			mu.Lock()
 			running--
 			if err != nil {
-				if firstErr == nil {
-					firstErr = err
-				}
+				first.note(err, changes[i].Addr)
 			} else {
 				ran[i] = true
 				for _, j := range below[i] {
@@ -398,8 +396,8 @@ func inReverse(changes []*Change, width int, do func(*Change) error) error {
 		}()
 	}
 	wg.Wait()
-	if firstErr != nil {
-		return firstErr
+	if first.err != nil {
+		return first.err
 	}
 	for i, c := range changes {
 		if !ran[i] {

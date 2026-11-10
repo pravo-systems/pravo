@@ -341,7 +341,7 @@ package scope
 ```
 
 ```sh
-pravo -C scope init > /dev/null
+pravo -C scope init > /dev/null 2>&1
 pravo -C scope validate
 ```
 

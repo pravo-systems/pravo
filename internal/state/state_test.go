@@ -590,6 +590,14 @@ func TestFormat(t *testing.T) {
 	if _, err := OpenBackend(ctx, b); err == nil || !strings.Contains(err.Error(), "written by a newer pravo (format 99)") {
 		t.Errorf("a store of format 99 opened: %v", err)
 	}
+	// A newer pravo may have changed the shape of another field: the answer is still
+	// that the state is newer, not that meta.json cannot be parsed.
+	if err := b.Put(ctx, "meta.json", []byte(`{"format":99,"lineage":["abc"],"created":{"at":1}}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenBackend(ctx, b); err == nil || !strings.Contains(err.Error(), "written by a newer pravo (format 99)") {
+		t.Errorf("a store of format 99 with a changed field: %v", err)
+	}
 }
 
 // A refresh that changes a mark moves the revision, so that a saved plan made

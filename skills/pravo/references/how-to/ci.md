@@ -495,7 +495,7 @@ note: $local.#Resource.local_file & {
 ```
 
 ```sh
-pravo -C app plan -out replace.plan > plan.txt
+pravo -C app plan -out replace.plan > plan.txt 2>&1
 echo "exit=$?"
 grep -E '^(Plan|Error|changes)' plan.txt
 test -f app/replace.plan || echo "no plan file"

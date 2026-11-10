@@ -17,7 +17,7 @@ internal/convert/fromtf.go fillValue 105
 internal/engine/apply.go Engine.applyRun 103
 internal/engine/engine.go Engine.planRun 102
 internal/engine/graph.go Engine.run 107
-internal/engine/orphans.go inReverse 122
+internal/engine/orphans.go inReverse 120
 internal/engine/plangc.go PlanStore.GC 105
 internal/engine/policyfile.go Trier.TryFile 121
 internal/engine/providers.go Providers.Resolve 129
