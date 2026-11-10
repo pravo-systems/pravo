@@ -721,7 +721,7 @@ func (e *Engine) memoAgainst(addr string, f planFacts) error {
 	if memoShadow != nil {
 		memoShadow(e, problem)
 	}
-	plog.Debug(e.traceCtx(), "memo is wrong", "problem", problem)
+	plog.Debug(e.traceCtx(), "memo is wrong", "addr", addr)
 	if e.Opts.Memo != nil && e.Opts.Memo.Check {
 		return fmt.Errorf("%s (the plan memo is wrong: plan with PRAVO_PLAN=full, and report this)", problem)
 	}

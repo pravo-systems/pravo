@@ -160,7 +160,7 @@ Output:
 
 ### Debug events
 
-The events of the debug log (`-v`) are attached to the span that was running when they were logged. A `task` event sits on its `resource` span, with the action and the reasons. The event `plan` sits on the engine span, and `tasks run` and `settled` on the stage that walked the resources. The events of opening the state, choosing the providers and reading the schemas sit on the `setup` spans for them, and `loaded` and `schemas ready` on the command span. They are recorded whenever traces are on, whether or not `-v` is set.
+The events of the debug log (`-v`) are attached to the span that was running when they were logged. A `task` event sits on its `resource` span, with the action and the reasons. The events `plan` and `memo` sit on the engine span, and `tasks run` and `settled` on the stage that walked the resources. The events of opening the state, choosing the providers and reading the schemas sit on the `setup` spans for them, and `loaded` and `schemas ready` on the command span. They are recorded whenever traces are on, whether or not `-v` is set.
 
 ```sh
 jq -c 'select((.Events | length) > 0) | {Name, events: [.Events[] | .Name]}' trace.jsonl
@@ -174,7 +174,7 @@ Output:
 {"Name":"setup load schema local","events":["schema from the cache"]}
 {"Name":"resource hello","events":["provider started","configuring provider","task"]}
 {"Name":"phase evaluate and refresh","events":["tasks run","settled"]}
-{"Name":"engine plan","events":["plan"]}
+{"Name":"engine plan","events":["plan","memo"]}
 {"Name":"pravo plan","events":["loaded","schemas ready"]}
 ```
 
