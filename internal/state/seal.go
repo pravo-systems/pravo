@@ -171,6 +171,8 @@ func (s *Store) openSealed(id *protect.Identity) error {
 		}
 	case errors.Is(err, protect.ErrNotReader):
 		s.you.State = "not-reader"
+	case errors.Is(err, protect.ErrDamaged):
+		return fmt.Errorf("opening the sealed state at %s: %v: %w", s.b.Name(), err, ErrUntrusted)
 	default:
 		return fmt.Errorf("opening the sealed state at %s: %w", s.b.Name(), err)
 	}
@@ -262,6 +264,12 @@ func (s *Store) reloadSealed() {
 		case !errors.Is(err, protect.ErrNotReader):
 			return
 		}
+	}
+	// The new groups are taken for what is sealed in them. What this store seals stays in
+	// the group it has, unless a reader it trusts signed the new list.
+	if cur := s.ring.current(); keys != nil && cur != "" && !s.trustsKeys(&m) && !keys.SealIn(cur) {
+		keys.Close()
+		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -389,7 +397,7 @@ func (s *Store) recheckSeal() {
 		return
 	}
 	var m meta
-	if json.Unmarshal(data, &m) != nil || m.Lineage != lineage || m.Sealed == nil || m.Sealed.Current == current {
+	if json.Unmarshal(data, &m) != nil || m.Lineage != lineage || m.Sealed == nil || m.Sealed.Current == current || !s.trustsKeys(&m) {
 		return
 	}
 	keys, err := m.Sealed.Unlock(lineage, id.Reader)

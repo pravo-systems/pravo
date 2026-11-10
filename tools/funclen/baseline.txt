@@ -10,7 +10,7 @@ cmd/pravo/environments_cmd.go diffEnvironments 112
 cmd/pravo/id.go runIDNew 143
 cmd/pravo/planstore.go showStored 102
 cmd/pravo/protect_init.go protectRun.init 145
-cmd/pravo/protect_rewrap.go protectRun.rewrap 117
+cmd/pravo/protect_rewrap.go protectRun.rewrap 112
 cmd/pravo/statecmd.go stateLogCmd 110
 cmd/pravo/unseal.go protectRun.unseal 108
 internal/config/config.go parseState 101
@@ -41,7 +41,6 @@ internal/serve/templates.go templateInputs 101
 internal/serve/templates_inputs.go model.choicesOf 102
 internal/serve/traces.go Server.traces 104
 internal/state/gc.go Store.gcGroups 164
-internal/state/seal_upgrade.go Store.Rewrap 120
 internal/state/seal_upgrade.go Store.upgradeSealed 110
 internal/state/unseal.go Store.Unseal 143
 internal/telemetry/telemetry.go Setup 118

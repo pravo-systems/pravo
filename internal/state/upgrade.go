@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/pravo-systems/pravo/internal/protect"
 )
 
 // convertWidth is how many records an upgrade converts at the same time. They are
@@ -101,6 +103,18 @@ func (s *Store) checkLocks() error {
 // fn returns an error to refuse. A bucket that says the object changed after it
 // was read makes fn run again on what is there now.
 func (s *Store) updateMeta(fn func(m *meta) error) error {
+	return s.updateMetaAs(nil, fn)
+}
+
+// updateMetaAs is updateMeta for a change that signer vouches for: when the change
+// leaves another list of key groups than it found, signer signs the new one (see
+// signKeys). A nil signer is the identity the store was opened with.
+func (s *Store) updateMetaAs(signer *protect.Identity, fn func(m *meta) error) error {
+	if signer == nil {
+		s.mu.Lock()
+		signer = s.id
+		s.mu.Unlock()
+	}
 	for range replaceAttempts {
 		var (
 			next    meta
@@ -120,7 +134,12 @@ func (s *Store) updateMeta(fn func(m *meta) error) error {
 				refused = fmt.Errorf("state at %s was written by a newer pravo (format %d); use the pravo that wrote it, or a newer one: docs/how-to/upgrading.md", s.b.Name(), m.Format)
 				return nil, false
 			}
+			was := s.keyListOf(&m)
 			if err := fn(&m); err != nil {
+				refused = err
+				return nil, false
+			}
+			if err := s.signKeys(&m, was, signer); err != nil {
 				refused = err
 				return nil, false
 			}

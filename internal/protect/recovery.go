@@ -300,20 +300,8 @@ func (m *Meta) SetRecovery(k *Keys, rec *Recovery, rotated bool) error {
 	if old == nil || rotated || (rec != nil && rec.Key.Equal(old.Key)) {
 		return nil
 	}
-	var rs []Reader
-	if cur := m.group(m.Current); cur != nil {
-		for _, l := range cur.Locks {
-			rs = append(rs, Reader{Name: l.Name, Key: l.Key})
-		}
-	}
-	id := "g" + strconv.Itoa(m.nextGroupNumber())
-	g, dk, err := NewGroup(id, k.lineage, rs)
-	if err != nil {
-		return err
-	}
-	m.Groups = append(m.Groups, g)
-	m.Current, k.current, k.keys[id] = id, id, dk
-	return nil
+	_, err := m.Rotate(k)
+	return err
 }
 
 // RecoveryStatus says how a state's recovery stands. It needs no key.

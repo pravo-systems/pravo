@@ -84,6 +84,11 @@ type Group struct {
 	ID    string `json:"id"`
 	Alg   string `json:"alg"`
 	Locks []Lock `json:"locks"`
+	// Commit is the commitment of the group to its data key: a keyed hash that only
+	// the data key gives, and that says nothing of it. The signature of the list of
+	// groups covers it, so a lock that holds another key is found when it is opened.
+	// A group made before groups were signed has none.
+	Commit []byte `json:"commit,omitempty"`
 }
 
 // NewGroup makes a data key and locks it for the readers.
@@ -93,6 +98,7 @@ func NewGroup(id, lineage string, readers []Reader) (Group, DataKey, error) {
 	if err := g.Rewrap(lineage, dk, readers); err != nil {
 		return Group{}, DataKey{}, err
 	}
+	g.Commit = commitment(dk, lineage, id)
 	return g, dk, nil
 }
 
@@ -104,7 +110,12 @@ func (g Group) Unlock(lineage string, me *ReaderKey) (DataKey, error) {
 	mine := me.Public()
 	for _, l := range g.Locks {
 		if l.Key.Equal(mine) {
-			return Unwrap(l.Box, me, WrapCtx{lineage, g.ID})
+			dk, err := Unwrap(l.Box, me, WrapCtx{lineage, g.ID})
+			if err == nil && len(g.Commit) > 0 && !hmac.Equal(g.Commit, commitment(dk, lineage, g.ID)) {
+				dk.Wipe()
+				return DataKey{}, fmt.Errorf("%w: your lock in group %s holds another key than the one the group was made with", ErrDamaged, g.ID)
+			}
+			return dk, err
 		}
 	}
 	return DataKey{}, ErrNotReader
@@ -166,6 +177,15 @@ func (g Group) Diff(readers []Reader) (missing, extra []string) {
 	slices.Sort(extra)
 	slices.Sort(missing)
 	return
+}
+
+// commitment is the keyed hash that a group publishes of its data key. The key of the
+// hash is derived, so that the data key is not used for two purposes.
+func commitment(dk DataKey, lineage, group string) []byte {
+	k := sha256.Sum256(pae([]byte("pravo/key-commit/v1"), dk.b[:]))
+	h := hmac.New(sha256.New, k[:])
+	h.Write(pae([]byte(lineage), []byte(group)))
+	return h.Sum(nil)
 }
 
 // check is the keyed hash of a lock under the data key it holds. The key is derived,

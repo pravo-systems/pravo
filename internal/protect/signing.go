@@ -37,6 +37,8 @@ const (
 	DomainRun = "pravo/v1/run"
 	// DomainPromotion signs a promotion of a release into an environment.
 	DomainPromotion = "pravo/v1/promotion"
+	// DomainKeys signs the list of the groups of a sealed state and their data keys.
+	DomainKeys = "pravo/v1/keys"
 )
 
 // Signature is a signature as it is stored beside what it signs. Signer is the

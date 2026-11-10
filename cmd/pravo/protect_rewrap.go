@@ -152,16 +152,8 @@ func (p *protectRun) rewrap(rt *runContext, all bool, recoverySpec string, remov
 	if err := p.planRecovery(pl, prot, removeRecovery); err != nil {
 		return err
 	}
-	if len(added) == 0 && len(removed) == 0 && !all && pl.setRec == nil && !pl.removing && !pl.fileRemoving && len(prot.RecoveryUnverified) == 0 {
-		if removeRecovery && !rt.flags.JSON {
-			rt.out.Println("The state has no recovery recipient, and there is no recovery file.")
-			return nil
-		}
-		if rt.flags.JSON {
-			return emitJSON(map[string]any{"added": nil, "removed": nil, "new_group": "", "resealed": 0})
-		}
-		rt.out.Println("The store already matches the readers file.")
-		return nil
+	if len(added) == 0 && len(removed) == 0 && !all && !keysUnsigned(st, p.rf) && pl.setRec == nil && !pl.removing && !pl.fileRemoving && len(prot.RecoveryUnverified) == 0 {
+		return nothingToRewrap(rt, removeRecovery)
 	}
 	if all {
 		// --all deletes the records that nothing names; a writer that is half way
@@ -209,6 +201,9 @@ func (p *protectRun) rewrap(rt *runContext, all bool, recoverySpec string, remov
 	}
 	if rt.flags.JSON {
 		j := map[string]any{"added": res.Change.Added, "removed": res.Change.Removed, "new_group": res.Change.NewGroup, "resealed": res.Resealed, "plans_skipped": res.PlansSkipped}
+		if res.KeysWere != "" {
+			j["keys_were"] = res.KeysWere
+		}
 		if recJSON != nil {
 			j["recovery"] = recJSON
 		}
@@ -218,6 +213,26 @@ func (p *protectRun) rewrap(rt *runContext, all bool, recoverySpec string, remov
 	if recNote != nil {
 		recNote()
 	}
+	return nil
+}
+
+// keysUnsigned reports whether no reader of the file signed the list of keys of the state,
+// and the identity of the store can sign: a rewrap then makes a new data key and signs.
+func keysUnsigned(st *state.Store, rf readersFile) bool {
+	keys, _ := st.KeysStatus(rf.Readers)
+	return keys != protect.SigVerified && st.CanSignKeys()
+}
+
+// nothingToRewrap says that the state already is what the readers file asks for.
+func nothingToRewrap(rt *runContext, removeRecovery bool) error {
+	if removeRecovery && !rt.flags.JSON {
+		rt.out.Println("The state has no recovery recipient, and there is no recovery file.")
+		return nil
+	}
+	if rt.flags.JSON {
+		return emitJSON(map[string]any{"added": nil, "removed": nil, "new_group": "", "resealed": 0})
+	}
+	rt.out.Println("The store already matches the readers file.")
 	return nil
 }
 
@@ -310,11 +325,16 @@ func (p *protectRun) reportRewrap(rt *runContext, st *state.Store, prot state.Pr
 		rt.out.Printf("Wrapped the data keys for %s (%s, %s)\n", nameList(res.Change.Added),
 			plural(groups, "reader group", "reader groups"), plural(groups*n, "new wrapped key", "new wrapped keys"))
 	}
+	if res.KeysWere != "" {
+		rt.out.Println("The list of keys in meta.json had no signature of a reader in " + p.rf.shown() + ". It has yours now, over a data key that this command made.")
+	}
 	if res.Change.NewGroup != "" {
 		if all {
 			rt.out.Println("New data keys for 1 reader group.")
 		} else {
 			rt.out.Println("New data keys for 1 reader group. Records are sealed again as they are next written.")
+		}
+		if !all && len(res.Change.Removed) > 0 {
 			still := "pravo protect rewrap --all, "
 			if protect.RolesOn(p.rf.Readers) {
 				still += "pravo protect roles, "
