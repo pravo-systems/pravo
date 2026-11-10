@@ -53,3 +53,11 @@ func TestPathPredicateAndNames(t *testing.T) {
 		t.Errorf("names: %v", got)
 	}
 }
+
+func TestWriteOnlyVersionIsNotGuarded(t *testing.T) {
+	blk := &schema.Block{Attributes: []*schema.Attribute{{Name: "private_key_pem_wo"}, {Name: "private_key_pem_wo_version"}}}
+	sens := PathPredicate(blk)
+	if sens([]string{"private_key_pem_wo_version"}) || !sens([]string{"private_key_pem_wo"}) {
+		t.Error("the version counter must show and the value must not")
+	}
+}

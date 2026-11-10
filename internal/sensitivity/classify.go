@@ -2,6 +2,7 @@ package sensitivity
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/pravo-systems/pravo/internal/schema"
 )
@@ -86,7 +87,12 @@ func blockHolds(b *schema.Block, depth int, attr func(*schema.Attribute) bool, b
 	return found
 }
 
-func guardedName(name string) bool { return schema.NameGuard.MatchString(name) }
+// guardedName says whether a name says its value is a secret. The version of a write-only
+// attribute (private_key_pem_wo_version) is a counter that a person bumps to send the value again:
+// it is what the documentation shows of such an attribute, and it holds nothing.
+func guardedName(name string) bool {
+	return !strings.HasSuffix(name, "_wo_version") && schema.NameGuard.MatchString(name)
+}
 
 // HasGuardedKey reports whether a decoded JSON value holds an object with a key whose name says it
 // is a secret, at any depth.

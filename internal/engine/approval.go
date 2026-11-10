@@ -245,11 +245,14 @@ func (e *Engine) judgingReaders(ctx context.Context) (readers []protect.Reader, 
 	if e.Opts.RolesPin != "" || len(rs) == 0 || e.State.Sealer() == nil {
 		return rs, false
 	}
-	_, st, err := e.State.RolesFor(ctx, rs, "")
+	// The same answer as every other consumer: RolesFor caps an unpinned chain. Opts.Readers
+	// of the command line already went through it, and capping twice changes nothing; a caller
+	// of the library that passes the raw file gets it here.
+	capped, st, err := e.State.RolesFor(ctx, rs, "")
 	if err != nil || !st.Unpinned {
 		return rs, false
 	}
-	return protect.CapRoles(rs, st.Stored), true
+	return capped, true
 }
 
 // checkApprovals refuses an apply of a plan that the policies ask approvals for and has too few. A plan that is
