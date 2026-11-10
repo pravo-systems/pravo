@@ -1498,31 +1498,7 @@ that declares none, so it also serves to try out CUE.
 			v := s.value
 			// The recorded state of every resource is unified in one step: filling
 			// a resource at a time evaluates the whole specification again for each.
-			var fills []convert.PathFill
-			for _, r := range s.root.Resources {
-				sr := s.state.Get(r.Address())
-				if sr == nil {
-					continue
-				}
-				ps := s.schemas[r.LocalProvider()]
-				var sch *schema.Schema
-				if r.Mode == "data" {
-					sch = ps.DataSource(r.Type)
-				} else {
-					sch = ps.Resource(r.Type)
-				}
-				if sch == nil {
-					continue
-				}
-				tv, err := tftypesFromJSON(sr.Attributes, sch)
-				if err != nil {
-					continue
-				}
-				if fill := convert.Fill(s.value.LookupPath(r.Path), sch.Block, tv); fill != nil {
-					fills = append(fills, convert.PathFill{Path: r.Path, Value: fill})
-				}
-			}
-			v = fillRecorded(v, fills)
+			v = fillRecorded(v, recordedFills(s))
 			if raw {
 				// A path names the value itself, so that its syntax is the
 				// author's; a compiled expression would be a reference to it.
@@ -1582,6 +1558,35 @@ that declares none, so it also serves to try out CUE.
 	cmd.Flags().BoolVar(&raw, "raw", false, "print the value as written, before comprehensions are evaluated: a policy rule as a file for cue vet")
 	addTagFlags(rt, cmd)
 	return cmd
+}
+
+// recordedFills is what the state records of every resource, as values to unify.
+func recordedFills(s *session) []convert.PathFill {
+	var fills []convert.PathFill
+	for _, r := range s.root.Resources {
+		sr := s.state.Get(r.Address())
+		if sr == nil {
+			continue
+		}
+		ps := s.schemas[r.LocalProvider()]
+		var sch *schema.Schema
+		if r.Mode == "data" {
+			sch = ps.DataSource(r.Type)
+		} else {
+			sch = ps.Resource(r.Type)
+		}
+		if sch == nil {
+			continue
+		}
+		tv, err := tftypesFromJSON(sr.Attributes, sch)
+		if err != nil {
+			continue
+		}
+		if fill := convert.Fill(s.value.LookupPath(r.Path), sch.Block, tv); fill != nil {
+			fills = append(fills, convert.PathFill{Path: r.Path, Value: fill})
+		}
+	}
+	return fills
 }
 
 // fillRecorded unifies the recorded values of the resources into v. A value that
