@@ -95,7 +95,7 @@ func TestAnUnsignedListOfKeysGetsANewKeyFromTheFirstWriter(t *testing.T) {
 		t.Fatalf("a command that reads: exit %d, standard error %q, keys %s", code, stderr, s.keys(t))
 	}
 	stderr = withStderr(t, func() { text, code = runPravo(t, rt, s.dir, "state", "rm", "net.vpc") })
-	want := "Note: the list of keys in meta.json had no signature: an earlier pravo sealed the state, or meta.json was changed. Made a new data key (group g2) and signed the list"
+	want := "Note: the list of keys in meta.json had no signature: an earlier pravo sealed the state, the state was recovered with its shares, or meta.json was changed. Made a new data key (group g2) and signed the list"
 	if code != 0 || !strings.Contains(stderr, want) {
 		t.Fatalf("the first command that writes: exit %d\n%s\nstandard error: %s", code, text, stderr)
 	}

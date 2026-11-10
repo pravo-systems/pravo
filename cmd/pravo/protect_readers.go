@@ -319,7 +319,7 @@ func keysProblem(rf readersFile, st *state.Store, write bool) (string, engine.Ex
 // keysAdoptedNote says that a command made a new data key because the list of keys had
 // no signature of a reader.
 func keysAdoptedNote(status protect.SigStatus, signer, group string, rf readersFile) string {
-	why := "had no signature: an earlier pravo sealed the state, or meta.json was changed"
+	why := "had no signature: an earlier pravo sealed the state, the state was recovered with its shares, or meta.json was changed"
 	if status == protect.SigUnknownKey {
 		why = fmt.Sprintf("was signed by %s, whose key is not in %s", safeName(signer), rf.shown())
 	}
