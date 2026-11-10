@@ -75,8 +75,14 @@ type heldLocks struct {
 	mu sync.Mutex
 	// addrs lists the locks taken so far.
 	addrs []string
+	// changes counts the times addrs changed.
+	changes int
 	// beat is the last time that every lock taken was known to be this apply's:
-	// when the locks were taken, or when a renewal of all of them succeeded.
+	// the moment before the requests that took the locks were sent, or before the
+	// ones of a renewal of all of them that succeeded. It is the moment before and
+	// not the one of the answer because a lock is stamped before its request is
+	// sent, and every other command judges it by that stamp: a request that was
+	// on its way for minutes leaves a lock that is minutes old.
 	beat time.Time
 	// lost is set when a renewal found that a lock is no longer this apply's.
 	lost error
@@ -139,7 +145,10 @@ func lostLock(addr string, err error) error {
 func (h *heldLocks) renew() {
 	h.renewMu.Lock()
 	defer h.renewMu.Unlock()
-	addrs := h.held()
+	begun := time.Now()
+	h.mu.Lock()
+	addrs, changes := append([]string(nil), h.addrs...), h.changes
+	h.mu.Unlock()
 	errs := make([]error, len(addrs))
 	inParallel(len(addrs), h.width(), func(i int) { errs[i] = h.st.Renew(addrs[i]) })
 	failed := false
@@ -159,8 +168,11 @@ func (h *heldLocks) renew() {
 		}
 	}
 	if !failed {
+		// A renewal that ran while locks were being taken renewed some of them only.
 		h.mu.Lock()
-		h.beat = time.Now()
+		if h.changes == changes && begun.After(h.beat) {
+			h.beat = begun
+		}
 		h.mu.Unlock()
 	}
 }
@@ -174,6 +186,7 @@ func (h *heldLocks) drop() {
 	inParallel(len(addrs), h.width(), func(i int) { _ = h.st.Unlock(addrs[i]) })
 	h.mu.Lock()
 	h.addrs = nil
+	h.changes++
 	h.mu.Unlock()
 }
 
@@ -194,6 +207,7 @@ func (h *heldLocks) attempt(addrs []string, contested map[string]bool, command, 
 		if e == nil {
 			h.mu.Lock()
 			h.addrs = append(h.addrs, addr)
+			h.changes++
 			h.mu.Unlock()
 			return
 		}
@@ -260,9 +274,9 @@ func (h *heldLocks) attempt(addrs []string, contested map[string]bool, command, 
 // start together and overlap, one is granted and the others are turned away
 // because of it, and an apply is not turned away because of another that was
 // turned away. A lock held by a command that applies, by a reservation, or for
-// longer than the patience of the apply rejects it. If any lock is held by
-// another process, the error names the smallest address that is held and counts
-// the others, which are looked at and not taken.
+// longer than the patience of the apply rejects it. The error names the smallest
+// address that the command which turned the apply away holds, and counts the
+// others that are held, which are looked at and not taken.
 func (h *heldLocks) acquire(addrs []string, command, txn string) error {
 	var (
 		contested = map[string]bool{}
@@ -278,7 +292,7 @@ func (h *heldLocks) acquire(addrs []string, command, txn string) error {
 		}
 		if held == nil {
 			h.mu.Lock()
-			h.beat = time.Now()
+			h.beat = begun
 			h.mu.Unlock()
 			return nil
 		}
@@ -327,11 +341,15 @@ func (h *heldLocks) waits(l state.Lock) bool {
 // thousand reads.
 var scanTime = 2 * time.Second
 
-// rejected is the error of an apply that is turned away. It looks at the locks
-// the apply needed, in order, so that the error names the smallest that is held
-// and counts the others; when none is held any longer it names held. When the
-// apply needs more locks than can be looked at in scanTime, the count says that
-// there are at least so many.
+// rejected is the error of an apply that is turned away because of the lock held.
+// It looks at the locks the apply needed, in order, so that the error names the
+// smallest that the command which holds held holds, and counts the others. A
+// lock that a third command holds at that moment is counted and not named: that
+// command may be taking its locks and be turned away itself the next moment.
+// When the command that turned the apply away holds none any longer, the error
+// names the smallest lock of a command that applies or of a reservation, and
+// held when there is none. When the apply needs more locks than can be looked
+// at in scanTime, the count says that there are at least so many.
 func (h *heldLocks) rejected(addrs []string, held *state.ErrLocked) error {
 	var holders []*state.ErrLocked
 	begun := time.Now()
@@ -352,11 +370,26 @@ func (h *heldLocks) rejected(addrs []string, held *state.ErrLocked) error {
 			}
 		}
 	}
-	others := 0
-	if len(holders) > 0 {
-		held, others = holders[0], len(holders)-1
+	named, others := nameHolder(holders, held, func(l state.Lock) bool { return !h.waits(l) })
+	return WithCode(ExitLocked, fmt.Errorf("apply rejected: %w%s", named, heldAsWell(others, more)))
+}
+
+// nameHolder picks the lock that the error of a rejected apply names, of the
+// locks that are held now, in order, and the one that turned the apply away. It
+// returns it with the number of the other locks that are held. firm reports
+// whether a lock is one that no apply waits for.
+func nameHolder(holders []*state.ErrLocked, held *state.ErrLocked, firm func(state.Lock) bool) (*state.ErrLocked, int) {
+	for _, l := range holders {
+		if l.Lock.Nonce == held.Lock.Nonce && l.Lock.Kind == held.Lock.Kind {
+			return l, len(holders) - 1
+		}
 	}
-	return WithCode(ExitLocked, fmt.Errorf("apply rejected: %w%s", held, heldAsWell(others, more)))
+	for _, l := range holders {
+		if firm(l.Lock) {
+			return l, len(holders) - 1
+		}
+	}
+	return held, len(holders)
 }
 
 // heldAsWell is the end of the message about the nodes that are held besides
@@ -387,17 +420,32 @@ func (h *heldLocks) fence() error {
 	if err := h.lostError(); err != nil {
 		return err
 	}
-	if time.Since(h.lastBeat()) <= state.StaleAfter/2 {
+	if h.sinceBeat() <= state.StaleAfter/2 {
 		return nil
 	}
 	h.renew()
 	if err := h.lostError(); err != nil {
 		return err
 	}
-	if time.Since(h.lastBeat()) > state.StaleAfter/2 {
-		return fmt.Errorf("cannot confirm that this apply still holds its locks: they were last renewed %s ago", time.Since(h.lastBeat()).Round(time.Second))
+	if since := h.sinceBeat(); since > state.StaleAfter/2 {
+		return fmt.Errorf("cannot confirm that this apply still holds its locks: they were last renewed %s ago", since.Round(time.Second))
 	}
 	return nil
+}
+
+// wallClock is the time of day, with no reading of the clock that measures
+// intervals. A test replaces it.
+var wallClock = func() time.Time { return time.Now().Round(0) }
+
+// sinceBeat is how long ago every lock was last known to be this apply's. The
+// clock that Go measures intervals with stops while the computer sleeps on Linux
+// and macOS, and the other commands judge a lock by the time of day that is
+// written in it. So the time that passed is the longer of what the two clocks
+// say: the time of day sees the sleep, and the other clock sees the time that
+// passed when the time of day was set back.
+func (h *heldLocks) sinceBeat() time.Duration {
+	beat := h.lastBeat()
+	return max(time.Since(beat), wallClock().Sub(beat.Round(0)))
 }
 
 func (h *heldLocks) lostError() error {

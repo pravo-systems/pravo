@@ -38,6 +38,10 @@ type ResolvedProvider struct {
 	// recordBinary says that the lock file may take it when it holds none.
 	BinaryHash   string
 	recordBinary bool
+	// pinnedBinary is the digest that the lock file holds for the executable, when
+	// the executable is still to be compared with it: verifyBinary does, before the
+	// provider is started.
+	pinnedBinary string
 	// Signer is the fingerprint of the key that signed the checksum list of the
 	// archive that was downloaded, and recordSigner says that the lock file may take it.
 	Signer       string
@@ -299,7 +303,11 @@ func BinaryHashKey(plat string) string { return "binary:" + plat }
 
 // checkBinary compares the executable of rp with the digest that the lock file
 // holds for it, and takes the digest for the lock when it holds none and the
-// command may write it (init).
+// command may write it (init). A command that installs nothing leaves the
+// comparison to verifyBinary, which runs before the provider is started: the
+// executable of a large provider is most of a gigabyte, and a command that
+// starts no provider (one that takes the schema from the cache and reads no
+// resource) does not read it to run nothing of it.
 func (m *Providers) checkBinary(lock *Lock, rp *ResolvedProvider, install bool) error {
 	if rp.Path == "" || rp.Path == "(replay)" || rp.Req.Path != "" {
 		return nil
@@ -309,19 +317,44 @@ func (m *Providers) checkBinary(lock *Lock, rp *ResolvedProvider, install bool) 
 	if e, ok := lock.Providers[rp.Req.Source.String()]; ok && e.Version == rp.Version {
 		want = e.Hashes[BinaryHashKey(plat)]
 	}
-	if want == "" && !install {
+	rp.pinnedBinary = want
+	if !install {
 		return nil
 	}
-	sum, err := fileSHA256(rp.Path)
-	if err != nil {
-		return fmt.Errorf("provider %s v%s: reading %s: %w", rp.Req.Source.Display(), rp.Version, rp.Path, err)
+	if err := rp.verifyBinary(); err != nil {
+		return err
 	}
-	if want != "" && want != sum {
-		return fmt.Errorf("provider %s v%s: the executable %s has the digest %s, but %s pins %s for %s. It was changed after it was installed, or another tool put a different build in the plugin cache. Remove the file to install it again, or, if the change is expected, remove the %q line from the lock file and run \"pravo init\"", rp.Req.Source.Display(), rp.Version, rp.Path, sum, LockFileName, want, plat, BinaryHashKey(plat))
+	if want == "" {
+		sum, err := hashFile(rp.Path)
+		if err != nil {
+			return fmt.Errorf("provider %s v%s: reading %s: %w", rp.Req.Source.Display(), rp.Version, rp.Path, err)
+		}
+		rp.BinaryHash, rp.recordBinary = sum, true
 	}
-	rp.BinaryHash, rp.recordBinary = sum, want == "" && install
 	return nil
 }
+
+// verifyBinary compares the executable of r with the digest that the lock file
+// pins for it, once. It is called before the executable is run.
+func (r *ResolvedProvider) verifyBinary() error {
+	want := r.pinnedBinary
+	if want == "" {
+		return nil
+	}
+	sum, err := hashFile(r.Path)
+	if err != nil {
+		return fmt.Errorf("provider %s v%s: reading %s: %w", r.Req.Source.Display(), r.Version, r.Path, err)
+	}
+	if want != sum {
+		plat := registry.CurrentPlatform().String()
+		return fmt.Errorf("provider %s v%s: the executable %s has the digest %s, but %s pins %s for %s. It was changed after it was installed, or another tool put a different build in the plugin cache. Remove the file to install it again, or, if the change is expected, remove the %q line from the lock file and run \"pravo init\"", r.Req.Source.Display(), r.Version, r.Path, sum, LockFileName, want, plat, BinaryHashKey(plat))
+	}
+	r.BinaryHash, r.pinnedBinary = sum, ""
+	return nil
+}
+
+// hashFile is the digest of a file. A test counts its calls.
+var hashFile = fileSHA256
 
 func fileSHA256(path string) (string, error) {
 	f, err := os.Open(path)
@@ -513,7 +546,12 @@ func (m *Providers) instance(ctx context.Context, key string) (*instance, error)
 // without one, and applies recording when requested.
 func (m *Providers) start(ctx context.Context, local string, rp *ResolvedProvider) (plugin.Provider, error) {
 	_, end := setup(ctx, "start provider "+local, attribute.String("pravo.provider", local), attribute.String("pravo.provider.version", rp.Version))
-	p, err := m.startProvider(local, rp)
+	// The executable is compared with the digest of the lock file before it runs.
+	err := rp.verifyBinary()
+	var p plugin.Provider
+	if err == nil {
+		p, err = m.startProvider(local, rp)
+	}
 	end(err)
 	return p, err
 }

@@ -187,7 +187,7 @@ Providers:
   random = hashicorp/random v3.7.2
 ```
 
-An archive that is already unpacked in the provider store, or a binary in the OpenTofu plugin cache, is not downloaded. Its executable is compared with the `binary:` entry of the lock file on every run, and a different file is refused. Remove the entry, and run `pravo init`, only when you expect the bytes to differ.
+An archive that is already unpacked in the provider store, or a binary in the OpenTofu plugin cache, is not downloaded. Its executable is compared with the `binary:` entry of the lock file each time a command is about to start it, and a different file is refused. Remove the entry, and run `pravo init`, only when you expect the bytes to differ.
 
 ## 7. Upgrade a CUE module
 

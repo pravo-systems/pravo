@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/env"
+	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/registry"
 )
 
@@ -86,12 +88,59 @@ func TestAChangedExecutableIsRefused(t *testing.T) {
 	if err := os.WriteFile(p, []byte("two"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, install := range []bool{true, false} {
-		m2 := NewProviders(m.Root, reg)
-		err := resolveWith(t, m2, lock, install)
-		if err == nil || !strings.Contains(err.Error(), "pins") || !strings.Contains(err.Error(), "pravo init") {
-			t.Errorf("install=%v: err = %v", install, err)
+	refused := func(err error) bool {
+		return err != nil && strings.Contains(err.Error(), "pins") && strings.Contains(err.Error(), "pravo init")
+	}
+	// init compares at once
+	if err := resolveWith(t, NewProviders(m.Root, reg), lock, true); !refused(err) {
+		t.Errorf("init: err = %v", err)
+	}
+	// another command compares before it starts the provider, and starts nothing
+	m2 := NewProviders(m.Root, reg)
+	if err := resolveWith(t, m2, lock, false); err != nil {
+		t.Fatal(err)
+	}
+	started := false
+	m2.launch = func(string, *ResolvedProvider) (plugin.Provider, error) {
+		started = true
+		return nil, errors.New("started")
+	}
+	if _, err := m2.start(context.Background(), "dev", m2.Resolved["dev"]); !refused(err) || started {
+		t.Errorf("start: err = %v, started = %v", err, started)
+	}
+}
+
+// A command that starts no provider does not read the executable: the one of a
+// large provider is most of a gigabyte. A command that starts it reads it once.
+func TestTheExecutableIsReadWhenTheProviderStarts(t *testing.T) {
+	m, reg, src := installedProvider(t, "one")
+	lock := &Lock{Providers: map[string]*LockEntry{src: {Version: "1.0.0", Hashes: map[string]string{registry.CurrentPlatform().String(): "sha256:archive"}}}}
+	if err := resolveWith(t, m, lock, true); err != nil {
+		t.Fatal(err)
+	}
+	m.UpdateLock(lock)
+	reads := 0
+	old := hashFile
+	defer func() { hashFile = old }()
+	hashFile = func(path string) (string, error) {
+		reads++
+		return old(path)
+	}
+	m2 := NewProviders(m.Root, reg)
+	if err := resolveWith(t, m2, lock, false); err != nil {
+		t.Fatal(err)
+	}
+	if reads != 0 {
+		t.Fatalf("a command that has started no provider read the executable %d times", reads)
+	}
+	m2.launch = func(string, *ResolvedProvider) (plugin.Provider, error) { return nil, errors.New("started") }
+	for range 2 {
+		if _, err := m2.start(context.Background(), "dev", m2.Resolved["dev"]); err == nil || err.Error() != "started" {
+			t.Fatalf("start: %v", err)
 		}
+	}
+	if reads != 1 {
+		t.Errorf("the executable was read %d times before the provider started twice; want once", reads)
 	}
 }
 

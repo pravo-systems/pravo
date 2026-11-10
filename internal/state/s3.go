@@ -173,9 +173,15 @@ type seenVersion struct {
 }
 
 // rememberBelow is the size above which a version is not remembered. Only the locks, with
-// the notes beside them, and the pointers of the nodes are remembered: they are a few hundred
-// bytes each, and they are what an apply replaces and deletes once for every node.
+// the notes beside them, the pointers of the nodes and the outputs are remembered: the first
+// are a few hundred bytes each and are what an apply replaces and deletes once for every node,
+// and the outputs are read and then replaced on that condition at the end of an apply.
 const rememberBelow = 8 << 10
+
+// remembers reports whether versions of key are remembered.
+func remembers(key string) bool {
+	return strings.HasPrefix(key, "locks/") || strings.HasPrefix(key, "resources/") || key == "outputs.json"
+}
 
 // remember keeps the version of an object that a request of this process just read or made,
 // so that a conditional write of the same object needs no read first. ReplaceIf and DeleteIf
@@ -191,7 +197,7 @@ const rememberBelow = 8 << 10
 // first with the remembered contents and then with the ones the store holds. Only what its
 // last call returned is acted on.
 func (b *S3Backend) remember(key string, tag *string, data []byte, wrote bool) {
-	if t := aws.ToString(tag); t != "" && len(data) <= rememberBelow && (strings.HasPrefix(key, "locks/") || strings.HasPrefix(key, "resources/")) {
+	if t := aws.ToString(tag); t != "" && len(data) <= rememberBelow && remembers(key) {
 		b.seen.Store(key, seenVersion{tag: t, data: bytes.Clone(data), wrote: wrote})
 		return
 	}
