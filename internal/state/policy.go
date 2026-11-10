@@ -474,13 +474,21 @@ func (s *Store) signedFactsOf(ctx context.Context, readers []protect.Reader, kin
 	return out, nil
 }
 
+// writerKey reports whether the key that made sig may change the state: a reader
+// signs nothing that explains a record that is missing. Where the readers file gives
+// no roles every key is an admin.
+func writerKey(readers []protect.Reader, sig *protect.Signature) bool {
+	role, ok := protect.RoleOf(readers, sig.Key)
+	return ok && role.Allows(protect.RoleWriter)
+}
+
 // factsOf returns what the signatures of t vouch for.
 func factsOf(t *Transaction, readers []protect.Reader, lineage string) txnFacts {
 	var f txnFacts
 	started := false
 	if (len(t.Policies) > 0 || len(t.Removes) > 0) && t.StartSig != nil {
 		st, _ := protect.VerifySignature(t.StartSig, readers, protect.DomainTxnStart, lineage, txnStartParts(t)...)
-		started = st == protect.SigVerified
+		started = st == protect.SigVerified && writerKey(readers, t.StartSig)
 	}
 	if started {
 		f.policies = append(f.policies, t.Policies...)
@@ -488,7 +496,7 @@ func factsOf(t *Transaction, readers []protect.Reader, lineage string) txnFacts 
 	finished := false
 	if t.FinishSig != nil && t.Finished != nil {
 		st, _ := protect.VerifySignature(t.FinishSig, readers, protect.DomainTxnFinish, lineage, txnFinishParts(t)...)
-		finished = st == protect.SigVerified
+		finished = st == protect.SigVerified && writerKey(readers, t.FinishSig)
 	}
 	if !finished {
 		if started {
