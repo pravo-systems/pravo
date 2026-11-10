@@ -15,6 +15,7 @@ import (
 	"cuelang.org/go/cue/token"
 
 	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 )
 
 const (
@@ -49,7 +50,7 @@ func (m *model) sourceFor(mn *mnode, po *planOverlay) *Source {
 		// A literal that a sensitive output is given is its value: it is masked.
 		sens["value"] = mn.out.Sensitive || mn.output.Sensitive
 	case mn.sch != nil:
-		sens = sensitiveNames(mn.sch.Block)
+		sens = sensitivity.SensitiveNames(mn.sch.Block)
 	case mn.res.Mode == "managed" || mn.res.Mode == "data":
 		src.Notes = append(src.Notes, "The schema of the type is not cached, so only literals assigned to attributes with a name that looks like a secret are masked.")
 	}

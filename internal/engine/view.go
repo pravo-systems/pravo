@@ -9,6 +9,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 )
 
 // ViewFormat is the layout version of the plan document.
@@ -215,36 +216,7 @@ func redactChange(cv *ChangeView, s *schema.Schema) {
 	if s == nil || s.Block == nil {
 		return
 	}
-	cv.Before, cv.After = redactData(cv.Before, s.Block), redactData(cv.After, s.Block)
-}
-
-func redactData(d any, blk *schema.Block) any {
-	m, ok := d.(map[string]any)
-	if !ok || blk == nil {
-		return d
-	}
-	out := make(map[string]any, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
-	for _, a := range blk.Attributes {
-		if _, ok := out[a.Name]; ok && (a.Sensitive || a.WriteOnly) && out[a.Name] != nil {
-			out[a.Name] = Sensitive
-		}
-	}
-	for _, nb := range blk.BlockTypes {
-		switch x := out[nb.TypeName].(type) {
-		case map[string]any:
-			out[nb.TypeName] = redactData(x, nb.Block)
-		case []any:
-			list := make([]any, len(x))
-			for i, e := range x {
-				list[i] = redactData(e, nb.Block)
-			}
-			out[nb.TypeName] = list
-		}
-	}
-	return out
+	cv.Before, cv.After = sensitivity.RedactData(cv.Before, s.Block, Sensitive), sensitivity.RedactData(cv.After, s.Block, Sensitive)
 }
 
 func addOutputs(v *View, plan *Plan) {
