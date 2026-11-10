@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/aws/ratelimit"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
@@ -24,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/logging"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 
 	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 )
@@ -294,19 +296,60 @@ func (b *S3Backend) Get(ctx context.Context, key string) ([]byte, error) {
 
 // getTagged reads the object and the entity tag of the version it read.
 func (b *S3Backend) getTagged(ctx context.Context, key string) ([]byte, *string, error) {
+	data, tag, _, err := b.getObject(ctx, key)
+	return data, tag, err
+}
+
+// GetTimed is Get with the times of the bucket: when it last wrote the object, and its own
+// time when it answered. Both are in the answer to the read, so it costs no request.
+func (b *S3Backend) GetTimed(ctx context.Context, key string) ([]byte, StoreTime, error) {
+	data, _, at, err := b.getObject(ctx, key)
+	return data, at, err
+}
+
+// getObject reads the object, the entity tag of the version it read and the times of the
+// bucket.
+func (b *S3Backend) getObject(ctx context.Context, key string) ([]byte, *string, StoreTime, error) {
 	out, err := b.client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(b.bucket), Key: aws.String(b.key(key))})
 	if err != nil {
 		if notFound(err) {
-			return nil, nil, ErrNotFound
+			return nil, nil, StoreTime{}, ErrNotFound
 		}
-		return nil, nil, fmt.Errorf("s3 get %s: %w", key, err)
+		return nil, nil, StoreTime{}, fmt.Errorf("s3 get %s: %w", key, err)
 	}
 	defer out.Body.Close()
 	data, err := io.ReadAll(out.Body)
 	if err == nil {
 		b.remember(key, out.ETag, data, false)
 	}
-	return data, out.ETag, err
+	return data, out.ETag, bucketTime(out), err
+}
+
+// bucketTime is what the answer to a read says about the time of the bucket: Last-Modified
+// is when the bucket wrote the object and Date is the bucket's time when it answered. An
+// answer that carries Age was kept by something between the bucket and this process, and
+// its Date is that of an earlier answer, so it tells nothing. S3 sends both headers with
+// every object; a compatible store that leaves one out has its locks judged by the clocks
+// of the machines, as before.
+func bucketTime(out *s3.GetObjectOutput) StoreTime {
+	resp, ok := awsmiddleware.GetRawResponse(out.ResultMetadata).(*smithyhttp.Response)
+	if !ok || resp == nil || out.LastModified == nil {
+		return StoreTime{}
+	}
+	return headerTime(resp.Header, *out.LastModified)
+}
+
+// headerTime is the StoreTime of an answer with the given headers for an object that the
+// store last wrote at modified.
+func headerTime(h http.Header, modified time.Time) StoreTime {
+	if modified.IsZero() || h.Get("Age") != "" {
+		return StoreTime{}
+	}
+	now, err := http.ParseTime(h.Get("Date"))
+	if err != nil {
+		return StoreTime{}
+	}
+	return StoreTime{Modified: modified, Now: now}
 }
 
 // statusOf returns the HTTP status of the response that err reports, or 0 if err

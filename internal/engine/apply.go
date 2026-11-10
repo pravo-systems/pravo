@@ -970,7 +970,9 @@ func (e *Engine) checkReservations(plan *Plan, locks []state.Lock) error {
 	}
 	held := map[string]state.Lock{}
 	for _, l := range locks {
-		if l.Kind == "reservation" && (l.Expires == nil || time.Now().Before(*l.Expires)) && !e.State.OwnsReservation(l) {
+		// Stale says that the reservation has ended, by the clock of the store when the
+		// store tells its time (state.Store.Locks).
+		if l.Kind == "reservation" && (l.Expires == nil || !l.Stale) && !e.State.OwnsReservation(l) {
 			held[l.Addr] = l
 		}
 	}

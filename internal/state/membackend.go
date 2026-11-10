@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 // MemBackend keeps objects in memory. It is the smallest backend that honours the
@@ -15,13 +16,20 @@ import (
 type MemBackend struct {
 	name string
 
+	// Clock, when set, is the clock of the store: every write stamps the object with its
+	// reading, and GetTimed gives the stamp with a new reading, which is all that a
+	// backend does to have the age of its locks judged by its own clock (see TimedReader).
+	// It is set before the backend is used. Without it the backend tells no time.
+	Clock func() time.Time
+
 	mu      sync.Mutex
 	objects map[string][]byte
+	written map[string]time.Time
 }
 
 // NewMemBackend returns an empty backend. name is how messages call it.
 func NewMemBackend(name string) *MemBackend {
-	return &MemBackend{name: name, objects: map[string][]byte{}}
+	return &MemBackend{name: name, objects: map[string][]byte{}, written: map[string]time.Time{}}
 }
 
 func (b *MemBackend) Name() string { return b.name }
@@ -37,10 +45,34 @@ func (b *MemBackend) Get(ctx context.Context, key string) ([]byte, error) {
 	return bytes.Clone(data), nil
 }
 
+// GetTimed is Get with the time of the last write of the object and the time it is now, both
+// by Clock. It makes MemBackend a TimedReader.
+func (b *MemBackend) GetTimed(ctx context.Context, key string) ([]byte, StoreTime, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	data, ok := b.objects[key]
+	if !ok {
+		return nil, StoreTime{}, ErrNotFound
+	}
+	var at StoreTime
+	if b.Clock != nil {
+		at = StoreTime{Modified: b.written[key], Now: b.Clock()}
+	}
+	return bytes.Clone(data), at, nil
+}
+
+// set stores the object and stamps it. The caller holds the mutex.
+func (b *MemBackend) set(key string, data []byte) {
+	b.objects[key] = bytes.Clone(data)
+	if b.Clock != nil {
+		b.written[key] = b.Clock()
+	}
+}
+
 func (b *MemBackend) Put(ctx context.Context, key string, data []byte) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.objects[key] = bytes.Clone(data)
+	b.set(key, data)
 	return nil
 }
 
@@ -50,7 +82,7 @@ func (b *MemBackend) PutIfAbsent(ctx context.Context, key string, data []byte) (
 	if _, ok := b.objects[key]; ok {
 		return false, nil
 	}
-	b.objects[key] = bytes.Clone(data)
+	b.set(key, data)
 	return true, nil
 }
 
@@ -65,6 +97,7 @@ func (b *MemBackend) DeleteIf(ctx context.Context, key string, match func(curren
 		return false, nil
 	}
 	delete(b.objects, key)
+	delete(b.written, key)
 	return true, nil
 }
 
@@ -79,7 +112,7 @@ func (b *MemBackend) ReplaceIf(ctx context.Context, key string, update func(curr
 	if !ok {
 		return false, nil
 	}
-	b.objects[key] = bytes.Clone(next)
+	b.set(key, next)
 	return true, nil
 }
 
@@ -87,6 +120,7 @@ func (b *MemBackend) Delete(ctx context.Context, key string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	delete(b.objects, key)
+	delete(b.written, key)
 	return nil
 }
 

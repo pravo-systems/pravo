@@ -252,6 +252,8 @@ func TestMyStore(t *testing.T) {
 
 The checks that matter most run the conditional operations from sixteen goroutines at once.
 
+A lock that its holder has not renewed for 10 minutes is taken over by the next command. By default that is counted from the time the holder wrote into the lock, on the clock of the machine that reads it, so the machines that share the state need clocks that agree to within a few minutes. If your store stamps each object with the time of its last write and can tell its own time, implement `pravo.TimedReader` as well. Its one method, `GetTimed`, is `Get` with a `pravo.StoreTime`: when the store last wrote the object and what time it is for the store, both by the clock of the store. The age of a lock is then the difference of the two, and the clocks of the machines are out of it. Return the zero `StoreTime` when the store cannot tell. `backendtest.Run` checks the times of a backend that gives them.
+
 A backend is trusted with availability and not with the state. A [sealed state](seal-the-state.md) is encrypted before the backend sees it, the records of a state with roles are signed, and a record that was changed, removed or put back is found out by the store above the backend, whatever it holds. A backend that alters an object makes the state fail verification (`pravo.ExitUntrusted`); it cannot make the library accept a state that no reader's key wrote. What a faulty backend can still do is lose objects or refuse requests, which stops work without changing it.
 
 ## 9. Logs and traces

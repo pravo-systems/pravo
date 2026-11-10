@@ -59,6 +59,25 @@ func (b *overlayBackend) Get(ctx context.Context, key string) ([]byte, error) {
 	return b.Backend.Get(ctx, key)
 }
 
+// GetTimed is Get with the times of the store, for an object that the backend under the
+// overlay holds: what the overlay itself holds was never written to a store.
+func (b *overlayBackend) GetTimed(ctx context.Context, key string) ([]byte, StoreTime, error) {
+	if b.passes(key) {
+		return getTimed(ctx, b.Backend, key)
+	}
+	b.mu.Lock()
+	data, ok := b.objects[key]
+	gone := b.deleted[key]
+	b.mu.Unlock()
+	switch {
+	case ok:
+		return bytes.Clone(data), StoreTime{}, nil
+	case gone:
+		return nil, StoreTime{}, ErrNotFound
+	}
+	return getTimed(ctx, b.Backend, key)
+}
+
 func (b *overlayBackend) Put(ctx context.Context, key string, data []byte) error {
 	if b.passes(key) {
 		return b.Backend.Put(ctx, key, data)

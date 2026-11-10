@@ -97,9 +97,11 @@ func (c *cloud) set(p *dst.Proc, s string) {
 }
 
 // foreignLock checks, on every change of a lock object, that a process deletes or
-// replaces only a lock of its own, or one that is stale by the true clock.
+// replaces only a lock of its own, or one that is stale by the true clock: counted
+// from the time its holder stamped it with, or, for a store that tells its own
+// time, from the true time at which the store wrote it.
 func foreignLock(w *dst.World, c *cloud, slack time.Duration) {
-	w.OnMutate = func(p *dst.Proc, key string, before, after []byte, now time.Time) error {
+	w.OnMutate = func(p *dst.Proc, key string, before, after []byte, written, now time.Time) error {
 		if !strings.HasPrefix(key, "locks/") && key != "outputs.lock" {
 			return nil
 		}
@@ -127,6 +129,9 @@ func foreignLock(w *dst.World, c *cloud, slack time.Duration) {
 			limit = state.OutputsLockStale()
 			last = b.Since
 		}
+		if w.TellsTime {
+			last = written
+		}
 		if now.Sub(last)+slack <= limit {
 			return fmt.Errorf("foreign lock: %s removed or replaced the lock %s of another process, which was stamped %s ago (it goes stale after %s)", p.Name, key, now.Sub(last), limit)
 		}
@@ -144,6 +149,7 @@ type applyOpts struct {
 	renewFirst     map[int]bool  // the process renews its lock once before it changes the object (a heartbeat)
 	work           time.Duration // how long the provider takes to change the object
 	crashAfterLock map[int]bool  // the process takes the lock and is never heard of again
+	wantApplied    int           // how many commands must report that they applied, when not 0
 }
 
 // applyScenario is the shape of an apply of one node: lock, compare the revision
@@ -299,6 +305,9 @@ func applyScenario(name string, o applyOpts) dst.Scenario {
 					unknown++
 				}
 			}
+			if o.wantApplied > 0 && applied != o.wantApplied {
+				return fmt.Errorf("%d commands applied their change and %d must: a lock that its holder left was not taken over, or one that is held was; outcomes %v", applied, o.wantApplied, c.outcome)
+			}
 			if got < applied || got > applied+unknown {
 				return fmt.Errorf("lost update: %d commands report that they applied their change (each adds one), %d crashed or failed to write, and the record holds n=%d; outcomes %v", applied, unknown, got, c.outcome)
 			}
@@ -383,24 +392,66 @@ func TestDSTTwoReclaimOneStaleLock(t *testing.T) {
 	}
 }
 
-// (b) clocks that disagree: how much skew does the reclaim of a lock tolerate?
-// The holder is stalled for 2 minutes, the time between two renewals, so its lock
-// is at most that old; the clock of the other command is ahead.
+// (b) clocks that disagree. A bucket tells its own time with every read, and the age
+// of a lock is counted on that clock alone, so no clock of a command is part of the
+// reclaim of a lock: a command whose clock is 9 or 11 minutes ahead takes no lock
+// that is held, and the lock of a command whose clock is 11 minutes behind is not
+// stale to the others.
+//
+// The holder is stalled for 2 minutes, the time between two renewals, so its lock is
+// at most that old; the clock of the other command is ahead.
 func TestDSTClockSkew(t *testing.T) {
-	for _, skew := range []time.Duration{time.Minute, 7 * time.Minute, 8*time.Minute + time.Second, 9 * time.Minute, 11 * time.Minute} {
+	for _, skew := range []time.Duration{time.Minute, 7 * time.Minute, 8*time.Minute + time.Second, 9 * time.Minute, 11 * time.Minute, 24 * time.Hour} {
 		name := fmt.Sprintf("b: 2 applies, P1 clock +%s and starts at 1m59s, 1 request stalled 2 min, format 2", skew)
-		rep := dst.Exhaust(t, applyScenario(name, applyOpts{format: 2, fence: true, skew: map[int]time.Duration{1: skew}, sleepFirst: map[int]time.Duration{1: 119 * time.Second}}),
-			dst.Options{Mode: dst.S3, Stalls: 1, Stall: 2 * time.Minute}, 0, 3)
-		// A lock that was renewed within the last 2 minutes is taken over by a command
-		// whose clock is ahead by more than the 8 minutes that are left of StaleAfter.
-		report(t, rep, skew > state.StaleAfter-2*time.Minute)
+		report(t, dst.Exhaust(t, applyScenario(name, applyOpts{format: 2, fence: true, skew: map[int]time.Duration{1: skew}, sleepFirst: map[int]time.Duration{1: 119 * time.Second}}),
+			dst.Options{Mode: dst.S3, Stalls: 1, Stall: 2 * time.Minute}, 0, 3), false)
+	}
+	for who, skew := range map[int]time.Duration{1: 11 * time.Minute, 0: -11 * time.Minute} {
+		name := fmt.Sprintf("b: 2 applies, P%d clock %+v, nothing stalled, format 2", who, skew)
+		report(t, dst.Exhaust(t, applyScenario(name, applyOpts{format: 2, fence: true, skew: map[int]time.Duration{who: skew}}), dst.Options{Mode: dst.S3}, 0, 3), false)
+	}
+	// The holder is gone, and the other command comes 10m30s later: the lock is taken
+	// over whatever the two clocks say, also when the stamp in it is of the future or
+	// the clock of the reader is behind.
+	for _, skew := range []map[int]time.Duration{{0: 11 * time.Minute}, {1: -11 * time.Minute}, {0: -11 * time.Minute, 1: 11 * time.Minute}} {
+		name := fmt.Sprintf("b: 2 applies, P0 holds a lock and crashes, P1 starts at 10m30s, clocks %v, format 2", skew)
+		sc := applyScenario(name, applyOpts{format: 2, fence: true, skew: skew, sleepFirst: map[int]time.Duration{1: 10*time.Minute + 30*time.Second}, crashAfterLock: map[int]bool{0: true}, wantApplied: 1})
+		report(t, dst.Exhaust(t, sc, dst.Options{Mode: dst.S3}, 0, 3), false)
+	}
+}
+
+// (b) the same for a store that tells no time, as an S3-compatible one that sends no
+// Last-Modified: the lock is then judged by the time its holder stamped it with and
+// the clock of the command that reads it, and the reclaim tolerates as much skew as
+// is left of StaleAfter. These searches show the limit that stays for such a store.
+func TestDSTClockSkewStoreWithoutTime(t *testing.T) {
+	// limit publishes a search that must show the limit when shows is set, and must
+	// be clean when it is not.
+	limit := func(sc dst.Scenario, o dst.Options, shows bool) {
+		t.Helper()
+		o.Mode, o.NoStoreTime = dst.S3, true
+		rep := dst.Exhaust(t, sc, o, 0, 3)
+		report(t, rep, shows)
+		if shows && len(rep.Failures) == 0 {
+			t.Errorf("%s: no schedule fails, and the limit of a store that tells no time was to show here", sc.Name)
+		}
+	}
+	for _, skew := range []time.Duration{time.Minute, 7 * time.Minute, 8*time.Minute + time.Second, 9 * time.Minute, 11 * time.Minute} {
+		name := fmt.Sprintf("b: 2 applies, P1 clock +%s and starts at 1m59s, 1 request stalled 2 min, format 2, the store tells no time", skew)
+		// A lock that was stamped 1m59s ago is taken over by a command whose clock is
+		// ahead by more than what is left of StaleAfter, a second over 8 minutes.
+		limit(applyScenario(name, applyOpts{format: 2, fence: true, skew: map[int]time.Duration{1: skew}, sleepFirst: map[int]time.Duration{1: 119 * time.Second}}),
+			dst.Options{Stalls: 1, Stall: 2 * time.Minute}, skew+119*time.Second > state.StaleAfter)
 	}
 	// No time passes at all: a clock that is ahead by more than StaleAfter takes any lock.
-	name := "b: 2 applies, P1 clock +11m, nothing stalled, format 2"
-	report(t, dst.Exhaust(t, applyScenario(name, applyOpts{format: 2, fence: true, skew: map[int]time.Duration{1: 11 * time.Minute}}), dst.Options{Mode: dst.S3}, 0, 3), true)
+	name := "b: 2 applies, P1 clock +11m, nothing stalled, format 2, the store tells no time"
+	limit(applyScenario(name, applyOpts{format: 2, fence: true, skew: map[int]time.Duration{1: 11 * time.Minute}}), dst.Options{}, true)
 	// A clock that is behind: the lock it takes is stale to everyone else at once.
-	name = "b: 2 applies, P0 clock -11m, nothing stalled, format 2"
-	report(t, dst.Exhaust(t, applyScenario(name, applyOpts{format: 2, fence: true, skew: map[int]time.Duration{0: -11 * time.Minute}}), dst.Options{Mode: dst.S3}, 0, 3), true)
+	name = "b: 2 applies, P0 clock -11m, nothing stalled, format 2, the store tells no time"
+	limit(applyScenario(name, applyOpts{format: 2, fence: true, skew: map[int]time.Duration{0: -11 * time.Minute}}), dst.Options{}, true)
+	// A clock that is ahead: the lock it left is held for that much longer.
+	name = "b: 2 applies, P0 clock +11m holds a lock and crashes, P1 starts at 10m30s, format 2, the store tells no time"
+	limit(applyScenario(name, applyOpts{format: 2, fence: true, skew: map[int]time.Duration{0: 11 * time.Minute}, sleepFirst: map[int]time.Duration{1: 10*time.Minute + 30*time.Second}, crashAfterLock: map[int]bool{0: true}, wantApplied: 1}), dst.Options{}, true)
 }
 
 // (d) Refresh racing Set: a plan that writes what it read while an apply writes the node.

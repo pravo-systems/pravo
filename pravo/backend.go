@@ -18,6 +18,14 @@ import "github.com/pravo-systems/pravo/internal/state"
 // not write. What a Backend must get right is the atomicity of its conditional
 // operations: two commands that race for a lock rely on exactly one of them
 // winning.
+//
+// A lock that its holder has not renewed for ten minutes is taken for abandoned. How
+// long that is, is counted by the time that the holder wrote into the lock and the
+// clock of the machine that reads it, so it is right as far as the clocks of the
+// machines agree. A Backend whose store has a clock of its own can take the machines
+// out of it by implementing TimedReader as well: it gives, with a lock, the time at
+// which the store last wrote it and the time it is for the store, and the age is the
+// difference of the two. The S3 and http backends do that.
 
 // ErrNotFound is what Backend.Get returns for a key that holds no object, and
 // DeleteIf and ReplaceIf for a missing one. A Backend must return it, or an error
