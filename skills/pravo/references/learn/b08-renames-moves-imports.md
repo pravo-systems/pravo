@@ -352,7 +352,7 @@ ids: #Naming & {$from: "names"}
 ```
 
 ```sh
-pravo -C closed init > /dev/null
+pravo -C closed init > /dev/null 2>&1
 pravo -C closed validate
 ```
 

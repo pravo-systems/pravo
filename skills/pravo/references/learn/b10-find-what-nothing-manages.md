@@ -128,7 +128,7 @@ servers  demo_server via demo
 `--exit-code` makes `show` answer with a code, for a pipeline: 2 while any object is unmanaged, 0 otherwise.
 
 ```sh
-pravo discover show --exit-code >/dev/null
+pravo discover show --exit-code >/dev/null 2>&1
 ```
 
 Exit code 2. Three objects are unmanaged.
@@ -324,7 +324,7 @@ servers  demo_server via demo
 Nothing is unmanaged, so the check passes:
 
 ```sh
-pravo discover show --exit-code >/dev/null
+pravo discover show --exit-code >/dev/null 2>&1
 ```
 
 Exit code 0. With `pravo discover --all` before it, this is the check that a pipeline runs: it fails when something was made outside the specification and nobody acknowledged it. [Run pravo in a pipeline](../how-to/ci.md) shows where to put it.

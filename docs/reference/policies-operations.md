@@ -234,7 +234,7 @@ changes: []
 
 ```sh run
 ./set-rule.sh freeze policy/freeze.cue
-pravo -C infra apply --auto-approve | grep -E '^(Policies|Apply complete)'
+pravo -C infra apply --auto-approve 2>&1 | grep -E '^(Policies|Apply complete)'
 sed -i 's/length: 2, keepers/length: 3, keepers/; s/^\tlength: 2$/\tlength: 3/' infra/main.cue
 pravo -C infra plan 2>&1 | sed -n '/^Error/,$p'
 ```
@@ -451,7 +451,7 @@ An edit to this list is an edit to the policy, which is reviewed like the rest o
 
 ```sh run
 ./set-rule.sh no_destroy policy/no-destroy-except.cue
-pravo -C infra apply --auto-approve | grep -E '^(Policies|Apply complete)'
+pravo -C infra apply --auto-approve 2>&1 | grep -E '^(Policies|Apply complete)'
 sed -i 's/length: 2, keepers/length: 3, keepers/; s/^\tlength: 2$/\tlength: 3/; s/byte_length: 4/byte_length: 5/' infra/main.cue
 pravo -C infra plan 2>&1 | sed -n '/^Error/,$p'
 ```
@@ -548,7 +548,7 @@ A rule asks for one approval of any plan that adds a resource. ada applies it; a
 
 ```sh run
 ./set-rule.sh second_opinion policy/second-opinion.cue
-pravo -C infra apply --auto-approve | grep -E '^(Policies|Apply complete)'
+pravo -C infra apply --auto-approve 2>&1 | grep -E '^(Policies|Apply complete)'
 ```
 
 ```text out

@@ -89,7 +89,7 @@ pet: $random.#Resource.random_pet & {
 ```
 
 ```sh
-pravo -C check init > /dev/null
+pravo -C check init > /dev/null 2>&1
 pravo -C check validate
 ```
 

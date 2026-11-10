@@ -68,7 +68,7 @@ services: {
 ```
 
 ```sh run
-pravo init > /dev/null
+pravo init > /dev/null 2>&1
 pravo plan | grep -E '^  #|^Plan'
 ```
 
@@ -179,7 +179,7 @@ api: svc.#Service & {name: "api", random: $random, local: $local}
 ```
 
 ```sh run
-pravo init > /dev/null
+pravo init > /dev/null 2>&1
 pravo plan | grep -E '^  #|^Plan'
 ```
 
@@ -295,7 +295,7 @@ a: #Key & {tls: $tls}
 ```
 
 ```sh run exit=6
-pravo init > /dev/null
+pravo init > /dev/null 2>&1
 pravo validate
 ```
 

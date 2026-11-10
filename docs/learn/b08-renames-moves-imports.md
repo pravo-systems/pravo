@@ -389,7 +389,7 @@ ids: #Naming & {$from: "names"}
 ```
 
 ```sh run exit=6
-pravo -C closed init > /dev/null
+pravo -C closed init > /dev/null 2>&1
 pravo -C closed validate
 ```
 

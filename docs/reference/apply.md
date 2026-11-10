@@ -163,7 +163,7 @@ solo: $random.#Resource.random_integer & {min: 1, max: 99, seed: "solo"}
 ```
 
 ```sh run
-echo no | pravo apply > answer.txt
+echo no | pravo apply > answer.txt 2>&1
 echo "exit $?"
 tail -n 3 answer.txt
 ```

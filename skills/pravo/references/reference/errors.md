@@ -91,7 +91,7 @@ marker: $null.#Resource.null_resource & {triggers: build: "1"}
 ```
 
 ```sh
-pravo init > /dev/null
+pravo init > /dev/null 2>&1
 ```
 
 File `main.cue`:
@@ -310,7 +310,7 @@ pet: $random.#Resource.random_pet & {lenght: 2}
 ```
 
 ```sh
-pravo init > /dev/null
+pravo init > /dev/null 2>&1
 pravo validate; echo "exit=$?"
 ```
 
@@ -740,7 +740,7 @@ note: $local.#Resource.local_file & {
 ```
 
 ```sh
-pravo init > /dev/null
+pravo init > /dev/null 2>&1
 pravo plan; echo "exit=$?"
 ```
 
@@ -800,7 +800,7 @@ decoded: $k8s.#Function.manifest_decode & {args: [secret.result]}
 ```
 
 ```sh
-pravo init > /dev/null
+pravo init > /dev/null 2>&1
 pravo plan; echo "exit=$?"
 ```
 
@@ -893,7 +893,7 @@ d: $random.#Resource.random_pet & {length: 2}
 ```
 
 ```sh
-pravo init > /dev/null
+pravo init > /dev/null 2>&1
 pravo plan; echo "exit=$?"
 pravo validate; echo "exit=$?"
 ```
@@ -1003,7 +1003,7 @@ k: {
 ```
 
 ```sh
-pravo init > /dev/null
+pravo init > /dev/null 2>&1
 pravo plan; echo "exit=$?"
 ```
 
@@ -1284,7 +1284,7 @@ pet: $random.#Resource.random_pet & {length: 2, $lifecycle: prevent_destroy: tru
 ```sh
 rm -r app network
 rm -rf pravo.state
-pravo init > /dev/null
+pravo init > /dev/null 2>&1
 pravo apply --auto-approve | grep '^Apply complete'
 sed -i.bak 's/length: 2/length: 3/' main.cue
 pravo plan; echo "exit=$?"
