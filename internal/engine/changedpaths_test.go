@@ -59,3 +59,23 @@ func TestChangedPaths(t *testing.T) {
 		t.Errorf("null prior: paths dropped: %v", got)
 	}
 }
+
+// A provider lists the paths that force a replacement in the order of its map,
+// which differs between runs. The plan lists them in one order.
+func TestChangedPathsAreSorted(t *testing.T) {
+	typ := tftypes.Object{AttributeTypes: map[string]tftypes.Type{"a": tftypes.String, "b": tftypes.String, "c": tftypes.String}}
+	mk := func(s string) tftypes.Value {
+		return tftypes.NewValue(typ, map[string]tftypes.Value{"a": tftypes.NewValue(tftypes.String, s), "b": tftypes.NewValue(tftypes.String, s), "c": tftypes.NewValue(tftypes.String, s)})
+	}
+	attr := func(n string) *tftypes.AttributePath { return tftypes.NewAttributePath().WithAttributeName(n) }
+	in := []*tftypes.AttributePath{attr("c"), attr("a"), attr("b")}
+	for _, prior := range []tftypes.Value{mk("x"), tftypes.NewValue(typ, nil)} {
+		got := changedPaths(prior, mk("y"), in)
+		if len(got) != 3 || got[0].String() != `AttributeName("a")` || got[1].String() != `AttributeName("b")` || got[2].String() != `AttributeName("c")` {
+			t.Errorf("paths out of order: %v", got)
+		}
+	}
+	if in[0].String() != `AttributeName("c")` {
+		t.Error("the provider's list was reordered in place")
+	}
+}

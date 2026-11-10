@@ -325,6 +325,13 @@ func (a *analysis) reference(root cue.Value, p cue.Path, depth int, nav bool) {
 	a.seen[key] = true
 	if task, alias, ok := a.resolve.Task(p); ok {
 		a.addTask(task, alias)
+		// A field of the task's own body that the body reads, such as a parameter
+		// that a definition declares in it, may be filled in from another task.
+		if a.self != nil && task.String() == a.self.String() && len(p.Selectors()) > len(task.Selectors()) && !nav {
+			if target := root.LookupPath(p); target.Exists() {
+				a.plainField(p, target, depth, false)
+			}
+		}
 		return
 	}
 	// Anything but a reference to a struct the task sits inside

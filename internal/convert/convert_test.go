@@ -178,3 +178,13 @@ s: #S & {pre: pet.id}
 		t.Errorf("s.a depends on %v, want s.t and pet", got)
 	}
 }
+
+// A value that holds characters which set the direction of the text is shown
+// with escapes, so that a terminal shows it in the order it has.
+func TestRenderEscapesTextDirection(t *testing.T) {
+	v := tftypes.NewValue(tftypes.String, "admin"+string(rune(0x202e))+string(rune(0x2066))+"x"+string(rune(0x2069)))
+	got := RenderCUE(v, "", nil, nil)
+	if want := `"admin` + `\` + `u202e` + `\` + `u2066x` + `\` + `u2069"`; got != want {
+		t.Errorf("rendered %q, want %q", got, want)
+	}
+}

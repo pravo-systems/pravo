@@ -42,6 +42,7 @@ var (
 )
 
 func main() {
+	hardenProcess()
 	rt := &runContext{}
 
 	os.Args = normaliseArgs(os.Args)
