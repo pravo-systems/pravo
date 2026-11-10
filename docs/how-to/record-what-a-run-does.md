@@ -174,7 +174,7 @@ jq -r '.spans[] | select(.name | startswith("network PUT")) | .attrs["url.path"]
 ```text out
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
       2 network DELETE 127.0.0.1
-     17 network GET 127.0.0.1
+     15 network GET 127.0.0.1
       9 network PUT 127.0.0.1
 /traced-state/demo/kinds/<txn>.apply
 /traced-state/demo/locks/server.lock

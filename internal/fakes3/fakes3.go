@@ -55,6 +55,32 @@ type Server struct {
 	UnquotedTags bool
 }
 
+// Set writes the object at key, as another client of the store would, and Remove deletes it.
+// A nil data removes. They take the lock of the server, which a test that writes Objects
+// while a request may be running does not.
+func (f *Server) Set(key string, data []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if data == nil {
+		delete(f.Objects, key)
+		return
+	}
+	f.Objects[key] = data
+}
+
+// Requests returns a Fault that fails nothing and appends the method and the path of every
+// request to log, with ?list for a listing.
+func Requests(log *[]string) func(r *http.Request) (int, string) {
+	return func(r *http.Request) (int, string) {
+		line := r.Method + " " + r.URL.Path
+		if r.URL.Query().Get("list-type") != "" {
+			line += " ?list=" + r.URL.Query().Get("prefix")
+		}
+		*log = append(*log, line)
+		return 0, ""
+	}
+}
+
 // FailFirst returns a Fault that answers the first n requests for which match
 // reports true (every request, if match is nil) with the status and error code,
 // and serves the rest.
