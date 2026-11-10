@@ -376,3 +376,33 @@ func TestDependentNeverStartsOnAValueTheSpecificationRefuses(t *testing.T) {
 		})
 	}
 }
+
+// A parameter that a definition declares inside the body of a resource, and
+// that an instance fills with a reference to another resource, is read from
+// that resource. It was written as null, and validate said Success.
+func TestParameterInsideTheBodyReadsTheReference(t *testing.T) {
+	s := spec{
+		cue: `base: ` + thing("base", "") + `
+#Wrap: {#src: _, name: "a", id: string | null, content: #src}
+a: #Wrap & {#src: base.id}
+`,
+		resources: []string{"base", "a"},
+	}
+	h := newHarness(t)
+	h.apply(s)
+	base, got := h.state.Get("base"), h.state.Get("a")
+	if base == nil || got == nil {
+		t.Fatal("base or a is not in the state")
+	}
+	want := fmt.Sprintf("%q", idFromJSON(t, base.Attributes))
+	if !strings.Contains(string(got.Attributes), `"content":`+want) {
+		t.Errorf("a has %s, want content %s", got.Attributes, want)
+	}
+	plan, err := h.engine(s, Options{}).Plan(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.HasChanges() {
+		t.Error("a second plan found changes")
+	}
+}
