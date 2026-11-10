@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	mrand "math/rand/v2"
 	"os"
 	"os/user"
 	"sort"
@@ -133,9 +134,17 @@ func (s *Store) Owner() string {
 	return osUser()
 }
 
+// lockClock is the clock the locks are stamped and judged by. A test of the
+// protocol replaces it, to give two stores clocks that disagree.
+var lockClock = time.Now
+
+// lockJitter is the random part of a pause. A test replaces it, so that a
+// schedule replays.
+var lockJitter = mrand.N[time.Duration]
+
 func (s *Store) newLock(addr, command, txn string) Lock {
 	host, _ := os.Hostname()
-	now := time.Now().UTC()
+	now := lockClock().UTC()
 	return Lock{Addr: addr, PID: os.Getpid(), Host: host, User: osUser(), Command: command, Txn: txn, Nonce: s.nonce, Actor: s.actor, Since: now, RenewedAt: now, Kind: "lock"}
 }
 
@@ -144,7 +153,7 @@ func (s *Store) newLock(addr, command, txn string) Lock {
 func (s *Store) stale(l Lock) bool {
 	if l.Kind == "reservation" {
 		// A reservation outlives the process that took it; only time ends it.
-		return l.Expires == nil || time.Now().After(*l.Expires)
+		return l.Expires == nil || lockClock().After(*l.Expires)
 	}
 	if s.b.Local() {
 		host, _ := os.Hostname()
@@ -156,7 +165,7 @@ func (s *Store) stale(l Lock) bool {
 	if last.IsZero() {
 		last = l.Since
 	}
-	return !last.IsZero() && time.Since(last) > StaleAfter
+	return !last.IsZero() && lockClock().Sub(last) > StaleAfter
 }
 
 // Lock takes the lock for addr on behalf of this process, reclaiming a
@@ -498,7 +507,7 @@ func (s *Store) Renew(addr string) error {
 			other = l
 			return nil, false
 		}
-		l.RenewedAt = time.Now().UTC()
+		l.RenewedAt = lockClock().UTC()
 		data, _ := indentJSON(l)
 		return data, true
 	})
