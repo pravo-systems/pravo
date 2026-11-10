@@ -50,6 +50,11 @@ func txnStartParts(t *Transaction) [][]byte {
 	if len(t.Policies) > 0 {
 		parts = append(parts, policyList(t.Policies))
 	}
+	// The addresses the run may remove, as their digest, after a marker that no list of
+	// policies holds: one part, present only when there are any.
+	if d := removesDigest(t); d != "" {
+		parts = append(parts, []byte("removes\x00"+d))
+	}
 	return parts
 }
 

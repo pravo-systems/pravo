@@ -78,6 +78,14 @@ type Transaction struct {
 	// the second what it did; a run that is killed leaves the first.
 	StartSig  *protect.Signature `json:"start_sig,omitempty"`
 	FinishSig *protect.Signature `json:"finish_sig,omitempty"`
+	// Removes lists, sorted, the addresses whose pointers the run may delete, in a sealed
+	// state. It is signed with the start, and it is what tells a pointer that a running
+	// command, or one that was killed, deleted from one that is gone with nothing to
+	// account for it (see Store.MissingNodes). The finished transaction says what was
+	// removed in its changes and keeps only RemovesDigest, the SHA-256 of the addresses
+	// joined by newlines, which is what the signature of the start covers.
+	Removes       []string `json:"removes,omitempty"`
+	RemovesDigest string   `json:"removes_digest,omitempty"`
 }
 
 // Txn is an in-progress transaction.
@@ -87,6 +95,8 @@ type Txn struct {
 	t     Transaction
 	// started is set once the transaction was written as running (see Start).
 	started bool
+	// removing holds the addresses of t.Removes.
+	removing map[string]bool
 }
 
 // Begin starts a transaction of the given kind (plan, apply, destroy, import, edit).
@@ -140,15 +150,105 @@ func (t *Txn) start() error {
 	}
 	// A sealed state records no run that its owner cannot be named for: nothing has
 	// been changed yet, so a run that cannot sign is refused here.
+	sort.Strings(t.t.Removes)
 	if err := t.signStart(); err != nil {
 		return err
 	}
 	if err := t.store.putJSON("txn/"+t.t.ID+".json", t.t); err != nil {
 		return err
 	}
+	t.store.forgetFacts()
 	t.store.markKind(t.t.ID, t.t.Kind)
+	if !t.started {
+		t.store.running(t, true)
+	}
 	t.started = true
 	return nil
+}
+
+// WillRemove says that the run may delete the pointers of addrs, in a sealed state. A run
+// deletes a pointer before it has finished: when it destroys a resource, replaces one, moves
+// one or forgets one. Until the transaction is finished and signed, nothing else in the state
+// says that the pointer went with a command of a writer, and a command of anyone else that
+// found it gone would take the state for one that was tampered with. So the addresses are in
+// the transaction that is written when the run starts, under its first signature.
+//
+// It is called before Start with every address the run knows of. Called after, it writes
+// and signs the running transaction again when it adds an address, which costs a request:
+// Store.Remove does that for an address nobody announced.
+func (t *Txn) WillRemove(addrs ...string) error {
+	if !t.store.sealedState() {
+		return nil
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	added := false
+	for _, a := range addrs {
+		if t.removing[a] {
+			continue
+		}
+		if t.removing == nil {
+			t.removing = map[string]bool{}
+		}
+		t.removing[a] = true
+		t.t.Removes = append(t.t.Removes, a)
+		added = true
+	}
+	if !added || !t.started {
+		return nil
+	}
+	return t.start()
+}
+
+// removes reports whether the run said that it may delete the pointer of addr.
+func (t *Txn) removes(addr string) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.removing[addr]
+}
+
+// running keeps, or drops, a transaction that was written as running and is not finished.
+func (s *Store) running(t *Txn, on bool) {
+	s.runMu.Lock()
+	defer s.runMu.Unlock()
+	s.run = slices.DeleteFunc(s.run, func(o *Txn) bool { return o == t })
+	if on {
+		s.run = append(s.run, t)
+	}
+}
+
+// announceRemoval makes sure that a running transaction of this store says that it may
+// delete the pointer of addr, before the pointer is deleted. The newest one is told when
+// none does. A store with no running transaction deletes as it did: the removal is in no
+// transaction until one is finished with it.
+func (s *Store) announceRemoval(addr string) error {
+	if !s.sealedState() {
+		return nil
+	}
+	s.runMu.Lock()
+	run := slices.Clone(s.run)
+	s.runMu.Unlock()
+	if len(run) == 0 {
+		return nil
+	}
+	for _, t := range run {
+		if t.removes(addr) {
+			return nil
+		}
+	}
+	return run[len(run)-1].WillRemove(addr)
+}
+
+// removesDigest is what the signature of the start covers of the addresses the run may
+// remove: the SHA-256 of the sorted addresses joined by newlines, or "" when there are none.
+func removesDigest(t *Transaction) string {
+	if len(t.Removes) == 0 {
+		return t.RemovesDigest
+	}
+	sorted := slices.Clone(t.Removes)
+	sort.Strings(sorted)
+	sum := sha256.Sum256([]byte(strings.Join(sorted, "\n")))
+	return hex.EncodeToString(sum[:])
 }
 
 // Record adds a change to the transaction.
@@ -185,9 +285,12 @@ func (t *Txn) Finish(status, summary string, record bool) error {
 func (t *Txn) FinishError(status, summary, full string, record bool) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	defer t.store.running(t, false)
 	if len(t.t.Changes) == 0 && !record && !t.started {
 		return nil
 	}
+	// The changes say what was removed. The digest stays, for the first signature.
+	t.t.RemovesDigest, t.t.Removes = removesDigest(&t.t), nil
 	now := time.Now().UTC()
 	t.t.Finished = &now
 	t.t.Status = status
@@ -212,6 +315,7 @@ func (t *Txn) FinishError(status, summary, full string, record bool) error {
 	if err := t.store.putJSON("txn/"+t.t.ID+".json", t.t); err != nil {
 		return err
 	}
+	t.store.forgetFacts()
 	if !t.started {
 		// A run that never started is written once, here, and gets its hint now.
 		t.store.markKind(t.t.ID, t.t.Kind)

@@ -106,7 +106,7 @@ func (s *Store) CheckRecordsWith(rules RecordRules, addrs ...string) RecordVerdi
 		return RecordVerdict{}
 	}
 	fetch := func(id string) *Transaction {
-		if data, err := s.b.Get(s.cx(), "txn/"+id+".json"); err == nil {
+		if data, err := s.txnBytes(s.cx(), id); err == nil {
 			var got Transaction
 			if json.Unmarshal(data, &got) == nil && got.ID == id {
 				return &got

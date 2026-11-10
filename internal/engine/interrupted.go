@@ -87,6 +87,17 @@ type pendingNotes struct {
 
 func (e *Engine) pendingNotes() *pendingNotes { return &pendingNotes{st: e.State} }
 
+// have gives n the notes and the locks that a caller has just listed, so that it asks the
+// store for neither.
+func (n *pendingNotes) have(all []*state.PendingCreate, locks []state.Lock) {
+	n.listed, n.all = true, all
+	n.byAddr = make(map[string]*state.PendingCreate, len(all))
+	for _, p := range all {
+		n.byAddr[p.Addr] = p
+	}
+	n.asked, n.locks, n.locksErr = true, locks, nil
+}
+
 // notes returns every note of the store, which it lists once.
 func (n *pendingNotes) notes() []*state.PendingCreate {
 	if !n.listed {
@@ -255,14 +266,16 @@ func (e *Engine) allowCreateCommand(addrs []string) string {
 // warnUntracked warns of the nodes with the lock of an apply that stopped while it created
 // them, that have no record, and that the plan does not import: if the create reached the
 // cloud the object exists but nothing tracks it, and an apply would create it again.
-func (e *Engine) warnUntracked(plan *Plan) {
+func (e *Engine) warnUntracked(plan *Plan) { e.warnUntrackedWith(plan, e.pendingNotes()) }
+
+// warnUntrackedWith is warnUntracked with the notes that the caller holds.
+func (e *Engine) warnUntrackedWith(plan *Plan, notes *pendingNotes) {
 	imported := map[string]bool{}
 	for _, ch := range plan.Changes {
 		if ch.Imported {
 			imported[ch.Addr] = true
 		}
 	}
-	notes := e.pendingNotes()
 	replacing := e.orphanedReplacements(plan, notes)
 	for _, addr := range slices.Sorted(maps.Keys(replacing)) {
 		e.Opts.Progress("Warning: %s: %s. Adopt it (pravo state rm %s, then %s) or delete it in the cloud, before you apply", addr, stoppedReplacement(replacing[addr]), addr, e.importCommand(addr, "ID"))

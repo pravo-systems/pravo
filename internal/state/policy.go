@@ -334,6 +334,10 @@ type txnFacts struct {
 	// changed, the revision it left (0 when it removed the node), in the order of its changes.
 	started time.Time
 	nodes   []nodeChange
+	// removing lists the addresses that a transaction with a signed start and no signed end
+	// said it may remove: a run that is under way, or one that was killed. started is then
+	// its start.
+	removing []string
 }
 
 type nodeChange struct {
@@ -345,7 +349,56 @@ type nodeChange struct {
 // readers, per transaction id. A finished transaction is immutable, so the ones read
 // before are kept.
 func (s *Store) signedFacts(ctx context.Context, readers []protect.Reader) (map[string]txnFacts, error) {
-	return s.signedFactsOf(ctx, readers)
+	key := readersKey(readers)
+	s.listedMu.Lock()
+	if s.facts != nil && s.factsKey == key && time.Since(s.factsAt) < factsFor {
+		defer s.listedMu.Unlock()
+		return s.facts, nil
+	}
+	s.listedMu.Unlock()
+	return s.signedFactsNow(ctx, readers)
+}
+
+// factsFor is how long the facts of the log answer the checks of a command without another
+// listing of it. A command checks the policies, the pointers and the secrets one after the
+// other, and each check asks what the log vouches for. The checks read what they compare
+// with the log after the log, so facts that are a moment old only ask for less. The one
+// check that compares the log with something older, the pointers that the open read, asks
+// again before it calls anything missing (see missingNodes). A transaction that this store
+// writes ends the answer.
+const factsFor = 2 * time.Second
+
+// signedFactsNow is signedFacts from a listing of the log made now. The map is shared by
+// the callers, who do not change it.
+func (s *Store) signedFactsNow(ctx context.Context, readers []protect.Reader) (map[string]txnFacts, error) {
+	at := time.Now()
+	out, err := s.signedFactsOf(ctx, readers)
+	if err != nil {
+		return nil, err
+	}
+	s.listedMu.Lock()
+	defer s.listedMu.Unlock()
+	if !s.factsAt.After(at) {
+		s.facts, s.factsAt, s.factsKey = out, at, readersKey(readers)
+	}
+	return out, nil
+}
+
+// forgetFacts ends the answer that signedFacts keeps, when this store writes a transaction.
+func (s *Store) forgetFacts() {
+	s.listedMu.Lock()
+	defer s.listedMu.Unlock()
+	s.facts, s.factsAt = nil, time.Now()
+}
+
+// readersKey tells one list of readers from another: the signing keys and the roles.
+func readersKey(readers []protect.Reader) string {
+	var b strings.Builder
+	for _, r := range readers {
+		b.Write(r.Sign)
+		b.WriteByte(byte(r.Role))
+	}
+	return b.String()
 }
 
 // signedFactsOf is signedFacts for the transactions of the given kinds only, all of them when
@@ -363,12 +416,9 @@ func (s *Store) signedFactsOf(ctx context.Context, readers []protect.Reader, kin
 			return nil, err
 		}
 	}
-	s.listedMu.Lock()
-	defer s.listedMu.Unlock()
-	if s.listed == nil {
-		s.listed = map[string]txnFacts{}
-	}
 	out := map[string]txnFacts{}
+	var ids []string
+	s.listedMu.Lock()
 	for _, k := range keys {
 		id, ok := strings.CutPrefix(k, "txn/")
 		if !ok {
@@ -384,66 +434,129 @@ func (s *Store) signedFactsOf(ctx context.Context, readers []protect.Reader, kin
 			out[id] = f
 			continue
 		}
-		data, err := s.b.Get(ctx, k)
+		ids = append(ids, id)
+	}
+	s.listedMu.Unlock()
+	// The transactions that this process has not read are read together: a state holds one
+	// for every command that ever changed it, and read one after another they would cost a
+	// command a round trip each.
+	type read struct {
+		f        txnFacts
+		ok, keep bool
+	}
+	got := make([]read, len(ids))
+	lineage := s.Lineage()
+	s.eachRead(len(ids), func(i int) {
+		data, err := s.txnBytes(ctx, ids[i])
 		if err != nil {
-			continue
+			return
 		}
 		var t Transaction
-		if json.Unmarshal(data, &t) != nil || t.ID != id {
+		if json.Unmarshal(data, &t) != nil || t.ID != ids[i] {
+			return
+		}
+		got[i] = read{f: factsOf(&t, readers, lineage), ok: true, keep: t.Finished != nil && t.FinishSig != nil}
+	})
+	s.listedMu.Lock()
+	defer s.listedMu.Unlock()
+	if s.listed == nil {
+		s.listed = map[string]txnFacts{}
+	}
+	for i, id := range ids {
+		if !got[i].ok {
 			continue
 		}
-		var f txnFacts
-		if len(t.Policies) > 0 && t.StartSig != nil {
-			if st, _ := protect.VerifySignature(t.StartSig, readers, protect.DomainTxnStart, s.Lineage(), txnStartParts(&t)...); st == protect.SigVerified {
-				f.policies = append(f.policies, t.Policies...)
-			}
+		if got[i].keep {
+			s.listed[id] = got[i].f
 		}
-		if t.FinishSig != nil && t.Finished != nil {
-			if st, _ := protect.VerifySignature(t.FinishSig, readers, protect.DomainTxnFinish, s.Lineage(), txnFinishParts(&t)...); st == protect.SigVerified {
-				f.policies = append(f.policies, t.PolicyWrites...)
-				f.started = t.Started
-				for _, c := range t.Changes {
-					if strings.HasPrefix(c.Addr, secretAddrPrefix) || c.Addr == EnvironmentAddr {
-						continue
-					}
-					switch c.Action {
-					case "unsettled", "deposed", "destroy":
-						continue
-					}
-					after := c.After
-					switch c.Action {
-					case "delete", "forget", "move-from":
-						after = 0 // a removal leaves no pointer, whatever revision it names
-					}
-					f.nodes = append(f.nodes, nodeChange{c.Addr, after})
-				}
-				if t.Kind == "environment" {
-					for _, c := range t.Changes {
-						if c.Addr == EnvironmentAddr && c.Action == "set" {
-							f.envRecord = max(f.envRecord, c.After)
-						}
-					}
-				}
-				if t.Kind == "secret" {
-					for _, c := range t.Changes {
-						name, ok := strings.CutPrefix(c.Addr, secretAddrPrefix)
-						if !ok || (c.Action != "set" && c.Action != "remove") {
-							continue
-						}
-						if f.secrets == nil {
-							f.secrets = map[string]int{}
-						}
-						f.secrets[name] = max(f.secrets[name], c.After)
-					}
-				}
-			}
-		}
-		if t.Finished != nil && t.FinishSig != nil {
-			s.listed[id] = f
-		}
-		out[id] = f
+		out[id] = got[i].f
 	}
 	return out, nil
+}
+
+// factsOf returns what the signatures of t vouch for.
+func factsOf(t *Transaction, readers []protect.Reader, lineage string) txnFacts {
+	var f txnFacts
+	started := false
+	if (len(t.Policies) > 0 || len(t.Removes) > 0) && t.StartSig != nil {
+		st, _ := protect.VerifySignature(t.StartSig, readers, protect.DomainTxnStart, lineage, txnStartParts(t)...)
+		started = st == protect.SigVerified
+	}
+	if started {
+		f.policies = append(f.policies, t.Policies...)
+	}
+	finished := false
+	if t.FinishSig != nil && t.Finished != nil {
+		st, _ := protect.VerifySignature(t.FinishSig, readers, protect.DomainTxnFinish, lineage, txnFinishParts(t)...)
+		finished = st == protect.SigVerified
+	}
+	if !finished {
+		if started {
+			// A run that has not finished, or was killed: what it said it may remove.
+			f.removing, f.started = t.Removes, t.Started
+		}
+		return f
+	}
+	f.policies = append(f.policies, t.PolicyWrites...)
+	f.started = t.Started
+	for _, c := range t.Changes {
+		if strings.HasPrefix(c.Addr, secretAddrPrefix) || c.Addr == EnvironmentAddr {
+			continue
+		}
+		switch c.Action {
+		case "unsettled", "deposed", "destroy":
+			continue
+		}
+		after := c.After
+		switch c.Action {
+		case "delete", "forget", "move-from":
+			after = 0 // a removal leaves no pointer, whatever revision it names
+		}
+		f.nodes = append(f.nodes, nodeChange{c.Addr, after})
+	}
+	if t.Kind == "environment" {
+		for _, c := range t.Changes {
+			if c.Addr == EnvironmentAddr && c.Action == "set" {
+				f.envRecord = max(f.envRecord, c.After)
+			}
+		}
+	}
+	if t.Kind == "secret" {
+		for _, c := range t.Changes {
+			name, ok := strings.CutPrefix(c.Addr, secretAddrPrefix)
+			if !ok || (c.Action != "set" && c.Action != "remove") {
+				continue
+			}
+			if f.secrets == nil {
+				f.secrets = map[string]int{}
+			}
+			f.secrets[name] = max(f.secrets[name], c.After)
+		}
+	}
+	return f
+}
+
+// txnBytes reads the object of the transaction id. A transaction that is finished and signed
+// is not written again in what its signatures cover, so its bytes are kept for the checks of
+// this process that read it: the check of the records at the open and the facts of the log
+// read the same transactions. What a rewrap or an unseal rewrites in a transaction, the
+// sealed text of an error and of the diffs, is not signed and is not read from here.
+func (s *Store) txnBytes(ctx context.Context, id string) ([]byte, error) {
+	if data, ok := s.txnRead.Load(id); ok {
+		return data.([]byte), nil
+	}
+	data, err := s.b.Get(ctx, "txn/"+id+".json")
+	if err != nil {
+		return nil, err
+	}
+	var t struct {
+		Finished  *time.Time      `json:"finished"`
+		FinishSig json.RawMessage `json:"finish_sig"`
+	}
+	if json.Unmarshal(data, &t) == nil && t.Finished != nil && len(t.FinishSig) > 0 {
+		s.txnRead.Store(id, data)
+	}
+	return data, nil
 }
 
 // policyListings returns the policy versions that verified transactions list, per transaction id.
@@ -597,7 +710,53 @@ func (s *Store) missingNodes(ctx context.Context, readers []protect.Reader, load
 	if len(readers) == 0 || !s.sealedState() {
 		return nil, nil
 	}
-	facts, err := s.signedFacts(ctx, readers)
+	if loaded {
+		missing, err := s.missingAmong(ctx, readers, s.signedFacts, func() ([]string, error) {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			keys := make([]string, 0, len(s.nodes))
+			for addr := range s.nodes {
+				keys = append(keys, nodeKey(addr))
+			}
+			return keys, nil
+		})
+		if err != nil || len(missing) == 0 {
+			return missing, err
+		}
+		// The log was read after the pointers: a resource that another command created
+		// since the open is in the log and not among them. The bucket is asked before
+		// anything is called missing.
+	}
+	return s.missingAmong(ctx, readers, s.signedFactsNow, func() ([]string, error) {
+		// The pointers the way a read finds them: from the versions of the bucket when it
+		// keeps them, else by listing.
+		if vl, _, on := s.snapshotOn(); on {
+			objs, err := vl.ListVersions(ctx, "resources")
+			if err != nil {
+				return nil, err
+			}
+			keys := make([]string, len(objs))
+			for i, o := range objs {
+				keys[i] = o.Key
+			}
+			return keys, nil
+		}
+		return s.b.List(ctx, "resources")
+	})
+}
+
+// missingAmong returns the addresses whose newest signed transaction left a record and whose
+// pointer is not among the keys that pointers returns. The log is read first and the
+// pointers after it, so that what the log names had been written when the pointers were
+// read.
+//
+// A pointer that a command deletes is gone before the transaction of the command is
+// finished: for as long as a destroy or a replacement takes, and for good when the command
+// is killed. Such a transaction said, under its first signature, which pointers it may
+// remove (Txn.WillRemove), and a pointer it named is not missing, unless a transaction that
+// started after it left a record for the address.
+func (s *Store) missingAmong(ctx context.Context, readers []protect.Reader, log func(context.Context, []protect.Reader) (map[string]txnFacts, error), pointers func() ([]string, error)) ([]string, error) {
+	facts, err := log(ctx, readers)
 	if err != nil {
 		return nil, err
 	}
@@ -606,31 +765,21 @@ func (s *Store) missingNodes(ctx context.Context, readers []protect.Reader, load
 		after int
 	}
 	newest := map[string]last{}
+	removing := map[string]time.Time{}
 	for _, f := range facts {
 		for _, c := range f.nodes {
 			if cur, ok := newest[c.addr]; !ok || !f.started.Before(cur.at) {
 				newest[c.addr] = last{f.started, c.after}
 			}
 		}
+		for _, addr := range f.removing {
+			if f.started.After(removing[addr]) {
+				removing[addr] = f.started
+			}
+		}
 	}
-	// The pointers the way a read finds them: from the versions of the bucket when it keeps
-	// them, else by listing.
-	var keys []string
-	if loaded {
-		s.mu.Lock()
-		for addr := range s.nodes {
-			keys = append(keys, nodeKey(addr))
-		}
-		s.mu.Unlock()
-	} else if vl, _, on := s.snapshotOn(); on {
-		objs, err := vl.ListVersions(ctx, "resources")
-		if err != nil {
-			return nil, err
-		}
-		for _, o := range objs {
-			keys = append(keys, o.Key)
-		}
-	} else if keys, err = s.b.List(ctx, "resources"); err != nil {
+	keys, err := pointers()
+	if err != nil {
 		return nil, err
 	}
 	held := make(map[string]bool, len(keys))
@@ -639,9 +788,13 @@ func (s *Store) missingNodes(ctx context.Context, readers []protect.Reader, load
 	}
 	var out []string
 	for addr, l := range newest {
-		if l.after > 0 && !held[nodeKey(addr)] {
-			out = append(out, addr)
+		if l.after == 0 || held[nodeKey(addr)] {
+			continue
 		}
+		if at, ok := removing[addr]; ok && !at.Before(l.at) {
+			continue
+		}
+		out = append(out, addr)
 	}
 	sort.Strings(out)
 	return out, nil

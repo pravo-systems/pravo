@@ -161,7 +161,11 @@ func (e *Engine) moveNode(fromAddr, toAddr string, target *config.Resource, stag
 	}
 	moved.Revision = from.Revision
 	before := from.Revision
-	// The transaction is in the state before the records it writes.
+	// The transaction is in the state before the records it writes, and says which pointer
+	// it removes.
+	if err := e.txn.WillRemove(fromAddr); err != nil {
+		return nil, err
+	}
 	if err := e.txn.Ensure(); err != nil {
 		return nil, err
 	}
