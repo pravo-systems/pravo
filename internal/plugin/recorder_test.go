@@ -331,3 +331,37 @@ func TestReplayIgnoresTheRecordedRequest(t *testing.T) {
 		t.Errorf("replayed plan = %s, want %s", got, planned)
 	}
 }
+
+// legacyProvider answers as a provider of the legacy SDK does.
+type legacyProvider struct{ recordedProvider }
+
+func (legacyProvider) ApplyResourceChange(ctx context.Context, typ string, prior, planned, config tftypes.Value, private []byte) (*ApplyResult, Diagnostics, error) {
+	res, d, err := recordedProvider{}.ApplyResourceChange(ctx, typ, prior, planned, config, private)
+	if res != nil {
+		res.LegacyTypeSystem = true
+	}
+	return res, d, err
+}
+
+// A replayed apply says, as the live one did, that the provider is of the
+// legacy SDK, so the engine skips the same check.
+func TestRecordingReplaysLegacyApply(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "rec", "thing")
+	r, err := NewRecorder(legacyProvider{}, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exercise(t, r)
+	rp, err := NewReplayer(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := thingValue("", "web", secretWriteOnl)
+	app, _, err := rp.ApplyResourceChange(context.Background(), "thing", thingValue("id-1", "web", secretPrior), config, config, []byte("private-plan"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !app.LegacyTypeSystem {
+		t.Error("a replayed apply lost the legacy type system flag")
+	}
+}
