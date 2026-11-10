@@ -540,14 +540,13 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 	defer cancel()
 
 	var (
-		mu       sync.Mutex
-		wg       sync.WaitGroup
-		firstErr error
-		firstAt  string // the address of the task whose error firstErr is
-		done     int
-		closed   bool
-		ready    = make(chan *node, len(nodes))
-		sem      = make(chan struct{}, Parallelism)
+		mu     sync.Mutex
+		wg     sync.WaitGroup
+		first  firstFailure
+		done   int
+		closed bool
+		ready  = make(chan *node, len(nodes))
+		sem    = make(chan struct{}, Parallelism)
 	)
 	// The tasks that wait for nothing start in the order of their addresses, not in
 	// the order a map gives them, so that two runs start the same ones first.
@@ -561,19 +560,12 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 		defer mu.Unlock()
 		done++
 		if err != nil {
-			// Tasks that run side by side fail in whatever order they get there. The error
-			// that is reported is the one of the task with the lowest address, so that two
-			// runs of one specification report the same one. A task that stopped because
-			// another failed says only that, and does not take the place.
-			stopped := errors.Is(err, context.Canceled)
-			if firstErr == nil || (!stopped && (errors.Is(firstErr, context.Canceled) || n.res.Address() < firstAt)) {
-				firstErr, firstAt = err, n.res.Address()
-			}
+			first.note(err, n.res.Address())
 			cancel()
 		} else {
 			release(n, ready, closed)
 		}
-		if !closed && (done == len(nodes) || (firstErr != nil && len(sem) == 0)) {
+		if !closed && (done == len(nodes) || (first.err != nil && len(sem) == 0)) {
 			closed = true
 			close(ready)
 		}
@@ -603,10 +595,10 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 		}(n)
 	}
 	wg.Wait()
-	if left > 0 && firstErr == nil {
+	if left > 0 && first.err == nil {
 		// Nothing failed: the command was interrupted. A run that stops before it
 		// has walked every task is not a run that finished.
-		firstErr = fmt.Errorf("interrupted: %d of %d tasks were not started", left, len(nodes))
+		first.err = fmt.Errorf("interrupted: %d of %d tasks were not started", left, len(nodes))
 	}
 	if !e.keepOpen {
 		e.closeEphemerals(context.WithoutCancel(ctx))
@@ -621,14 +613,14 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 	// refused.
 	e.cueMu.Lock()
 	defer e.cueMu.Unlock()
-	firstErr = cmp.Or(firstErr, e.fillExternalLocked())
+	first.err = cmp.Or(first.err, e.fillExternalLocked())
 	e.dropChecked()
 	settled, fills := time.Now(), len(e.pending)
-	if err := e.settleAllLocked(); err != nil && firstErr == nil {
-		firstErr = err
+	if err := e.settleAllLocked(); err != nil && first.err == nil {
+		first.err = err
 	}
 	plog.Debug(ctx, "settled", "phase", phase, "fills", fills, "took", time.Since(settled).Round(time.Millisecond))
-	return e.current, firstErr
+	return e.current, first.err
 }
 
 // pendingFill is what a finished task computed, waiting to be unified into
