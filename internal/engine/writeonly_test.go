@@ -113,9 +113,11 @@ func TestSavedPlanHoldsNoWriteOnlyValue(t *testing.T) {
 	// content is write-only for this test.
 	marked := &schema.Block{}
 	for _, a := range ch.Schema.Block.Attributes {
-		c := *a
-		c.WriteOnly = a.Name == "content"
-		marked.Attributes = append(marked.Attributes, &c)
+		marked.Attributes = append(marked.Attributes, &schema.Attribute{
+			Name: a.Name, TypeJSON: a.TypeJSON, NestedType: a.NestedType,
+			Required: a.Required, Optional: a.Optional, Computed: a.Computed,
+			Sensitive: a.Sensitive, WriteOnly: a.Name == "content",
+		})
 	}
 	ch.Schema = &schema.Schema{Block: marked}
 
