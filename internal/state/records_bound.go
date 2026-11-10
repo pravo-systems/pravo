@@ -79,6 +79,42 @@ type RecordRules struct {
 	Strict bool
 }
 
+// Vouches says which parts of the transaction t an admin's vouch carries over. It is the one
+// place that compares a vouch with a transaction: the key must be the one that signed that
+// part (or the unsigned key, for a transaction nobody signed) and the digest the one the
+// part has now.
+type Vouches struct {
+	// Finish: the vouch is for the signed end of t.
+	Finish bool
+	// Start: the vouch is for the signed start of t, which was thought dead or did not end.
+	Start bool
+	// Unsigned: the vouch is for a transaction that nobody signed.
+	Unsigned bool
+	// Ended: the end is carried over, either by a vouch for it, or by one for the start of a run
+	// that finished since under the same key.
+	Ended bool
+}
+
+// VouchesOf compares the vouch for t, if there is one, with t.
+func (r RecordRules) VouchesOf(lineage string, t *Transaction) Vouches {
+	vo, ok := r.Vouched[t.ID]
+	if !ok {
+		return Vouches{}
+	}
+	var v Vouches
+	if t.FinishSig != nil && vo.Key == t.FinishSig.Key && vo.Digest == VouchDigest(lineage, t) {
+		v.Finish = true
+	}
+	if t.StartSig != nil && vo.Key == t.StartSig.Key && vo.Digest == startDigest(lineage, t) {
+		v.Start = true
+	}
+	if t.StartSig == nil && t.FinishSig == nil && vo.Key == protect.UnsignedKey && vo.Digest == VouchDigest(lineage, t) {
+		v.Unsigned = true
+	}
+	v.Ended = v.Finish || (v.Start && t.FinishSig != nil && t.FinishSig.Key == t.StartSig.Key)
+	return v
+}
+
 // VerifyRecords checks the records of the nodes in addrs, or of every node when addrs is
 // empty, against the transactions. It is meaningful only when the readers give roles.
 func (s *Store) VerifyRecords(txns []Transaction, readers []protect.Reader, addrs ...string) RecordVerdict {
@@ -218,8 +254,7 @@ func (c *recordCheck) resealedTo(id, addr string, revision int, rec string) bool
 			return false
 		}
 	case protect.SigUnknownKey:
-		vo, ok := c.rules.Vouched[t.ID]
-		if !ok || vo.Key != t.FinishSig.Key || vo.Digest != VouchDigest(c.lineage, t) {
+		if !c.rules.VouchesOf(c.lineage, t).Finish {
 			return false
 		}
 	default:
@@ -259,8 +294,7 @@ func (c *recordCheck) check(n boundNode) {
 func (c *recordCheck) unfinished(n boundNode, t *Transaction) {
 	sv := VerifyTransaction(c.lineage, t, c.readers)
 	role, _ := protect.RoleOf(c.readers, startKey(t))
-	if vo, ok := c.rules.Vouched[t.ID]; ok && t.StartSig != nil && (t.Status == "running" || t.FinishSig == nil) && !role.Allows(protect.RoleWriter) &&
-		vo.Key == t.StartSig.Key && vo.Digest == startDigest(c.lineage, t) && sv.Start != protect.SigInvalid {
+	if c.rules.VouchesOf(c.lineage, t).Start && (t.Status == "running" || t.FinishSig == nil) && !role.Allows(protect.RoleWriter) && sv.Start != protect.SigInvalid {
 		// An admin vouched for the start of a run that was killed: its records stay.
 		c.v.Vouched++
 		return
@@ -280,7 +314,7 @@ func (c *recordCheck) unfinished(n boundNode, t *Transaction) {
 // is bound; an admin who has looked at it vouches for it (pravo protect roles --adopt-unsigned).
 func (c *recordCheck) endUnsigned(n boundNode, t *Transaction) {
 	sv := VerifyTransaction(c.lineage, t, c.readers)
-	if vo, ok := c.rules.Vouched[t.ID]; ok && sv.Start != protect.SigInvalid && vo.Key == t.StartSig.Key && vo.Digest == startDigest(c.lineage, t) {
+	if c.rules.VouchesOf(c.lineage, t).Start && sv.Start != protect.SigInvalid {
 		c.v.Vouched++
 		return
 	}
@@ -290,8 +324,7 @@ func (c *recordCheck) endUnsigned(n boundNode, t *Transaction) {
 // unsigned judges a record written with no identity, before the state was sealed or by a job
 // that had none. Only the transaction an admin vouched for by id and digest is accepted.
 func (c *recordCheck) unsigned(n boundNode, t *Transaction) {
-	vo, ok := c.rules.Vouched[t.ID]
-	if !ok || vo.Key != protect.UnsignedKey || vo.Digest != VouchDigest(c.lineage, t) {
+	if !c.rules.VouchesOf(c.lineage, t).Unsigned {
 		c.problem(n.addr, "the transaction "+t.ID+" that wrote it is not signed, or its signature does not verify")
 		return
 	}
@@ -308,13 +341,7 @@ func (c *recordCheck) unsigned(n boundNode, t *Transaction) {
 // signed judges a record of a transaction whose end is signed.
 func (c *recordCheck) signed(n boundNode, t *Transaction) {
 	verdict := VerifyTransaction(c.lineage, t, c.readers)
-	vouched := false
-	if vo, ok := c.rules.Vouched[t.ID]; ok && t.FinishSig != nil && vo.Key == t.FinishSig.Key && vo.Digest == VouchDigest(c.lineage, t) {
-		vouched = true
-	} else if ok && t.FinishSig != nil && t.StartSig != nil && t.StartSig.Key == t.FinishSig.Key && vo.Key == t.StartSig.Key && vo.Digest == startDigest(c.lineage, t) {
-		// The vouch was for the start of a run that was thought dead, and the run finished.
-		vouched = true
-	}
+	vouched := c.rules.VouchesOf(c.lineage, t).Ended
 	switch verdict.Finish {
 	case protect.SigUnknownKey:
 		if !vouched {
