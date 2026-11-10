@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"reflect"
@@ -489,4 +490,53 @@ func (g *firstGetGate) Get(ctx context.Context, key string) ([]byte, error) {
 		time.Sleep(5 * time.Millisecond) // every first read has found no meta before a write is made
 	}
 	return g.Backend.Get(ctx, key)
+}
+
+// brokenLockBackend fails the read of one lock, and says of another that it is gone.
+type brokenLockBackend struct {
+	Backend
+	fails, gone string
+}
+
+func (b *brokenLockBackend) Get(ctx context.Context, key string) ([]byte, error) {
+	switch key {
+	case b.fails:
+		return nil, errors.New("the bucket did not answer")
+	case b.gone:
+		return nil, ErrNotFound
+	}
+	return b.Backend.Get(ctx, key)
+}
+
+// A lock that is listed and cannot be read is an error, and not a lock that nobody holds:
+// the commands that ask whether anything holds the state would go on over a running apply.
+// A lock that was released since the listing is left out.
+func TestLocksReportsALockItCannotRead(t *testing.T) {
+	dir := t.TempDir()
+	seed, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, addr := range []string{"t.a", "t.b", "t.c"} {
+		if err := seed.Lock(addr, "apply", "T1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	lb, err := NewLocalBackend(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := &brokenLockBackend{Backend: lb, gone: "locks/t.b.lock"}
+	s, err := OpenBackend(context.Background(), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	locks, err := s.Locks()
+	if err != nil || len(locks) != 2 {
+		t.Fatalf("with a lock released since the listing: %d locks, %v; want 2 and no error", len(locks), err)
+	}
+	b.fails = "locks/t.c.lock"
+	if locks, err := s.Locks(); err == nil || !strings.Contains(err.Error(), "locks/t.c.lock") {
+		t.Fatalf("with a lock that cannot be read: %d locks, %v; want an error that names it", len(locks), err)
+	}
 }

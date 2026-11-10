@@ -680,9 +680,16 @@ func (s *Store) Locks() ([]Lock, error) {
 	}
 	keys = withSuffix(keys, ".lock")
 	read := make([]*Lock, len(keys))
+	failed := make([]error, len(keys))
 	s.eachRead(len(keys), func(i int) {
 		data, err := s.b.Get(s.cx(), keys[i])
 		if err != nil {
+			// A lock that was released since the listing is not held. One that is there and
+			// cannot be read is not left out: the commands that ask whether anything holds
+			// the state would take the answer for "nothing does".
+			if !errors.Is(err, ErrNotFound) {
+				failed[i] = fmt.Errorf("read the lock %s: %w", keys[i], err)
+			}
 			return
 		}
 		var l Lock
@@ -691,6 +698,9 @@ func (s *Store) Locks() ([]Lock, error) {
 			read[i] = &l
 		}
 	})
+	if err := errors.Join(failed...); err != nil {
+		return nil, err
+	}
 	out := []Lock{}
 	for _, l := range read {
 		if l != nil {
