@@ -48,6 +48,15 @@ func (b *readOnlyBackend) ReadOnlyView() {}
 
 const metaKey = "meta.json"
 
+// GetTimed is Get with the times of the store, when the backend gives them.
+func (b *readOnlyBackend) GetTimed(ctx context.Context, key string) ([]byte, StoreTime, error) {
+	data, at, err := getTimed(ctx, b.b, key)
+	if key == metaKey && errors.Is(err, ErrNotFound) && b.meta != nil {
+		return b.meta, StoreTime{}, nil
+	}
+	return data, at, err
+}
+
 func (b *readOnlyBackend) Get(ctx context.Context, key string) ([]byte, error) {
 	data, err := b.b.Get(ctx, key)
 	if key == metaKey && errors.Is(err, ErrNotFound) && b.meta != nil {

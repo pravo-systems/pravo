@@ -100,6 +100,11 @@ func (p httpProbe) get(ctx context.Context, key string) (string, string, error) 
 	return string(data), tag, err
 }
 
+func (p httpProbe) getTimed(ctx context.Context, key string) (string, StoreTime, error) {
+	data, at, err := p.b.GetTimed(ctx, key)
+	return string(data), at, err
+}
+
 func (p httpProbe) list(ctx context.Context, prefix string) ([]string, error) {
 	return p.b.List(ctx, prefix)
 }

@@ -22,6 +22,13 @@ type (
 	Snapshot = state.Snapshot
 	// Backend is where a state is kept.
 	Backend = state.Backend
+	// TimedReader is what a Backend implements as well when its store stamps each object
+	// with the time of its last write and can tell its own time: the age of a lock is then
+	// counted on the clock of the store, and a machine whose clock is wrong neither takes
+	// over a lock that is held nor holds one that others take for abandoned.
+	TimedReader = state.TimedReader
+	// StoreTime is the two times a TimedReader gives with an object.
+	StoreTime = state.StoreTime
 	// Engine plans and applies.
 	Engine = engine.Engine
 	// EngineOptions are the options of an Engine.

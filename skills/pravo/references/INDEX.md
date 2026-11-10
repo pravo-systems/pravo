@@ -78,13 +78,13 @@ One page for each command and each part of the specification, tables first.
 
 | File | Covers | Size |
 |---|---|---|
-| [reference/state-format.md](reference/state-format.md) | The files of the state graph: nodes, outputs, transactions, locks, stored plans and the metadata that identifies a store. | 66 KB |
+| [reference/state-format.md](reference/state-format.md) | The files of the state graph: nodes, outputs, transactions, locks, stored plans and the metadata that identifies a store. | 67 KB |
 | [reference/plan-document.md](reference/plan-document.md) | The JSON document that pravo plan --json prints, the form of a saved plan file, and the events that apply and destroy stream. | 22 KB |
 | [reference/exit-codes.md](reference/exit-codes.md) | The exit status of every pravo command, what each code means, and how --json reports an error. | 15 KB |
 | [reference/telemetry.md](reference/telemetry.md) | OpenTelemetry traces and metrics for every command, resource and provider call, configured with the standard OTEL variables. | 23 KB |
 | [reference/compatibility.md](reference/compatibility.md) | The versions and formats that pravo reads and writes, the provider protocol it speaks, and what it does with a version it does not know. | 9 KB |
-| [reference/s3-stores.md](reference/s3-stores.md) | The three conditional requests that the S3 backend needs, how pravo checks that a store honours them, and how to test a store before it holds a state. | 8 KB |
-| [reference/http-stores.md](reference/http-stores.md) | The object protocol that the http backend speaks, the conditional requests that the locks need, and how pravo retries and checks a server. | 5 KB |
+| [reference/s3-stores.md](reference/s3-stores.md) | The three conditional requests that the S3 backend needs, how pravo checks that a store honours them, and how to test a store before it holds a state. | 10 KB |
+| [reference/http-stores.md](reference/http-stores.md) | The object protocol that the http backend speaks, the conditional requests that the locks need, and how pravo retries and checks a server. | 6 KB |
 | [reference/library.md](reference/library.md) | Package pravo: what the command line does, as a Go library. Open a workspace, plan, judge, store, apply, drift, discover and query, with nothing read from flags or the environment of the process. | 14 KB |
 
 ### Lookup
@@ -106,7 +106,7 @@ How pravo behaves: evaluation, plans, state, providers, policies.
 | [concepts/evaluation.md](concepts/evaluation.md) | How pravo turns the CUE files of a directory into one value, finds resources by identity and builds the dependency graph before any provider is asked anything. | 13 KB |
 | [concepts/resources-and-addresses.md](concepts/resources-and-addresses.md) | What makes a struct a resource, how its address is its path, and what renaming, moving or reordering does to the record of an object. | 11 KB |
 | [concepts/plans.md](concepts/plans.md) | What a plan contains, how pravo decides which resources a plan reaches, what an unknown value is, how refresh age works, and how a saved plan is checked when it is applied. | 55 KB |
-| [concepts/state.md](concepts/state.md) | What pravo records for each resource, how revisions, locks and transactions work, why the cost of a run follows the change, and where the state lives. | 28 KB |
+| [concepts/state.md](concepts/state.md) | What pravo records for each resource, how revisions, locks and transactions work, why the cost of a run follows the change, and where the state lives. | 29 KB |
 | [concepts/what-a-plan-reaches.md](concepts/what-a-plan-reaches.md) | Change one setting, replace a root key, add a zone or run two applies on one estate, and see which resources each plan reaches and which locks each apply holds. | 2 KB |
 | [concepts/providers.md](concepts/providers.md) | How pravo finds, installs, locks, starts and talks to a provider, how a provider becomes a CUE struct, and how an instance is named. | 25 KB |
 | [concepts/stored-plans-and-approvals.md](concepts/stored-plans-and-approvals.md) | How a plan lives in the state: what pravo plan --store writes, how a listing judges a stored plan, how an apply claims it and records its progress, how it is collected, and how a policy makes a plan wait for the approval of other people. | 18 KB |
@@ -152,7 +152,7 @@ One task each, for a reader who knows the basics.
 | [how-to/ci.md](how-to/ci.md) | Validate without credentials, plan under a policy, apply a saved or a stored plan, wait for an approval, find drift, test offline and keep a trace of each job, with the exit code of every step. | 26 KB |
 | [how-to/policies.md](how-to/policies.md) | Write a policy rule, test it on fixtures with the matching cue version, try it on the plans you have, roll a new rule out as advice, exempt by type, apply under the policies of the state, ask for approvals and retire a policy. | 23 KB |
 | [how-to/agents-and-mcp.md](how-to/agents-and-mcp.md) | Give a program or an AI agent the schema, a plan file, a reservation, a tool server that the policies of the state bind, and an identity with the role of a reader, so that it plans and stores and a person applies, and see what that does and does not protect. | 19 KB |
-| [how-to/embed-pravo-in-your-program.md](how-to/embed-pravo-in-your-program.md) | Build a small runner on the Go library. Open a workspace, plan, judge the plan with the policies of the specification, apply it or store it for later, read the result as data, map an error to an exit code, and open a sealed state with a key the program holds. | 16 KB |
+| [how-to/embed-pravo-in-your-program.md](how-to/embed-pravo-in-your-program.md) | Build a small runner on the Go library. Open a workspace, plan, judge the plan with the policies of the specification, apply it or store it for later, read the result as data, map an error to an exit code, and open a sealed state with a key the program holds. | 17 KB |
 | [how-to/secrets.md](how-to/secrets.md) | Read a secret from the environment with pravo.#SecretEnv, hand it to a provider and see where pravo allows the value and where it refuses. | 11 KB |
 | [how-to/importing-and-moving.md](how-to/importing-and-moving.md) | Rename a resource without recreating it, move a group of resources, adopt an object that already exists and forget one without destroying it. | 9 KB |
 | [how-to/find-what-nothing-manages.md](how-to/find-what-nothing-manages.md) | Declare a discovery, run it, read the objects that no record accounts for, acknowledge the ones that are meant to stay, adopt the rest and run it again when the scope changes. | 9 KB |

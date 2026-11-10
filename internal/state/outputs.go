@@ -271,7 +271,7 @@ func (s *Store) unlockOutputs() {
 // readOutputsLock reads the lock on outputs.json with the bytes it was read from.
 func (s *Store) readOutputsLock() ([]byte, Lock, error) {
 	var l Lock
-	data, err := s.b.Get(s.cx(), outputsLockKey)
+	data, at, err := getTimed(s.cx(), s.b, outputsLockKey)
 	if err != nil {
 		return nil, l, err
 	}
@@ -279,17 +279,23 @@ func (s *Store) readOutputsLock() ([]byte, Lock, error) {
 	if l.Addr == "" {
 		l.Addr = "outputs.json"
 	}
+	l.at = at
 	return data, l, err
 }
 
 // outputsLockStale reports whether the holder of the lock on the outputs is
-// gone: its process is gone on this host, or it has held the lock too long.
+// gone: its process is gone on this host, or it has held the lock too long. The lock
+// is written once and never renewed, so for a store that tells its own time that is
+// the time since the store wrote it.
 func (s *Store) outputsLockStale(l Lock) bool {
 	if s.b.Local() {
 		host, _ := os.Hostname()
 		if l.Host == host && l.PID != os.Getpid() && !processAlive(l.PID) {
 			return true
 		}
+	}
+	if l.at.Known() {
+		return l.at.Age() > outputsLockStale
 	}
 	return lockClock().Sub(l.Since) > outputsLockStale
 }

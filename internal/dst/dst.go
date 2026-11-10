@@ -43,7 +43,9 @@ const (
 	// under its flock and MemBackend under its mutex.
 	Atomic Mode = iota
 	// S3 makes them as the S3 backend does: a read of the object and its tag, then a
-	// write conditional on the tag. Another request can land between the two.
+	// write conditional on the tag. Another request can land between the two. The
+	// store also tells its own time with every read, as S3 does (see
+	// state.TimedReader), unless Options.NoStoreTime is set.
 	S3
 )
 
@@ -58,12 +60,18 @@ var ErrLost = errors.New("dst: the answer of the store was lost")
 type object struct {
 	data []byte
 	tag  int
+	// written is when the store wrote the object, by the clock of the store: the
+	// virtual time, with the skew of no process.
+	written time.Time
 }
 
 // World is one run: the objects, the processes and the trace.
 type World struct {
 	T    *testing.T
 	Mode Mode
+	// TellsTime says that the store gives its own time with a read: the locks are
+	// then judged by the clock of the store and not by the clocks of the processes.
+	TellsTime bool
 
 	mu      sync.Mutex
 	objects map[string]object
@@ -79,10 +87,11 @@ type World struct {
 	stall   time.Duration
 	// Start is the virtual time at which the run began.
 	Start time.Time
-	// OnMutate, when set, is told of every change of an object: who made it, and the
-	// bytes before and after (nil for none). It runs inside the step and must not
-	// call the World; what it returns, if anything, is the violation of the run.
-	OnMutate func(p *Proc, key string, before, after []byte, now time.Time) error
+	// OnMutate, when set, is told of every change of an object: who made it, the
+	// bytes before and after (nil for none), and when the store wrote the bytes
+	// before (the zero time for none). It runs inside the step and must not call
+	// the World; what it returns, if anything, is the violation of the run.
+	OnMutate func(p *Proc, key string, before, after []byte, written, now time.Time) error
 	// Data is for the scenario.
 	Data any
 }
@@ -274,9 +283,39 @@ func (b backend) Get(_ context.Context, key string) ([]byte, error) {
 	return bytes.Clone(o.data), nil
 }
 
-func (w *World) changed(p *Proc, key string, before, after []byte) {
+// GetTimed is Get, and when the store tells its time, the time it wrote the object and
+// the time it is: both by the clock of the store, which no process can move. It is the
+// same request as Get to the scheduler.
+func (b backend) GetTimed(_ context.Context, key string) ([]byte, state.StoreTime, error) {
+	if b.p.yield("Get", key, false, false) == gDead {
+		return nil, state.StoreTime{}, ErrCrashed
+	}
+	w := b.p.W
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	o, ok := w.objects[key]
+	if !ok {
+		w.log(b.p, "Get %s -> not found", key)
+		return nil, state.StoreTime{}, state.ErrNotFound
+	}
+	var at state.StoreTime
+	if w.TellsTime {
+		at = state.StoreTime{Modified: o.written, Now: time.Now()}
+		w.log(b.p, "Get %s -> tag %d, written %s ago", key, o.tag, at.Age().Round(time.Millisecond))
+	} else {
+		w.log(b.p, "Get %s -> tag %d", key, o.tag)
+	}
+	return bytes.Clone(o.data), at, nil
+}
+
+func (w *World) changed(p *Proc, key string, before *object, after []byte) {
 	if w.OnMutate != nil && !w.direct {
-		if err := w.OnMutate(p, key, before, after, time.Now()); err != nil && w.failure == nil {
+		var data []byte
+		var written time.Time
+		if before != nil {
+			data, written = before.data, before.written
+		}
+		if err := w.OnMutate(p, key, data, after, written, time.Now()); err != nil && w.failure == nil {
 			w.failure = err
 		}
 	}
@@ -286,18 +325,18 @@ func (w *World) remove(p *Proc, key string) {
 	before, ok := w.objects[key]
 	delete(w.objects, key)
 	if ok {
-		w.changed(p, key, before.data, nil)
+		w.changed(p, key, &before, nil)
 	}
 }
 
 func (w *World) store(p *Proc, key string, data []byte) int {
 	if before, ok := w.objects[key]; ok {
-		w.changed(p, key, before.data, data)
+		w.changed(p, key, &before, data)
 	} else {
 		w.changed(p, key, nil, data)
 	}
 	w.nextTag++
-	w.objects[key] = object{data: bytes.Clone(data), tag: w.nextTag}
+	w.objects[key] = object{data: bytes.Clone(data), tag: w.nextTag, written: time.Now()}
 	return w.nextTag
 }
 
@@ -526,6 +565,10 @@ type Scenario struct {
 // Options bound a run.
 type Options struct {
 	Mode Mode
+	// NoStoreTime makes a store in the mode S3 tell no time with a read, as a
+	// compatible store that sends no Last-Modified: the locks are then judged by the
+	// clocks of the processes.
+	NoStoreTime bool
 	// Crashes, Lost and Stalls are how many of each fault one run may have.
 	Crashes, Lost, Stalls int
 	// StallList, when set, gives each stall of a run its own length, in the order
@@ -602,7 +645,7 @@ type run struct {
 // start makes the world and starts the script of each process, which runs to its
 // first request.
 func (r *run) start(t *testing.T) {
-	w := &World{T: t, Mode: r.o.Mode, stall: r.o.Stall, objects: map[string]object{}, arrive: make(chan struct{}, 1), direct: true, Start: time.Now()}
+	w := &World{T: t, Mode: r.o.Mode, TellsTime: r.o.Mode == S3 && !r.o.NoStoreTime, stall: r.o.Stall, objects: map[string]object{}, arrive: make(chan struct{}, 1), direct: true, Start: time.Now()}
 	r.w = w
 	for i := range r.sc.Procs {
 		p := &Proc{W: w, ID: i, Name: fmt.Sprintf("P%d", i), seq: map[string]int{}}

@@ -61,6 +61,23 @@ The probe shows that the store checks the conditions one request at a time and t
 
 A sealed state needs more of the store. Its records are objects that are never overwritten, and a pointer to each is replaced by compare-and-swap. `pravo protect check` runs the checks above and two more: eight writers replace one object at once with the entity tag they all read and exactly one must win, and a key that has just been written must be in the listing of its prefix. See [pravo id and pravo protect](protect.md#protect-check).
 
+## The clock of the store
+
+A lock that its holder has not renewed for 10 minutes is taken for abandoned, and another command takes it over. How long ago a lock was renewed is counted on the clock of the bucket, and on no clock of a machine that runs pravo.
+
+S3 sends two times with every object: `Last-Modified`, the time at which the bucket last wrote the object, and `Date`, the time of the bucket when it answered. A renewal writes the lock, so the difference of the two is the time since the holder last renewed it. Both come with the read of the lock that a command makes anyway, so the count costs no request.
+
+A command on a machine whose clock is hours ahead therefore takes no lock that is held, and the lock of a command whose clock is behind is not stale to the others. What is left to the machines is to count 5 minutes: a command that has not confirmed its locks for that long renews them before its next change, and stops if one was taken over.
+
+| The store sends | How the age of a lock is counted |
+|---|---|
+| `Last-Modified` and `Date` with an object | On the clock of the store. |
+| No `Last-Modified`, or an answer with an `Age` header, which a cache between pravo and the store adds | From the time that the holder wrote into the lock by its own clock, on the clock of the command that reads it. This is right while the clocks of the machines agree to within a few minutes: a clock that is more than 8 minutes ahead takes a lock that was renewed 2 minutes ago. |
+
+Amazon S3 sends both. A compatible store must send the time of the write as `Last-Modified`, moved by every write, and its own time as `Date`, both in GMT and read off one clock. The first check of the [probe](#test-a-store) reads back an object that it has just created, and refuses a store that gives it an age of more than 30 seconds either way, as a store does that writes its local time and calls it GMT.
+
+The same holds for the lock on the outputs, which is its holder's for 60 seconds, and for the end of a reservation, which is compared with the time of the store. [HTTP state servers](http-stores.md#the-protocol) may send the two headers as well. With a state in a directory on this machine there is one clock.
+
 ## Stores that have been tried
 
 The checks have been run against these servers. `ignored` means that the server accepts the request and does not look at the header.

@@ -65,6 +65,14 @@ func (t *tracedBackend) Get(ctx context.Context, key string) ([]byte, error) {
 	return data, err
 }
 
+// GetTimed is Get with the times of the store, when the backend under the spans gives them.
+func (t *tracedBackend) GetTimed(ctx context.Context, key string) ([]byte, StoreTime, error) {
+	ctx, end := t.begin(ctx, "get", key)
+	data, at, err := getTimed(ctx, t.Backend, key)
+	end(err, attribute.Int("pravo.state.bytes", len(data)))
+	return data, at, err
+}
+
 func (t *tracedBackend) Put(ctx context.Context, key string, data []byte) error {
 	ctx, end := t.begin(ctx, "put", key)
 	err := t.Backend.Put(ctx, key, data)

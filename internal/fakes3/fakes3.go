@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // MaxKeys is the largest number of keys in a page of a listing, as in S3.
@@ -53,6 +54,30 @@ type Server struct {
 	// UnquotedTags makes the server send entity tags without the quotes that the
 	// standard puts around them, and refuse an If-Match that has them.
 	UnquotedTags bool
+	// Clock, when set, is the clock of the server, as S3 has one: every write stamps
+	// the object with its reading, and the answer to a GET of an object carries the
+	// stamp as Last-Modified and a new reading as Date. Without it the server sends no
+	// Last-Modified, as some compatible stores do not. Aged, when set with it, is the
+	// Age header of every answer to a GET: what a cache between the client and the
+	// store adds to an answer that it kept.
+	// ModifiedOff is added to every Last-Modified it sends, as by a store that writes
+	// its local time and calls it GMT.
+	Clock       func() time.Time
+	Aged        string
+	ModifiedOff time.Duration
+	// written is when each object was stamped.
+	written map[string]time.Time
+}
+
+// stamp notes that the object at key is written now. The caller holds the mutex.
+func (f *Server) stamp(key string) {
+	if f.Clock == nil {
+		return
+	}
+	if f.written == nil {
+		f.written = map[string]time.Time{}
+	}
+	f.written[key] = f.Clock()
 }
 
 // Set writes the object at key, as another client of the store would, and Remove deletes it.
@@ -66,6 +91,7 @@ func (f *Server) Set(key string, data []byte) {
 		return
 	}
 	f.Objects[key] = data
+	f.stamp(key)
 }
 
 // Requests returns a Fault that fails nothing and appends the method and the path of every
@@ -180,6 +206,13 @@ func (f *Server) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("ETag", f.tag(data))
+		if at, ok := f.written[key]; ok && f.Clock != nil {
+			w.Header().Set("Last-Modified", at.Add(f.ModifiedOff).UTC().Format(http.TimeFormat))
+			w.Header().Set("Date", f.Clock().UTC().Format(http.TimeFormat))
+			if f.Aged != "" {
+				w.Header().Set("Age", f.Aged)
+			}
+		}
 		_, _ = w.Write(data)
 	case r.Method == http.MethodHead:
 		if _, ok := f.Objects[key]; !ok {
@@ -199,6 +232,7 @@ func (f *Server) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		data, _ := io.ReadAll(r.Body)
 		f.Objects[key] = data
+		f.stamp(key)
 		f.Puts++
 		w.Header().Set("ETag", f.tag(data))
 	case r.Method == http.MethodDelete:
