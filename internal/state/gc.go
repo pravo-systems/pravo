@@ -592,14 +592,38 @@ func (s *Store) gcGroups(ctx context.Context, o GCOptions, res *GCResult, m *met
 		refs[g.ID] = &GCGroup{ID: g.ID}
 		order = append(order, g.ID)
 	}
-	refuse := func(why string) error {
+	if why := groupsTooFresh(o, m); why != "" {
 		res.GroupsRefused = why
 		return nil
 	}
-	// A command that opened the state before the readers last changed goes on
-	// sealing in the group it opened with, until it looks at meta.json again. A group
-	// is dropped only once no such command can be left: a record sealed in a group
-	// that meta.json does not list stops the state opening for anyone.
+	if why := countRecordGroups(refs, named, byKey, gone); why != "" {
+		res.GroupsRefused = why
+		return nil
+	}
+	why, err := s.countOtherGroups(ctx, o, refs)
+	if err != nil || why != "" {
+		res.GroupsRefused = why
+		return err
+	}
+	unused := map[string]bool{}
+	for _, id := range order {
+		g := refs[id]
+		g.Dropped = !g.Referenced()
+		unused[id] = g.Dropped
+		res.Groups = append(res.Groups, *g)
+	}
+	if o.DryRun || !slices.ContainsFunc(res.Groups, func(g GCGroup) bool { return g.Dropped }) {
+		return nil
+	}
+	return s.dropGroups(o, res, m, unused)
+}
+
+// groupsTooFresh says why no group may be dropped yet, or is empty. A command that
+// opened the state before the readers last changed goes on sealing in the group it
+// opened with, until it looks at meta.json again. A group is dropped only once no such
+// command can be left: a record sealed in a group that meta.json does not list stops
+// the state opening for anyone.
+func groupsTooFresh(o GCOptions, m *meta) string {
 	now := time.Now
 	if o.Now != nil {
 		now = o.Now
@@ -607,20 +631,26 @@ func (s *Store) gcGroups(ctx context.Context, o GCOptions, res *GCResult, m *met
 	for i := len(m.History) - 1; i >= 0; i-- {
 		if h := m.History[i]; h.What != "gc" {
 			if age := now().Sub(h.At); age < sweepGrace() {
-				return refuse(fmt.Sprintf("the readers or the records were changed %s ago, and a command that opened the state before then may still seal in the old group; run it again after %s",
-					age.Round(time.Second), sweepGrace().Round(time.Second)))
+				return fmt.Sprintf("the readers or the records were changed %s ago, and a command that opened the state before then may still seal in the old group; run it again after %s",
+					age.Round(time.Second), sweepGrace().Round(time.Second))
 			}
 			break
 		}
 	}
-	// A record that a pointer names and that cannot be read says nothing of its
-	// group: it may be sealed in the one that would be dropped.
+	return ""
+}
+
+// countRecordGroups counts the records sealed in each group of refs: the ones a pointer
+// names and the spare ones. It returns why the groups cannot be counted, or nothing. A
+// record that a pointer names and that cannot be read says nothing of its group: it may
+// be sealed in the one that would be dropped.
+func countRecordGroups(refs map[string]*GCGroup, named map[string]bool, byKey map[string]*recHead, gone map[string]bool) string {
 	for k := range named {
 		switch h := byKey[k]; {
 		case h == nil || h.missing:
-			return refuse("a pointer names a record that is not in the bucket (" + k + "), so the groups were not counted")
+			return "a pointer names a record that is not in the bucket (" + k + "), so the groups were not counted"
 		case !h.verified || !h.parsed:
-			return refuse("a record that a pointer names could not be read (" + k + "), so the groups were not counted")
+			return "a record that a pointer names could not be read (" + k + "), so the groups were not counted"
 		}
 	}
 	for k, h := range byKey {
@@ -635,11 +665,18 @@ func (s *Store) gcGroups(ctx context.Context, o GCOptions, res *GCResult, m *met
 			}
 		}
 	}
+	return ""
+}
+
+// countOtherGroups counts what else is sealed in each group of refs: the outputs, the
+// stored plans, the texts of transactions and the values of secrets. It returns why the
+// groups cannot be counted, or nothing.
+func (s *Store) countOtherGroups(ctx context.Context, o GCOptions, refs map[string]*GCGroup) (string, error) {
 	raw, err := s.b.Get(ctx, "outputs.json")
 	switch {
 	case errors.Is(err, ErrNotFound):
 	case err != nil:
-		return fmt.Errorf("reading outputs.json: %w", err)
+		return "", fmt.Errorf("reading outputs.json: %w", err)
 	default:
 		if env, ok := asSealedOutputs(raw); ok {
 			if g := refs[env.Sealed.Group]; g != nil {
@@ -649,7 +686,7 @@ func (s *Store) gcGroups(ctx context.Context, o GCOptions, res *GCResult, m *met
 	}
 	plans, err := o.Plans(ctx)
 	if err != nil {
-		return refuse("the stored plans could not all be read (" + err.Error() + "), so the groups were not counted")
+		return "the stored plans could not all be read (" + err.Error() + "), so the groups were not counted", nil
 	}
 	for id, n := range plans {
 		if g := refs[id]; g != nil {
@@ -662,7 +699,7 @@ func (s *Store) gcGroups(ctx context.Context, o GCOptions, res *GCResult, m *met
 	// and the texts could not be opened by anyone.
 	summaries, err := s.sealedSummaries(ctx)
 	if err != nil {
-		return refuse("the transactions could not all be read (" + err.Error() + "), so the groups were not counted")
+		return "the transactions could not all be read (" + err.Error() + "), so the groups were not counted", nil
 	}
 	for id, n := range summaries {
 		if g := refs[id]; g != nil {
@@ -673,24 +710,20 @@ func (s *Store) gcGroups(ctx context.Context, o GCOptions, res *GCResult, m *met
 	// only rewrap --all seals it again.
 	secrets, err := s.sealedSecrets(ctx)
 	if err != nil {
-		return refuse("the secrets could not all be read (" + err.Error() + "), so the groups were not counted")
+		return "the secrets could not all be read (" + err.Error() + "), so the groups were not counted", nil
 	}
 	for id, n := range secrets {
 		if g := refs[id]; g != nil {
 			g.Secrets = n
 		}
 	}
+	return "", nil
+}
 
-	unused := map[string]bool{}
-	for _, id := range order {
-		g := refs[id]
-		g.Dropped = !g.Referenced()
-		unused[id] = g.Dropped
-		res.Groups = append(res.Groups, *g)
-	}
-	if o.DryRun || !slices.ContainsFunc(res.Groups, func(g GCGroup) bool { return g.Dropped }) {
-		return nil
-	}
+// dropGroups takes the unused groups out of meta.json, unless it changed since m was
+// read, and gives the store the keys that are left.
+func (s *Store) dropGroups(o GCOptions, res *GCResult, m *meta, unused map[string]bool) error {
+	current := m.Sealed.Current
 	counted := map[string]bool{}
 	for _, g := range m.Sealed.Groups {
 		counted[g.ID] = true
@@ -702,7 +735,7 @@ func (s *Store) gcGroups(ctx context.Context, o GCOptions, res *GCResult, m *met
 	if by == "" {
 		by = id.Name
 	}
-	err = s.updateMeta(func(cur *meta) error {
+	err := s.updateMeta(func(cur *meta) error {
 		if cur.Sealed == nil || cur.Migration != nil {
 			return errors.New("the state is not sealed, or a seal is in progress")
 		}

@@ -384,18 +384,9 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 			if store && !makePlan {
 				return errors.New("--store applies to --plan")
 			}
-			ttl := engine.DefaultPlanTTL
-			if cmd.Flags().Changed("ttl") {
-				if !store {
-					return errors.New("--ttl applies to --store")
-				}
-				var err error
-				if ttl, err = parseSpan("ttl", ttlText); err != nil {
-					return err
-				}
-				if ttl == 0 {
-					return fmt.Errorf("--ttl %s: want a length of time above zero", ttlText)
-				}
+			ttl, err := planTTL(cmd, store, ttlText)
+			if err != nil {
+				return err
 			}
 			if limit != 0 && !due {
 				return errors.New("--limit applies to --due")
@@ -426,44 +417,8 @@ instead of the report: plan.stored, plan.drifted (not stored) or plan.refused
 					return err
 				}
 			}
-			if rt.flags.Markdown {
-				if err := emitMarkdown(driftMarkdown(report, proposal)); err != nil {
-					return err
-				}
-			} else if rt.flags.JSON {
-				if proposal != nil {
-					err = emitJSON(proposal)
-				} else {
-					err = emitJSON(report)
-				}
-				if err != nil {
-					return err
-				}
-			} else if len(report.Drifted) == 0 {
-				rt.out.Println(rt.out.C(ui.Bold+ui.Green, "No drift.") + fmt.Sprintf(" %d resources refreshed; %d pending changes from the specification.", report.Refreshed, report.Pending))
-			} else {
-				rt.out.Printf("%s %d of %d resources changed outside pravo:\n", rt.out.C(ui.Bold+ui.Yellow, "Drift."), len(report.Drifted), report.Refreshed)
-				for _, d := range report.Drifted {
-					action := d.Action
-					if d.Note != "" && d.Gone {
-						action = "rewrite" // the file exists with other content: the plan writes it again
-					}
-					rt.out.Printf("  %s: %s\n", rt.out.C(ui.Bold, d.Addr), action)
-					for _, r := range d.Reasons {
-						rt.out.Printf("    - %s\n", r)
-					}
-					if d.Note != "" {
-						rt.out.Printf("    - %s\n", d.Note)
-					}
-				}
-				if proposal == nil && noWrite {
-					rt.out.Println("Nothing was marked (--no-write), so pravo plan does not show these; run pravo drift without --no-write to mark them first.")
-				} else if proposal == nil {
-					rt.out.Println("Run pravo plan to see what puts them back, or pravo apply to do it.")
-				}
-			}
-			if proposal != nil && !rt.flags.JSON && !rt.flags.Markdown {
-				proposal.print(rt)
+			if err := printDrift(rt, report, proposal, noWrite); err != nil {
+				return err
 			}
 			if len(report.Drifted) > 0 {
 				return engine.WithCode(engine.ExitChanges, errSilent)
@@ -645,4 +600,43 @@ func rootlessSession(ctx context.Context, rt *runContext, targets []schemaTarget
 		return nil, nil, err
 	}
 	return s, func() { s.close(); os.RemoveAll(dir) }, nil
+}
+
+// printDrift prints the report of a drift run, and the plan that was made for it: as
+// Markdown, as one JSON document, or for a terminal.
+func printDrift(rt *runContext, report *pravo.DriftReport, proposal *driftProposal, noWrite bool) error {
+	switch {
+	case rt.flags.Markdown:
+		return emitMarkdown(driftMarkdown(report, proposal))
+	case rt.flags.JSON && proposal != nil:
+		return emitJSON(proposal)
+	case rt.flags.JSON:
+		return emitJSON(report)
+	case len(report.Drifted) == 0:
+		rt.out.Println(rt.out.C(ui.Bold+ui.Green, "No drift.") + fmt.Sprintf(" %d resources refreshed; %d pending changes from the specification.", report.Refreshed, report.Pending))
+	default:
+		rt.out.Printf("%s %d of %d resources changed outside pravo:\n", rt.out.C(ui.Bold+ui.Yellow, "Drift."), len(report.Drifted), report.Refreshed)
+		for _, d := range report.Drifted {
+			action := d.Action
+			if d.Note != "" && d.Gone {
+				action = "rewrite" // the file exists with other content: the plan writes it again
+			}
+			rt.out.Printf("  %s: %s\n", rt.out.C(ui.Bold, d.Addr), action)
+			for _, r := range d.Reasons {
+				rt.out.Printf("    - %s\n", r)
+			}
+			if d.Note != "" {
+				rt.out.Printf("    - %s\n", d.Note)
+			}
+		}
+		if proposal == nil && noWrite {
+			rt.out.Println("Nothing was marked (--no-write), so pravo plan does not show these; run pravo drift without --no-write to mark them first.")
+		} else if proposal == nil {
+			rt.out.Println("Run pravo plan to see what puts them back, or pravo apply to do it.")
+		}
+	}
+	if proposal != nil {
+		proposal.print(rt)
+	}
+	return nil
 }

@@ -105,25 +105,8 @@ $PRAVO_IDENTITY, then the identity directory ($PRAVO_IDENTITY_DIR, default ~/.co
 }
 
 func runIDNew(rt *runContext, name, sshFile, outFile string, ci bool, unlock, agentKey string) error {
-	switch unlock {
-	case "passphrase", "agent":
-	default:
-		return fmt.Errorf("--unlock %s: use passphrase or agent", unlock)
-	}
-	if ci && unlock == "agent" {
-		return errors.New("--unlock agent is for a person; an identity for a job has no passphrase and no agent to ask")
-	}
-	if agentKey != "" && unlock != "agent" {
-		return errors.New("--agent-key goes with --unlock agent")
-	}
-	if ci && name == "" {
-		return errors.New("--ci needs --name NAME: name the identity after the job, such as deploy-bot. A name taken from the user would be the name of a person in the readers file")
-	}
-	if ci && outFile == "" {
-		return errors.New("--ci needs --out FILE: the identity of a job is written to a file you store as a CI secret")
-	}
-	if !ci && outFile != "" {
-		return errors.New("--out is for --ci; an identity without it is written to the identity directory")
+	if err := checkIDNewFlags(name, outFile, ci, unlock, agentKey); err != nil {
+		return err
 	}
 	if name == "" {
 		name = osUser()
@@ -139,39 +122,13 @@ func runIDNew(rt *runContext, name, sshFile, outFile string, ci bool, unlock, ag
 		}
 	}
 	// An identity that exists is found before anything is asked for.
-	var path string
-	if ci {
-		path = outFile
-		if _, err := os.Lstat(path); err == nil {
-			return fmt.Errorf("%s already exists", path)
-		}
-	} else {
-		dir, err := identityDir()
-		if err != nil {
-			return err
-		}
-		if _, err := protect.IdentityPath(environment(), name); err != nil {
-			return err
-		}
-		path = filepath.Join(dir, name)
-		if _, err := os.Lstat(path); err == nil {
-			return fmt.Errorf("identity %s already exists at %s", name, tilde(path))
-		}
+	path, err := newIdentityPath(name, outFile, ci)
+	if err != nil {
+		return err
 	}
 	var unlocker protect.AgentKey
 	if unlock == "agent" {
-		keys, err := protect.AgentKeys()
-		if err != nil {
-			return err
-		}
-		if len(keys) == 0 {
-			where := ""
-			if a := protect.AgentAddress(); a != "" {
-				where = " at " + tilde(a)
-			}
-			return fmt.Errorf("the ssh-agent%s holds no ssh-ed25519 key (is it locked, or is the key an RSA or ECDSA one?). pravo looks for the agent in $PRAVO_SSH_AUTH_SOCK, then the IdentityAgent of ssh_config, then $SSH_AUTH_SOCK", where)
-		}
-		if unlocker, err = protect.PickAgentKey(keys, agentKey); err != nil {
+		if unlocker, err = agentUnlocker(agentKey); err != nil {
 			return err
 		}
 	}
@@ -453,4 +410,68 @@ func readersFileAsk(rt *runContext) string {
 		return "Give whoever keeps " + readersOf(rt, root).shown() + tail
 	}
 	return "Give whoever keeps .pravo/access/readers.txt" + tail
+}
+
+// checkIDNewFlags refuses the flags of "id new" that do not go together.
+func checkIDNewFlags(name, outFile string, ci bool, unlock, agentKey string) error {
+	switch unlock {
+	case "passphrase", "agent":
+	default:
+		return fmt.Errorf("--unlock %s: use passphrase or agent", unlock)
+	}
+	if ci && unlock == "agent" {
+		return errors.New("--unlock agent is for a person; an identity for a job has no passphrase and no agent to ask")
+	}
+	if agentKey != "" && unlock != "agent" {
+		return errors.New("--agent-key goes with --unlock agent")
+	}
+	if ci && name == "" {
+		return errors.New("--ci needs --name NAME: name the identity after the job, such as deploy-bot. A name taken from the user would be the name of a person in the readers file")
+	}
+	if ci && outFile == "" {
+		return errors.New("--ci needs --out FILE: the identity of a job is written to a file you store as a CI secret")
+	}
+	if !ci && outFile != "" {
+		return errors.New("--out is for --ci; an identity without it is written to the identity directory")
+	}
+	return nil
+}
+
+// newIdentityPath is where the new identity is written, which must not exist yet: the
+// file that --out names for a job, and the identity directory otherwise.
+func newIdentityPath(name, outFile string, ci bool) (string, error) {
+	if ci {
+		if _, err := os.Lstat(outFile); err == nil {
+			return "", fmt.Errorf("%s already exists", outFile)
+		}
+		return outFile, nil
+	}
+	dir, err := identityDir()
+	if err != nil {
+		return "", err
+	}
+	if _, err := protect.IdentityPath(environment(), name); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, name)
+	if _, err := os.Lstat(path); err == nil {
+		return "", fmt.Errorf("identity %s already exists at %s", name, tilde(path))
+	}
+	return path, nil
+}
+
+// agentUnlocker picks the key of the ssh-agent that the new identity is sealed under.
+func agentUnlocker(agentKey string) (protect.AgentKey, error) {
+	keys, err := protect.AgentKeys()
+	if err != nil {
+		return protect.AgentKey{}, err
+	}
+	if len(keys) == 0 {
+		where := ""
+		if a := protect.AgentAddress(); a != "" {
+			where = " at " + tilde(a)
+		}
+		return protect.AgentKey{}, fmt.Errorf("the ssh-agent%s holds no ssh-ed25519 key (is it locked, or is the key an RSA or ECDSA one?). pravo looks for the agent in $PRAVO_SSH_AUTH_SOCK, then the IdentityAgent of ssh_config, then $SSH_AUTH_SOCK", where)
+	}
+	return protect.PickAgentKey(keys, agentKey)
 }
