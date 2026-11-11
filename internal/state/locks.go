@@ -197,14 +197,23 @@ func (s *Store) stale(l Lock) bool {
 		// time of the store and not counted from the write.
 		return l.Expires == nil || l.now().After(*l.Expires)
 	}
-	if s.b.Local() {
-		host, _ := os.Hostname()
-		if l.Host == host && l.PID != os.Getpid() && !processAlive(l.PID) {
-			return true
-		}
+	if s.holderProcessGone(l) {
+		return true
 	}
 	idle, ok := l.idle()
 	return ok && idle > StaleAfter
+}
+
+// holderProcessGone reports whether the process that holds l is known to be gone: the store
+// is on this machine, the lock was taken on this host, and no process has its id. The judges
+// of the node locks and of the lock on the outputs both start here, and then count their own
+// idleness.
+func (s *Store) holderProcessGone(l Lock) bool {
+	if !s.b.Local() {
+		return false
+	}
+	host, _ := os.Hostname()
+	return l.Host == host && l.PID != os.Getpid() && !processAlive(l.PID)
 }
 
 // Lock takes the lock for addr on behalf of this process, reclaiming a

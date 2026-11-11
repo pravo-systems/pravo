@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 )
 
@@ -288,11 +287,8 @@ func (s *Store) readOutputsLock() ([]byte, Lock, error) {
 // is written once and never renewed, so for a store that tells its own time that is
 // the time since the store wrote it.
 func (s *Store) outputsLockStale(l Lock) bool {
-	if s.b.Local() {
-		host, _ := os.Hostname()
-		if l.Host == host && l.PID != os.Getpid() && !processAlive(l.PID) {
-			return true
-		}
+	if s.holderProcessGone(l) {
+		return true
 	}
 	if l.at.Known() {
 		return l.at.Age() > outputsLockStale
