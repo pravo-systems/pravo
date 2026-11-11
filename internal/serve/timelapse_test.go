@@ -73,7 +73,7 @@ func TestTimeLapseListsTheRunsThatWroteNodes(t *testing.T) {
 	if strings.Contains(l.Steps[1].Command, "hunter2") {
 		t.Errorf("the command line holds a value: %q", l.Steps[1].Command)
 	}
-	if !(l.Steps[0].Time.Before(l.Steps[1].Time) || l.Steps[0].Time.Equal(l.Steps[1].Time)) {
+	if l.Steps[0].Time.After(l.Steps[1].Time) {
 		t.Errorf("steps are not oldest first: %v %v", l.Steps[0].Time, l.Steps[1].Time)
 	}
 }
