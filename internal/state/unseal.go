@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/pravo-systems/pravo/internal/protect"
@@ -167,20 +166,7 @@ func (s *Store) Unseal(ctx context.Context, o UnsealOptions) (UnsealResult, erro
 // unsealRecords writes every sealed record again in the open and returns how many it
 // wrote, noting the progress in meta.json as it goes.
 func (s *Store) unsealRecords(ctx context.Context, o UnsealOptions) (int, error) {
-	var noted atomic.Int64
-	progress := func(done, total int) {
-		if last := noted.Load(); int64(done)-last >= migrationNoteEvery && noted.CompareAndSwap(last, int64(done)) {
-			_ = s.updateMeta(func(m *meta) error {
-				if m.Migration != nil {
-					m.Migration.Done, m.Migration.Total = done, total
-				}
-				return nil
-			})
-		}
-		if o.Progress != nil {
-			o.Progress(done, total)
-		}
-	}
+	progress := s.migrationProgress(o.Progress)
 	n, err := s.convertNodes(ctx, rewrite{
 		needs: func(group string, _ bool) bool { return group != "" },
 		encode: func(r *Resource, _ []byte) ([]byte, string, error) {
@@ -362,38 +348,10 @@ func (s *Store) unsealOutputs() error {
 		return err
 	}
 	defer unlock()
-	raw, err := s.b.Get(s.cx(), "outputs.json")
-	if errors.Is(err, ErrNotFound) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if _, sealed := asSealedOutputs(raw); !sealed {
-		return nil
-	}
-	outputs, err := s.decodeOutputs(raw)
-	if err != nil {
-		return err
-	}
-	if outputs == nil {
-		outputs = map[string]json.RawMessage{}
-	}
-	data, err := indentJSON(outputs)
-	if err != nil {
-		return err
-	}
-	ok, err := s.b.ReplaceIf(s.cx(), "outputs.json", func(cur []byte) ([]byte, bool) { return data, bytes.Equal(cur, raw) })
-	switch {
-	case err != nil:
-		return Advise(err)
-	case !ok:
-		return errors.New("outputs.json changed while it was unsealed; run the command again")
-	}
-	s.mu.Lock()
-	s.outputs = outputs
-	s.mu.Unlock()
-	return nil
+	return s.rewriteOutputs("unsealed", func(o map[string]json.RawMessage) ([]byte, error) { return indentJSON(o) }, func(raw []byte) (bool, error) {
+		_, sealed := asSealedOutputs(raw)
+		return sealed, nil
+	})
 }
 
 // unsealSummaries writes the text of the errors of transactions back in the open, as
