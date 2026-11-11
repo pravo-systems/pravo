@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -91,7 +92,7 @@ The root must declare the providers of the state and be initialised (pravo init)
 				}
 			}
 			if pkg == "" {
-				return fmt.Errorf("no specification here: declare the providers of the state in a .cue file and run pravo init")
+				return errors.New("no specification here: declare the providers of the state in a .cue file and run pravo init")
 			}
 			// The file of an earlier run must not be part of the root that is loaded. It is
 			// put aside, and comes back if this run fails.
@@ -369,7 +370,7 @@ func shadowBackCmd(rt *runContext) *cobra.Command {
 				src = shadowSourceFlags(cmd, from)
 			}
 			if src.Place == "" {
-				return fmt.Errorf("the shadow was taken from standard input: name the state file to rewrite with --from")
+				return errors.New("the shadow was taken from standard input: name the state file to rewrite with --from")
 			}
 			data, err := src.Read(cmd.Context())
 			if err != nil {

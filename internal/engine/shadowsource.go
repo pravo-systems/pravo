@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -51,7 +52,7 @@ func (s ShadowSource) Read(ctx context.Context) ([]byte, error) {
 	switch {
 	case s.Place == "-":
 		if s.Stdin == nil {
-			return nil, fmt.Errorf("no standard input to read the state from")
+			return nil, errors.New("no standard input to read the state from")
 		}
 		return io.ReadAll(s.Stdin)
 	case s.IsS3():

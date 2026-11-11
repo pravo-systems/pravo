@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/schema"
@@ -631,7 +632,7 @@ func (g *shadowGen) name() {
 					path[0] = r
 				}
 			}
-			n.path = append(path, labelsOf[k][n])
+			n.path = append(append([]string(nil), path...), labelsOf[k][n])
 			n.addr = strings.Join(n.path, ".")
 		}
 	}
@@ -891,7 +892,7 @@ func shadowNestedSensitive(sh shape, name string, v tftypes.Value) int {
 		var m map[string]tftypes.Value
 		if v.Type().Is(tftypes.Object{}) && v.As(&m) == nil {
 			for k, x := range m {
-				if a := inner.attribute(k); a != nil && a.Sensitive && !x.IsNull() && !isEmptyString(x) && !(a.Computed && !a.Optional && !a.Required) {
+				if a := inner.attribute(k); a != nil && a.Sensitive && !x.IsNull() && !isEmptyString(x) && (!a.Computed || a.Optional || a.Required) {
 					count++
 					continue
 				}
@@ -1113,11 +1114,10 @@ func shadowPathHead(p *tftypes.AttributePath) string {
 	if p == nil {
 		return ""
 	}
-	for _, st := range p.Steps() {
-		if a, ok := st.(tftypes.AttributeName); ok {
+	if steps := p.Steps(); len(steps) > 0 {
+		if a, ok := steps[0].(tftypes.AttributeName); ok {
 			return string(a)
 		}
-		return ""
 	}
 	return ""
 }
@@ -1696,7 +1696,7 @@ func (g *shadowGen) fields(b *strings.Builder, indent string, sh shape, m map[st
 		label := convert.FieldLabel(name)
 		var attrs []*schema.Attribute
 		var blocks []*schema.NestedBlock
-		nesting := ""
+		var nesting string
 		if a := sh.attribute(name); a != nil {
 			if len(path) == 0 && n.placeholder[name] {
 				fmt.Fprintf(b, "%s%s: %s\n", indent, label, shadowQuote(ShadowPlaceholder))
