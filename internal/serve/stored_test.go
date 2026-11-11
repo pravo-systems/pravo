@@ -1211,3 +1211,43 @@ func TestLapsingCollectorClaimIsPickedUpLive(t *testing.T) {
 		}
 	}
 }
+
+// The viewer says what the command line says: a plan that moves a record out of an
+// address overlaps the plan that changes that address, and a plan that only reads a
+// record overlaps the plan that changes it. The viewer used to compare the resources
+// of the changes and nothing else.
+func TestStoredOverlapsAreTheOnesOfTheCommand(t *testing.T) {
+	p := newProject(t)
+	put := func(author string, touches []engine.PlanTouch, bases map[string]engine.PlanBase) string {
+		created := time.Now()
+		meta := &engine.PlanMeta{Format: engine.PlanMetaFormat, Created: created, Expires: created.Add(24 * time.Hour), Author: author, Lineage: p.store.Lineage(), Bases: bases, Changes: touches}
+		doc, _ := json.Marshal(map[string]any{"format": 1, "created": created, "lineage": p.store.Lineage(), "author": author, "providers": map[string]string{}, "changes": []any{}})
+		if err := engine.NewPlanStore(p.store.Backend()).Put(context.Background(), doc, meta); err != nil {
+			t.Fatal(err)
+		}
+		return meta.ID
+	}
+	mover := put("ana", []engine.PlanTouch{{Addr: "m.new", From: "m.old", Action: engine.ActionMove}}, map[string]engine.PlanBase{})
+	writer := put("ben", []engine.PlanTouch{{Addr: "m.old", Action: engine.ActionUpdate}}, map[string]engine.PlanBase{})
+	reader := put("cy", []engine.PlanTouch{{Addr: "r.x", Action: engine.ActionUpdate}}, map[string]engine.PlanBase{"m.old": {Reads: true}})
+	waitFor(t, "the plans", func() bool { return len(p.plans().Plans) == 3 })
+	l := p.plans()
+	ids := func(po []PlanOverlap) string {
+		var out []string
+		for _, o := range po {
+			out = append(out, o.ID)
+		}
+		sort.Strings(out)
+		return strings.Join(out, ",")
+	}
+	want := func(ids ...string) string { sort.Strings(ids); return strings.Join(ids, ",") }
+	if got := ids(planOf(l, mover).Overlaps); got != want(writer, reader) {
+		t.Errorf("the mover overlaps %s, want %s", got, want(writer, reader))
+	}
+	if got := ids(planOf(l, writer).Overlaps); got != want(mover, reader) {
+		t.Errorf("the writer overlaps %s, want %s", got, want(mover, reader))
+	}
+	if got := ids(planOf(l, reader).Overlaps); got != want(mover, writer) {
+		t.Errorf("the reader overlaps %s, want %s", got, want(mover, writer))
+	}
+}

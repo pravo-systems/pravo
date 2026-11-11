@@ -154,6 +154,14 @@ export function planActions(p) {
   return [h('p', { class: 'rp-note' }, h('span', null, `The part that can be applied is ${plural(n, 'change')}, too many for one command. `, h('code', null, `pravo plan show ${p.id}`), ' lists them.'))];
 }
 
+// overlapText says what two plans have in common: resources they both change, records the other
+// changes that this one reads, and records this one changes that the other reads.
+const overlapText = (o) => [
+  o.count ? plural(o.count, 'resource') + ' changed by both' : '',
+  (o.changes || []).length ? 'changes ' + o.changes.join(', ') + ', which this plan reads' : '',
+  (o.read_by || []).length ? 'reads ' + o.read_by.join(', ') + ', which this plan changes' : '',
+].filter(Boolean).join('; ');
+
 // facts are what the inspector says of a plan, as rows of a list: by whom, when it lapses, why, what it was made
 // with. The list in the rail keeps to what a person acts on (the reason, the overlaps, the command).
 // The reason, the command and the revision are in the overlay of the plan (text), not in the list.
@@ -188,7 +196,7 @@ export function detail(p, { onPlan, byId, text, changes, policies } = {}) {
       h('ul', null, p.overlaps.map((o) => {
         const other = byId && byId.get(o.id);
         return h('li', null, h('button', { class: 'linkbtn', type: 'button', 'data-plan': o.id, 'data-fk': 'ovl-' + o.id, on: onPlan ? { click: () => onPlan(o.id) } : null }, o.id),
-          other ? ' ' + other.author : '', h('span', { class: 'dim' }, ' · ' + plural(o.count, 'resource')));
+          other ? ' ' + other.author : '', h('span', { class: 'dim' }, ' · ' + overlapText(o)));
       }))));
   }
   // what else is known of the plan: the author and the age are in its row, and the reason is above

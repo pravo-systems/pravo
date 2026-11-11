@@ -424,14 +424,14 @@ func TestOverlapsNameTheOpenPlansThatChangeTheSameResources(t *testing.T) {
 		unrelated := putPlan(t, ps, t0.Add(2*time.Minute), "carol", 0, change("z", ActionCreate, 0))
 		stale := putPlan(t, ps, t0.Add(3*time.Minute), "dave", 0, change("a", ActionUpdate, 1))
 		es, _ := ps.Entries(ctx, stateAt(map[string]int{"a": 2}))
-		over := Overlaps(es, mine.ID, mine.Changes)
+		over := OverlapsOf(es, mine)
 		// dave's plan expects a at revision 1 and the state is at 2, so it is stale and does not count. Bob's
 		// plan is stale in part: its change of a conflicts and does not count, its change of b does.
 		if len(over) != 1 || over[0].Plan.ID != theirs.ID || strings.Join(over[0].Addrs, ",") != "b" {
 			t.Errorf("stale plans overlap: %+v", over)
 		}
 		es, _ = ps.Entries(ctx, stateAt(map[string]int{"a": 1}))
-		over = Overlaps(es, mine.ID, mine.Changes)
+		over = OverlapsOf(es, mine)
 		var ids []string
 		for _, o := range over {
 			ids = append(ids, o.Plan.ID+":"+strings.Join(o.Addrs, "+"))

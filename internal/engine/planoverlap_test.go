@@ -49,7 +49,7 @@ func TestAPlanThatReadsWhatAnotherChangesOverlapsWithIt(t *testing.T) {
 			t.Errorf("from the writer: %+v", over)
 		}
 		// Overlaps, which is about what two plans both change, does not mention it.
-		if over := Overlaps(es, reader.ID, reader.Changes); len(over) != 0 {
+		if over := OverlapsOf(es, reader); len(over) != 0 {
 			t.Errorf("Overlaps: %+v", over)
 		}
 	})
