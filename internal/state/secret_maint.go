@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -171,60 +170,21 @@ func (s *Store) secretTxnIDsAll(ctx context.Context) ([]string, error) {
 	return out, err
 }
 
-// copySecrets puts the versions of the secrets of src into dst. A version is written once, but
-// a rewrap writes its ciphertext again and a purge drops it, so the same version may have other
-// bytes on the two sides: it is the same when its transaction and commit agree, and the source
-// wins. A version that dst lacks in src would rewrite history and is refused, and so is a value
-// that the destination purged and the source still holds.
-func copySecrets(ctx context.Context, src, dst Backend) (int, error) {
-	have, err := src.List(ctx, secretDir)
-	if err != nil {
-		return 0, err
+// copiedSecretDiffers is the rule of Copy (see copyVersions) for a version of a secret that
+// both states hold with other bytes. A version is written once, but a rewrap writes its
+// ciphertext again and a purge drops it, so the same version may have other bytes on the two
+// sides: it is the same when its transaction and commit agree, and the source wins. A value
+// that the destination purged and the source still holds is refused.
+func copiedSecretDiffers(k string, cur, data []byte) (bool, string) {
+	a, errA := parseSecretFile(k, cur)
+	b, errB := parseSecretFile(k, data)
+	if errA != nil || errB != nil || a.Txn != b.Txn || a.Commit != b.Commit {
+		return false, "holds another version at " + k
 	}
-	held, err := dst.List(ctx, secretDir)
-	if err != nil {
-		return 0, err
-	}
-	for _, k := range held {
-		if !slices.Contains(have, k) {
-			return 0, fmt.Errorf("%w: %s holds the version %s, which the source lacks", ErrCopyRefused, dst.Name(), k)
+	if ka, _ := a.kind(); ka == SecretKindPurged {
+		if kb, _ := b.kind(); kb == SecretKindValue {
+			return false, "purged the value at " + k + ", and the source still holds it"
 		}
 	}
-	n := 0
-	for _, k := range have {
-		data, err := src.Get(ctx, k)
-		if err != nil {
-			return n, fmt.Errorf("%s: %w", k, err)
-		}
-		created, err := dst.PutIfAbsent(ctx, k, data)
-		if err != nil {
-			return n, fmt.Errorf("%s: %w", k, Advise(err))
-		}
-		if created {
-			n++
-			continue
-		}
-		cur, err := dst.Get(ctx, k)
-		if err != nil {
-			return n, fmt.Errorf("%s: %w", k, err)
-		}
-		if bytes.Equal(cur, data) {
-			continue
-		}
-		a, errA := parseSecretFile(k, cur)
-		b, errB := parseSecretFile(k, data)
-		if errA != nil || errB != nil || a.Txn != b.Txn || a.Commit != b.Commit {
-			return n, fmt.Errorf("%w: %s holds another version at %s", ErrCopyRefused, dst.Name(), k)
-		}
-		if ka, _ := a.kind(); ka == SecretKindPurged {
-			if kb, _ := b.kind(); kb == SecretKindValue {
-				return n, fmt.Errorf("%w: %s purged the value at %s, and the source still holds it", ErrCopyRefused, dst.Name(), k)
-			}
-		}
-		if err := dst.Put(ctx, k, data); err != nil {
-			return n, fmt.Errorf("%s: %w", k, Advise(err))
-		}
-		n++
-	}
-	return n, nil
+	return true, ""
 }

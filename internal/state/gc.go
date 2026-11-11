@@ -511,8 +511,8 @@ func parseMarks(data []byte) map[string]time.Time {
 }
 
 func encodeMarks(m map[string]time.Time) []byte {
-	data, _ := json.MarshalIndent(gcMarks{Unnamed: m}, "", "  ")
-	return append(data, '\n')
+	data, _ := indentJSON(gcMarks{Unnamed: m})
+	return data
 }
 
 // readMarks returns the marks, none if the object is not there.
