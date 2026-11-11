@@ -53,9 +53,7 @@ that nothing is sealed in any more.`,
 	pf := cmd.PersistentFlags()
 	pf.StringVar(&rt.flags.AccessDir, "access-dir", "", accessDirUsage)
 	// The tags select the state, so the commands that open it take them too.
-	pf.StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
-	addEnvFlag(rt, pf)
-	pf.BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
+	addTagFlagsTo(rt, pf)
 	cmd.AddCommand(protectCheckCmd(rt), protectInitCmd(rt), protectStatusCmd(rt), protectRewrapCmd(rt), protectRolesCmd(rt), protectOffboardCmd(rt), protectPoliciesCmd(rt), protectRecoverCmd(rt), protectUnsealCmd(rt), protectGCCmd(rt))
 	return cmd
 }

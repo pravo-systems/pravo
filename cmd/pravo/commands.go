@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -367,9 +366,7 @@ func planCmd(rt *runContext) *cobra.Command {
 	cmd.Flags().DurationVar(&reserve, "reserve", 0, "reserve the nodes with pending changes for this long (e.g. 15m), so other actors cannot plan or apply them meanwhile")
 	// The tags select the state, so the commands that list stored plans take them too.
 	pf := cmd.PersistentFlags()
-	pf.StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
-	addEnvFlag(rt, pf)
-	pf.BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
+	addTagFlagsTo(rt, pf)
 	cmd.AddCommand(planCommands(rt)...)
 	return cmd
 }
@@ -397,17 +394,15 @@ func showCmd(rt *runContext) *cobra.Command {
 			}
 			defer s.close()
 			eng := s.engine(rt, engine.Options{})
-			plan, err := eng.LoadPlan(pf)
-			var stale *engine.ErrStalePlan
-			if errors.As(err, &stale) {
-				rt.out.Warning("this plan can no longer be applied: " + strings.Join(stale.Reasons, "; "))
-				plan, _ = eng.LoadPlanUnchecked(pf)
-			} else if err != nil {
+			plan, stale, err := loadToShow(eng, pf)
+			if err != nil {
 				return err
 			}
+			if stale != nil {
+				rt.out.Warning("this plan can no longer be applied: " + strings.Join(stale.Reasons, "; "))
+			}
 			if rt.flags.Markdown {
-				v := eng.NewView(plan, engine.ViewOptions{Redact: rt.flags.Withhold})
-				v.Actor, v.Reason, v.GitRevision = pf.Actor, pf.Reason, pf.GitRevision
+				v := showView(rt, eng, plan, pf, false)
 				opts := engine.MarkdownOptions{Title: "Saved plan"}
 				if stale != nil {
 					opts.Notes = append(opts.Notes, "**This plan can no longer be applied:** "+strings.Join(stale.Reasons, "; "))
@@ -418,10 +413,7 @@ func showCmd(rt *runContext) *cobra.Command {
 				return emitMarkdown(v.Markdown(opts))
 			}
 			if rt.flags.JSON {
-				v := eng.NewView(plan, engine.ViewOptions{Redact: rt.flags.Withhold})
-				v.Created, v.Actor, v.Reason, v.GitRevision = pf.Created, pf.Actor, pf.Reason, pf.GitRevision
-				v.Reservation = pf.Reservation
-				return emitJSON(map[string]any{"planfile": args[0], "stale": stale, "plan": v})
+				return emitJSON(map[string]any{"planfile": args[0], "stale": stale, "plan": showView(rt, eng, plan, pf, true)})
 			}
 			rt.out.Printf("%s created %s by %q", rt.out.C(ui.Bold, "Saved plan"), pf.Created.Local().Format("2006-01-02 15:04:05"), ui.Safe(pf.Command))
 			if pf.Actor != "" {
@@ -440,6 +432,29 @@ func showCmd(rt *runContext) *cobra.Command {
 	// A plan in the state is found by the state, which the tags select.
 	addTagFlags(rt, cmd)
 	return cmd
+}
+
+// loadToShow loads a plan to show it: one that can no longer be applied is shown all the same,
+// with the reasons in stale. Showing a plan from a file and from the store both read it here.
+func loadToShow(eng *engine.Engine, pf *engine.PlanFile) (*engine.Plan, *engine.ErrStalePlan, error) {
+	plan, err := eng.LoadPlan(pf)
+	var stale *engine.ErrStalePlan
+	if errors.As(err, &stale) {
+		plan, _ = eng.LoadPlanUnchecked(pf)
+		return plan, stale, nil
+	}
+	return plan, nil, err
+}
+
+// showView is the view of a plan that is shown, with who made it and why. full adds when it
+// was made and the reservation, which the JSON form carries and the Markdown form does not.
+func showView(rt *runContext, eng *engine.Engine, plan *engine.Plan, pf *engine.PlanFile, full bool) *engine.View {
+	v := eng.NewView(plan, engine.ViewOptions{Redact: rt.flags.Withhold})
+	v.Actor, v.Reason, v.GitRevision = pf.Actor, pf.Reason, pf.GitRevision
+	if full {
+		v.Created, v.Reservation = pf.Created, pf.Reservation
+	}
+	return v
 }
 
 // readPlanFile reads a plan file. A sealed one opens with the key of a reader of the
@@ -483,8 +498,7 @@ func isStoredRef(arg string) bool {
 }
 
 func addRunFlags(rt *runContext, cmd *cobra.Command, refresh *string, full *bool) {
-	cmd.Flags().StringVar(refresh, "refresh", "age", "when to read real state from providers: age (a record that the plan looks at, when it is older than its refresh age), expired (every record older than its refresh age), false (never) or all (every resource)")
-	cmd.Flags().Lookup("refresh").NoOptDefVal = "all"
+	addRefreshFlag(cmd, refresh)
 	cmd.Flags().BoolVar(full, "full", false, "plan every resource with its provider instead of skipping unchanged ones")
 	addWithholdFlag(rt, cmd)
 }
@@ -553,8 +567,7 @@ func destroyCmd(rt *runContext) *cobra.Command {
 			return runApply(rt, cmd, refresh, true, autoApprove, true, nil, allowDestroy, nil)
 		},
 	}
-	cmd.Flags().StringVar(&refresh, "refresh", "age", "when to read real state from providers: age, expired, false or all")
-	cmd.Flags().Lookup("refresh").NoOptDefVal = "all"
+	addRefreshFlag(cmd, &refresh)
 	cmd.Flags().BoolVar(&autoApprove, "auto-approve", false, "skip the interactive approval")
 	cmd.Flags().StringSliceVar(&allowDestroy, "allow-destroy", nil, "with --auto-approve: a resource whose $lifecycle.prevent_destroy went with its block that may be destroyed (repeatable)")
 	addTagFlags(rt, cmd)
@@ -784,9 +797,9 @@ func confirmApply(rt *runContext, question string) (ok, noInput bool) {
 	rt.out.Println(rt.out.C(ui.Bold, question))
 	rt.out.Println("  Only 'yes' will be accepted to approve.")
 	rt.out.Printf("\n  %s ", rt.out.C(ui.Bold, "Enter a value:"))
-	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	line, read := readAnswer()
 	rt.out.Println()
-	return strings.TrimSpace(line) == "yes", err != nil && strings.TrimSpace(line) == ""
+	return line == "yes", !read
 }
 
 // reportApply prints the outcome of an apply, as text or as a final JSON line.
@@ -952,14 +965,11 @@ func importCmd(rt *runContext) *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true})
+			s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true, editsRecords: true})
 			if err != nil {
 				return err
 			}
 			defer s.close()
-			if err := refuseOtherEnvironment(ctx, rt, s.root, s.state); err != nil {
-				return err
-			}
 			res := s.root.Resource(args[0])
 			if res == nil {
 				return fmt.Errorf("%s is not declared in the configuration; add it before importing", args[0])
@@ -1196,11 +1206,11 @@ func validateCmd(rt *runContext) *cobra.Command {
 				return engine.WithCode(engine.ExitInvalid, err)
 			}
 			if rt.flags.JSON {
-				return emitJSON(map[string]any{"valid": true, "resources": countMode(s.root, "managed"), "data_sources": countMode(s.root, "data"),
-					"ephemeral": countMode(s.root, "ephemeral"), "calls": countMode(s.root, "call"), "outputs": len(s.root.Outputs), "providers": len(s.root.Providers)})
+				return emitJSON(map[string]any{"valid": true, "resources": s.root.CountMode("managed"), "data_sources": s.root.CountMode("data"),
+					"ephemeral": s.root.CountMode("ephemeral"), "calls": s.root.CountMode("call"), "outputs": len(s.root.Outputs), "providers": len(s.root.Providers)})
 			}
 			rt.out.Printf("%s %d resources, %d data sources, %d ephemeral, %d function calls, %d outputs across %d providers.\n", rt.out.C(ui.Bold+ui.Green, "Success!"),
-				countMode(s.root, "managed"), countMode(s.root, "data"), countMode(s.root, "ephemeral"), countMode(s.root, "call"), len(s.root.Outputs), len(s.root.Providers))
+				s.root.CountMode("managed"), s.root.CountMode("data"), s.root.CountMode("ephemeral"), s.root.CountMode("call"), len(s.root.Outputs), len(s.root.Providers))
 			if h := hclHint(s.root); h != "" {
 				rt.out.Println()
 				rt.out.Println(h)
@@ -1300,7 +1310,7 @@ func validateEnvironments(rt *runContext, cmd *cobra.Command, list []config.Envi
 			if err := engine.CheckGraph(s.root, s.value, s.schemas); err != nil {
 				return err
 			}
-			r.Resources, r.DataSources, r.Outputs = countMode(s.root, "managed"), countMode(s.root, "data"), len(s.root.Outputs)
+			r.Resources, r.DataSources, r.Outputs = s.root.CountMode("managed"), s.root.CountMode("data"), len(s.root.Outputs)
 			return nil
 		}()
 		r.Valid = err == nil
@@ -1355,16 +1365,6 @@ func validateEnvironments(rt *runContext, cmd *cobra.Command, list []config.Envi
 	}
 	rt.out.Printf("%s The specification is valid in %s.\n", rt.out.C(ui.Bold+ui.Green, "Success!"), joinAnd(names))
 	return nil
-}
-
-func countMode(root *config.Root, mode string) int {
-	n := 0
-	for _, r := range root.Resources {
-		if r.Mode == mode {
-			n++
-		}
-	}
-	return n
 }
 
 // withHiddenFields returns v with its top-level hidden fields (the locals, _x) also

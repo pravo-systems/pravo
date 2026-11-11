@@ -52,7 +52,7 @@ discover adopt" to write the resource that adopts an object.`,
 			if all && len(args) > 0 {
 				return errors.New("--all runs every discovery; name some or give --all, not both")
 			}
-			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, planning: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, planning: true, editsRecords: true})
 			if err != nil {
 				return err
 			}
@@ -63,10 +63,6 @@ discover adopt" to write the resource that adopts an object.`,
 				}
 				rt.out.Println("The specification has no discoveries.")
 				return nil
-			}
-			// A run is kept in the state: not in the state of another environment.
-			if err := refuseOtherEnvironment(cmd.Context(), rt, s.root, s.state); err != nil {
-				return err
 			}
 			res, err := s.ws.Discover(cmd.Context(), pravo.DiscoverOptions{
 				Names: args, All: all,

@@ -133,13 +133,13 @@ func Open(ctx context.Context, cfg Config) (*Workspace, error) {
 			return nil, engine.WithCode(engine.ExitInvalid, err)
 		}
 	}
-	loaded := []any{"dir", root.Dir, "managed", countMode(root, "managed"), "data", countMode(root, "data"),
-		"ephemeral", countMode(root, "ephemeral"), "calls", countMode(root, "call"), "outputs", len(root.Outputs),
+	loaded := []any{"dir", root.Dir, "managed", root.CountMode("managed"), "data", root.CountMode("data"),
+		"ephemeral", root.CountMode("ephemeral"), "calls", root.CountMode("call"), "outputs", len(root.Outputs),
 		"providers", len(root.Providers), "moves", len(root.Moves), "imports", len(root.Imports)}
 	if root.Pruned {
 		loaded = append(loaded, "pruned", true)
 	}
-	plog.Debug(ctx, "loaded", append(loaded, "took", took(began))...)
+	plog.Debug(ctx, "loaded", append(loaded, "took", plog.Took(began))...)
 	w := &Workspace{cfg: cfg, root: root, reg: registry.NewClient(cfg.Env)}
 	if err := w.open(ctx); err != nil {
 		w.Close()
@@ -166,7 +166,7 @@ func (w *Workspace) open(ctx context.Context) error {
 		}
 		w.state, err = open(octx, root, cfg.State)
 		if err == nil {
-			plog.Debug(octx, "state opened", "backend", BackendName(root.State.Backend), "location", w.state.Dir(), "nodes", w.state.Len(), "took", took(began))
+			plog.Debug(octx, "state opened", "backend", BackendName(root.State.Backend), "location", w.state.Dir(), "nodes", w.state.Len(), "took", plog.Took(began))
 		}
 		end(err)
 		if err != nil {
@@ -223,7 +223,7 @@ func (w *Workspace) open(ctx context.Context) error {
 			return err
 		}
 		w.value = root.Value
-		plog.Debug(ctx, "schemas ready", "providers", len(w.schemas), "took", took(began))
+		plog.Debug(ctx, "schemas ready", "providers", len(w.schemas), "took", plog.Took(began))
 	}
 	return nil
 }
@@ -426,16 +426,3 @@ func lockString(l *engine.Lock) string {
 	fmt.Fprintf(&b, "modules:%v", mk)
 	return b.String()
 }
-
-func countMode(root *config.Root, mode string) int {
-	n := 0
-	for _, r := range root.Resources {
-		if r.Mode == mode {
-			n++
-		}
-	}
-	return n
-}
-
-// took is the time since began, to the millisecond, as the debug log writes it.
-func took(began time.Time) time.Duration { return time.Since(began).Round(time.Millisecond) }

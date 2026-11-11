@@ -215,7 +215,7 @@ func finishCommand(ctx context.Context, err error, code int) {
 	if cmdSpan == nil {
 		return
 	}
-	plog.Debug(ctx, "finished", "command", cmdName, "exit", code, "took", took(cmdStart))
+	plog.Debug(ctx, "finished", "command", cmdName, "exit", code, "took", plog.Took(cmdStart))
 	cmdSpan.SetAttributes(attribute.Int("pravo.exit_code", code))
 	if code == int(engine.ExitChanges) {
 		err = nil // exit 2 reports changes or drift; it is not a failure
@@ -389,9 +389,24 @@ const (
 )
 
 func addTagFlags(rt *runContext, cmd *cobra.Command) {
-	cmd.Flags().StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
-	cmd.Flags().BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
-	addEnvFlag(rt, cmd.Flags())
+	addTagFlagsTo(rt, cmd.Flags())
+}
+
+// addTagFlagsTo declares -t, -T and --env on a set of flags: the three that select the
+// state and the environment, declared here for every command that takes them.
+func addTagFlagsTo(rt *runContext, fs *pflag.FlagSet) {
+	fs.StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
+	fs.BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
+	addEnvFlag(rt, fs)
+}
+
+// refreshUsage is the help of --refresh, the same for every command that takes it.
+const refreshUsage = "when to read real state from providers: age (a record that the plan looks at, when it is older than its refresh age), expired (every record older than its refresh age), false (never) or all (every resource)"
+
+// addRefreshFlag declares --refresh. Given without a value it means all.
+func addRefreshFlag(cmd *cobra.Command, refresh *string) {
+	cmd.Flags().StringVar(refresh, "refresh", "age", refreshUsage)
+	cmd.Flags().Lookup("refresh").NoOptDefVal = "all"
 }
 
 // addEnvFlag binds --env, which every command that takes -t takes too.

@@ -40,7 +40,7 @@ func checkStoreConditions(ctx context.Context, root *config.Root, b state.Backen
 		}
 		return err
 	}
-	plog.Debug(ctx, "s3 store probed", "store", sb.Name(), "took", took(began))
+	plog.Debug(ctx, "s3 store probed", "store", sb.Name(), "took", plog.Took(began))
 	rememberS3Store(root)
 	return nil
 }

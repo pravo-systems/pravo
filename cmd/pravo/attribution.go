@@ -16,12 +16,18 @@ import (
 // the readers file of the repository. Without that file nothing is checked, and the
 // listings say so, since every signature would otherwise read as a key that is not listed.
 
-// attributionReaders returns the readers a signature is checked against, and whether
-// there are any to check against.
-func attributionReaders(rf readersFile) ([]pravo.Reader, bool) {
+// attribution returns the readers a signature is checked against, and whether there are any
+// to check against. They are the readers that an apply verifies with: the file's keys with
+// the roles that decide for st, so that a key an admin removed in the roles of the state is
+// not "verified" in a listing while an apply refuses it. A roles chain that does not verify
+// leaves the file's own readers, since a listing still says who signed.
+func (rf readersFile) attribution(st *state.Store) ([]pravo.Reader, bool) {
 	// (see notChecked for what to say when this is false)
 	if !rf.Found || rf.Err != nil {
 		return nil, false
+	}
+	if eff, _, err := rf.withRoles(st); err == nil {
+		return eff.Readers, true
 	}
 	return rf.Readers, true
 }
@@ -126,7 +132,7 @@ func storedPlanSignatures(ctx context.Context, rt *runContext, s *session, id st
 		return nil, ""
 	}
 	rf := readersOf(rt, root)
-	readers, ok := attributionReaders(rf)
+	readers, ok := rf.attribution(s.state)
 	if !ok {
 		return nil, notChecked(rf)
 	}
@@ -154,7 +160,7 @@ func storedPlanApprovals(ctx context.Context, rt *runContext, s *session, eng *e
 	if err != nil {
 		return "", nil
 	}
-	readers, ok := attributionReaders(readersOf(rt, root))
+	readers, ok := readersOf(rt, root).attribution(s.state)
 	if !ok {
 		return "", nil
 	}

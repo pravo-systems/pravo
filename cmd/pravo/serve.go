@@ -384,7 +384,7 @@ func (v *viewerState) open(ctx context.Context, rt *runContext, root *config.Roo
 			}
 		}
 	}
-	plog.Debug(ctx, "state opened for reading", "backend", pravo.BackendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", took(began))
+	plog.Debug(ctx, "state opened for reading", "backend", pravo.BackendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", plog.Took(began))
 	return st, nil
 }
 
@@ -573,7 +573,7 @@ func (v *viewerState) verifyTxn(st *state.Store, t *state.Transaction) (string, 
 	if st.Protection().Sealed == nil {
 		return "", ""
 	}
-	readers, ok := attributionReaders(v.readersFile())
+	readers, ok := v.readersFile().attribution(st)
 	if !ok {
 		return "", ""
 	}
@@ -584,7 +584,7 @@ func (v *viewerState) verifyTxn(st *state.Store, t *state.Transaction) (string, 
 // policyReaders gives the readers that the signatures of the policy versions are checked
 // against, for the policies view. A repository with no readers file has none.
 func (v *viewerState) policyReaders(st *state.Store) ([]pravo.Reader, bool) {
-	return attributionReaders(v.readersFile())
+	return v.readersFile().attribution(st)
 }
 
 // secretRules gives the rules that the signatures of the secret versions are judged by, for
@@ -611,7 +611,7 @@ func (v *viewerState) verifyPlan(ctx context.Context, st *state.Store, id, diges
 		return nil, false
 	}
 	rf := v.readersFile()
-	readers, ok := attributionReaders(rf)
+	readers, ok := rf.attribution(st)
 	if !ok {
 		return &serve.PlanSignatures{Items: []serve.PlanSignature{}, Note: notChecked(rf)}, true
 	}
