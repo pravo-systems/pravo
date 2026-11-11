@@ -42,15 +42,26 @@ func followUp(ctx context.Context, rt *runContext, s *session, opts engine.Optio
 	return eng, plan, nil
 }
 
+// judgedFollowUp is followUp for a plan that is to be kept: it returns a nil plan when there
+// is nothing worth keeping, and the plan has been judged by the policies in force, as one that
+// "pravo plan" saves or stores is. The file and the store of a plan both come through here.
+func judgedFollowUp(ctx context.Context, rt *runContext, s *session, opts engine.Options, deferred int) (*engine.Engine, *engine.Plan, error) {
+	eng, plan, err := followUp(ctx, rt, s, opts, deferred)
+	if err != nil || plan == nil || !planWorth(plan) {
+		return nil, nil, err
+	}
+	if err := eng.JudgePlan(ctx, plan); err != nil {
+		return nil, nil, err
+	}
+	return eng, plan, nil
+}
+
 // storeFollowUp stores the follow-up plan of an apply of the stored plan id that deferred
 // changes, and says how to apply it. The new plan is judged by the policies in force first,
 // as one that "pravo plan --store" makes is.
 func storeFollowUp(ctx context.Context, rt *runContext, s *session, id string, deferred int) error {
-	eng, plan, err := followUp(ctx, rt, s, engine.Options{Refresh: engine.RefreshAge, Reason: "follows " + id + ": the changes it deferred"}, deferred)
-	if err != nil || plan == nil || !planWorth(plan) {
-		return err
-	}
-	if err := eng.JudgePlan(ctx, plan); err != nil {
+	eng, plan, err := judgedFollowUp(ctx, rt, s, engine.Options{Refresh: engine.RefreshAge, Reason: "follows " + id + ": the changes it deferred"}, deferred)
+	if err != nil || plan == nil {
 		return err
 	}
 	stored, err := s.ws.StorePlan(ctx, eng, plan, pravo.StorePlanOptions{})
@@ -68,11 +79,8 @@ func storeFollowUp(ctx context.Context, rt *runContext, s *session, id string, d
 // saveFollowUp writes the follow-up plan of an apply of the plan file path that deferred
 // changes next to it, and says how to apply it.
 func saveFollowUp(ctx context.Context, rt *runContext, s *session, path string, deferred int) error {
-	eng, plan, err := followUp(ctx, rt, s, engine.Options{Refresh: engine.RefreshAge}, deferred)
-	if err != nil || plan == nil || !planWorth(plan) {
-		return err
-	}
-	if err := eng.JudgePlan(ctx, plan); err != nil {
+	eng, plan, err := judgedFollowUp(ctx, rt, s, engine.Options{Refresh: engine.RefreshAge}, deferred)
+	if err != nil || plan == nil {
 		return err
 	}
 	next := nextPlanPath(path)

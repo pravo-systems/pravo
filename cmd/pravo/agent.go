@@ -336,7 +336,7 @@ func whyCmd(rt *runContext) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&refresh, "refresh", "age", "when to read real state: age, expired, false or all")
+	addRefreshFlag(cmd, &refresh)
 	addTagFlags(rt, cmd)
 	return cmd
 }

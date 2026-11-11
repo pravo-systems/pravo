@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/pflag"
+
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/env"
 )
@@ -286,4 +288,45 @@ func TestPlanDocumentToolsWithholdSensitiveValues(t *testing.T) {
 			t.Errorf("no tool %s", name)
 		}
 	}
+}
+
+// Every flag of "pravo plan" is offered by the pravo_plan tool or named here with the reason
+// that an agent does not get it. A flag added to the command that is in neither list fails
+// this test, so the hand-written schema of the tool cannot fall behind the command.
+func TestEveryPlanFlagIsInThePlanToolOrNamedAsLeftOut(t *testing.T) {
+	rt := &runContext{}
+	root := newRootCmd(rt)
+	planCmd, _, err := root.Find([]string{"plan"})
+	if err != nil || planCmd == nil {
+		t.Fatal("no plan command", err)
+	}
+	var tool mcpTool
+	for _, tl := range mcpTools(rt) {
+		if tl.Name == "pravo_plan" {
+			tool = tl
+		}
+	}
+	props := tool.InputSchema["properties"].(map[string]any)
+	// The flag, and the argument of the tool that carries it.
+	offered := map[string]string{"tag": "tags", "out": "out", "refresh": "refresh", "full": "full", "include-skipped": "include_skipped",
+		"reserve": "reserve", "destroy": "destroy", "replace": "replace", "store": "store", "ttl": "ttl"}
+	leftOut := map[string]string{
+		"inject-vars":        "an agent has no environment to inject",
+		"env":                "the tags carry env=NAME",
+		"withhold-sensitive": "the tool never prints a value that the plan withholds",
+		"detailed-exitcode":  "the tool reports the plan itself, not an exit code",
+		"markdown":           "the tool returns the plan as data",
+		"help":               "not an argument",
+	}
+	planCmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if arg, ok := offered[f.Name]; ok {
+			if _, ok := props[arg]; !ok {
+				t.Errorf("flag --%s is offered as %q, which the pravo_plan schema lacks", f.Name, arg)
+			}
+			return
+		}
+		if _, ok := leftOut[f.Name]; !ok {
+			t.Errorf("flag --%s of pravo plan is neither an argument of pravo_plan nor named as left out", f.Name)
+		}
+	})
 }

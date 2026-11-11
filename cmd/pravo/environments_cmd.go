@@ -43,9 +43,7 @@ bucket these credentials cannot read) is shown as such, and the others still are
 	}
 	pf := cmd.PersistentFlags()
 	pf.StringVar(&rt.flags.AccessDir, "access-dir", "", accessDirUsage)
-	pf.StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
-	addEnvFlag(rt, pf)
-	pf.BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
+	addTagFlagsTo(rt, pf)
 	cmd.AddCommand(environmentsDiffCmd(rt), environmentsRecordCmd(rt))
 	return cmd
 }

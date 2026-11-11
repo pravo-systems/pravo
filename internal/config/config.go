@@ -467,6 +467,17 @@ func (o *Output) ValuePath() cue.Path {
 
 // hasResourcesUnder reports whether some declared resource sits below the
 // path addr.
+// CountMode is the number of declared nodes of a mode: managed, data, ephemeral or call.
+func (r *Root) CountMode(mode string) int {
+	n := 0
+	for _, res := range r.Resources {
+		if res.Mode == mode {
+			n++
+		}
+	}
+	return n
+}
+
 func (r *Root) hasResourcesUnder(addr string) bool {
 	p := cue.ParsePath(addr)
 	if p.Err() != nil {

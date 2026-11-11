@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -201,8 +199,8 @@ func confirm(rt *runContext, prompt string, assume bool) (bool, error) {
 		return false, errors.New("refusing to ask, stdin is not a terminal; pass --yes")
 	}
 	rt.out.Printf("%s [y/N] ", prompt)
-	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-	switch strings.ToLower(strings.TrimSpace(line)) {
+	line, _ := readAnswer()
+	switch strings.ToLower(line) {
 	case "y", "yes":
 		return true, nil
 	}

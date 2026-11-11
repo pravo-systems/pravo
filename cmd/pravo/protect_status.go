@@ -287,7 +287,7 @@ func (r *statusReport) checkSignatures() error {
 	var err error
 	var sigs *sigCounts
 	if prot.Sealed != nil {
-		if readers, ok := attributionReaders(rf); ok {
+		if readers, ok := rf.attribution(st); ok {
 			c := countSignatures(st.Lineage(), txns, readers)
 			sigs = &c
 			add("Signatures", c.text(len(txns)))
