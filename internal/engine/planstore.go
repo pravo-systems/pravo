@@ -1513,7 +1513,7 @@ func movedRecords(m *PlanMeta, p *PlanProgress, check *PlanCheck) planMoves {
 		return out
 	}
 	if check.Lineage != "" && m.Lineage != check.Lineage {
-		out.reasons, out.global = append(out.reasons, "the plan was made against a different state (lineage mismatch)"), true
+		out.reasons, out.global = append(out.reasons, LineageReason), true
 	}
 	if check.Versions == nil || len(out.reasons) > 0 {
 		return out

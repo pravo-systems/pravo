@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 func TestConsistent(t *testing.T) {
@@ -474,5 +476,53 @@ func TestNullEmptyOneRule(t *testing.T) {
 		if got := consistent(c.va, c.vb) && consistent(c.vb, c.va); got != c.want {
 			t.Errorf("%s: consistent = %v", c.name, got)
 		}
+	}
+}
+
+// TestStaleReasonsJudgeEveryFact fixes the one function that the apply of a saved plan
+// and the viewer share: a record created again at the revision the plan expected, a
+// record the plan only reads, a provider of another version and a record moved from
+// under a move are each a reason, and a plan whose facts hold has none.
+func TestStaleReasonsJudgeEveryFact(t *testing.T) {
+	pf := &PlanFile{
+		Lineage:          "L",
+		Providers:        map[string]string{"aws": "1.0.0"},
+		Inputs:           map[string]int{"data.x": 3},
+		InputGenerations: map[string]string{"data.x": "g1"},
+		Changes: []savedChange{
+			{Addr: "a", Action: ActionUpdate, PriorRevision: 2, PriorGeneration: "g1"},
+			{Addr: "done", Action: ActionUpdate, Applied: true, PriorRevision: 9},
+		},
+	}
+	held := map[string]state.Version{"a": {Revision: 2, Generation: "g1"}, "data.x": {Revision: 3, Generation: "g1"}}
+	facts := func(have map[string]state.Version, providers map[string]string) StaleFacts {
+		return StaleFacts{
+			Lineage: "L", Providers: providers,
+			Version: func(addr string) state.Version { return have[addr] },
+			Heads:   func([]string) (map[string]state.Version, error) { return have, nil },
+		}
+	}
+	good := map[string]string{"aws": "1.0.0"}
+	if r := pf.StaleReasons(facts(held, good)); len(r) != 0 {
+		t.Fatalf("a plan whose facts hold is stale: %v", r)
+	}
+	if r := pf.StaleReasons(facts(held, nil)); len(r) != 0 {
+		t.Fatalf("providers that are not known are not compared: %v", r)
+	}
+	again := map[string]state.Version{"a": {Revision: 2, Generation: "g2"}, "data.x": {Revision: 3, Generation: "g1"}}
+	if r := pf.StaleReasons(facts(again, good)); len(r) != 1 || !strings.Contains(r[0], "removed and created again") {
+		t.Errorf("a record created again at the same revision gave %v", r)
+	}
+	read := map[string]state.Version{"a": {Revision: 2, Generation: "g1"}, "data.x": {Revision: 3, Generation: "g2"}}
+	if r := pf.StaleReasons(facts(read, good)); len(r) != 1 || !strings.Contains(r[0], "the plan reads it") {
+		t.Errorf("a record the plan reads gave %v", r)
+	}
+	if r := pf.StaleReasons(facts(held, map[string]string{"aws": "2.0.0"})); len(r) != 1 || !strings.Contains(r[0], "provider aws") {
+		t.Errorf("a provider of another version gave %v", r)
+	}
+	other := facts(held, good)
+	other.Lineage = "M"
+	if r := pf.StaleReasons(other); len(r) != 1 || r[0] != LineageReason {
+		t.Errorf("another state gave %v", r)
 	}
 }
