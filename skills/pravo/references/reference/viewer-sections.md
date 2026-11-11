@@ -234,22 +234,36 @@ A text that does not parse, compile or fit the plan document shows its error on 
 
 ## The Time lapse section
 
-The Time lapse section replays the history of the estate. The state keeps a transaction for every command that wrote it, and the section reads them: each apply, destroy or import that wrote a resource is a step, oldest first, and the page plays the steps one after another over a drawing of the estate. Nothing is recorded for it and nothing is run. A project whose state holds no such run shows a sentence that says so. It has no toolbar of the Inventory and no inspector.
+The Time lapse section replays the history of the estate. The state keeps a transaction for every command that wrote it, and the section reads them: each apply, destroy or import that wrote a resource is a step, oldest first, and the page plays the steps one after another over a drawing of the estate. Nothing is recorded for it and nothing is run. A project whose state holds no such run shows a sentence that says so. It has no toolbar of the Inventory. A resource that is picked opens the inspector beside the film.
 
 The drawing has a group for each namespace and a square for each resource, in the order of the addresses. A resource keeps its place from the first step to the last, so that between two steps only what a run did moves. It covers the managed resources that the graph shows as recorded, and those that a run named and that are gone now; connections are not drawn, because a resource that was removed has none to show. A resource that the state records and that no run names was there before the first run that is kept.
 
 | Part | Holds |
 |---|---|
 | The readout | Which run is shown, when it ran, its kind and who ran it (the actor, else the user), the revision of the specification it ran against, the reason it was given, its command line with the values masked as everywhere in the viewer, a count of what it added, changed, replaced, removed and moved, and how many resources the estate has after it. A run that did not finish says its status. |
-| The drawing | A square for each resource. One that the run wrote takes the mark of its action, the one that a plan gives the same action: plus for added, a wave for changed, plus over a line for replaced, minus for removed and an arrow for moved. A grey square is there, a dotted frame is not there yet, and an empty frame with a red edge was there and a run removed it. A rename is a removal at the old address and a move to the new one. Hover a square for its address; a click opens the resource in the Inventory, or says that a run removed it. |
+| The drawing | A square for each resource. One that the run wrote takes the mark of its action, the one that a plan gives the same action: plus for added, a wave for changed, plus over a line for replaced, minus for removed and an arrow for moved. A grey square is there, a dotted frame is not there yet, and an empty frame with a red edge was there and a run removed it. A rename is a removal at the old address and a move to the new one. Hover a square for its address; a click picks the resource (see below), and a second click lets it go. |
 | The controls | Back, Play and Next. Play steps through the runs in about fourteen seconds, however many there are, stops at the end and then offers Replay. |
 | The timeline | A bar for each run, as tall as the number of resources it wrote, filled up to the run that is shown. Click or drag to go to a run. With the focus on it, the arrow keys step by one, Page Up and Page Down by ten, Home goes to the state before the first run, End to the last run, and Space or Enter plays or pauses. |
-| What the run did | The resources of the run by name, each with its action, up to forty at first; a button shows the rest. A name opens the resource. |
-| The runs | A table of every run with its time, kind, who ran it, what it changed, how many resources there were after it and, where the state is sealed and a readers file is checked, whether its signature verifies. A row goes to that run. |
+| What the run did | The resources of the run by name, each with its action, up to forty at first; a button shows the rest. A name picks the resource. |
+| The runs | A table of every run with its time, kind, who ran it, what it changed, how many resources there were after it and, where the state is sealed and a readers file is checked, whether its signature verifies. A row goes to that run. While a resource is picked, a column marks the runs that wrote it. |
 
 *Figure: The Time lapse section of a project with two runs: the second replaced three resources, which are marked in the drawing and listed under it.*
 
 The step is in the address as `ls=N`, the number of the run, so that a link shows the estate as one run left it. At most the newest 400 runs are read; when there are more, a sentence says how many were left out, and what they made is drawn as there from the start. A plan writes no resource and is not a step.
+
+### Picking a resource
+
+A click on a square, or on a name in the list of what the run did, picks the resource. The film stays where it is, and the inspector opens beside it with the resource **as the shown run left it**, not as it is now. The panel follows the film: step, scrub or play, and the attributes change with the run. It has two tabs, State and History.
+
+| Part | Holds |
+|---|---|
+| The banner | The run that is shown and when it ran, whether the resource was there after it, was not there yet or had been removed, **Earlier change** and **Later change**, which jump to the nearest run that wrote the resource before and after the shown one, and **Open it in the inventory, as it is now**. |
+| State | The attributes as the resource held them after the run. Each run keeps what it altered, so the page takes the record and undoes the later runs, newest first. An attribute that is or may hold a secret is never kept and is left out, and where a later run altered too much to keep its values, or the state is sealed and the viewer has no key, the panel says it cannot tell and shows no value rather than a value from another time. Under it are what the resource depends on and what depends on it, as the state records them now. |
+| History | The runs that wrote the resource, the one that is shown marked and those after it dimmed. **Jump to this run** moves the film to that run. |
+| The drawing | The picked square has a heavy outline. What it depends on is outlined in blue and what depends on it in green, as the state records them now: the state does not keep the connections of an earlier run, and a resource that a run removed has none, so none are drawn for it. |
+| The timeline | Under the bars, a mark for each run that wrote the resource, in the colour of what that run did to it. |
+
+The History tab of the Inventory goes the other way: each entry that is a step of the film has **Show in time lapse**, which opens the film at that run with the resource picked. Opening a resource in the Inventory from the film, or the film from a history entry, is an entry of the browser's history, so Back returns, and while the Inventory shows a resource that the film sent it to, **Back to the time lapse** in the section bar returns to the same run and resource. Esc puts a picked resource down. The pick is in the address (`lr`, with `lt=history` for the History tab), so a link shows the same resource at the same run.
 
 ## The Traces section
 

@@ -29,7 +29,8 @@ async function get(path, signal) {
 const withPlan = (plan) => (plan ? '&plan=' + encodeURIComponent(plan) : '');
 
 export const graph = () => get('/api/graph');
-export const detail = (addr, plan) => get('/api/detail?addr=' + encodeURIComponent(addr) + withPlan(plan));
+// at is the id of a run: the node as that run left it (the attributes it held then, and no plan, lock or times of today).
+export const detail = (addr, plan, at) => get('/api/detail?addr=' + encodeURIComponent(addr) + (at ? '&at=' + encodeURIComponent(at) : withPlan(plan)));
 export const source = (addr, plan) => get('/api/source?addr=' + encodeURIComponent(addr) + withPlan(plan));
 export const search = (q) => get('/api/search?q=' + encodeURIComponent(q));
 // fields lists the nodes whose recorded values match path=value; the server searches what the detail would send

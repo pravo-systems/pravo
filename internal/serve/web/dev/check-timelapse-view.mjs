@@ -1,6 +1,6 @@
 // Checks the Time lapse view in headless Chrome, on the platform fixture (nine runs): the film starts at the end, the keys of the
 // timeline step it, a run lights up what it wrote, a removed resource is an empty frame afterwards, play stops at the end, the step is
-// in the address, and a square opens the resource in the inventory.
+// in the address, a name picks the resource and the panel shows it as the run left it, and the way to the inventory and back keeps the place.
 //
 //   node check-timelapse-view.mjs
 //
@@ -75,11 +75,60 @@ try {
   s = await st();
   check(s.step === 3 && s.k === 'Run 3 of 9', `ls=3 opens run 3: ${JSON.stringify(s)}`);
 
-  // a square opens the resource
-  await b.eval(`document.querySelector('#timelapse-pane .tl-addr').click()`);
+  // a name in the list picks the resource: the film stays, and the panel shows it as the shown run left it
+  const panel = () => b.eval(`(() => ({ view: document.getElementById('app').dataset.view, sel: document.getElementById('app').dataset.sel, k: (document.querySelector('.asof-k') || {}).textContent, title: (document.querySelector('#ih .ih-title') || {}).textContent, hash: location.hash,
+    ticks: document.querySelectorAll('#timelapse-pane .tl-tick.on').length, picked: document.querySelectorAll('#timelapse-pane .tl-stage .tl-c.sel').length, prevOff: (document.querySelector('.asof-b .btn') || {}).disabled,
+    jumps: document.querySelectorAll('#ibody .tl-jump').length, back: (document.getElementById('lapse-back') || {}).hidden }))()`);
+  await b.eval(`[...document.querySelectorAll('#timelapse-pane .tl-addr')].find((x) => x.textContent === 'api.db_pass').click()`);
   await wait(500);
-  s = await st();
-  check(s.view === 'graph' && /sel=/.test(s.hash), `a name in the list opens the resource in the inventory: ${s.view} ${s.hash}`);
+  let pn = await panel();
+  check(pn.view === 'timelapse' && pn.sel === '1' && pn.picked === 1, `a name in the list picks the resource and stays in the film: ${JSON.stringify(pn)}`);
+  check(/After run 3 of 9/.test(pn.k) && pn.title === 'db_pass', `the panel is of the shown run: ${JSON.stringify(pn)}`);
+  check(/lr=api\.db_pass/.test(pn.hash) && /ls=3/.test(pn.hash), `the pick is in the address: ${pn.hash}`);
+  check(pn.ticks >= 1, 'the runs that wrote it are marked under the timeline');
+  // the panel follows the film
+  await focus();
+  await b.key('ArrowRight');
+  await wait(400);
+  pn = await panel();
+  check(/After run 4 of 9/.test(pn.k), `the panel follows the film: ${pn.k}`);
+  // the history of the resource links to the film, and the film to the history
+  await b.eval(`document.querySelector('.itab[data-tab="history"]').click()`);
+  await wait(400);
+  pn = await panel();
+  check(pn.jumps >= 1 && /lt=history/.test(pn.hash), `the history lists runs that open in the film: ${JSON.stringify(pn)}`);
+  // Escape puts it down
+  await b.key('Escape');
+  await wait(300);
+  pn = await panel();
+  check(pn.sel === '' && pn.picked === 0 && !/lr=/.test(pn.hash), `Escape puts the resource down: ${JSON.stringify(pn)}`);
+  // a pick in the address, and the way to the inventory and back
+  await b.load(`${origin}&again=2#/?view=timelapse&ls=7&lr=api.db&motion=off`);
+  await wait(600);
+  pn = await panel();
+  check(/After run 7 of 9/.test(pn.k) && pn.picked === 1 && pn.title === 'db', `an address with lr= opens the film with the resource picked: ${JSON.stringify(pn)}`);
+  await b.eval(`document.querySelector('.asof-open').click()`);
+  await wait(500);
+  pn = await panel();
+  check(pn.view === 'graph' && /sel=api\.db/.test(pn.hash) && pn.back === false, `the inventory opens on it, with the way back: ${JSON.stringify(pn)}`);
+  await b.eval(`document.getElementById('lapse-back').click()`);
+  await wait(500);
+  pn = await panel();
+  check(pn.view === 'timelapse' && /After run 7 of 9/.test(pn.k) && pn.picked === 1, `the way back returns to the same run and resource: ${JSON.stringify(pn)}`);
+  // the history of the inventory opens the film at that run
+  await b.eval(`document.getElementById('sec-inventory').click()`);
+  await wait(400);
+  await b.eval(`document.querySelector('.itab[data-tab="history"]').click()`);
+  await wait(400);
+  await b.eval(`document.querySelector('#ibody .tl-jump').click()`);
+  await wait(500);
+  pn = await panel();
+  check(pn.view === 'timelapse' && pn.picked === 1 && /After run \d of 9/.test(pn.k), `a history entry opens the film at its run: ${JSON.stringify(pn)}`);
+  // a resource that a run removed is told, with its history
+  await b.load(`${origin}&again=3#/?view=timelapse&ls=9&lr=network.sg_old&motion=off`);
+  await wait(600);
+  const gone = await b.eval(`(document.querySelector('#ibody') || {}).textContent`);
+  check(/removed this resource/.test(gone || ''), `a removed resource is told: ${gone}`);
 
   // a project without a run says so
   await b.load(`http://127.0.0.1:${srv.port}/index.html?mock=estate#/?view=timelapse&motion=off`);

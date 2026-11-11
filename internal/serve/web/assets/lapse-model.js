@@ -60,7 +60,18 @@ export function build(doc, nodes) {
     for (const a of marks.values()) by[a] = (by[a] || 0) + 1;
     frames.push({ state: state.slice(), marks, counts: tally(state, by) });
   }
-  return { cells, groups, byAddr, steps, frames };
+  // touches: for each address, the steps (1-based, oldest first) that wrote it, with the action, so that a resource can be followed run by run
+  const touches = new Map();
+  steps.forEach((s, k) => { for (const ch of s.changes) { if (!touches.has(ch.addr)) touches.set(ch.addr, []); touches.get(ch.addr).push({ step: k + 1, action: ch.action }); } });
+  return { cells, groups, byAddr, steps, frames, touches };
+}
+
+// neighbours says which runs wrote an address before and after a step: the nearest of each, 0 when there is none.
+export function neighbours(model, addr, step) {
+  const list = (model.touches && model.touches.get(addr)) || [];
+  let prev = 0, next = 0;
+  for (const t of list) { if (t.step < step) prev = t.step; else if (t.step > step && !next) next = t.step; }
+  return { prev, next };
 }
 
 function tally(state, by) {

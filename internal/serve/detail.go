@@ -9,6 +9,7 @@ import (
 	"cuelang.org/go/cue"
 
 	"github.com/pravo-systems/pravo/internal/registry"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 // maxHistory bounds the transactions listed for a node.
@@ -96,35 +97,7 @@ func (m *model) detailFor(mn *mnode, po *planOverlay) *Detail {
 			d.Notes = append(d.Notes, "The attribute changes of the plan are not shown; the warnings of the graph say why.")
 		}
 	}
-	for _, t := range m.transactions() {
-		for _, c := range t.Changes {
-			if c.Addr != addr {
-				continue
-			}
-			if t.Kind == "plan" && c.Action != "drift" {
-				continue // a plan reads the node, and may refresh its record; it does not write it, but a read that found it changed outside pravo is news
-			}
-			entry := HistoryEntry{ID: t.ID, Kind: t.Kind, Status: t.Status, Time: t.Started, User: t.User, Actor: t.Actor,
-				Command: scrubCommand(t.Command), Reason: t.Reason, Action: c.Action, RevBefore: c.Before, RevAfter: c.After,
-				Plan: t.PlanID, GitRevision: t.GitRevision}
-			if diffs, sealed := m.store.TxnDiffs(t); sealed {
-				entry.AttrsSealed = true
-			} else if df, ok := diffs[addr]; ok {
-				historyAttrs(&entry, df, mn.sch, j)
-			}
-			if verify := m.srv.opts.VerifyTxn; verify != nil {
-				t := t
-				if status, signer := verify(m.store, &t); status != "" {
-					entry.Signature, entry.Signer = status, signer
-				}
-			}
-			d.History = append(d.History, entry)
-			break
-		}
-		if len(d.History) >= maxHistory {
-			break
-		}
-	}
+	d.History = m.historyOf(addr, mn.sch, j)
 	if l, ok := m.locks[addr]; ok {
 		kind := l.Kind
 		if kind == "" {
@@ -392,4 +365,41 @@ func (m *model) search(q string) *Search {
 		}
 	}
 	return res
+}
+
+// historyOf lists the transactions that wrote the node at addr, newest first: what each did, who ran it and which attributes
+// it altered, judged as the record is (j). A node that is not in the state any more has one too, without a schema (sch nil).
+func (m *model) historyOf(addr string, sch *schema.Schema, j judgement) []HistoryEntry {
+	var out []HistoryEntry
+	inLapse := m.lapseIDs()
+	for _, t := range m.transactions() {
+		for _, c := range t.Changes {
+			if c.Addr != addr {
+				continue
+			}
+			if t.Kind == "plan" && c.Action != "drift" {
+				continue // a plan reads the node, and may refresh its record; it does not write it, but a read that found it changed outside pravo is news
+			}
+			entry := HistoryEntry{ID: t.ID, Kind: t.Kind, Status: t.Status, Time: t.Started, User: t.User, Actor: t.Actor,
+				Command: scrubCommand(t.Command), Reason: t.Reason, Action: c.Action, RevBefore: c.Before, RevAfter: c.After,
+				Plan: t.PlanID, GitRevision: t.GitRevision, InLapse: inLapse[t.ID] && lapseAction(c.Action) != ""}
+			if diffs, sealed := m.store.TxnDiffs(t); sealed {
+				entry.AttrsSealed = true
+			} else if df, ok := diffs[addr]; ok {
+				historyAttrs(&entry, df, sch, j)
+			}
+			if verify := m.srv.opts.VerifyTxn; verify != nil {
+				t := t
+				if status, signer := verify(m.store, &t); status != "" {
+					entry.Signature, entry.Signer = status, signer
+				}
+			}
+			out = append(out, entry)
+			break
+		}
+		if len(out) >= maxHistory {
+			break
+		}
+	}
+	return out
 }
