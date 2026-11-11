@@ -1,7 +1,11 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"html"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -52,6 +56,40 @@ func TestRedactSnapshot(t *testing.T) {
 	// the input is not changed
 	if !strings.Contains(string(snap.Resources["pw"].Attributes), "s3cr3t-Value!") || snap.Resources["pw"].Private == nil {
 		t.Error("the snapshot of the store was changed")
+	}
+}
+
+// A secret that another attribute holds in an encoded form (a connection string, user data, a
+// hex dump, an XML file) is withheld by the same rule as in the viewer, and so is a sensitive
+// number.
+func TestRedactSnapshotEncodedForms(t *testing.T) {
+	sch := &schema.Schema{Block: &schema.Block{Attributes: []*schema.Attribute{
+		{Name: "result", Sensitive: true, Computed: true},
+		{Name: "pin", Sensitive: true, Computed: true},
+		{Name: "content"},
+	}}}
+	const secret = "s3cr3t Value/&!<x>"
+	rec := func(attrs map[string]any) *state.Resource {
+		b, _ := json.Marshal(attrs)
+		return &state.Resource{Mode: "managed", Type: "pw", Name: "pw", ProviderKey: "p", Attributes: b}
+	}
+	forms := map[string]string{
+		"path":   "https://h/" + url.PathEscape(secret) + "/x",
+		"html":   "<p>" + html.EscapeString(secret) + "</p>",
+		"hex":    "key=" + hex.EncodeToString([]byte(secret)),
+		"base64": "user_data=" + base64.StdEncoding.EncodeToString([]byte("x="+secret)),
+		"pin":    "code 4815162342 here",
+	}
+	snap := &state.Snapshot{Resources: map[string]*state.Resource{"pw": rec(map[string]any{"result": secret, "pin": 4815162342})}}
+	for name, text := range forms {
+		snap.Resources[name] = rec(map[string]any{"content": text})
+	}
+	got, _ := redactSnapshot(snap, func(*state.Resource) *schema.Schema { return sch })
+	for name := range forms {
+		if strings.Contains(string(got.Resources[name].Attributes), "withheld") {
+			continue
+		}
+		t.Errorf("%s: an encoded form of a secret survives: %s", name, got.Resources[name].Attributes)
 	}
 }
 

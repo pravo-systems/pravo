@@ -11,10 +11,13 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
+	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/env"
+	"github.com/pravo-systems/pravo/internal/filelock"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
@@ -128,44 +131,35 @@ func (r *Recorder) save(key string, rec *record) {
 // new file that replaces the old one, so that a recording made before has no
 // effect on the mode.
 func writePrivate(path string, data []byte) error {
-	f, err := os.CreateTemp(filepath.Dir(path), ".record-*")
-	if err != nil {
-		return err
-	}
-	name := f.Name()
-	_, err = f.Write(data)
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = os.Chmod(name, recordingFileMode)
-	}
-	if err == nil {
-		err = os.Rename(name, path)
-	}
-	if err != nil {
-		_ = os.Remove(name)
-	}
-	return err
+	return filelock.WriteFileAtomic(path, data, filelock.AtomicOptions{Mode: recordingFileMode, TempPattern: ".record-*"})
 }
 
-func packed(v tftypes.Value) []byte {
-	if v.Type() == nil {
-		return nil
-	}
-	b, _ := v.MarshalMsgPack(v.Type())
-	return b
-}
-
-func unpacked(b []byte, t tftypes.Type) tftypes.Value {
+// unpacked reads a recorded value. A record that holds none stands for a null of the type;
+// bytes that do not decode are an error, so a replay of a corrupt recording fails where a
+// saved plan does, instead of going on with a null.
+func unpacked(b []byte, t tftypes.Type) (tftypes.Value, error) {
 	if len(b) == 0 {
-		return tftypes.NewValue(t, nil)
+		return tftypes.NewValue(t, nil), nil
 	}
-	v, err := tftypes.ValueFromMsgPack(b, t)
+	v, err := convert.Unpack(b, t)
 	if err != nil {
-		return tftypes.NewValue(t, nil)
+		return tftypes.Value{}, fmt.Errorf("recorded value: %w", err)
 	}
-	return v
+	return v, nil
+}
+
+// put saves a record with the values it holds. A value that cannot be packed makes no record,
+// so that a replay says there is none instead of replaying a gap.
+func (r *Recorder) put(key string, rec *record, values map[string]tftypes.Value) {
+	rec.Values = map[string][]byte{}
+	for k, v := range values {
+		b, err := convert.Pack(v)
+		if err != nil {
+			return
+		}
+		rec.Values[k] = b
+	}
+	r.save(key, rec)
 }
 
 // reqOf builds a stable request document from msgpack-encoded values and
@@ -181,7 +175,8 @@ func reqOf(fields map[string]any, values ...tftypes.Value) map[string]any {
 		out[k] = fields[k]
 	}
 	for i, v := range values {
-		out[fmt.Sprintf("v%d", i)] = packed(v)
+		b, _ := convert.Pack(v) // a value that does not pack leaves the key without it: a replay then finds no recording
+		out[fmt.Sprintf("v%d", i)] = b
 	}
 	return out
 }
@@ -273,11 +268,12 @@ func (r *Recorder) UpgradeResourceState(ctx context.Context, typ string, version
 			v, err := tftypes.ValueFromJSON(jsonState, want)
 			return v, nil, err
 		}
-		return unpacked(rec.Values["state"], want), rec.Diags, nil
+		v, err := unpacked(rec.Values["state"], want)
+		return v, rec.Diags, err
 	}
 	v, diags, err := r.inner.UpgradeResourceState(ctx, typ, version, jsonState, want)
 	if err == nil {
-		r.save(key, &record{Method: "UpgradeResourceState", Request: req, Values: map[string][]byte{"state": packed(v)}, Diags: diags})
+		r.put(key, &record{Method: "UpgradeResourceState", Request: req, Diags: diags}, map[string]tftypes.Value{"state": v})
 	}
 	return v, diags, err
 }
@@ -290,18 +286,144 @@ func (r *Recorder) ReadResource(ctx context.Context, typ string, state tftypes.V
 			// Unrecorded reads return the state unchanged: no drift.
 			return state, private, nil, nil
 		}
-		return unpacked(rec.Values["state"], state.Type()), rec.Bytes["private"], rec.Diags, nil
+		v, err := unpacked(rec.Values["state"], state.Type())
+		return v, rec.Bytes["private"], rec.Diags, err
 	}
 	v, p, diags, err := r.inner.ReadResource(ctx, typ, state, private)
 	if err == nil {
-		r.save(key, &record{Method: "ReadResource", Request: req, Values: map[string][]byte{"state": packed(v)}, Bytes: map[string][]byte{"private": p}, Diags: diags})
+		r.put(key, &record{Method: "ReadResource", Request: req, Bytes: map[string][]byte{"private": p}, Diags: diags}, map[string]tftypes.Value{"state": v})
 	}
 	return v, p, diags, err
 }
 
+// Each result that a provider returns has one pair of functions here: one that turns it
+// into the parts of a record and one that turns a record back into it. A field of a result
+// that a pair leaves out is lost in replay, so the pair is the only place that lists the
+// fields, and TestEveryResultFieldSurvivesARecording fails when a field is added to a result
+// and not to its pair.
+
+// planExtra holds the JSON part of the record of a plan or an apply.
 type planExtra struct {
+	// RequiresReplace holds the first attribute name of each path, as recordings made
+	// before the paths were kept hold them.
 	RequiresReplace []string `json:"requires_replace,omitempty"`
-	Legacy          bool     `json:"legacy,omitempty"`
+	// Paths holds the whole of each path that requires replacement.
+	Paths  [][]recordedStep `json:"requires_replace_paths,omitempty"`
+	Legacy bool             `json:"legacy,omitempty"`
+}
+
+// recordedStep is one step of an attribute path: an attribute name, a string key or an index.
+type recordedStep struct {
+	Name  *string `json:"name,omitempty"`
+	Key   *string `json:"key,omitempty"`
+	Index *int64  `json:"index,omitempty"`
+}
+
+func recordedPath(p *tftypes.AttributePath) []recordedStep {
+	var out []recordedStep
+	for _, st := range p.Steps() {
+		switch s := st.(type) {
+		case tftypes.AttributeName:
+			n := string(s)
+			out = append(out, recordedStep{Name: &n})
+		case tftypes.ElementKeyString:
+			k := string(s)
+			out = append(out, recordedStep{Key: &k})
+		case tftypes.ElementKeyInt:
+			i := int64(s)
+			out = append(out, recordedStep{Index: &i})
+		}
+	}
+	return out
+}
+
+func (rs recordedStep) step() tftypes.AttributePathStep {
+	switch {
+	case rs.Name != nil:
+		return tftypes.AttributeName(*rs.Name)
+	case rs.Key != nil:
+		return tftypes.ElementKeyString(*rs.Key)
+	default:
+		return tftypes.ElementKeyInt(*rs.Index)
+	}
+}
+
+// recordPlan turns a plan result into the parts of its record.
+func recordPlan(res *PlanResult) (values map[string]tftypes.Value, bytes map[string][]byte, extra []byte) {
+	e := planExtra{Legacy: res.LegacyTypeSystem}
+	for _, p := range res.RequiresReplace {
+		if path := recordedPath(p); len(path) > 0 {
+			e.Paths = append(e.Paths, path)
+		}
+	}
+	extra, _ = json.Marshal(e)
+	return map[string]tftypes.Value{"planned": res.PlannedState}, map[string][]byte{"private": res.PlannedPrivate}, extra
+}
+
+// planOf is the inverse of recordPlan; t is the type of the planned state.
+func planOf(rec *record, t tftypes.Type) (*PlanResult, error) {
+	var e planExtra
+	_ = json.Unmarshal(rec.Extra, &e)
+	planned, err := unpacked(rec.Values["planned"], t)
+	if err != nil {
+		return nil, err
+	}
+	res := &PlanResult{PlannedState: planned, PlannedPrivate: rec.Bytes["private"], LegacyTypeSystem: e.Legacy}
+	if len(e.Paths) > 0 {
+		for _, steps := range e.Paths {
+			path := make([]tftypes.AttributePathStep, len(steps))
+			for i, s := range steps {
+				path[i] = s.step()
+			}
+			res.RequiresReplace = append(res.RequiresReplace, tftypes.NewAttributePathWithSteps(path))
+		}
+		return res, nil
+	}
+	for _, n := range e.RequiresReplace {
+		res.RequiresReplace = append(res.RequiresReplace, tftypes.NewAttributePath().WithAttributeName(n))
+	}
+	return res, nil
+}
+
+func recordApply(res *ApplyResult) (map[string]tftypes.Value, map[string][]byte, []byte) {
+	extra, _ := json.Marshal(planExtra{Legacy: res.LegacyTypeSystem})
+	return map[string]tftypes.Value{"state": res.NewState}, map[string][]byte{"private": res.Private}, extra
+}
+
+func applyOf(rec *record, t tftypes.Type) (*ApplyResult, error) {
+	var e planExtra
+	_ = json.Unmarshal(rec.Extra, &e)
+	newState, err := unpacked(rec.Values["state"], t)
+	if err != nil {
+		return nil, err
+	}
+	return &ApplyResult{NewState: newState, Private: rec.Bytes["private"], LegacyTypeSystem: e.Legacy}, nil
+}
+
+// ephemeralExtra holds the JSON part of the record of an ephemeral resource.
+type ephemeralExtra struct {
+	RenewAt  *time.Time `json:"renew_at,omitempty"`
+	Deferred bool       `json:"deferred,omitempty"`
+}
+
+func recordEphemeral(res *EphemeralResult) (map[string]tftypes.Value, map[string][]byte, []byte) {
+	extra, _ := json.Marshal(ephemeralExtra{RenewAt: res.RenewAt, Deferred: res.Deferred})
+	return map[string]tftypes.Value{"result": res.Result}, map[string][]byte{"private": res.Private}, extra
+}
+
+func ephemeralOf(rec *record, t tftypes.Type) (*EphemeralResult, error) {
+	var e ephemeralExtra
+	_ = json.Unmarshal(rec.Extra, &e)
+	result, err := unpacked(rec.Values["result"], t)
+	if err != nil {
+		return nil, err
+	}
+	return &EphemeralResult{Result: result, Private: rec.Bytes["private"], RenewAt: e.RenewAt, Deferred: e.Deferred}, nil
+}
+
+// putResult saves a record of the parts that a record function gave.
+func (r *Recorder) putResult(key string, method string, req json.RawMessage, diags Diagnostics, values map[string]tftypes.Value, bytes map[string][]byte, extra []byte) {
+	r.put(key, &record{Method: method, Request: req, Bytes: bytes, Diags: diags, Extra: extra}, values)
 }
 
 func (r *Recorder) PlanResourceChange(ctx context.Context, typ string, prior, proposed, config tftypes.Value, priorPrivate []byte) (*PlanResult, Diagnostics, error) {
@@ -311,27 +433,16 @@ func (r *Recorder) PlanResourceChange(ctx context.Context, typ string, prior, pr
 		if err != nil {
 			return nil, nil, r.replayErr("PlanResourceChange " + typ)
 		}
-		var extra planExtra
-		_ = json.Unmarshal(rec.Extra, &extra)
-		res := &PlanResult{PlannedState: unpacked(rec.Values["planned"], prior.Type()), PlannedPrivate: rec.Bytes["private"], LegacyTypeSystem: extra.Legacy}
-		for _, n := range extra.RequiresReplace {
-			res.RequiresReplace = append(res.RequiresReplace, tftypes.NewAttributePath().WithAttributeName(n))
+		res, err := planOf(rec, prior.Type())
+		if err != nil {
+			return nil, nil, err
 		}
 		return res, rec.Diags, nil
 	}
 	res, diags, err := r.inner.PlanResourceChange(ctx, typ, prior, proposed, config, priorPrivate)
 	if err == nil && res != nil {
-		var extra planExtra
-		extra.Legacy = res.LegacyTypeSystem
-		for _, p := range res.RequiresReplace {
-			if steps := p.Steps(); len(steps) > 0 {
-				if n, ok := steps[0].(tftypes.AttributeName); ok {
-					extra.RequiresReplace = append(extra.RequiresReplace, string(n))
-				}
-			}
-		}
-		eb, _ := json.Marshal(extra)
-		r.save(key, &record{Method: "PlanResourceChange", Request: req, Values: map[string][]byte{"planned": packed(res.PlannedState)}, Bytes: map[string][]byte{"private": res.PlannedPrivate}, Diags: diags, Extra: eb})
+		v, b, x := recordPlan(res)
+		r.putResult(key, "PlanResourceChange", req, diags, v, b, x)
 	}
 	return res, diags, err
 }
@@ -343,14 +454,16 @@ func (r *Recorder) ApplyResourceChange(ctx context.Context, typ string, prior, p
 		if err != nil {
 			return nil, nil, r.replayErr("ApplyResourceChange " + typ)
 		}
-		var extra planExtra
-		_ = json.Unmarshal(rec.Extra, &extra)
-		return &ApplyResult{NewState: unpacked(rec.Values["state"], prior.Type()), Private: rec.Bytes["private"], LegacyTypeSystem: extra.Legacy}, rec.Diags, nil
+		res, err := applyOf(rec, prior.Type())
+		if err != nil {
+			return nil, nil, err
+		}
+		return res, rec.Diags, nil
 	}
 	res, diags, err := r.inner.ApplyResourceChange(ctx, typ, prior, planned, config, plannedPrivate)
 	if err == nil && res != nil {
-		eb, _ := json.Marshal(planExtra{Legacy: res.LegacyTypeSystem})
-		r.save(key, &record{Method: "ApplyResourceChange", Request: req, Values: map[string][]byte{"state": packed(res.NewState)}, Bytes: map[string][]byte{"private": res.Private}, Diags: diags, Extra: eb})
+		v, b, x := recordApply(res)
+		r.putResult(key, "ApplyResourceChange", req, diags, v, b, x)
 	}
 	return res, diags, err
 }
@@ -369,11 +482,12 @@ func (r *Recorder) ReadDataSource(ctx context.Context, typ string, cfg tftypes.V
 		if err != nil {
 			return tftypes.Value{}, nil, r.replayErr("ReadDataSource " + typ)
 		}
-		return unpacked(rec.Values["state"], cfg.Type()), rec.Diags, nil
+		v, err := unpacked(rec.Values["state"], cfg.Type())
+		return v, rec.Diags, err
 	}
 	v, diags, err := r.inner.ReadDataSource(ctx, typ, cfg)
 	if err == nil {
-		r.save(key, &record{Method: "ReadDataSource", Request: req, Values: map[string][]byte{"state": packed(v)}, Diags: diags})
+		r.put(key, &record{Method: "ReadDataSource", Request: req, Diags: diags}, map[string]tftypes.Value{"state": v})
 	}
 	return v, diags, err
 }
@@ -385,11 +499,16 @@ func (r *Recorder) OpenEphemeral(ctx context.Context, typ string, cfg tftypes.Va
 		if err != nil {
 			return nil, nil, r.replayErr("OpenEphemeral " + typ)
 		}
-		return &EphemeralResult{Result: unpacked(rec.Values["result"], cfg.Type()), Private: rec.Bytes["private"]}, rec.Diags, nil
+		res, err := ephemeralOf(rec, cfg.Type())
+		if err != nil {
+			return nil, nil, err
+		}
+		return res, rec.Diags, nil
 	}
 	res, diags, err := r.inner.OpenEphemeral(ctx, typ, cfg)
 	if err == nil && res != nil {
-		r.save(key, &record{Method: "OpenEphemeral", Request: req, Values: map[string][]byte{"result": packed(res.Result)}, Bytes: map[string][]byte{"private": res.Private}, Diags: diags})
+		v, b, x := recordEphemeral(res)
+		r.putResult(key, "OpenEphemeral", req, diags, v, b, x)
 	}
 	return res, diags, err
 }
@@ -447,15 +566,16 @@ func (r *Recorder) CallFunction(ctx context.Context, name string, args []tftypes
 		if rec.Error != "" {
 			return tftypes.Value{}, &FunctionError{Text: rec.Error}, nil
 		}
-		return unpacked(rec.Values["result"], ret), nil, nil
+		v, err := unpacked(rec.Values["result"], ret)
+		return v, nil, err
 	}
 	v, ferr, err := r.inner.CallFunction(ctx, name, args, argTypes, ret)
 	if err == nil {
-		rec := &record{Method: "CallFunction", Request: req, Values: map[string][]byte{"result": packed(v)}}
+		rec := &record{Method: "CallFunction", Request: req}
 		if ferr != nil {
 			rec.Error = ferr.Text
 		}
-		r.save(key, rec)
+		r.put(key, rec, map[string]tftypes.Value{"result": v})
 	}
 	return v, ferr, err
 }

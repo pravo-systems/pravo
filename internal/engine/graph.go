@@ -152,6 +152,9 @@ func (e *Engine) at(p cue.Path) cue.Value {
 // resolver returns the engine's tasks as the analysis sees them.
 func (e *Engine) resolver() convert.Resolver { return taskResolver{e} }
 
+// depsResolver is resolver for the derivation of the dependencies, which sets the loops it reads.
+func (e *Engine) depsResolver() DepsResolver { return taskResolver{e} }
+
 // isEphemeral reports whether the task at path p is an ephemeral resource.
 func (e *Engine) isEphemeral(p cue.Path) bool {
 	r, ok := e.byPath[p.String()]
@@ -248,48 +251,29 @@ func (e *Engine) graphNodes(evaluator bool) (nodes map[string]*node, used bool) 
 	for _, r := range e.Root.Resources {
 		nodes[r.Address()] = &node{res: r, deps: map[string]bool{}}
 	}
-	e.loops = nil
-	bodyDeps := make(map[string][]string, len(e.Root.Resources))
-	if evaluator {
-		t := time.Now()
-		loops, err := convert.NewLoops(e.Value, e.resolver())
-		if err != nil {
-			plog.Debug(context.Background(), "dependencies come from the syntax alone", "reason", err.Error())
-		} else {
-			e.loops, used = loops, true
-			plog.Debug(context.Background(), "evaluator dependencies", "tasks", loops.Tasks(), "took", time.Since(t).Round(time.Millisecond))
-		}
+	t := time.Now()
+	d := DeriveDeps(SpecInput{Root: e.Root, Value: e.Value, At: e.at, Resolver: e.depsResolver(), ByPath: e.byPath, FromSyntax: !evaluator})
+	if d.LoopsErr != nil {
+		plog.Debug(context.Background(), "dependencies come from the syntax alone", "reason", d.LoopsErr.Error())
+	} else if d.Loops != nil {
+		used = true
+		plog.Debug(context.Background(), "evaluator dependencies", "tasks", d.Loops.Tasks(), "took", time.Since(t).Round(time.Millisecond))
 	}
 	for _, r := range e.Root.Resources {
-		v := e.at(r.Path)
-		if f, ok := v.Source().(*ast.Field); ok {
+		if f, ok := e.at(r.Path).Source().(*ast.Field); ok {
 			if e.fieldSrc == nil {
 				e.fieldSrc = map[string]*ast.Field{}
 			}
 			e.fieldSrc[r.Address()] = f
 		}
-		var deps []cue.Path
-		if e.loops != nil {
-			deps, _ = e.loops.Dependencies(v, r.Path, e.resolver())
-		} else {
-			deps, _ = convert.Dependencies(v, r.Path, e.resolver())
-		}
 		n := nodes[r.Address()]
-		for _, d := range deps {
-			if dr, ok := e.byPath[d.String()]; ok && dr != r {
-				n.deps[dr.Address()] = true
-			}
+		for _, a := range d.Body[r.Address()] {
+			n.deps[a] = true
 		}
-		own := make([]string, 0, len(n.deps))
-		for d := range n.deps {
-			own = append(own, d)
-		}
-		sort.Strings(own)
-		bodyDeps[r.Address()] = own
 	}
-	e.bodyDeps = bodyDeps
+	e.bodyDeps = d.Body
 	// Resources run after whatever their provider's configuration references.
-	e.providerDeps = e.providerDepsOf()
+	e.providerDeps = d.Provider
 	for key, pdeps := range e.providerDeps {
 		for _, r := range e.Root.Resources {
 			if r.ProviderKey != key {
@@ -342,19 +326,7 @@ func (e *Engine) outputReadsLocked() map[string][]string {
 	if e.outputReads != nil {
 		return e.outputReads
 	}
-	reads := make(map[string][]string, len(e.Root.Outputs))
-	for _, o := range e.Root.Outputs {
-		p := o.ValuePath()
-		deps, _ := convert.Dependencies(e.atRoot(p), p, e.resolver())
-		var addrs []string
-		for _, d := range deps {
-			if dr, ok := e.byPath[d.String()]; ok {
-				addrs = append(addrs, dr.Address())
-			}
-		}
-		sort.Strings(addrs)
-		reads[o.Name] = slices.Compact(addrs)
-	}
+	reads := OutputReads(e.Root, e.atRoot, e.resolver(), e.byPath, nil)
 	e.outputReads = reads
 	return reads
 }

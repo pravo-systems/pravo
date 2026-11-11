@@ -85,20 +85,7 @@ func (s *Store) upgradeSealed(ctx context.Context, o UpgradeOptions) (UpgradeRes
 	if by == "" {
 		by = o.Identity.Name
 	}
-	var noted atomic.Int64
-	progress := func(done, total int) {
-		if last := noted.Load(); int64(done)-last >= migrationNoteEvery && noted.CompareAndSwap(last, int64(done)) {
-			_ = s.updateMeta(func(m *meta) error {
-				if m.Migration != nil {
-					m.Migration.Done, m.Migration.Total = done, total
-				}
-				return nil
-			})
-		}
-		if o.Progress != nil {
-			o.Progress(done, total)
-		}
-	}
+	progress := s.migrationProgress(o.Progress)
 	n, err := s.convertNodes(ctx, rewrite{
 		needs:   func(group string, isPtr bool) bool { return !isPtr || group == "" },
 		encode:  func(r *Resource, _ []byte) ([]byte, string, error) { return s.encodeRecord(r) },
@@ -349,16 +336,35 @@ func (s *Store) sealOutputs() error {
 		return err
 	}
 	defer unlock()
-	return s.rewriteOutputs(func(raw []byte) (bool, error) {
+	return s.rewriteOutputs("sealed", s.encodeOutputs, func(raw []byte) (bool, error) {
 		_, sealed := asSealedOutputs(raw)
 		return !sealed, nil
 	})
 }
 
-// rewriteOutputs replaces outputs.json with the same outputs sealed under the
-// current group, if want says so of the bytes that are there. The caller holds the
-// lock on the outputs.
-func (s *Store) rewriteOutputs(want func(raw []byte) (bool, error)) error {
+// migrationProgress returns the function that a conversion of the records calls as it goes: it
+// notes the progress in meta.json every migrationNoteEvery records and passes it on to report.
+func (s *Store) migrationProgress(report func(done, total int)) func(done, total int) {
+	var noted atomic.Int64
+	return func(done, total int) {
+		if last := noted.Load(); int64(done)-last >= migrationNoteEvery && noted.CompareAndSwap(last, int64(done)) {
+			_ = s.updateMeta(func(m *meta) error {
+				if m.Migration != nil {
+					m.Migration.Done, m.Migration.Total = done, total
+				}
+				return nil
+			})
+		}
+		if report != nil {
+			report(done, total)
+		}
+	}
+}
+
+// rewriteOutputs replaces outputs.json with the same outputs written by encode, if want says so
+// of the bytes that are there; verb ("sealed" or "unsealed") words the error of a change in the
+// meantime. The caller holds the lock on the outputs.
+func (s *Store) rewriteOutputs(verb string, encode func(map[string]json.RawMessage) ([]byte, error), want func(raw []byte) (bool, error)) error {
 	raw, err := s.b.Get(s.cx(), "outputs.json")
 	if errors.Is(err, ErrNotFound) {
 		return nil
@@ -376,7 +382,7 @@ func (s *Store) rewriteOutputs(want func(raw []byte) (bool, error)) error {
 	if outputs == nil {
 		outputs = map[string]json.RawMessage{}
 	}
-	data, err := s.encodeOutputs(outputs)
+	data, err := encode(outputs)
 	if err != nil {
 		return err
 	}
@@ -385,7 +391,7 @@ func (s *Store) rewriteOutputs(want func(raw []byte) (bool, error)) error {
 	case err != nil:
 		return Advise(err)
 	case !ok:
-		return errors.New("outputs.json changed while it was sealed; run the command again")
+		return fmt.Errorf("outputs.json changed while it was %s; run the command again", verb)
 	}
 	s.mu.Lock()
 	s.outputs = outputs
@@ -720,7 +726,7 @@ func (s *Store) reseal(ctx context.Context, o RewrapOptions, res *RewrapResult) 
 	if err != nil {
 		return n, err
 	}
-	err = s.rewriteOutputs(func(raw []byte) (bool, error) {
+	err = s.rewriteOutputs("sealed", s.encodeOutputs, func(raw []byte) (bool, error) {
 		env, sealed := asSealedOutputs(raw)
 		return !sealed || env.Sealed.Group != current, nil
 	})

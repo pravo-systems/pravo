@@ -22,7 +22,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/engine"
-	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 )
 
 // Printer writes coloured output.
@@ -528,7 +528,7 @@ func (p *Printer) renderChange(b *strings.Builder, c *engine.Change, indent stri
 		b.WriteString(p.C(Dim, "(removed from state)"))
 		return
 	}
-	sens := sensitiveFunc(c.Schema.Block)
+	sens := sensitivity.PathPredicate(c.Schema.Block)
 	if len(c.Derived) > 0 {
 		// A field built from a withheld attribute is withheld as that attribute is.
 		schemaSens := sens
@@ -562,56 +562,6 @@ func replaceSet(paths []*tftypes.AttributePath) map[string]bool {
 		}
 	}
 	return out
-}
-
-// sensitiveFunc returns a predicate over attribute paths.
-func sensitiveFunc(blk *schema.Block) func([]string) bool {
-	return func(path []string) bool {
-		b := blk
-		var obj *schema.Object
-		for i := 0; i < len(path); i++ {
-			name := path[i]
-			if obj != nil {
-				a := obj.Attribute(name)
-				if a == nil {
-					return false
-				}
-				if a.Sensitive {
-					return true
-				}
-				if a.NestedType == nil {
-					return false
-				}
-				obj = a.NestedType
-				if obj.Nesting != schema.NestingSingle {
-					i++
-				}
-				continue
-			}
-			if a := b.Attribute(name); a != nil {
-				if a.Sensitive {
-					return true
-				}
-				if a.NestedType == nil {
-					return false
-				}
-				obj = a.NestedType
-				if obj.Nesting != schema.NestingSingle {
-					i++
-				}
-				continue
-			}
-			nb := b.BlockType(name)
-			if nb == nil {
-				return false
-			}
-			b = nb.Block
-			if nb.Nesting != schema.NestingSingle && nb.Nesting != schema.NestingGroup {
-				i++
-			}
-		}
-		return false
-	}
 }
 
 func (p *Printer) line(b *strings.Builder, sym, color, indent, text string) {

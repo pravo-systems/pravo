@@ -287,7 +287,7 @@ func (r *statusReport) checkSignatures() error {
 	var err error
 	var sigs *sigCounts
 	if prot.Sealed != nil {
-		if readers, ok := attributionReaders(rf); ok {
+		if readers, ok := rf.attribution(st); ok {
 			c := countSignatures(st.Lineage(), txns, readers)
 			sigs = &c
 			add("Signatures", c.text(len(txns)))
@@ -473,7 +473,7 @@ func rolesText(rf readersFile, rs pravo.RolesStatus, st *state.Store) string {
 	if rs.Unpinned {
 		// The roles in the state decide who may change it, as the commands that change it judge.
 		role := pravo.RoleReader
-		if r, ok := pravo.RoleOf(rs.Stored, st.SigningKey()); ok {
+		if r, ok := pravo.RoleOf(rf.Readers, st.SigningKey()); ok { // already the lower of the file and the state
 			role = r
 		}
 		line += " · you are " + article(role) + " in the roles in the state"
@@ -499,7 +499,7 @@ func rolesDoc(rf readersFile, rs pravo.RolesStatus, st *state.Store) map[string]
 		}
 		if rs.Unpinned {
 			role := pravo.RoleReader
-			if r, ok := pravo.RoleOf(rs.Stored, st.SigningKey()); ok {
+			if r, ok := pravo.RoleOf(rf.Readers, st.SigningKey()); ok { // already the lower of the file and the state
 				role = r
 			}
 			doc["you"] = role.String()

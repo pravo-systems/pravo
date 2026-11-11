@@ -188,6 +188,13 @@ func (ps *PlanStore) Approvals(ctx context.Context, id, digest string, readers [
 	return out, nil
 }
 
+// Standing says how many approvals count toward the need and whether that meets it. The
+// apply, the viewer and the commands that list a plan's approvals all say it this way.
+func (n *ApprovalNeed) Standing(approvals []Approval, storers []string) (have int, met bool) {
+	have = len(n.Counted(approvals, storers))
+	return have, have >= n.Min
+}
+
 // Counted reports which approvals count toward need, by the key that signed: verified,
 // of a role that suffices, and not the key that stored the plan unless need allows it.
 // storers are the keys whose signature of the storing verified.
@@ -245,11 +252,14 @@ func (e *Engine) judgingReaders(ctx context.Context) (readers []protect.Reader, 
 	if e.Opts.RolesPin != "" || len(rs) == 0 || e.State.Sealer() == nil {
 		return rs, false
 	}
-	_, st, err := e.State.RolesFor(ctx, rs, "")
+	// The same answer as every other consumer: RolesFor caps an unpinned chain. Opts.Readers
+	// of the command line already went through it, and capping twice changes nothing; a caller
+	// of the library that passes the raw file gets it here.
+	capped, st, err := e.State.RolesFor(ctx, rs, "")
 	if err != nil || !st.Unpinned {
 		return rs, false
 	}
-	return protect.CapRoles(rs, st.Stored), true
+	return capped, true
 }
 
 // checkApprovals refuses an apply of a plan that the policies ask approvals for and has too few. A plan that is
@@ -277,22 +287,16 @@ func (e *Engine) checkApprovals(ctx context.Context, need *ApprovalNeed) error {
 	if err != nil {
 		return err
 	}
-	stored, err := ps.SignaturesOf(ctx, e.planID, digest, readers)
+	storers, err := ps.Storers(ctx, e.planID, digest, readers)
 	if err != nil {
 		return err
-	}
-	var storers []string
-	for _, v := range stored {
-		if v.Status == protect.SigVerified {
-			storers = append(storers, v.Key)
-		}
 	}
 	approvals, err := ps.Approvals(ctx, e.planID, digest, readers)
 	if err != nil {
 		return err
 	}
 	counted := need.Counted(approvals, storers)
-	if len(counted) >= need.Min {
+	if _, met := need.Standing(approvals, storers); met {
 		return nil
 	}
 	var have []string

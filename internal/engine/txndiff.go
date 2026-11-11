@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 )
 
 // minDiffSecret is the shortest sensitive string that is looked for in other
@@ -34,14 +35,14 @@ func diffWithhold(sch *schema.Schema, derived map[string]bool, before, after jso
 	}
 	names := map[string]bool{}
 	for _, a := range sch.Block.Attributes {
-		names[a.Name] = attrSensitive(a, 0)
+		names[a.Name] = sensitivity.AttrHeld(a)
 	}
 	for _, nb := range sch.Block.BlockTypes {
-		names[nb.TypeName] = blockSensitive(nb.Block, 0)
+		names[nb.TypeName] = sensitivity.BlockHeld(nb.Block)
 	}
 	flagged := func(name string, v json.RawMessage) bool {
 		sensitive, known := names[name]
-		return !known || sensitive || derived[name] || schema.NameGuard.MatchString(name) || hasGuardedKey(v)
+		return !known || sensitive || derived[name] || sensitivity.Withheld(name, false, false) || sensitivity.HasGuardedKeyJSON(v)
 	}
 	var secrets []string
 	for _, rec := range []json.RawMessage{before, after} {
@@ -70,65 +71,6 @@ func diffWithhold(sch *schema.Schema, derived map[string]bool, before, after jso
 		}
 		return false
 	}
-}
-
-func attrSensitive(a *schema.Attribute, depth int) bool {
-	if a.Sensitive || a.WriteOnly {
-		return true
-	}
-	if a.NestedType != nil && depth < 12 {
-		for _, n := range a.NestedType.Attributes {
-			if attrSensitive(n, depth+1) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func blockSensitive(b *schema.Block, depth int) bool {
-	if b == nil || depth > 12 {
-		return false
-	}
-	for _, a := range b.Attributes {
-		if attrSensitive(a, depth) {
-			return true
-		}
-	}
-	for _, nb := range b.BlockTypes {
-		if blockSensitive(nb.Block, depth+1) {
-			return true
-		}
-	}
-	return false
-}
-
-// hasGuardedKey reports whether a JSON value holds an object with a key that
-// says it is a secret, at any depth.
-func hasGuardedKey(raw json.RawMessage) bool {
-	var v any
-	if json.Unmarshal(raw, &v) != nil {
-		return false
-	}
-	var walk func(v any) bool
-	walk = func(v any) bool {
-		switch x := v.(type) {
-		case []any:
-			for _, e := range x {
-				if walk(e) {
-					return true
-				}
-			}
-		case map[string]any:
-			for k, e := range x {
-				if schema.NameGuard.MatchString(k) || walk(e) {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	return walk(v)
 }
 
 // collectStrings adds the strings of a JSON value that are long enough to say

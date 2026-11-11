@@ -249,14 +249,11 @@ func (s *Store) loadTxns(ctx context.Context, ids []string) txnLookup {
 	sort.Strings(list)
 	got := make([]*Transaction, len(list))
 	s.each(len(list), func(i int) {
-		data, err := s.b.Get(ctx, "txn/"+list[i]+".json")
+		data, err := s.b.Get(ctx, txnKey(list[i]))
 		if err != nil {
 			return
 		}
-		var t Transaction
-		if json.Unmarshal(data, &t) == nil && t.ID == list[i] {
-			got[i] = &t
-		}
+		got[i] = decodeTxn(data, list[i])
 	})
 	byID := make(map[string]*Transaction, len(list))
 	for i, id := range list {
@@ -373,7 +370,7 @@ func (s *Store) secretTxn(t *Transaction, need protect.Role, claim secretClaim, 
 	}
 	if t.FinishSig == nil && t.StartSig != nil && t.Finished != nil {
 		// Finished, and the end is not signed. Only an admin's vouch for the start accepts it.
-		if vo, ok := rules.Vouched[t.ID]; ok && v.Start != protect.SigInvalid && vo.Key == t.StartSig.Key && vo.Digest == startDigest(lineage, t) {
+		if rules.VouchesOf(lineage, t).Start && v.Start != protect.SigInvalid {
 			if why := claim.find(t); why != "" {
 				return TrustProblem, why, v
 			}
@@ -394,10 +391,15 @@ func (s *Store) secretTxn(t *Transaction, need protect.Role, claim secretClaim, 
 		}
 		return TrustUnconfirmed, "the transaction " + t.ID + " did not finish", v
 	}
-	vouched := false
-	if vo, ok := rules.Vouched[t.ID]; ok && t.FinishSig != nil && vo.Key == t.FinishSig.Key && vo.Digest == VouchDigest(lineage, t) {
-		vouched = true
+	vouch := rules.VouchesOf(lineage, t)
+	if vouch.Unsigned {
+		// Nobody signed it, and an admin vouched for it by id and digest, as for a record.
+		if why := claim.find(t); why != "" {
+			return TrustProblem, why, v
+		}
+		return TrustVouched, "", v
 	}
+	vouched := vouch.Ended
 	switch v.Finish {
 	case protect.SigUnknownKey:
 		if !vouched {

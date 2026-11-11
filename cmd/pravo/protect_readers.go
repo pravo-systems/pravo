@@ -384,7 +384,7 @@ func roleProblem(rf readersFile, st *state.Store, need pravo.Role, what string) 
 		hintFile = "the readers file"
 	case rs.Unpinned:
 		role := pravo.RoleReader
-		if r, ok := pravo.RoleOf(rs.Stored, key); ok {
+		if r, ok := pravo.RoleOf(readers, key); ok { // already the lower of the file and the state
 			role = r
 		}
 		if role.Allows(need) {
@@ -436,7 +436,7 @@ func unnamedNotice(n int) string {
 
 // noteUnnamed prints the notice for st when it applies.
 func noteUnnamed(ctx context.Context, rt *runContext, root *config.Root, st *state.Store) {
-	if readers, ok := attributionReaders(readersOf(rt, root)); ok {
+	if readers, ok := readersOf(rt, root).attribution(st); ok {
 		if n := st.Unnamed(ctx, readers); n > 0 {
 			fmt.Fprintln(os.Stderr, unnamedNotice(n))
 		}

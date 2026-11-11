@@ -64,9 +64,7 @@ parts, such as prod/db_password.`,
 	pf := cmd.PersistentFlags()
 	pf.StringVar(&rt.flags.AccessDir, "access-dir", "", accessDirUsage)
 	// The tags select the state, so the commands that open it take them too.
-	pf.StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
-	addEnvFlag(rt, pf)
-	pf.BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
+	addTagFlagsTo(rt, pf)
 	cmd.AddCommand(secretSetCmd(rt), secretGetCmd(rt), secretListCmd(rt), secretHistoryCmd(rt), secretRmCmd(rt), secretPurgeCmd(rt), secretExecCmd(rt))
 	return cmd
 }

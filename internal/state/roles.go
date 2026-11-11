@@ -3,9 +3,6 @@ package state
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -201,8 +198,8 @@ type RolesStatus struct {
 // repository, as parsed, and pin is the digest its roles-genesis line holds, empty without the
 // line. With a pin, the chain decides, and the roles of the file only say what an admin asks
 // for; a pin without a chain, a chain that does not begin with the pin, or a chain that does
-// not verify is ErrUntrusted. Without a pin the readers file decides, and a chain is
-// reported and not used.
+// not verify is ErrUntrusted. Without a pin the readers file decides, lowered by a chain that
+// the state holds (protect.CapRoles): the chain only restricts.
 func (s *Store) RolesFor(ctx context.Context, file []protect.Reader, pin string) ([]protect.Reader, RolesStatus, error) {
 	st := RolesStatus{Source: "off"}
 	if protect.RolesOn(file) {
@@ -226,9 +223,11 @@ func (s *Store) RolesFor(ctx context.Context, file []protect.Reader, pin string)
 	case pin == "" && head == nil:
 		return file, st, nil
 	case pin == "":
+		// The chain only restricts: a file that dropped the pin line, or an old branch from
+		// before it, must not make a writer an admin. Every consumer gets the same answer.
 		st.Unpinned = true
 		st.Stored = head.Set
-		return file, st, nil
+		return protect.CapRoles(file, head.Set), st, nil
 	case head == nil:
 		return nil, st, fmt.Errorf("%w: the readers file pins the roles of the state, and the state has none", ErrUntrusted)
 	case chain.Versions[0].Digest() != pin:
@@ -345,25 +344,13 @@ func VouchDigest(lineage string, t *Transaction) string {
 	if t.FinishSig == nil && (t.Finished == nil || t.StartSig != nil) {
 		return ""
 	}
-	h := sha256.New()
-	put := func(b []byte) {
-		var n [8]byte
-		binary.BigEndian.PutUint64(n[:], uint64(len(b)))
-		h.Write(n[:])
-		h.Write(b)
-	}
-	put([]byte(lineage))
+	parts := [][]byte{[]byte(lineage)}
 	if t.FinishSig == nil {
-		put([]byte(protect.UnsignedKey))
-		put(nil)
+		parts = append(parts, []byte(protect.UnsignedKey), nil)
 	} else {
-		put([]byte(t.FinishSig.Key))
-		put(t.FinishSig.Sig)
+		parts = append(parts, []byte(t.FinishSig.Key), t.FinishSig.Sig)
 	}
-	for _, p := range txnFinishParts(t) {
-		put(p)
-	}
-	return hex.EncodeToString(h.Sum(nil))
+	return protect.DigestFramed(append(parts, txnFinishParts(t)...)...)
 }
 
 // StartVouchDigest is what an admin vouches for when an interrupted transaction t stays valid:
@@ -385,21 +372,8 @@ func startDigest(lineage string, t *Transaction) string {
 	if t.StartSig == nil {
 		return ""
 	}
-	h := sha256.New()
-	put := func(b []byte) {
-		var n [8]byte
-		binary.BigEndian.PutUint64(n[:], uint64(len(b)))
-		h.Write(n[:])
-		h.Write(b)
-	}
-	put([]byte("interrupted"))
-	put([]byte(lineage))
-	put([]byte(t.StartSig.Key))
-	put(t.StartSig.Sig)
-	for _, p := range txnStartParts(t) {
-		put(p)
-	}
-	return hex.EncodeToString(h.Sum(nil))
+	parts := [][]byte{[]byte("interrupted"), []byte(lineage), []byte(t.StartSig.Key), t.StartSig.Sig}
+	return protect.DigestFramed(append(parts, txnStartParts(t)...)...)
 }
 
 // LiveSigners lists, for each finished transaction (an unsigned one has the key protect.UnsignedKey) that is the latest writer of a
@@ -448,23 +422,22 @@ func (s *Store) LiveSigners(ctx context.Context) ([]protect.Vouch, error) {
 	var mu sync.Mutex
 	var firstErr error
 	s.each(len(list), func(i int) {
-		data, err := s.b.Get(ctx, "txn/"+list[i]+".json")
+		data, err := s.b.Get(ctx, txnKey(list[i]))
 		if errors.Is(err, ErrNotFound) {
 			return
 		}
-		var t Transaction
-		if err == nil {
-			err = json.Unmarshal(data, &t)
-		}
 		if err != nil {
 			mu.Lock()
-			firstErr = errors.Join(firstErr, fmt.Errorf("txn/%s.json: %w", list[i], err))
+			firstErr = errors.Join(firstErr, fmt.Errorf("%s: %w", txnKey(list[i]), err))
 			mu.Unlock()
 			return
 		}
-		if t.ID != list[i] {
+		// A damaged transaction is left out here as it is by every other reader.
+		tp := decodeTxn(data, list[i])
+		if tp == nil {
 			return
 		}
+		t := *tp
 		if t.Finished == nil {
 			if d := StartVouchDigest(s.Lineage(), &t); d != "" && t.Status == "running" && !live[t.ID] {
 				out[i] = protect.Vouch{Key: t.StartSig.Key, Txn: t.ID, Digest: d}

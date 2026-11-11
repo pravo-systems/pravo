@@ -2,7 +2,9 @@ package engine
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -51,29 +53,11 @@ func updatePlanFile(path string, sl state.Sealer, edit func(*PlanFile) error) er
 	if info, err := os.Stat(path); err == nil {
 		perm = info.Mode().Perm()
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
-	if err != nil {
+	err = filelock.WriteFileAtomic(path, out, filelock.AtomicOptions{Mode: perm, Sync: true, TempPattern: ".%s.*"})
+	if errors.Is(err, fs.ErrPermission) {
 		// The directory of the file cannot be written: write the file itself,
 		// still under the lock.
 		return os.WriteFile(path, out, perm)
 	}
-	_, werr := tmp.Write(out)
-	if werr == nil {
-		werr = tmp.Chmod(perm)
-	}
-	if werr == nil {
-		werr = tmp.Sync()
-	}
-	if cerr := tmp.Close(); werr == nil {
-		werr = cerr
-	}
-	if werr != nil {
-		_ = os.Remove(tmp.Name())
-		return werr
-	}
-	if err := filelock.Rename(tmp.Name(), path); err != nil {
-		_ = os.Remove(tmp.Name())
-		return err
-	}
-	return nil
+	return err
 }

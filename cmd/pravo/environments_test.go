@@ -327,7 +327,8 @@ func TestALadderWithoutASealWarns(t *testing.T) {
 		t.Fatalf("plan of a copied state: exit %d\n%s", code, text)
 	}
 	// So is every other command that writes the records, and the state is left as it was.
-	for _, args := range [][]string{{"state", "rm", "app"}, {"state", "mv", "app", "app2"}, {"import", "app", "x"}} {
+	for _, args := range [][]string{{"state", "rm", "app"}, {"state", "mv", "app", "app2"}, {"import", "app", "x"},
+		{"drift"}, {"state", "unlock", "--stale"}} {
 		text, code = runPravo(t, rt, l.dir, append(args, "--env", "prod")...)
 		if code != 5 || !strings.Contains(text, "this state serves the environment staging, and this run is for prod") {
 			t.Errorf("%s in a copied state: exit %d\n%s", strings.Join(args, " "), code, text)

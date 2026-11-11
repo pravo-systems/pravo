@@ -138,7 +138,7 @@ func (r *Recorder) Reads() map[string][]Ref {
 // Withheld says whether an attribute is withheld by what it is: the schema marks
 // it sensitive or write-only, or its name says it is a secret.
 func Withheld(name string, sensitive, writeOnly bool) bool {
-	return sensitive || writeOnly || schema.NameGuard.MatchString(name)
+	return sensitive || writeOnly || guardedName(name)
 }
 
 // TopSensitive lists the attributes and blocks of a type that are withheld by
@@ -152,7 +152,7 @@ func TopSensitive(b *schema.Block) map[string]bool {
 		}
 	}
 	for _, nb := range b.BlockTypes {
-		if schema.NameGuard.MatchString(nb.TypeName) || blockHoldsSensitive(nb.Block, 0) {
+		if guardedName(nb.TypeName) || blockHoldsSensitive(nb.Block, 0) {
 			out[nb.TypeName] = true
 		}
 	}
@@ -163,29 +163,12 @@ func nestedSensitive(o *schema.Object, depth int) bool {
 	if o == nil || depth > MaxDepth {
 		return false
 	}
-	for _, a := range o.Attributes {
-		if Withheld(a.Name, a.Sensitive, a.WriteOnly) || nestedSensitive(a.NestedType, depth+1) {
-			return true
-		}
-	}
-	return false
+	return blockHoldsSensitive(&schema.Block{Attributes: o.Attributes}, depth)
 }
 
 func blockHoldsSensitive(b *schema.Block, depth int) bool {
-	if b == nil || depth > MaxDepth {
-		return false
-	}
-	for _, a := range b.Attributes {
-		if Withheld(a.Name, a.Sensitive, a.WriteOnly) || nestedSensitive(a.NestedType, depth+1) {
-			return true
-		}
-	}
-	for _, nb := range b.BlockTypes {
-		if schema.NameGuard.MatchString(nb.TypeName) || blockHoldsSensitive(nb.Block, depth+1) {
-			return true
-		}
-	}
-	return false
+	return blockHolds(b, depth, func(a *schema.Attribute) bool { return Withheld(a.Name, a.Sensitive, a.WriteOnly) },
+		func(nb *schema.NestedBlock) bool { return guardedName(nb.TypeName) })
 }
 
 // Derived is the result of Derive: by node, the top-level fields that read

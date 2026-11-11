@@ -436,7 +436,7 @@ func TestOverlapsLeaveOutTheChangesThatConflict(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		over := Overlaps(es, mine.ID, mine.Changes)
+		over := OverlapsOf(es, mine)
 		if len(over) != 1 || over[0].Plan.ID != theirs.ID || strings.Join(over[0].Addrs, ",") != "b" {
 			t.Errorf("overlaps %+v", over)
 		}

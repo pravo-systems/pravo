@@ -85,3 +85,37 @@ func TestCapRoles(t *testing.T) {
 		t.Errorf("a key the chain does not list is %v, want reader", r)
 	}
 }
+
+// RolesFor is the one place that says which roles decide: with a chain the file does not pin
+// it hands every consumer (records, secrets, approvals, the viewer) the lower of the file and
+// the chain, not the file alone.
+func TestRolesForCapsAnUnpinnedChain(t *testing.T) {
+	b := newBoundHarness(t)
+	ctx := context.Background()
+	other, err := protect.NewIdentity("root", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := other.AsReader()
+	o.Role = protect.RoleAdmin
+	r := b.readers[0]
+	r.Role = protect.RoleAdmin
+	if err := b.state.ReplaceRoles(ctx, protect.FormatRolesSet([]protect.Reader{r, o}, nil, nil), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	r.Role = protect.RoleWriter
+	if err := b.state.PutRolesVersion(ctx, 2, protect.FormatRolesSet([]protect.Reader{r, o}, nil, nil), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	file := b.readers // the key is an admin in the file
+	got, st, err := b.state.RolesFor(ctx, file, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.Unpinned {
+		t.Fatal("the chain is not reported as unpinned")
+	}
+	if role, _ := protect.RoleOf(got, b.state.SigningKey()); role != protect.RoleWriter {
+		t.Errorf("RolesFor gives the key %v, want writer (the chain lowers the file)", role)
+	}
+}

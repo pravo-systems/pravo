@@ -647,19 +647,8 @@ func (s *Server) prettyDoc(m *model, d *studioDoc, v any, into *StudioDoc) strin
 // studioPlanOf describes a plan file for the list of plans: its counts are those of the summary of a plan.
 func studioPlanOf(ref, kind, label string, pf *engine.PlanFile) StudioPlan {
 	wp := StudioPlan{Ref: ref, Kind: kind, Label: label, Created: pf.Created, Open: true}
-	for _, sc := range pf.Changes {
-		switch sc.Action {
-		case engine.ActionCreate:
-			wp.Add++
-		case engine.ActionUpdate:
-			wp.Change++
-		case engine.ActionReplace:
-			wp.Add++
-			wp.Destroy++
-		case engine.ActionDelete:
-			wp.Destroy++
-		}
-	}
+	c := pf.Counts()
+	wp.Add, wp.Change, wp.Destroy = c.Add, c.Change, c.Destroy
 	return wp
 }
 

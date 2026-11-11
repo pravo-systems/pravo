@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -27,7 +26,6 @@ import (
 	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
-	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
 	"github.com/pravo-systems/pravo/pravo"
 )
@@ -368,9 +366,7 @@ func planCmd(rt *runContext) *cobra.Command {
 	cmd.Flags().DurationVar(&reserve, "reserve", 0, "reserve the nodes with pending changes for this long (e.g. 15m), so other actors cannot plan or apply them meanwhile")
 	// The tags select the state, so the commands that list stored plans take them too.
 	pf := cmd.PersistentFlags()
-	pf.StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
-	addEnvFlag(rt, pf)
-	pf.BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
+	addTagFlagsTo(rt, pf)
 	cmd.AddCommand(planCommands(rt)...)
 	return cmd
 }
@@ -398,17 +394,15 @@ func showCmd(rt *runContext) *cobra.Command {
 			}
 			defer s.close()
 			eng := s.engine(rt, engine.Options{})
-			plan, err := eng.LoadPlan(pf)
-			var stale *engine.ErrStalePlan
-			if errors.As(err, &stale) {
-				rt.out.Warning("this plan can no longer be applied: " + strings.Join(stale.Reasons, "; "))
-				plan, _ = eng.LoadPlanUnchecked(pf)
-			} else if err != nil {
+			plan, stale, err := loadToShow(eng, pf)
+			if err != nil {
 				return err
 			}
+			if stale != nil {
+				rt.out.Warning("this plan can no longer be applied: " + strings.Join(stale.Reasons, "; "))
+			}
 			if rt.flags.Markdown {
-				v := eng.NewView(plan, engine.ViewOptions{Redact: rt.flags.Withhold})
-				v.Actor, v.Reason, v.GitRevision = pf.Actor, pf.Reason, pf.GitRevision
+				v := showView(rt, eng, plan, pf, false)
 				opts := engine.MarkdownOptions{Title: "Saved plan"}
 				if stale != nil {
 					opts.Notes = append(opts.Notes, "**This plan can no longer be applied:** "+strings.Join(stale.Reasons, "; "))
@@ -419,10 +413,7 @@ func showCmd(rt *runContext) *cobra.Command {
 				return emitMarkdown(v.Markdown(opts))
 			}
 			if rt.flags.JSON {
-				v := eng.NewView(plan, engine.ViewOptions{Redact: rt.flags.Withhold})
-				v.Created, v.Actor, v.Reason, v.GitRevision = pf.Created, pf.Actor, pf.Reason, pf.GitRevision
-				v.Reservation = pf.Reservation
-				return emitJSON(map[string]any{"planfile": args[0], "stale": stale, "plan": v})
+				return emitJSON(map[string]any{"planfile": args[0], "stale": stale, "plan": showView(rt, eng, plan, pf, true)})
 			}
 			rt.out.Printf("%s created %s by %q", rt.out.C(ui.Bold, "Saved plan"), pf.Created.Local().Format("2006-01-02 15:04:05"), ui.Safe(pf.Command))
 			if pf.Actor != "" {
@@ -441,6 +432,29 @@ func showCmd(rt *runContext) *cobra.Command {
 	// A plan in the state is found by the state, which the tags select.
 	addTagFlags(rt, cmd)
 	return cmd
+}
+
+// loadToShow loads a plan to show it: one that can no longer be applied is shown all the same,
+// with the reasons in stale. Showing a plan from a file and from the store both read it here.
+func loadToShow(eng *engine.Engine, pf *engine.PlanFile) (*engine.Plan, *engine.ErrStalePlan, error) {
+	plan, err := eng.LoadPlan(pf)
+	var stale *engine.ErrStalePlan
+	if errors.As(err, &stale) {
+		plan, _ = eng.LoadPlanUnchecked(pf)
+		return plan, stale, nil
+	}
+	return plan, nil, err
+}
+
+// showView is the view of a plan that is shown, with who made it and why. full adds when it
+// was made and the reservation, which the JSON form carries and the Markdown form does not.
+func showView(rt *runContext, eng *engine.Engine, plan *engine.Plan, pf *engine.PlanFile, full bool) *engine.View {
+	v := eng.NewView(plan, engine.ViewOptions{Redact: rt.flags.Withhold})
+	v.Actor, v.Reason, v.GitRevision = pf.Actor, pf.Reason, pf.GitRevision
+	if full {
+		v.Created, v.Reservation = pf.Created, pf.Reservation
+	}
+	return v
 }
 
 // readPlanFile reads a plan file. A sealed one opens with the key of a reader of the
@@ -484,8 +498,7 @@ func isStoredRef(arg string) bool {
 }
 
 func addRunFlags(rt *runContext, cmd *cobra.Command, refresh *string, full *bool) {
-	cmd.Flags().StringVar(refresh, "refresh", "age", "when to read real state from providers: age (a record that the plan looks at, when it is older than its refresh age), expired (every record older than its refresh age), false (never) or all (every resource)")
-	cmd.Flags().Lookup("refresh").NoOptDefVal = "all"
+	addRefreshFlag(cmd, refresh)
 	cmd.Flags().BoolVar(full, "full", false, "plan every resource with its provider instead of skipping unchanged ones")
 	addWithholdFlag(rt, cmd)
 }
@@ -554,8 +567,7 @@ func destroyCmd(rt *runContext) *cobra.Command {
 			return runApply(rt, cmd, refresh, true, autoApprove, true, nil, allowDestroy, nil)
 		},
 	}
-	cmd.Flags().StringVar(&refresh, "refresh", "age", "when to read real state from providers: age, expired, false or all")
-	cmd.Flags().Lookup("refresh").NoOptDefVal = "all"
+	addRefreshFlag(cmd, &refresh)
 	cmd.Flags().BoolVar(&autoApprove, "auto-approve", false, "skip the interactive approval")
 	cmd.Flags().StringSliceVar(&allowDestroy, "allow-destroy", nil, "with --auto-approve: a resource whose $lifecycle.prevent_destroy went with its block that may be destroyed (repeatable)")
 	addTagFlags(rt, cmd)
@@ -598,112 +610,65 @@ func applySaved(rt *runContext, cmd *cobra.Command, path, refresh string, full b
 	}
 	eng := s.engine(rt, engine.Options{Refresh: engine.RefreshNone, AllowCreate: allowCreate})
 	eng.SetPlan("", pf.Digest)
-	mark := func(applied []string, txn string, pending []string, finished bool) error {
-		mark := engine.MarkApplied
-		if !finished {
-			mark = engine.MarkPartlyApplied
-		}
-		if err := mark(path, pf, applied, txn); err != nil {
-			return fmt.Errorf("the changes were applied but %s could not be updated: %w", path, err)
-		}
-		return nil
-	}
-	res, err := applyPlanFile(rt, cmd, eng, pf, path, "planfile", "pravo apply "+path, nil, only, mark)
+	res, err := applyPlanFile(rt, cmd, eng, pf, path, "planfile", "pravo apply "+path, only, fileSink{path: path, pf: pf})
 	if err != nil || res == nil || res.Deferred == 0 {
 		return err
 	}
 	return saveFollowUp(ctx, rt, s, path, res.Deferred)
 }
 
-// applyPlanFile applies what is left of a plan that was saved, in a file or in
-// the state. name says which, and kind is the key under which --json repeats it.
-// again is the command that applies the rest of the plan. mark records what was
-// applied: the changes, the transaction and the changes that were left to apply
-// when this apply began; finished says whether the apply ran to its end. An apply
-// that failed or was interrupted records the changes it did finish, and the error
-// it returns is the error of the apply.
-func applyPlanFile(rt *runContext, cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, name, kind, again string, next func() string, only []string, mark func(applied []string, txn string, pending []string, finished bool) error) (*engine.ApplyResult, error) {
-	ctx := cmd.Context()
-	plan, err := eng.LoadPlanFor(pf, only)
-	if err != nil {
-		return nil, engine.WithCode(engine.ExitStale, err)
-	}
-	remaining := plan.Remaining()
-	if !pf.LeftToApply(remaining) {
-		if rt.flags.JSON {
-			emitLine(map[string]any{"kind": "apply", "phase": "done", "message": "nothing left to apply", kind: name})
-			return nil, nil
-		}
-		rt.out.Println(rt.out.C(ui.Bold+ui.Green, "No changes.") + " The saved plan has nothing left to apply.")
-		return nil, nil
-	}
-	// The saved plan is judged whole, whatever -only selects, so that a limit
-	// on the size of a plan cannot be passed by applying it in stages.
-	eng.SetPlanFile(pf)
-	selected := remaining
-	if len(only) > 0 {
-		selected, err = plan.Subset(only)
-		if err != nil {
-			return nil, err
-		}
-		rt.out.Printf("Applying %d of %d remaining changes from %s.\n", selected.PendingCount(), remaining.PendingCount(), name)
-	}
-	res, err := eng.ApplySaved(ctx, selected)
-	if err != nil {
-		if res != nil && len(res.Applied) > 0 {
-			if len(only) > 0 {
-				again += " --only " + engine.ShellWord(strings.Join(only, ","))
-			}
-			recordPartial(rt, res, name, again, next, remaining.PendingAddrs(), mark)
-		}
-		return nil, err
-	}
-	var applied []string
-	for _, ch := range selected.Changes {
-		applied = append(applied, ch.Addr)
-	}
-	left := remaining.PendingCount() - selected.PendingCount()
-	if err := mark(applied, res.Txn, remaining.PendingAddrs(), true); err != nil {
-		return nil, err
-	}
-	reportApply(rt, res, plan.Destroy, kind, name, again, left)
-	return res, nil
+// fileSink keeps the progress of an apply in the plan file.
+type fileSink struct {
+	path string
+	pf   *engine.PlanFile
 }
 
-// recordPartial records in the saved plan the changes that an apply finished
-// before it failed or was interrupted, and says so, so that the rest of the plan
-// is applied by the same command. The error of the apply is the one the command
-// returns: a mark that fails is said here and does not replace it. The notice is
-// for the person who reads the output, and goes to the error stream with --json.
-//
-// next says what to do with the rest, once what was applied is recorded: it looks at
-// the plan as it stands then, since the records that the apply changed may have made
-// the rest of the plan stale. Without it the plan is a file, and the note says that
-// the same command applies the rest unless the resource that failed was changed.
-//
-// The number is that of the changes of the plan, which pending lists, and not of the
-// data sources and records that the apply also recorded: it is the number that
-// "plan list" gives.
-func recordPartial(rt *runContext, res *engine.ApplyResult, name, again string, next func() string, pending []string, mark func(applied []string, txn string, pending []string, finished bool) error) {
-	isChange := map[string]bool{}
-	for _, a := range pending {
-		isChange[a] = true
+func (k fileSink) Applied(_ context.Context, applied []string, txn string, _ []string) error {
+	return engine.MarkApplied(k.path, k.pf, applied, txn)
+}
+
+func (k fileSink) PartlyApplied(_ context.Context, applied []string, txn string) error {
+	return engine.MarkPartlyApplied(k.path, k.pf, applied, txn)
+}
+
+// Next is the default: a file has no state to look at.
+func (k fileSink) Next(context.Context, string) string { return "" }
+
+// applyPlanFile applies what is left of a plan that was saved, in a file or in the
+// state, with the one sequence of pravo.ApplySavedPlan, and says what happened. name says
+// which, and kind is the key under which --json repeats it. again is the command that
+// applies the rest of the plan. The error is the error of the apply.
+func applyPlanFile(rt *runContext, cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, name, kind, again string, only []string, sink pravo.SavedSink) (*engine.ApplyResult, error) {
+	sa, err := pravo.ApplySavedPlan(cmd.Context(), eng, pf, pravo.SavedApplyOptions{
+		Only: only, Name: name, Again: again, Sink: sink,
+		Selected: func(selected, left int) { reportSelected(rt, name, selected, left) },
+	})
+	if sa != nil && sa.Partial != nil {
+		reportPartial(rt, sa.Partial, name)
 	}
-	n := 0
-	for _, a := range res.Applied {
-		if isChange[a] {
-			n++
-		}
+	if err != nil {
+		return nil, err
 	}
-	if err := mark(res.Applied, res.Txn, nil, false); err != nil {
-		reportPartial(rt, &pravo.PartialApply{Count: n, RecordErr: err}, name)
+	if sa.NothingLeft {
+		reportNothingLeft(rt, kind, name)
+		return nil, nil
+	}
+	reportApply(rt, sa.Result, sa.Destroy, kind, name, again, sa.Left)
+	return sa.Result, nil
+}
+
+// reportSelected says how many of the remaining changes of a saved plan an apply with --only takes.
+func reportSelected(rt *runContext, name string, selected, left int) {
+	rt.out.Printf("Applying %d of %d remaining changes from %s.\n", selected, left, name)
+}
+
+// reportNothingLeft says that a saved plan has nothing left to apply.
+func reportNothingLeft(rt *runContext, kind, name string) {
+	if rt.flags.JSON {
+		emitLine(map[string]any{"kind": "apply", "phase": "done", "message": "nothing left to apply", kind: name})
 		return
 	}
-	step := fmt.Sprintf("run \"%s\" again to apply the rest; if the resource that failed was changed, the plan is stale and must be made again", again)
-	if next != nil {
-		step = next()
-	}
-	reportPartial(rt, &pravo.PartialApply{Count: n, Next: step}, name)
+	rt.out.Println(rt.out.C(ui.Bold+ui.Green, "No changes.") + " The saved plan has nothing left to apply.")
 }
 
 // reportPartial says what an apply that failed had applied, and what to do with the rest.
@@ -832,9 +797,9 @@ func confirmApply(rt *runContext, question string) (ok, noInput bool) {
 	rt.out.Println(rt.out.C(ui.Bold, question))
 	rt.out.Println("  Only 'yes' will be accepted to approve.")
 	rt.out.Printf("\n  %s ", rt.out.C(ui.Bold, "Enter a value:"))
-	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	line, read := readAnswer()
 	rt.out.Println()
-	return strings.TrimSpace(line) == "yes", err != nil && strings.TrimSpace(line) == ""
+	return line == "yes", !read
 }
 
 // reportApply prints the outcome of an apply, as text or as a final JSON line.
@@ -1000,14 +965,11 @@ func importCmd(rt *runContext) *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true})
+			s, err := newSession(ctx, rt, sessionOptions{install: true, schemas: true, loadState: true, editsRecords: true})
 			if err != nil {
 				return err
 			}
 			defer s.close()
-			if err := refuseOtherEnvironment(ctx, rt, s.root, s.state); err != nil {
-				return err
-			}
 			res := s.root.Resource(args[0])
 			if res == nil {
 				return fmt.Errorf("%s is not declared in the configuration; add it before importing", args[0])
@@ -1018,55 +980,22 @@ func importCmd(rt *runContext) *cobra.Command {
 			if s.state.Get(args[0]) != nil {
 				return fmt.Errorf("%s is already in state", args[0])
 			}
-			ps := s.schemas[res.LocalProvider()]
-			sch := ps.Resource(res.Type)
+			sch := s.schemas[res.LocalProvider()].Resource(res.Type)
 			// The engine hands the providers the configuration of their blocks (region, endpoint,
-			// credentials); without one the provider is configured with an empty block.
-			s.engine(rt, engine.Options{Command: "import"})
-			prov, err := s.providers.Provider(ctx, res.ProviderKey)
-			if err != nil {
-				return err
-			}
-			imported, diags, err := prov.ImportResourceState(ctx, res.Type, plugin.ImportTarget{ID: args[1]}, typesOf(ps))
-			if err != nil {
-				return err
-			}
-			if err := diags.Err(); err != nil {
-				return err
-			}
-			if len(imported) == 0 {
-				return fmt.Errorf("provider returned nothing for %s %q", res.Type, args[1])
-			}
-			imp := imported[0]
+			// credentials) and reads the object as a plan of an $import does.
+			eng := s.engine(rt, engine.Options{Command: "import"})
 			rt.out.Printf("%s: Importing from ID %q...\n", args[0], args[1])
-			newState, private, diags, err := prov.ReadResource(ctx, res.Type, imp.State, imp.Private)
+			node, err := eng.ImportRecord(ctx, res, sch, plugin.ImportTarget{ID: args[1]})
 			if err != nil {
 				return err
 			}
-			if err := diags.Err(); err != nil {
-				return err
-			}
-			if newState.IsNull() {
-				return fmt.Errorf("%s: provider reports that %q does not exist", args[0], args[1])
-			}
-			attrs, err := convert.ToJSON(newState)
-			if err != nil {
-				return err
-			}
-			if holder := engine.HeldBy(s.state, &state.Resource{Addr: res.Address(), Mode: "managed", Type: res.Type, ProviderKey: res.ProviderKey, Attributes: attrs}); holder != "" {
+			if holder := engine.HeldBy(s.state, node); holder != "" {
 				return engine.ErrHeld(args[0], args[1], holder)
 			}
-			rp := s.providers.Resolved[res.LocalProvider()]
 			txn := s.state.Begin("import", "pravo import "+args[0]+" "+args[1])
 			if err := txn.Start(); err != nil {
 				return err
 			}
-			protocol := ""
-			if rp.Protocol != config.ProtocolTfplugin {
-				protocol = rp.Protocol
-			}
-			node := &state.Resource{Addr: res.Address(), Mode: "managed", Type: res.Type, Name: res.Name, Provider: rp.Req.Source.String(), ProviderProtocol: protocol,
-				ProviderKey: res.ProviderKey, ProviderVersion: rp.Version, SchemaVersion: sch.Version, Attributes: attrs, Private: private, RefreshedAt: state.Now()}
 			if err := s.state.Set(node, txn.ID()); err != nil {
 				return err
 			}
@@ -1277,11 +1206,11 @@ func validateCmd(rt *runContext) *cobra.Command {
 				return engine.WithCode(engine.ExitInvalid, err)
 			}
 			if rt.flags.JSON {
-				return emitJSON(map[string]any{"valid": true, "resources": countMode(s.root, "managed"), "data_sources": countMode(s.root, "data"),
-					"ephemeral": countMode(s.root, "ephemeral"), "calls": countMode(s.root, "call"), "outputs": len(s.root.Outputs), "providers": len(s.root.Providers)})
+				return emitJSON(map[string]any{"valid": true, "resources": s.root.CountMode("managed"), "data_sources": s.root.CountMode("data"),
+					"ephemeral": s.root.CountMode("ephemeral"), "calls": s.root.CountMode("call"), "outputs": len(s.root.Outputs), "providers": len(s.root.Providers)})
 			}
 			rt.out.Printf("%s %d resources, %d data sources, %d ephemeral, %d function calls, %d outputs across %d providers.\n", rt.out.C(ui.Bold+ui.Green, "Success!"),
-				countMode(s.root, "managed"), countMode(s.root, "data"), countMode(s.root, "ephemeral"), countMode(s.root, "call"), len(s.root.Outputs), len(s.root.Providers))
+				s.root.CountMode("managed"), s.root.CountMode("data"), s.root.CountMode("ephemeral"), s.root.CountMode("call"), len(s.root.Outputs), len(s.root.Providers))
 			if h := hclHint(s.root); h != "" {
 				rt.out.Println()
 				rt.out.Println(h)
@@ -1381,7 +1310,7 @@ func validateEnvironments(rt *runContext, cmd *cobra.Command, list []config.Envi
 			if err := engine.CheckGraph(s.root, s.value, s.schemas); err != nil {
 				return err
 			}
-			r.Resources, r.DataSources, r.Outputs = countMode(s.root, "managed"), countMode(s.root, "data"), len(s.root.Outputs)
+			r.Resources, r.DataSources, r.Outputs = s.root.CountMode("managed"), s.root.CountMode("data"), len(s.root.Outputs)
 			return nil
 		}()
 		r.Valid = err == nil
@@ -1436,16 +1365,6 @@ func validateEnvironments(rt *runContext, cmd *cobra.Command, list []config.Envi
 	}
 	rt.out.Printf("%s The specification is valid in %s.\n", rt.out.C(ui.Bold+ui.Green, "Success!"), joinAnd(names))
 	return nil
-}
-
-func countMode(root *config.Root, mode string) int {
-	n := 0
-	for _, r := range root.Resources {
-		if r.Mode == mode {
-			n++
-		}
-	}
-	return n
 }
 
 // withHiddenFields returns v with its top-level hidden fields (the locals, _x) also

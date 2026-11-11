@@ -531,7 +531,7 @@ func (e *Engine) recordHolds(sr *state.Resource, ch *Change, read tftypes.Value)
 		return false
 	}
 	attrs, err := convert.ToJSON(read)
-	return err == nil && jsonEqual(attrs, sr.Attributes)
+	return err == nil && sameAttributes(attrs, sr.Attributes)
 }
 
 // renewData records the time of a read that found the record of a data source

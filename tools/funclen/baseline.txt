@@ -1,10 +1,9 @@
 # Functions longer than 100 lines, with their length. The check in funclen_test.go
 # lets an entry shrink and fails when it grows; when a function is brought under the
 # limit, delete its line (or run FUNCLEN_UPDATE=1 go test ./tools/funclen).
-cmd/pravo/commands.go planCmd 120
+cmd/pravo/commands.go planCmd 118
 cmd/pravo/commands.go runApply 102
 cmd/pravo/environments_cmd.go diffEnvironments 112
-cmd/pravo/planstore.go showStored 102
 cmd/pravo/protect_rewrap.go protectRun.rewrap 112
 cmd/pravo/statecmd.go stateLogCmd 110
 cmd/pravo/unseal.go protectRun.unseal 108
@@ -24,7 +23,7 @@ internal/engine/providers.go Providers.Resolve 129
 internal/schema/cue.go GenerateCUE 147
 internal/serve/detail.go model.detailFor 131
 internal/serve/model.go Server.newModel 147
-internal/serve/plan.go Server.overlay 128
+internal/serve/plan.go Server.overlay 113
 internal/serve/policies.go model.buildPolicies 109
 internal/serve/secrets.go model.buildSecrets 118
 internal/serve/server.go Server.api 102
@@ -34,8 +33,6 @@ internal/serve/templates.go model.buildTemplates 127
 internal/serve/templates.go templateInputs 101
 internal/serve/templates_inputs.go model.choicesOf 102
 internal/serve/traces.go Server.traces 104
-internal/state/seal_upgrade.go Store.upgradeSealed 110
 internal/telemetry/telemetry.go Setup 118
 internal/tfstate/tfstate.go Convert 116
 internal/ui/ui.go Printer.RenderPlan 117
-pravo/stored.go Workspace.ApplyStored 101

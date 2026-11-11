@@ -49,7 +49,7 @@ $random: rnd.#Provider
 dice: $random.#Resource.random_integer & {min: 1, max: 6}
 ```
 
-A wrong id is the provider's error, printed as it arrives. Nothing is recorded.
+A wrong id is the provider's error, with the resource and the id in front of it. Nothing is recorded.
 
 ```sh
 pravo init > /dev/null
@@ -59,7 +59,9 @@ pravo import dice nonsense
 Output:
 
 ```text
-Error: Import Random Integer Error: Invalid import usage: expecting {result},{min},{max} or {result},{min},{max},{seed}
+dice: Importing from ID "nonsense"...
+
+Error: dice: importing "nonsense": Import Random Integer Error: Invalid import usage: expecting {result},{min},{max} or {result},{min},{max},{seed}
 ```
 
 The right id records the node.

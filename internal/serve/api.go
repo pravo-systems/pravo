@@ -596,6 +596,10 @@ type PlanOverlap struct {
 	Count     int      `json:"count"`
 	Addrs     []string `json:"addrs"`
 	Truncated int      `json:"truncated,omitempty"`
+	// Changes are the records that the other plan changes and this one reads, ReadBy
+	// those that this one changes and the other reads.
+	Changes []string `json:"changes,omitempty"`
+	ReadBy  []string `json:"read_by,omitempty"`
 }
 
 // StoredPlan is a plan that was stored in the state with "pravo plan --store",

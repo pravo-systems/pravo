@@ -7,11 +7,15 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+
+	"github.com/pravo-systems/pravo/internal/convert"
 )
 
 // recordedProvider is a provider that answers every call with a fixed value.
@@ -257,10 +261,12 @@ func TestRecordingKeepsNoRequestValues(t *testing.T) {
 			sawConfigure = true
 		}
 		for _, secret := range []string{secretToken, secretWriteOnl} {
-			if packed := packed(providerConfig(secret)); strings.Contains(string(data), secret) || strings.Contains(string(data), base64.StdEncoding.EncodeToString(packed)) {
+			packedConfig, _ := convert.Pack(providerConfig(secret))
+			if strings.Contains(string(data), secret) || strings.Contains(string(data), base64.StdEncoding.EncodeToString(packedConfig)) {
 				t.Errorf("%s holds the value %q that a request carried", filepath.Base(f), secret)
 			}
-			if packed := packed(thingValue("", "web", secret)); strings.Contains(string(data), base64.StdEncoding.EncodeToString(packed)) {
+			packedThing, _ := convert.Pack(thingValue("", "web", secret))
+			if strings.Contains(string(data), base64.StdEncoding.EncodeToString(packedThing)) {
 				t.Errorf("%s holds the request that carried %q", filepath.Base(f), secret)
 			}
 		}
@@ -363,5 +369,116 @@ func TestRecordingReplaysLegacyApply(t *testing.T) {
 	}
 	if !app.LegacyTypeSystem {
 		t.Error("a replayed apply lost the legacy type system flag")
+	}
+}
+
+// TestUnpackedFailsOnACorruptRecording: a recorded value that does not decode is an error, as it
+// is for a saved plan, and not a null that the replay goes on with.
+func TestUnpackedFailsOnACorruptRecording(t *testing.T) {
+	obj := tftypes.Object{AttributeTypes: map[string]tftypes.Type{"id": tftypes.String}}
+	if v, err := unpacked(nil, obj); err != nil || !v.IsNull() {
+		t.Errorf("an empty record = %v, %v; want a null of the type", v, err)
+	}
+	if _, err := unpacked([]byte("\xff\xfe not msgpack"), obj); err == nil {
+		t.Error("a corrupt record unpacked without an error")
+	}
+	b, err := convert.Pack(tftypes.NewValue(obj, map[string]tftypes.Value{"id": tftypes.NewValue(tftypes.String, "x")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, err := unpacked(b, obj); err != nil || v.IsNull() {
+		t.Errorf("a good record = %v, %v", v, err)
+	}
+}
+
+// allSet fails the test for a field of a result that a fixture leaves at its zero value, so
+// that a field added to a result has to be added to the fixture, and so to the record.
+func allSet(t *testing.T, name string, v any) {
+	t.Helper()
+	rv := reflect.ValueOf(v).Elem()
+	for i := range rv.NumField() {
+		if rv.Field(i).IsZero() {
+			t.Errorf("%s.%s is zero in the fixture: set it, and record and replay it", name, rv.Type().Field(i).Name)
+		}
+	}
+}
+
+// fieldsProvider returns results with every field set.
+type fieldsProvider struct{ recordedProvider }
+
+var renewAt = time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
+
+func (fieldsProvider) PlanResourceChange(context.Context, string, tftypes.Value, tftypes.Value, tftypes.Value, []byte) (*PlanResult, Diagnostics, error) {
+	return &PlanResult{
+		PlannedState: thingValue("id-1", "web", ""),
+		RequiresReplace: []*tftypes.AttributePath{
+			tftypes.NewAttributePath().WithAttributeName("ebs").WithElementKeyInt(0).WithAttributeName("size"),
+			tftypes.NewAttributePath().WithAttributeName("tags").WithElementKeyString("env"),
+		},
+		PlannedPrivate:   []byte("plan-private"),
+		LegacyTypeSystem: true,
+	}, nil, nil
+}
+
+func (fieldsProvider) ApplyResourceChange(context.Context, string, tftypes.Value, tftypes.Value, tftypes.Value, []byte) (*ApplyResult, Diagnostics, error) {
+	return &ApplyResult{NewState: thingValue("id-1", "web", ""), Private: []byte("apply-private"), LegacyTypeSystem: true}, nil, nil
+}
+
+func (fieldsProvider) OpenEphemeral(context.Context, string, tftypes.Value) (*EphemeralResult, Diagnostics, error) {
+	at := renewAt
+	return &EphemeralResult{Result: thingValue("id-1", "web", ""), Private: []byte("eph-private"), RenewAt: &at, Deferred: true}, nil, nil
+}
+
+// TestEveryResultFieldSurvivesARecording records results with every field set and replays
+// them: a field that a record leaves out comes back empty, as the legacy flag of an apply and
+// the deferral of an ephemeral resource once did.
+func TestEveryResultFieldSurvivesARecording(t *testing.T) {
+	ctx := context.Background()
+	dir := filepath.Join(t.TempDir(), "rec", "thing")
+	r, err := NewRecorder(fieldsProvider{}, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := thingValue("", "web", "x")
+	plan, _, _ := r.PlanResourceChange(ctx, "thing", cfg, cfg, cfg, nil)
+	app, _, _ := r.ApplyResourceChange(ctx, "thing", cfg, cfg, cfg, nil)
+	eph, _, _ := r.OpenEphemeral(ctx, "thing", cfg)
+	allSet(t, "PlanResult", plan)
+	allSet(t, "ApplyResult", app)
+	allSet(t, "EphemeralResult", eph)
+
+	rp, err := NewReplayer(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotPlan, _, err := rp.PlanResourceChange(ctx, "thing", cfg, cfg, cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotApp, _, err := rp.ApplyResourceChange(ctx, "thing", cfg, cfg, cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotEph, _, err := rp.OpenEphemeral(ctx, "thing", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, pair := range map[string][2]any{"plan": {plan, gotPlan}, "apply": {app, gotApp}, "ephemeral": {eph, gotEph}} {
+		if !reflect.DeepEqual(pair[0], pair[1]) {
+			t.Errorf("a replayed %s differs from the recorded one:\n live   %+v\n replay %+v", name, pair[0], pair[1])
+		}
+	}
+}
+
+// A recording made before the paths were kept holds the first attribute name of each path;
+// it still replays, as that name.
+func TestReplayReadsTheReplacePathsOfAnOldRecording(t *testing.T) {
+	rec := &record{Values: map[string][]byte{}, Extra: []byte(`{"requires_replace":["ami"]}`)}
+	res, err := planOf(rec, thingType)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.RequiresReplace) != 1 || res.RequiresReplace[0].String() != `AttributeName("ami")` {
+		t.Errorf("paths = %v", res.RequiresReplace)
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -23,8 +22,11 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/filelock"
 	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 )
 
 // A plan converts the configuration of every resource to tell whether it is
@@ -195,14 +197,9 @@ var memoChecks atomic.Int64
 // hk is the keyed digest of the parts.
 func (e *Engine) hk(parts ...string) string {
 	h := hmac.New(sha256.New, e.Opts.Memo.Key)
-	var n [8]byte
-	binary.BigEndian.PutUint64(n[:], uint64(len(memoVersion)))
-	h.Write(n[:])
-	h.Write([]byte(memoVersion))
+	protect.WriteFramed(h, []byte(memoVersion))
 	for _, p := range parts {
-		binary.BigEndian.PutUint64(n[:], uint64(len(p)))
-		h.Write(n[:])
-		h.Write([]byte(p))
+		protect.WriteFramed(h, []byte(p))
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
@@ -257,15 +254,7 @@ func (e *Engine) memoEnd(ctx context.Context, err error) {
 	if os.MkdirAll(filepath.Dir(path), 0o700) != nil {
 		return
 	}
-	tmp, terr := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*")
-	if terr != nil {
-		return
-	}
-	_, werr := tmp.Write(data)
-	cerr := tmp.Close()
-	if werr != nil || cerr != nil || os.Rename(tmp.Name(), path) != nil {
-		os.Remove(tmp.Name())
-	}
+	_ = filelock.WriteFileAtomic(path, data, filelock.AtomicOptions{TempPattern: "%s.*"})
 }
 
 // memoRun clears what the memo holds of one walk.
@@ -416,12 +405,12 @@ func (e *Engine) coveredTop(blk *schema.Block) map[string]bool {
 	}
 	top := map[string]bool{}
 	for _, a := range blk.Attributes {
-		if !attributesHaveWriteOnly([]*schema.Attribute{a}) {
+		if !sensitivity.HasWriteOnly(&schema.Block{Attributes: []*schema.Attribute{a}}) {
 			top[a.Name] = true
 		}
 	}
 	for _, nb := range blk.BlockTypes {
-		if !blockHasWriteOnly(nb.Block) {
+		if !sensitivity.HasWriteOnly(nb.Block) {
 			top[nb.TypeName] = true
 		}
 	}

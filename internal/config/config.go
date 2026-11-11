@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io/fs"
 	"os"
 	"path"
@@ -467,6 +468,17 @@ func (o *Output) ValuePath() cue.Path {
 
 // hasResourcesUnder reports whether some declared resource sits below the
 // path addr.
+// CountMode is the number of declared nodes of a mode: managed, data, ephemeral or call.
+func (r *Root) CountMode(mode string) int {
+	n := 0
+	for _, res := range r.Resources {
+		if res.Mode == mode {
+			n++
+		}
+	}
+	return n
+}
+
 func (r *Root) hasResourcesUnder(addr string) bool {
 	p := cue.ParsePath(addr)
 	if p.Err() != nil {
@@ -833,16 +845,13 @@ func (r *Root) SharedModule() bool {
 	return r.ModRoot != "" && r.ModRoot != r.Dir
 }
 
-// Fingerprint digests every CUE file of the root (the package directory and
-// cue.mod), so that a saved plan can detect configuration changes.
-func Fingerprint(dir string) (string, error) {
-	h := sha256.New()
-	var files []string
-	top, err := filepath.Glob(filepath.Join(dir, "*.cue"))
+// cueFilesOf lists the CUE files that a root digests: those of its package directory and of
+// cue.mod, in sorted order.
+func cueFilesOf(dir string) ([]string, error) {
+	files, err := filepath.Glob(filepath.Join(dir, "*.cue"))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	files = append(files, top...)
 	_ = filepath.WalkDir(filepath.Join(dir, "cue.mod"), func(p string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".cue") {
 			files = append(files, p)
@@ -850,14 +859,32 @@ func Fingerprint(dir string) (string, error) {
 		return nil
 	})
 	sort.Strings(files)
+	return files, nil
+}
+
+// digestFrame writes one file into a digest: its name, its length and its bytes. A digest of
+// files is made only with it, so that the fingerprint of a root, the hash of a module and a saved
+// plan that compares them frame a file the same way.
+func digestFrame(h hash.Hash, name string, data []byte) {
+	fmt.Fprintf(h, "%s\x00%d\x00", name, len(data))
+	h.Write(data)
+}
+
+// Fingerprint digests every CUE file of the root (the package directory and
+// cue.mod), so that a saved plan can detect configuration changes.
+func Fingerprint(dir string) (string, error) {
+	h := sha256.New()
+	files, err := cueFilesOf(dir)
+	if err != nil {
+		return "", err
+	}
 	for _, f := range files {
 		data, err := os.ReadFile(f)
 		if err != nil {
 			return "", err
 		}
 		rel, _ := filepath.Rel(dir, f)
-		fmt.Fprintf(h, "%s\x00%d\x00", filepath.ToSlash(rel), len(data))
-		h.Write(data)
+		digestFrame(h, filepath.ToSlash(rel), data)
 	}
 	return hex.EncodeToString(h.Sum(nil))[:32], nil
 }
@@ -865,18 +892,10 @@ func Fingerprint(dir string) (string, error) {
 // FileHashes lists the files that Fingerprint(dir) digests, each by its path
 // below dir and a short digest of its contents.
 func FileHashes(dir string) (map[string]string, error) {
-	var files []string
-	top, err := filepath.Glob(filepath.Join(dir, "*.cue"))
+	files, err := cueFilesOf(dir)
 	if err != nil {
 		return nil, err
 	}
-	files = append(files, top...)
-	_ = filepath.WalkDir(filepath.Join(dir, "cue.mod"), func(p string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".cue") {
-			files = append(files, p)
-		}
-		return nil
-	})
 	out := map[string]string{}
 	for _, f := range files {
 		data, err := os.ReadFile(f)

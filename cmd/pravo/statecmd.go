@@ -31,9 +31,7 @@ func stateCmd(rt *runContext) *cobra.Command {
 	// The tags select the state that $settings.state.path names, as they do
 	// for the commands that load the specification.
 	pf := cmd.PersistentFlags()
-	pf.StringArrayVarP(&rt.flags.Tags, "tag", "t", nil, tagUsage)
-	addEnvFlag(rt, pf)
-	pf.BoolVarP(&rt.flags.SysTags, "inject-vars", "T", false, sysTagsUsage)
+	addTagFlagsTo(rt, pf)
 	// Subcommands run with their own context; the parent's is never set.
 	load := func() (*state.Store, error) {
 		root, err := loadRoot(rt)
@@ -49,15 +47,7 @@ func stateCmd(rt *runContext) *cobra.Command {
 		if err != nil {
 			return nil, err
 		}
-		st, err := openState(commandContext(), rt, root)
-		if err != nil {
-			return nil, err
-		}
-		if err := refuseOtherEnvironment(commandContext(), rt, root, st); err != nil {
-			st.Close()
-			return nil, err
-		}
-		return st, nil
+		return openStateEdit(commandContext(), rt, root)
 	}
 	// loadRead is for the subcommands that only look: a state that does not
 	// exist is empty, and none is created.
@@ -88,7 +78,7 @@ func stateCmd(rt *runContext) *cobra.Command {
 			if prot := st.Protection(); prot.Sealed != nil && !st.Locked() {
 				var readers []pravo.Reader
 				if root, err := loadRoot(rt); err == nil {
-					readers, _ = attributionReaders(readersOf(rt, root))
+					readers, _ = readersOf(rt, root).attribution(st)
 				}
 				if err := st.CheckLoadedNodes(commandContext(), readers); err != nil {
 					st.Close()
@@ -108,7 +98,7 @@ func stateCmd(rt *runContext) *cobra.Command {
 		stateProbeCmd(rt),
 		stateLocksCmd(rt, loadRead),
 		upgradeCmd(rt, load),
-		unlockCmd(rt, load),
+		unlockCmd(rt, loadEdit),
 		stateCopyCmd(rt, load, "pull <dir>", "Copy the configured state graph into a local directory", false),
 		stateCopyCmd(rt, load, "push <dir>", "Copy a local state directory into the configured backend", true),
 		stateEdgesCmd(rt, whole(loadRead)),
@@ -383,7 +373,7 @@ func stateLogCmd(rt *runContext, loadRead func() (*state.Store, error)) *cobra.C
 			readers, checked := []pravo.Reader(nil), false
 			if prot := st.Protection(); prot.Sealed != nil {
 				if root, err := loadRoot(rt); err == nil {
-					readers, checked = attributionReaders(readersOf(rt, root))
+					readers, checked = readersOf(rt, root).attribution(st)
 				}
 			}
 			verdicts := make([]state.TxnVerdict, len(txns))

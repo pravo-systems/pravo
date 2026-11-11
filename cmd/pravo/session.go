@@ -61,6 +61,9 @@ type sessionOptions struct {
 	root *config.Root
 	// relockModules accepts changed module content (pravo init).
 	relockModules bool
+	// editsRecords is set by a command that changes the records outside a plan and an apply
+	// (import, discover): it refuses a state that serves another environment, as openStateEdit does.
+	editsRecords bool
 }
 
 // loadRoot loads and evaluates the specification in the working directory. An
@@ -122,6 +125,12 @@ func newSession(ctx context.Context, rt *runContext, opts sessionOptions) (*sess
 				st.Close()
 				return nil, err
 			}
+			if opts.editsRecords {
+				if err := refuseOtherEnvironment(ctx, rt, root, st); err != nil {
+					st.Close()
+					return nil, err
+				}
+			}
 			return st, nil
 		},
 		// Looked for only when remote_outputs meets a sealed state, so that a command
@@ -147,9 +156,6 @@ func newSession(ctx context.Context, rt *runContext, opts sessionOptions) (*sess
 	}
 	return s, nil
 }
-
-// took is the time since began, to the millisecond, as the debug log writes it.
-func took(began time.Time) time.Duration { return time.Since(began).Round(time.Millisecond) }
 
 func (s *session) close() {
 	if s == nil {
@@ -200,6 +206,22 @@ func (s *session) readersInto(rt *runContext, opts *engine.Options) {
 // openState opens the configured state backend.
 func openState(ctx context.Context, rt *runContext, root *config.Root) (*state.Store, error) {
 	return openStateStore(ctx, rt, root)
+}
+
+// openStateEdit opens the state for a command that changes its records outside a plan and an
+// apply (state rm, import, secret set, unlock, a plan approval): a state whose record serves
+// another environment than the one the specification was loaded for is refused, as a plan and
+// an apply refuse it. Every such command opens the state here, so none leaves the check out.
+func openStateEdit(ctx context.Context, rt *runContext, root *config.Root) (*state.Store, error) {
+	st, err := openState(ctx, rt, root)
+	if err != nil {
+		return nil, err
+	}
+	if err := refuseOtherEnvironment(ctx, rt, root, st); err != nil {
+		st.Close()
+		return nil, err
+	}
+	return st, nil
 }
 
 // openStateStore opens the state of the root for a command that writes it. A
@@ -391,7 +413,7 @@ func openStateReadOnlyWhy(ctx context.Context, rt *runContext, root *config.Root
 	began := time.Now()
 	st, why, err := openStateAs(ctx, rt, root, false, true, false)
 	if err == nil {
-		plog.Debug(ctx, "state opened for reading", "backend", pravo.BackendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", took(began))
+		plog.Debug(ctx, "state opened for reading", "backend", pravo.BackendName(root.State.Backend), "location", st.Dir(), "nodes", st.Len(), "took", plog.Took(began))
 	}
 	return st, why, err
 }

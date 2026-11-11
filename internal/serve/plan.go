@@ -14,6 +14,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -189,23 +190,8 @@ func (s *Server) overlay(ctx context.Context, m *model, pf *engine.PlanFile, dis
 		}
 		po.info.Summary.Add, po.info.Summary.Change, po.info.Summary.Destroy, po.info.Summary.Read = plan.Counts()
 	} else {
-		for _, sc := range pf.Changes {
-			switch sc.Action {
-			case engine.ActionCreate:
-				po.info.Summary.Add++
-			case engine.ActionUpdate:
-				po.info.Summary.Change++
-			case engine.ActionReplace:
-				po.info.Summary.Add++
-				po.info.Summary.Destroy++
-			case engine.ActionDelete:
-				po.info.Summary.Destroy++
-			case engine.ActionRead:
-				if !sc.Skipped {
-					po.info.Summary.Read++
-				}
-			}
-		}
+		c := pf.Counts()
+		po.info.Summary.Add, po.info.Summary.Change, po.info.Summary.Destroy, po.info.Summary.Read = c.Add, c.Change, c.Destroy, c.Read
 	}
 	po.info.Hints = renameHints(m, pf)
 	if len(po.info.Reasons) > 0 {
@@ -346,31 +332,21 @@ func (s *Server) planEngine(m *model, pf *engine.PlanFile) (*engine.Engine, erro
 	return engine.New(root, m.store, provs, schemas, root.Value, engine.Options{}), nil
 }
 
-// staleReasons judges a plan whose values cannot be decoded, from the parts that
-// need no schema: the configuration, the state it was made against, and the
-// revisions of the records it changes.
+// staleReasons judges a plan whose values cannot be decoded with the function that
+// the apply of a plan uses, over the facts the viewer holds: the configuration, the
+// state, and the versions of the records the plan writes or reads. The versions of
+// the providers are not known here, and a plan is not judged on them.
 func (s *Server) staleReasons(m *model, pf *engine.PlanFile) (bool, []string) {
-	var reasons []string
-	if m.spec.root != nil {
-		if reason := engine.ConfigChange(m.spec.root, pf); reason != "" {
-			reasons = append(reasons, reason)
-		}
-	}
-	if pf.Lineage != m.store.Lineage() {
-		reasons = append(reasons, "the plan was made against a different state (lineage mismatch)")
-	}
-	for _, sc := range pf.Changes {
-		if sc.Applied || sc.Skipped || sc.Kept || sc.Action == engine.ActionMove {
-			continue
-		}
-		have := 0
-		if rec := m.store.Get(sc.Addr); rec != nil {
-			have = rec.Revision
-		}
-		if have != sc.PriorRevision {
-			reasons = append(reasons, fmt.Sprintf("%s changed in the state since the plan was made (revision %d, the plan expected %d)", sc.Addr, have, sc.PriorRevision))
-		}
-	}
+	reasons := pf.StaleReasons(engine.StaleFacts{
+		Root: m.spec.root, Lineage: m.store.Lineage(),
+		Version: func(addr string) state.Version {
+			if rec := m.store.Get(addr); rec != nil {
+				return state.Version{Revision: rec.Revision, Generation: rec.Generation}
+			}
+			return state.Version{}
+		},
+		Heads: m.store.Versions,
+	})
 	return len(reasons) > 0, reasons
 }
 
@@ -684,7 +660,7 @@ func (d *differ) leafOf(path string, redact, made bool, before, after tftypes.Va
 			d.sink.addMade(d.origin, toJSONValue(ad))
 		}
 	}
-	if !redact && (d.secrets.leaksIn(toJSONValue(bd)) || d.secrets.leaksIn(toJSONValue(ad)) || hasGuardedKey(bd) || hasGuardedKey(ad)) {
+	if !redact && (d.secrets.leaksIn(toJSONValue(bd)) || d.secrets.leaksIn(toJSONValue(ad)) || sensitivity.HasGuardedKey(bd) || sensitivity.HasGuardedKey(ad)) {
 		redact = true
 	}
 	ch := AttrChange{Path: path, AfterUnknown: aUnk}
@@ -717,27 +693,7 @@ func toJSONValue(v any) any {
 	return v
 }
 
-// hasGuardedKey reports whether a value holds a map or object with a key that
-// looks like a secret, at any depth.
-func hasGuardedKey(v any) bool {
-	switch x := v.(type) {
-	case []any:
-		for _, e := range x {
-			if hasGuardedKey(e) {
-				return true
-			}
-		}
-	case map[string]any:
-		for k, e := range x {
-			if guarded(k) || hasGuardedKey(e) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func blockSensitive(b *schema.Block) bool { return len(sensitiveNames(b)) > 0 }
+func blockSensitive(b *schema.Block) bool { return len(sensitivity.SensitiveNames(b)) > 0 }
 
 func (d *differ) subtreeSensitive(attrs []*schema.Attribute) bool {
 	return blockSensitive(&schema.Block{Attributes: attrs})

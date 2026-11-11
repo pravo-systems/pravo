@@ -406,7 +406,7 @@ func readersKey(readers []protect.Reader) string {
 // not in the result, so a caller that needs the facts of one kind does not pay for the plans,
 // edits and secret sets of the state. A transaction without a hint is read.
 func (s *Store) signedFactsOf(ctx context.Context, readers []protect.Reader, kinds ...string) (map[string]txnFacts, error) {
-	keys, err := s.b.List(ctx, "txn")
+	keys, err := s.txnKeys(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -420,13 +420,7 @@ func (s *Store) signedFactsOf(ctx context.Context, readers []protect.Reader, kin
 	var ids []string
 	s.listedMu.Lock()
 	for _, k := range keys {
-		id, ok := strings.CutPrefix(k, "txn/")
-		if !ok {
-			continue
-		}
-		if id, ok = strings.CutSuffix(id, ".json"); !ok {
-			continue
-		}
+		id, _ := txnIDOf(k)
 		if k, ok := hints[id]; ok && !slices.Contains(kinds, k) {
 			continue
 		}
@@ -451,11 +445,11 @@ func (s *Store) signedFactsOf(ctx context.Context, readers []protect.Reader, kin
 		if err != nil {
 			return
 		}
-		var t Transaction
-		if json.Unmarshal(data, &t) != nil || t.ID != ids[i] {
+		t := decodeTxn(data, ids[i])
+		if t == nil {
 			return
 		}
-		got[i] = read{f: factsOf(&t, readers, lineage), ok: true, keep: t.Finished != nil && t.FinishSig != nil}
+		got[i] = read{f: factsOf(t, readers, lineage), ok: true, keep: t.Finished != nil && t.FinishSig != nil}
 	})
 	s.listedMu.Lock()
 	defer s.listedMu.Unlock()
@@ -485,18 +479,20 @@ func writerKey(readers []protect.Reader, sig *protect.Signature) bool {
 // factsOf returns what the signatures of t vouch for.
 func factsOf(t *Transaction, readers []protect.Reader, lineage string) txnFacts {
 	var f txnFacts
+	// The same judgement of the signatures as the records and the secrets get. A run that has
+	// not finished says what it may remove in its signed start, so its changes do not make it
+	// altered here; a finished one whose start and end were signed by two keys does.
+	verdict := VerifyTransaction(lineage, t, readers)
 	started := false
 	if (len(t.Policies) > 0 || len(t.Removes) > 0) && t.StartSig != nil {
-		st, _ := protect.VerifySignature(t.StartSig, readers, protect.DomainTxnStart, lineage, txnStartParts(t)...)
-		started = st == protect.SigVerified && writerKey(readers, t.StartSig)
+		started = verdict.Start == protect.SigVerified && writerKey(readers, t.StartSig)
 	}
 	if started {
 		f.policies = append(f.policies, t.Policies...)
 	}
 	finished := false
 	if t.FinishSig != nil && t.Finished != nil {
-		st, _ := protect.VerifySignature(t.FinishSig, readers, protect.DomainTxnFinish, lineage, txnFinishParts(t)...)
-		finished = st == protect.SigVerified && writerKey(readers, t.FinishSig)
+		finished = verdict.Finish == protect.SigVerified && !verdict.Altered && writerKey(readers, t.FinishSig)
 	}
 	if !finished {
 		if started {
@@ -553,7 +549,7 @@ func (s *Store) txnBytes(ctx context.Context, id string) ([]byte, error) {
 	if data, ok := s.txnRead.Load(id); ok {
 		return data.([]byte), nil
 	}
-	data, err := s.b.Get(ctx, "txn/"+id+".json")
+	data, err := s.b.Get(ctx, txnKey(id))
 	if err != nil {
 		return nil, err
 	}

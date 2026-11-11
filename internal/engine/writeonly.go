@@ -10,6 +10,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 )
 
 // withoutWriteOnly returns v with every write-only attribute set to null,
@@ -88,38 +89,12 @@ func dropWriteOnlyNested(n schema.NestingMode, blk *schema.Block, v tftypes.Valu
 	return v
 }
 
-// blockHasWriteOnly reports whether the block has a write-only attribute at any
-// level.
-func blockHasWriteOnly(blk *schema.Block) bool {
-	if blk == nil {
-		return false
-	}
-	if attributesHaveWriteOnly(blk.Attributes) {
-		return true
-	}
-	for _, nb := range blk.BlockTypes {
-		if blockHasWriteOnly(nb.Block) {
-			return true
-		}
-	}
-	return false
-}
-
-func attributesHaveWriteOnly(attrs []*schema.Attribute) bool {
-	for _, a := range attrs {
-		if a.WriteOnly || a.NestedType != nil && attributesHaveWriteOnly(a.NestedType.Attributes) {
-			return true
-		}
-	}
-	return false
-}
-
-// hasWriteOnly is blockHasWriteOnly, asked once for each block of a schema.
+// hasWriteOnly is sensitivity.HasWriteOnly, asked once for each block of a schema.
 func (e *Engine) hasWriteOnly(blk *schema.Block) bool {
 	if has, ok := e.writeOnly.Load(blk); ok {
 		return has.(bool)
 	}
-	has := blockHasWriteOnly(blk)
+	has := sensitivity.HasWriteOnly(blk)
 	e.writeOnly.Store(blk, has)
 	return has
 }
@@ -160,7 +135,7 @@ func (g *writeOnlyGuard) clean(ctx context.Context, typ string, v tftypes.Value,
 	if err != nil {
 		return v, diags, err
 	}
-	has := blockHasWriteOnly(blk)
+	has := sensitivity.HasWriteOnly(blk)
 	g.types.Store(typ, has)
 	if !has {
 		return v, diags, nil

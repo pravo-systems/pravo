@@ -623,22 +623,11 @@ func newPlanMeta(pf *PlanFile, author string, ttl time.Duration, size int) *Plan
 	}
 	for _, sc := range pf.Changes {
 		touches := true
+		m.Summary.count(sc.Addr, sc.Action, sc.Skipped, len(sc.Prior) == 1 && sc.Prior[0] == 0xc0)
 		switch {
-		case sc.Action == ActionCreate:
-			m.Summary.Add++
-		case sc.Action == ActionUpdate:
-			m.Summary.Change++
-		case sc.Action == ActionDelete:
-			m.Summary.Destroy++
-		case sc.Action == ActionReplace:
-			m.Summary.Add++
-			m.Summary.Destroy++
+		case sc.Action == ActionCreate, sc.Action == ActionUpdate, sc.Action == ActionDelete, sc.Action == ActionReplace:
 		case sc.Action == ActionRead:
-			// Reads are counted as the plan counts them; only a deferred read is a
-			// change that an apply makes.
-			if !sc.Skipped {
-				m.Summary.Read++
-			}
+			// Only a deferred read is a change that an apply makes.
 			touches = sc.Deferred
 		case sc.Action == ActionMove || sc.Imported:
 		default:
@@ -847,9 +836,25 @@ func (ps *PlanStore) Resolve(ctx context.Context, ref string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var match []string
+	var ids []string
 	for id, kinds := range all {
-		if kinds["plan"] && strings.HasPrefix(id, ref) {
+		if kinds["plan"] {
+			ids = append(ids, id)
+		}
+	}
+	return MatchPlanID(ref, ids)
+}
+
+// MatchPlanID finds the plan that ref, an id or the beginning of one, names among
+// ids. It is the one rule of the command that resolves a reference and of the
+// viewer that does the same over the plans it lists.
+func MatchPlanID(ref string, ids []string) (string, error) {
+	var match []string
+	for _, id := range ids {
+		if id == ref {
+			return id, nil
+		}
+		if strings.HasPrefix(id, ref) {
 			match = append(match, id)
 		}
 	}
@@ -1524,7 +1529,7 @@ func movedRecords(m *PlanMeta, p *PlanProgress, check *PlanCheck) planMoves {
 		return out
 	}
 	if check.Lineage != "" && m.Lineage != check.Lineage {
-		out.reasons, out.global = append(out.reasons, "the plan was made against a different state (lineage mismatch)"), true
+		out.reasons, out.global = append(out.reasons, LineageReason), true
 	}
 	if check.Versions == nil || len(out.reasons) > 0 {
 		return out
@@ -1669,9 +1674,9 @@ type Overlap struct {
 	ReadBy []string
 }
 
-// touchedBy returns the addresses that the plan of e still changes: those of the
+// Touched returns the addresses that the plan of e still changes: those of the
 // summary that were not applied, once each.
-func (e *PlanEntry) touchedBy() []string {
+func (e *PlanEntry) Touched() []string {
 	var out []string
 	seen := map[string]bool{}
 	for _, t := range e.Meta.Changes {
@@ -1702,7 +1707,7 @@ func (e *PlanEntry) readsOf() []string {
 	return out
 }
 
-// OverlapsOf is Overlaps for a plan that is known by its summary, and also finds the plans that read what this
+// OverlapsOf returns the open plans among entries, other than meta, that overlap it: they change a resource that it changes, and it also finds the plans that read what this
 // plan changes, and change what it reads: a move takes its record from an address, which counts as changed, and a
 // plan that reads a record is made stale by the plan that changes it, though it changes nothing there itself.
 func OverlapsOf(entries []*PlanEntry, meta *PlanMeta) []Overlap {
@@ -1718,13 +1723,35 @@ func OverlapsOf(entries []*PlanEntry, meta *PlanMeta) []Overlap {
 			reads[a] = true
 		}
 	}
+	return overlapsWith(entries, meta.ID, writes, reads)
+}
+
+// OverlapsOfEntry is OverlapsOf for a plan that is stored: it writes what it still
+// can apply, less the changes that it cannot apply when it is partly stale, and it
+// reads the records that it has not applied.
+func OverlapsOfEntry(entries []*PlanEntry, e *PlanEntry) []Overlap {
+	writes, reads := map[string]bool{}, map[string]bool{}
+	for _, a := range e.Changing() {
+		writes[a] = true
+	}
+	for _, a := range e.readsOf() {
+		if !writes[a] {
+			reads[a] = true
+		}
+	}
+	return overlapsWith(entries, e.Meta.ID, writes, reads)
+}
+
+// overlapsWith finds the open plans among entries, other than self, that change what
+// the writes name or read what it changes, or change what the reads name.
+func overlapsWith(entries []*PlanEntry, self string, writes, reads map[string]bool) []Overlap {
 	var out []Overlap
 	for _, e := range entries {
-		if e.Meta.ID == meta.ID || !e.Status.Open() {
+		if e.Meta.ID == self || !e.Status.Open() {
 			continue
 		}
 		var o Overlap
-		for _, a := range e.changing() {
+		for _, a := range e.Changing() {
 			switch {
 			case writes[a]:
 				o.Addrs = append(o.Addrs, a)
@@ -1754,45 +1781,14 @@ func (p *PlanProgress) BeingCollected(now time.Time) bool {
 	return p.Collecting.holds(now)
 }
 
-// changing returns the addresses that the plan of e will still change: the
+// Changing returns the addresses that the plan of e will still change: the
 // unapplied ones, less those that conflict in a partly-stale plan, which it can
 // not apply.
-func (e *PlanEntry) changing() []string {
+func (e *PlanEntry) Changing() []string {
 	var out []string
-	for _, a := range e.touchedBy() {
+	for _, a := range e.Touched() {
 		if _, blocked := e.Conflicts[a]; !blocked {
 			out = append(out, a)
-		}
-	}
-	return out
-}
-
-// Overlaps returns the open plans among entries, other than the one with id
-// self, that change a resource that touches also changes. A change that a plan
-// already applied is not one it makes any more, and nor is one that a partly-stale
-// plan cannot apply.
-func Overlaps(entries []*PlanEntry, self string, touches []PlanTouch) []Overlap {
-	mine := map[string]bool{}
-	for _, t := range touches {
-		mine[t.Addr] = true
-		if t.From != "" {
-			mine[t.From] = true
-		}
-	}
-	var out []Overlap
-	for _, e := range entries {
-		if e.Meta.ID == self || !e.Status.Open() {
-			continue
-		}
-		var addrs []string
-		for _, a := range e.changing() {
-			if mine[a] {
-				addrs = append(addrs, a)
-			}
-		}
-		if len(addrs) > 0 {
-			sort.Strings(addrs)
-			out = append(out, Overlap{Plan: e.Meta, Addrs: addrs})
 		}
 	}
 	return out
@@ -1802,7 +1798,7 @@ func Overlaps(entries []*PlanEntry, self string, touches []PlanTouch) []Overlap 
 func Touching(entries []*PlanEntry, addr string) []*PlanEntry {
 	var out []*PlanEntry
 	for _, e := range entries {
-		for _, a := range e.touchedBy() {
+		for _, a := range e.Touched() {
 			if a == addr {
 				out = append(out, e)
 				break

@@ -12,14 +12,6 @@ import (
 	"github.com/pravo-systems/pravo/internal/schema"
 )
 
-func typesOf(ps *schema.ProviderSchema) map[string]tftypes.Type {
-	out := map[string]tftypes.Type{}
-	for name, s := range ps.AllResources() {
-		out[name] = s.Block.Type()
-	}
-	return out
-}
-
 func tftypesFromJSON(attrs json.RawMessage, s *schema.Schema) (tftypes.Value, error) {
 	return tftypes.ValueFromJSON(attrs, s.Block.Type())
 }

@@ -106,7 +106,7 @@ func (w *Workspace) DriftPlanned(ctx context.Context) (*DriftReport, *Planned, e
 			}
 			rep.Drifted = append(rep.Drifted, item)
 		}
-		if c.Action != engine.ActionNoop && c.Action != engine.ActionRead && c.Action != engine.ActionOpen && c.Action != engine.ActionCall {
+		if c.Action.ActsOnProvider() {
 			rep.Pending++
 		}
 	}
