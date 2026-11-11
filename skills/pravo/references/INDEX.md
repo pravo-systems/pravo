@@ -163,7 +163,7 @@ One task each, for a reader who knows the basics.
 
 | File | Covers | Size |
 |---|---|---|
-| [how-to/offer-a-template.md](how-to/offer-a-template.md) | Turn a definition into a template that the viewer offers as a form. Order and label its inputs, let constraints refuse bad values, hold its instances to a policy, and change it for every instance at once. | 13 KB |
+| [how-to/offer-a-template.md](how-to/offer-a-template.md) | Turn a definition into a template that the viewer offers as a form. Order and label its inputs, let constraints refuse bad values, hold its instances to a policy, and change it for every instance at once. | 14 KB |
 | [how-to/add-an-instance-from-a-template.md](how-to/add-an-instance-from-a-template.md) | Ask for a new instance of a pattern that the platform team offers. Fill in the form of the viewer, read its checks, paste the code, store the plan with a reader key, and find the instance once a writer has applied it. | 8 KB |
 
 ### Share and protect

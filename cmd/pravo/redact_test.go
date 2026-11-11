@@ -84,3 +84,22 @@ func TestRedactKeepsWhatOnlySharesASettingWithASecret(t *testing.T) {
 		t.Errorf("the echo of the secret survives: %s", attrs["note"])
 	}
 }
+
+// The value of a setting that only its name marks as secret (http_tokens: "optional") is a word of the
+// enum and not a made value: a tag with the same word stays.
+func TestRedactKeepsAnEnumWordUnderANamedKey(t *testing.T) {
+	sch := &schema.Schema{Block: &schema.Block{
+		Attributes: []*schema.Attribute{{Name: "tags", Optional: true}},
+		BlockTypes: []*schema.NestedBlock{{TypeName: "metadata_options", Nesting: schema.NestingList, Block: &schema.Block{Attributes: []*schema.Attribute{
+			{Name: "http_tokens", Optional: true},
+		}}}},
+	}}
+	rec := &state.Resource{Mode: "managed", Type: "t", Name: "a", ProviderKey: "p", Attributes: json.RawMessage(
+		`{"metadata_options":[{"http_tokens":"optional"}],"tags":{"Backup":"optional"}}`)}
+	got, _ := redactSnapshot(&state.Snapshot{Resources: map[string]*state.Resource{"a": rec}}, func(*state.Resource) *schema.Schema { return sch })
+	var attrs map[string]json.RawMessage
+	_ = json.Unmarshal(got.Resources["a"].Attributes, &attrs)
+	if !strings.Contains(string(attrs["tags"]), "optional") {
+		t.Errorf("tags was withheld for an enum word: %s", attrs["tags"])
+	}
+}

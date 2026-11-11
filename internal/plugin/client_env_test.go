@@ -89,7 +89,11 @@ func TestProviderEnvQuietsTheSDKLogs(t *testing.T) {
 		t.Errorf("quiet although TF_LOG is set: %v", got)
 	}
 	got := providerEnv([]string{"TF_LOG_SDK=debug"})
-	if has(got, "TF_LOG_SDK=off") || !has(got, "TF_LOG_SDK_PROTO=off") {
-		t.Errorf("a logger that is set is left, the others are quiet: %v", got)
+	if has(got, "TF_LOG_SDK=off") || has(got, "TF_LOG_SDK_PROTO=off") {
+		t.Errorf("the sub-loggers follow a level that was set: %v", got)
+	}
+	got = providerEnv([]string{"TF_LOG_SDK_PROTO=trace"})
+	if has(got, "TF_LOG_SDK_PROTO=off") || !has(got, "TF_LOG_SDK_MUX=off") {
+		t.Errorf("a sub-logger that is set is left, the others are quiet: %v", got)
 	}
 }

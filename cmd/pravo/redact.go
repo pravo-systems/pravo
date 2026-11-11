@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/pravo-systems/pravo/internal/schema"
@@ -161,10 +162,16 @@ func madeStrings(raw json.RawMessage) []string {
 // the names of what is: nil when the attribute is withheld by what it is itself (or its schema is not
 // known), and every string of it is then a made value.
 func nestedSecretKeys(sc *schema.Schema, name string) map[string]bool {
+	// true: the schema marks it; false: only its name says so
 	if sc == nil || sc.Block == nil {
 		return nil
 	}
 	keys := map[string]bool{}
+	mark := func(a *schema.Attribute) {
+		if sensitivity.Withheld(a.Name, a.Sensitive, a.WriteOnly) {
+			keys[a.Name] = keys[a.Name] || a.Sensitive || a.WriteOnly
+		}
+	}
 	var object func(o *schema.Object, depth int)
 	var block func(b *schema.Block, depth int)
 	object = func(o *schema.Object, depth int) {
@@ -172,9 +179,7 @@ func nestedSecretKeys(sc *schema.Schema, name string) map[string]bool {
 			return
 		}
 		for _, a := range o.Attributes {
-			if sensitivity.Withheld(a.Name, a.Sensitive, a.WriteOnly) {
-				keys[a.Name] = true
-			}
+			mark(a)
 			object(a.NestedType, depth+1)
 		}
 	}
@@ -183,14 +188,12 @@ func nestedSecretKeys(sc *schema.Schema, name string) map[string]bool {
 			return
 		}
 		for _, a := range b.Attributes {
-			if sensitivity.Withheld(a.Name, a.Sensitive, a.WriteOnly) {
-				keys[a.Name] = true
-			}
+			mark(a)
 			object(a.NestedType, depth+1)
 		}
 		for _, nb := range b.BlockTypes {
 			if schema.NameGuard.MatchString(nb.TypeName) {
-				keys[nb.TypeName] = true
+				keys[nb.TypeName] = keys[nb.TypeName]
 			}
 			block(nb.Block, depth+1)
 		}
@@ -216,30 +219,35 @@ func nestedSecretKeys(sc *schema.Schema, name string) map[string]bool {
 	return nil
 }
 
-// madeStringsUnder lists the strings of six characters or more that sit under a key of keys.
+// madeStringsUnder lists the strings of six characters or more that sit under a key of keys. Under a
+// key that only its name marks (http_tokens), a word of lowercase letters is a setting, an enum value,
+// and not a made value.
 func madeStringsUnder(raw json.RawMessage, keys map[string]bool) []string {
 	var v any
 	if json.Unmarshal(raw, &v) != nil {
 		return nil
 	}
 	var out []string
-	var walk func(v any, under bool)
-	walk = func(v any, under bool) {
+	var walk func(v any, under, marked bool)
+	walk = func(v any, under, marked bool) {
 		switch x := v.(type) {
 		case string:
-			if under && len(x) >= minTaint {
+			if under && len(x) >= minTaint && (marked || !settingWord.MatchString(x)) {
 				out = append(out, x)
 			}
 		case []any:
 			for _, e := range x {
-				walk(e, under)
+				walk(e, under, marked)
 			}
 		case map[string]any:
 			for k, e := range x {
-				walk(e, under || keys[k])
+				m, ok := keys[k]
+				walk(e, under || ok, marked || m)
 			}
 		}
 	}
-	walk(v, false)
+	walk(v, false, false)
 	return out
 }
+
+var settingWord = regexp.MustCompile(`^[a-z_]{1,16}$`)

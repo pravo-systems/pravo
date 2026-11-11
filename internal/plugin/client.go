@@ -83,8 +83,8 @@ func quietSDK(environ []string) []string {
 			set[k] = true
 		}
 	}
-	if set["TF_LOG"] {
-		return environ
+	if set["TF_LOG"] || set["TF_LOG_SDK"] {
+		return environ // the sub-loggers follow the level that was set
 	}
 	for _, k := range sdkLogs {
 		if !set[k] {
