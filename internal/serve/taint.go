@@ -207,36 +207,7 @@ func (m *model) textless(mn *mnode) bool {
 	if mn.res != nil && mn.res.Builtin && (mn.res.Type == "secret" || mn.res.Type == "secret_env") {
 		return true
 	}
-	return mn.Mode != "data" && mn.sch != nil && blockWriteOnly(mn.sch.Block, 0)
-}
-
-func blockWriteOnly(b *schema.Block, depth int) bool {
-	if b == nil || depth > maxDepth {
-		return false
-	}
-	for _, a := range b.Attributes {
-		if a.WriteOnly || objectWriteOnly(a.NestedType, depth+1) {
-			return true
-		}
-	}
-	for _, nb := range b.BlockTypes {
-		if blockWriteOnly(nb.Block, depth+1) {
-			return true
-		}
-	}
-	return false
-}
-
-func objectWriteOnly(o *schema.Object, depth int) bool {
-	if o == nil || depth > maxDepth {
-		return false
-	}
-	for _, a := range o.Attributes {
-		if a.WriteOnly || objectWriteOnly(a.NestedType, depth+1) {
-			return true
-		}
-	}
-	return false
+	return mn.Mode != "data" && mn.sch != nil && sensitivity.HasWriteOnly(mn.sch.Block)
 }
 
 // echoTextless withholds every field that a data source reads from outside the

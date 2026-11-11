@@ -1,11 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
-	"strings"
 
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/sensitivity"
@@ -14,9 +13,6 @@ import (
 
 // withheldText stands for a value that --redact withholds.
 const withheldText = "(withheld)"
-
-// minTaint is the shortest string that counts as a made value, as in the viewer.
-const minTaint = 6
 
 // redactedSnapshot is the snapshot of the state with the values withheld that the viewer
 // withholds by what they are: an attribute the provider schema marks sensitive or write-only,
@@ -57,7 +53,7 @@ func redactSnapshot(snap *state.Snapshot, schemaOf func(*state.Resource) *schema
 		all   bool            // the schema is unknown
 	}
 	recs := map[string]*rec{}
-	var taint []string
+	var taint sensitivity.Taint
 	for addr, r := range snap.Resources {
 		x := &rec{by: map[string]bool{}}
 		recs[addr] = x
@@ -74,14 +70,20 @@ func redactSnapshot(snap *state.Snapshot, schemaOf func(*state.Resource) *schema
 		for name, raw := range x.attrs {
 			if x.all || sensitivity.Withheld(name, top[name], false) {
 				x.by[name] = true
-				taint = append(taint, madeStrings(raw)...)
+				for _, x := range madeStrings(raw) {
+					taint.Add(x)
+				}
 			}
 		}
 	}
+	// A value is judged as it is written and as the strings in it read: the JSON of a record
+	// writes & as \u0026, and a secret that holds one is in the strings and not in the text.
 	judge := func(raw []byte) bool {
-		text := string(raw)
-		for _, t := range taint {
-			if strings.Contains(text, t) || strings.Contains(text, jsonEscaped(t)) || strings.Contains(text, url.QueryEscape(t)) {
+		if taint.Hits(string(raw)) {
+			return true
+		}
+		for _, x := range madeStrings(raw) {
+			if taint.Hits(x) {
 				return true
 			}
 		}
@@ -119,15 +121,12 @@ func redactSnapshot(snap *state.Snapshot, schemaOf func(*state.Resource) *schema
 	return &cs, n
 }
 
-func jsonEscaped(s string) string {
-	b, _ := json.Marshal(s)
-	return strings.Trim(string(b), `"`)
-}
-
-// madeStrings lists the strings of six characters or more in a JSON value.
+// madeStrings lists the strings and numbers in a JSON value; Taint ignores the short ones.
 func madeStrings(raw json.RawMessage) []string {
 	var v any
-	if json.Unmarshal(raw, &v) != nil {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	if dec.Decode(&v) != nil {
 		return nil
 	}
 	var out []string
@@ -135,9 +134,10 @@ func madeStrings(raw json.RawMessage) []string {
 	walk = func(v any) {
 		switch x := v.(type) {
 		case string:
-			if len(x) >= minTaint {
-				out = append(out, x)
-			}
+			out = append(out, x)
+		case json.Number:
+			// a sensitive number, a PIN or a code, is a secret as a string is
+			out = append(out, string(x))
 		case []any:
 			for _, e := range x {
 				walk(e)

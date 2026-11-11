@@ -25,6 +25,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 )
 
 // A plan converts the configuration of every resource to tell whether it is
@@ -416,12 +417,12 @@ func (e *Engine) coveredTop(blk *schema.Block) map[string]bool {
 	}
 	top := map[string]bool{}
 	for _, a := range blk.Attributes {
-		if !attributesHaveWriteOnly([]*schema.Attribute{a}) {
+		if !sensitivity.HasWriteOnly(&schema.Block{Attributes: []*schema.Attribute{a}}) {
 			top[a.Name] = true
 		}
 	}
 	for _, nb := range blk.BlockTypes {
-		if !blockHasWriteOnly(nb.Block) {
+		if !sensitivity.HasWriteOnly(nb.Block) {
 			top[nb.TypeName] = true
 		}
 	}

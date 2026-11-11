@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -799,8 +800,8 @@ func TestSecretsAreFoundInTheirEncodedForms(t *testing.T) {
 			"plain":        "x=" + secret + "!",
 			"query":        "postgres://app:" + url.QueryEscape(secret) + "@db/app",
 			"path":         "https://h/" + url.PathEscape(secret) + "/x",
-			"json":         `{"password":"` + jsonInner(secret, true) + `","a":1}`,
-			"json plain":   `{"password":"` + jsonInner(secret, false) + `","a":1}`,
+			"json":         `{"password":"` + sensitivity.JSONInner(secret, true) + `","a":1}`,
+			"json plain":   `{"password":"` + sensitivity.JSONInner(secret, false) + `","a":1}`,
 			"hex":          "key=" + hex.EncodeToString([]byte(secret)),
 			"upper hex":    "key=" + strings.ToUpper(hex.EncodeToString([]byte(secret))),
 			"in a list":    strings.Join([]string{"a", secret, "b"}, ","),
