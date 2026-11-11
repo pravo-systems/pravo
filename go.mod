@@ -4,7 +4,7 @@ module github.com/pravo-systems/pravo
 
 go 1.26.0
 
-toolchain go1.26.10
+toolchain go1.26.11
 
 require (
 	cuelabs.dev/go/oci/ociregistry v0.0.0-20260601085548-328ff8e2c943
