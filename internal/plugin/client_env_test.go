@@ -67,3 +67,29 @@ func TestStartedProviderDoesNotReceiveWhatPravoWithholds(t *testing.T) {
 		t.Errorf("the credentials of a cloud must reach the provider: %s", got)
 	}
 }
+
+// A provider is not left to write the trace log of its SDK that nobody reads, unless the log of the providers is
+// wanted or the logger was set by the person who runs pravo.
+func TestProviderEnvQuietsTheSDKLogs(t *testing.T) {
+	has := func(env []string, kv string) bool {
+		for _, e := range env {
+			if e == kv {
+				return true
+			}
+		}
+		return false
+	}
+	if got := providerEnv([]string{"PATH=/bin"}); !has(got, "TF_LOG_SDK=off") || !has(got, "TF_LOG_SDK_PROTO=off") {
+		t.Errorf("not quiet: %v", got)
+	}
+	if got := providerEnv([]string{"PRAVO_LOG=debug"}); has(got, "TF_LOG_SDK=off") {
+		t.Errorf("quiet although the log is wanted: %v", got)
+	}
+	if got := providerEnv([]string{"TF_LOG=trace"}); has(got, "TF_LOG_SDK=off") {
+		t.Errorf("quiet although TF_LOG is set: %v", got)
+	}
+	got := providerEnv([]string{"TF_LOG_SDK=debug"})
+	if has(got, "TF_LOG_SDK=off") || !has(got, "TF_LOG_SDK_PROTO=off") {
+		t.Errorf("a logger that is set is left, the others are quiet: %v", got)
+	}
+}

@@ -68,6 +68,12 @@ type outputsOf map[string]string
 // More records, and the outputs, follow.
 func templateProjectOf(t *testing.T, spec, attrs string, more ...any) *project {
 	t.Helper()
+	return templateProjectWith(t, Options{}, spec, attrs, more...)
+}
+
+// templateProjectWith is templateProjectOf with the options of the server.
+func templateProjectWith(t *testing.T, opts Options, spec, attrs string, more ...any) *project {
+	t.Helper()
 	dir := t.TempDir()
 	writeSpec(t, dir, spec)
 	pkg := filepath.Join(dir, "cue.mod", "gen", "pravo.dev", "pravo", "settings_gen.cue")
@@ -112,7 +118,7 @@ func templateProjectOf(t *testing.T, spec, attrs string, more ...any) *project {
 			t.Fatal(err)
 		}
 	}
-	return start(t, dir, st, Options{})
+	return start(t, dir, st, opts)
 }
 
 func (p *project) templates() Templates {
@@ -343,5 +349,18 @@ func TestStudioJudgesTheStateWithTheTemplates(t *testing.T) {
 	tp := refused.Plans[0]
 	if tp.Draft == nil || tp.Draft.Outcome != engine.RuleRefused || len(tp.Draft.Issues) != 1 || tp.Draft.Issues[0].Path != "changes.0.template.name" {
 		t.Fatalf("a rule that asks for another template: %+v %+v", tp, tp.Draft)
+	}
+}
+
+// The form says what `pravo validate` says: an input that is a type and not a value, which the resource needs, is a
+// problem of the form and not a valid instance.
+func TestTemplateTryRefusesWhatValidateRefuses(t *testing.T) {
+	p := templateProjectWith(t, Options{Schemas: fakeLookup}, templateSpecCUE, `{"name":"one","port":5432}`)
+	if got := p.tryTemplate("fine", "boxes", map[string]string{"name": `"fine"`}); got.State != "valid" {
+		t.Fatalf("a good instance: %+v", got)
+	}
+	got := p.tryTemplate("open", "boxes", map[string]string{"name": "string"})
+	if got.State == "valid" {
+		t.Fatalf("name: string was called valid: %+v", got)
 	}
 }

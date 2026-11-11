@@ -74,7 +74,12 @@ func redactSnapshot(snap *state.Snapshot, schemaOf func(*state.Resource) *schema
 		for name, raw := range x.attrs {
 			if x.all || sensitivity.Withheld(name, top[name], false) {
 				x.by[name] = true
-				taint = append(taint, madeStrings(raw)...)
+				if keys := nestedSecretKeys(sc, name); keys != nil {
+					// Withheld only for what is inside it: the settings beside the secret are not made values.
+					taint = append(taint, madeStringsUnder(raw, keys)...)
+				} else {
+					taint = append(taint, madeStrings(raw)...)
+				}
 			}
 		}
 	}
@@ -149,5 +154,92 @@ func madeStrings(raw json.RawMessage) []string {
 		}
 	}
 	walk(v)
+	return out
+}
+
+// nestedSecretKeys says, for an attribute that is withheld only because something inside it is sensitive,
+// the names of what is: nil when the attribute is withheld by what it is itself (or its schema is not
+// known), and every string of it is then a made value.
+func nestedSecretKeys(sc *schema.Schema, name string) map[string]bool {
+	if sc == nil || sc.Block == nil {
+		return nil
+	}
+	keys := map[string]bool{}
+	var object func(o *schema.Object, depth int)
+	var block func(b *schema.Block, depth int)
+	object = func(o *schema.Object, depth int) {
+		if o == nil || depth > sensitivity.MaxDepth {
+			return
+		}
+		for _, a := range o.Attributes {
+			if sensitivity.Withheld(a.Name, a.Sensitive, a.WriteOnly) {
+				keys[a.Name] = true
+			}
+			object(a.NestedType, depth+1)
+		}
+	}
+	block = func(b *schema.Block, depth int) {
+		if b == nil || depth > sensitivity.MaxDepth {
+			return
+		}
+		for _, a := range b.Attributes {
+			if sensitivity.Withheld(a.Name, a.Sensitive, a.WriteOnly) {
+				keys[a.Name] = true
+			}
+			object(a.NestedType, depth+1)
+		}
+		for _, nb := range b.BlockTypes {
+			if schema.NameGuard.MatchString(nb.TypeName) {
+				keys[nb.TypeName] = true
+			}
+			block(nb.Block, depth+1)
+		}
+	}
+	for _, a := range sc.Block.Attributes {
+		if a.Name == name {
+			if sensitivity.Withheld(a.Name, a.Sensitive, a.WriteOnly) {
+				return nil
+			}
+			object(a.NestedType, 0)
+			return keys
+		}
+	}
+	for _, nb := range sc.Block.BlockTypes {
+		if nb.TypeName == name {
+			if schema.NameGuard.MatchString(nb.TypeName) {
+				return nil
+			}
+			block(nb.Block, 0)
+			return keys
+		}
+	}
+	return nil
+}
+
+// madeStringsUnder lists the strings of six characters or more that sit under a key of keys.
+func madeStringsUnder(raw json.RawMessage, keys map[string]bool) []string {
+	var v any
+	if json.Unmarshal(raw, &v) != nil {
+		return nil
+	}
+	var out []string
+	var walk func(v any, under bool)
+	walk = func(v any, under bool) {
+		switch x := v.(type) {
+		case string:
+			if under && len(x) >= minTaint {
+				out = append(out, x)
+			}
+		case []any:
+			for _, e := range x {
+				walk(e, under)
+			}
+		case map[string]any:
+			for k, e := range x {
+				walk(e, under || keys[k])
+			}
+		}
+	}
+	walk(v, false)
 	return out
 }

@@ -182,6 +182,10 @@ func (c *Converter) block(path string, blk *schema.Block, v cue.Value) tftypes.V
 }
 
 func (c *Converter) attribute(path string, a *schema.Attribute, v cue.Value) tftypes.Value {
+	if a.Required && !a.Computed && c.noValue(v) {
+		c.fail(fmt.Errorf("%s: the attribute is required and has no value (the provider would stop the plan at it)", path))
+		return tftypes.NewValue(a.Type(), nil)
+	}
 	if a.NestedType != nil {
 		return c.nestedObject(path, a.NestedType, v)
 	}
@@ -507,4 +511,24 @@ func dedupeSet(elems []tftypes.Value) []tftypes.Value {
 		}
 	}
 	return out
+}
+
+// noValue reports whether v is what a required attribute holds when nobody gave it a value: the type
+// of the schema, which is not concrete and waits for no task and for no input either. A value that
+// depends on a task is known when that task is, and an input that is not concrete is named by the
+// check that finds it.
+func (c *Converter) noValue(v cue.Value) bool {
+	if !v.Exists() {
+		return false
+	}
+	d := Default(v)
+	if d.Err() != nil || d.Kind() == cue.NullKind || IsConcrete(d) {
+		return false
+	}
+	var self *cue.Path
+	if c.Self.String() != "" {
+		self = &c.Self
+	}
+	info := AnalyseWith(d, c.Resolve, self)
+	return !info.HasTaskRef() && info.Incomplete == nil
 }

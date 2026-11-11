@@ -460,6 +460,10 @@ pravo starts a provider the first time a resource needs it. It starts one proces
 | Call a function | A function call. It needs no configuration, so the process stays unconfigured. |
 | Stop | The end of the command |
 
+### What a provider can read
+
+A provider is a program that runs as the same user as pravo, so it can read what that user can read. pravo takes the variables that hold an identity or its passphrase out of the environment that it gives the provider, and on Linux it marks its own process so that another process cannot read its memory or its environment. That does not reach the shell that started pravo. A provider can read the environment of that shell, and a passphrase that was exported there is in it. In a CI step, give the passphrase to the one command, `PRAVO_PASSPHRASE=... pravo apply`, and do not export it for the whole step. Only a sandbox for the provider closes this fully.
+
 ### Reaching a provider that is already running
 
 A provider struct has a `$protocol`. The default is `tfplugin`: pravo installs the binary, starts it and stops it. The other value is `tfplugin+reattach`: the provider is already running, and pravo connects to the `$address` and never starts, stops or signals it.
