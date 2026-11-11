@@ -14,6 +14,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 	"github.com/pravo-systems/pravo/internal/state"
 )
 
@@ -659,7 +660,7 @@ func (d *differ) leafOf(path string, redact, made bool, before, after tftypes.Va
 			d.sink.addMade(d.origin, toJSONValue(ad))
 		}
 	}
-	if !redact && (d.secrets.leaksIn(toJSONValue(bd)) || d.secrets.leaksIn(toJSONValue(ad)) || hasGuardedKey(bd) || hasGuardedKey(ad)) {
+	if !redact && (d.secrets.leaksIn(toJSONValue(bd)) || d.secrets.leaksIn(toJSONValue(ad)) || sensitivity.HasGuardedKey(bd) || sensitivity.HasGuardedKey(ad)) {
 		redact = true
 	}
 	ch := AttrChange{Path: path, AfterUnknown: aUnk}
@@ -692,27 +693,7 @@ func toJSONValue(v any) any {
 	return v
 }
 
-// hasGuardedKey reports whether a value holds a map or object with a key that
-// looks like a secret, at any depth.
-func hasGuardedKey(v any) bool {
-	switch x := v.(type) {
-	case []any:
-		for _, e := range x {
-			if hasGuardedKey(e) {
-				return true
-			}
-		}
-	case map[string]any:
-		for k, e := range x {
-			if guarded(k) || hasGuardedKey(e) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func blockSensitive(b *schema.Block) bool { return len(sensitiveNames(b)) > 0 }
+func blockSensitive(b *schema.Block) bool { return len(sensitivity.SensitiveNames(b)) > 0 }
 
 func (d *differ) subtreeSensitive(attrs []*schema.Attribute) bool {
 	return blockSensitive(&schema.Block{Attributes: attrs})

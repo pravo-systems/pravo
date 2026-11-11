@@ -2,13 +2,9 @@ package serve
 
 import (
 	"bytes"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"html"
 	"maps"
-	"net/url"
 	"regexp"
 	"slices"
 	"sort"
@@ -20,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 )
 
 // nameGuard is the second guard of README rule 5: a value whose attribute name
@@ -34,8 +31,8 @@ const (
 	// maxDepth bounds how deep a value is followed.
 	maxDepth = 12
 	// minSecret is the shortest sensitive string that is looked for in other
-	// values. A shorter one matches too much to say anything.
-	minSecret = 6
+	// values (sensitivity.MinSecret).
+	minSecret = sensitivity.MinSecret
 	// maxDescription bounds the description of an attribute.
 	maxDescription = 300
 	// mask replaces a literal in source lines.
@@ -98,7 +95,7 @@ func (s *secretSet) addFrom(addr string, v any) {
 	case string:
 		if len(x) >= minSecret && len(x) <= 1<<16 {
 			s.put(x, addr)
-			for _, form := range embeddedForms(x) {
+			for _, form := range sensitivity.Forms(x) {
 				s.put(form, addr)
 			}
 		}
@@ -245,80 +242,6 @@ func (s *secretSet) put(x, addr string) {
 		s.from[x] = append(s.from[x], addr)
 		s.by[addr] = append(s.by[addr], s.pos[x])
 	}
-}
-
-// minForm is the shortest encoded form that is looked for.
-const minForm = 8
-
-// embeddedForms lists the encodings of a secret that a specification is likely
-// to put into another attribute: the secret itself is looked for by the caller.
-// It is bounded: a secret of many kilobytes (a key) is looked for as it is, and
-// in base64, which is how a key is embedded.
-func embeddedForms(x string) []string {
-	var out []string
-	add := func(f string) {
-		if f != x && len(f) >= minForm {
-			out = append(out, f)
-		}
-	}
-	if len(x) <= 4096 {
-		add(url.QueryEscape(x))
-		add(url.PathEscape(x))
-		add(jsonInner(x, true))
-		add(jsonInner(x, false))
-		add(hex.EncodeToString([]byte(x)))
-		add(strings.ToUpper(hex.EncodeToString([]byte(x))))
-		add(html.EscapeString(x))
-		add(xmlEntities.Replace(x))
-	}
-	for _, enc := range []*base64.Encoding{base64.StdEncoding, base64.URLEncoding} {
-		out = append(out, base64Forms(enc, []byte(x))...)
-	}
-	return out
-}
-
-// xmlEntities writes a secret as it reads inside an XML document (a generated password has & and < in it).
-var xmlEntities = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;", "'", "&apos;")
-
-// jsonInner is the secret as it reads inside a JSON string.
-func jsonInner(x string, escapeHTML bool) string {
-	var b strings.Builder
-	enc := json.NewEncoder(&b)
-	enc.SetEscapeHTML(escapeHTML)
-	if enc.Encode(x) != nil {
-		return x
-	}
-	out := strings.TrimSpace(b.String())
-	if len(out) < 2 {
-		return x
-	}
-	return out[1 : len(out)-1]
-}
-
-// base64Forms returns what the bytes become when they are part of a longer text
-// that is base64-encoded: the encoding depends on where in a group of three they
-// start, and the first and last characters of the encoding depend on the bytes
-// around them, so those are left out.
-func base64Forms(enc *base64.Encoding, secret []byte) []string {
-	var out []string
-	for lead := range 3 {
-		text := strings.TrimRight(enc.EncodeToString(append(make([]byte, lead), secret...)), "=")
-		// The characters that the lead bytes take part in are not the secret's.
-		drop := [3]int{0, 2, 3}[lead]
-		if drop >= len(text) {
-			continue
-		}
-		text = text[drop:]
-		// A group that the secret ends inside has a last character that depends
-		// on what follows.
-		if (lead+len(secret))%3 != 0 && len(text) > 0 {
-			text = text[:len(text)-1]
-		}
-		if len(text) >= minSecret {
-			out = append(out, text)
-		}
-	}
-	return out
 }
 
 // scrub replaces, in the text, every sensitive string of the state with the
@@ -589,7 +512,7 @@ func (w *walk) nestedObject(at *Attr, o *schema.Object, v any, depth int) {
 	case schema.NestingList, schema.NestingSet:
 		list, ok := v.([]any)
 		if !ok {
-			w.free(at, v, depth, objectNames(o))
+			w.free(at, v, depth, sensitivity.SensitiveObjectNames(o))
 			return
 		}
 		w.elements(at, list, func(i int, e any) Attr {
@@ -598,14 +521,14 @@ func (w *walk) nestedObject(at *Attr, o *schema.Object, v any, depth int) {
 	case schema.NestingMap:
 		m, ok := v.(map[string]any)
 		if !ok {
-			w.free(at, v, depth, objectNames(o))
+			w.free(at, v, depth, sensitivity.SensitiveObjectNames(o))
 			return
 		}
 		w.entries(at, m, func(k string, e any) Attr { return w.objectAttr(k, o, e, depth+1) })
 	default:
 		m, ok := v.(map[string]any)
 		if !ok {
-			w.free(at, v, depth, objectNames(o))
+			w.free(at, v, depth, sensitivity.SensitiveObjectNames(o))
 			return
 		}
 		at.Children = w.attrsOf(o.Attributes, m, depth+1)
@@ -628,7 +551,7 @@ func (w *walk) objectAttr(name string, o *schema.Object, v any, depth int) Attr 
 	}
 	m, ok := v.(map[string]any)
 	if !ok {
-		w.free(&at, v, depth, objectNames(o))
+		w.free(&at, v, depth, sensitivity.SensitiveObjectNames(o))
 		return at
 	}
 	at.Children = w.attrsOf(o.Attributes, m, depth+1)
@@ -688,7 +611,7 @@ func (w *walk) blockAttr(nb *schema.NestedBlock, v any, depth int) Attr {
 		case e == nil:
 			c.Null = true
 		case !ok:
-			w.free(&c, e, depth+1, blockNames(nb.Block))
+			w.free(&c, e, depth+1, sensitivity.SensitiveNames(nb.Block))
 		case depth+1 <= maxDepth:
 			c.Children = w.block(nb.Block, m, depth+1)
 		}
@@ -698,21 +621,21 @@ func (w *walk) blockAttr(nb *schema.NestedBlock, v any, depth int) Attr {
 	case schema.NestingList, schema.NestingSet:
 		list, ok := v.([]any)
 		if !ok {
-			w.free(&at, v, depth, blockNames(nb.Block))
+			w.free(&at, v, depth, sensitivity.SensitiveNames(nb.Block))
 			return at
 		}
 		w.elements(&at, list, func(i int, e any) Attr { return one(strconv.Itoa(i), e) })
 	case schema.NestingMap:
 		m, ok := v.(map[string]any)
 		if !ok {
-			w.free(&at, v, depth, blockNames(nb.Block))
+			w.free(&at, v, depth, sensitivity.SensitiveNames(nb.Block))
 			return at
 		}
 		w.entries(&at, m, one)
 	default:
 		m, ok := v.(map[string]any)
 		if !ok {
-			w.free(&at, v, depth, blockNames(nb.Block))
+			w.free(&at, v, depth, sensitivity.SensitiveNames(nb.Block))
 			return at
 		}
 		if depth+1 <= maxDepth {
@@ -1103,44 +1026,4 @@ func clip(s string, n int) string {
 	}
 	r := []rune(s)
 	return strings.TrimSpace(string(r[:n])) + "…"
-}
-
-// objectNames and blockNames list the sensitive names below a nested attribute
-// type and a nested block.
-func objectNames(o *schema.Object) map[string]bool {
-	if o == nil {
-		return nil
-	}
-	return sensitiveNames(&schema.Block{Attributes: o.Attributes})
-}
-
-func blockNames(b *schema.Block) map[string]bool { return sensitiveNames(b) }
-
-// sensitiveNames lists the names of the attributes and blocks of b, at any
-// depth, whose values the schema withholds.
-func sensitiveNames(b *schema.Block) map[string]bool {
-	out := map[string]bool{}
-	var block func(b *schema.Block, depth int)
-	var attrs func(as []*schema.Attribute, depth int)
-	attrs = func(as []*schema.Attribute, depth int) {
-		for _, a := range as {
-			if a.Sensitive || a.WriteOnly {
-				out[a.Name] = true
-			}
-			if a.NestedType != nil && depth < maxDepth {
-				attrs(a.NestedType.Attributes, depth+1)
-			}
-		}
-	}
-	block = func(b *schema.Block, depth int) {
-		if b == nil || depth > maxDepth {
-			return
-		}
-		attrs(b.Attributes, depth)
-		for _, nb := range b.BlockTypes {
-			block(nb.Block, depth+1)
-		}
-	}
-	block(b, 0)
-	return out
 }

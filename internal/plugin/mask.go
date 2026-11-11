@@ -1,11 +1,11 @@
 package plugin
 
 import (
-	"encoding/json"
 	"io"
-	"net/url"
 	"strings"
 	"sync"
+
+	"github.com/pravo-systems/pravo/internal/sensitivity"
 )
 
 // minMasked is the shortest secret that is masked in the log of a provider. A value of one or two
@@ -24,18 +24,8 @@ func MaskSecret(v string) {
 	if len(v) < minMasked {
 		return
 	}
-	forms := []string{v, url.QueryEscape(v), url.PathEscape(v)}
-	if b, err := json.Marshal(v); err == nil && len(b) > 2 {
-		forms = append(forms, string(b[1:len(b)-1]))
-	}
-	var plain strings.Builder
-	enc := json.NewEncoder(&plain)
-	enc.SetEscapeHTML(false)
-	if enc.Encode(v) == nil {
-		if q := strings.TrimSuffix(plain.String(), "\n"); len(q) > 2 {
-			forms = append(forms, q[1:len(q)-1])
-		}
-	}
+	// the one list of forms that every surface looks for, with a lower floor than the viewer's
+	forms := append([]string{v}, sensitivity.FormsAtLeast(v, minMasked)...)
 	maskMu.Lock()
 	defer maskMu.Unlock()
 	for _, f := range forms {
