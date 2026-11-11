@@ -114,8 +114,12 @@ type ShadowReport struct {
 	ReferencesDisabled bool           `json:"references_disabled,omitempty"`
 	// Verified says that the plan of the written specification was empty; PlanWants lists
 	// what it wanted to change otherwise. They are set by the command that plans it.
-	Verified  bool     `json:"verified"`
-	PlanWants []string `json:"plan_wants,omitempty"`
+	Verified bool `json:"verified"`
+	// Folded counts the definitions that fold alike resources (pravo shadow --fold), and
+	// FoldedResources the resources that became instances of them.
+	Folded          int      `json:"folded_definitions,omitempty"`
+	FoldedResources int      `json:"folded_resources,omitempty"`
+	PlanWants       []string `json:"plan_wants,omitempty"`
 }
 
 // ShadowResult is a decompiled state: the source of the resources, without a package
@@ -144,7 +148,7 @@ func shadowSecretName(addr, attr string) string {
 	word := func(s string) string {
 		b := []byte(s)
 		for i, c := range b {
-			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '-' || c == '_') {
+			if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '.' && c != '-' && c != '_' {
 				b[i] = '_'
 			}
 		}

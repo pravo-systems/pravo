@@ -44,6 +44,11 @@ type ShadowLock struct {
 	// Blocks holds the text that the shadow wrote for each resource, by Terraform address:
 	// a shadow that is taken again tells an edit of the person from a change of the state by it.
 	Blocks map[string]string `json:"blocks,omitempty"`
+	// FileSHA256 is the digest of the file as the shadow left it, and Folded says that the
+	// file holds definitions that fold alike resources (see pravo shadow --fold): a file that
+	// was not touched since is taken again whole, one that was is not merged with a new state.
+	FileSHA256 string `json:"file_sha256,omitempty"`
+	Folded     bool   `json:"folded,omitempty"`
 }
 
 // NewShadowLock describes the state that a shadow was taken from.

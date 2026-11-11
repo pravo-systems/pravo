@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/extract"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/tfstate"
 )
@@ -106,6 +109,9 @@ type shadowFlags struct {
 	// sync takes the shadow again where it stands: the person's edits to the blocks of the
 	// file are kept.
 	sync bool
+	// fold writes the resources that are alike as one definition and instances, and keeps
+	// the folded file only when the plan of it is as clean as the plan of the file it came from.
+	fold bool
 }
 
 // shadowPrior reads what a shadow that is taken again starts from: the file as it is now, and
@@ -122,15 +128,27 @@ func shadowPrior(f *shadowFlags) (string, map[string]string, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	if l == nil {
+	switch {
+	case l == nil:
 		return string(b), nil, nil
+	case l.Folded && l.FileSHA256 == shadowDigest(string(b)):
+		// Nobody touched the folded file: the new state is folded again.
+		f.fold = true
+		return "", nil, nil
+	case l.Folded:
+		return "", nil, fmt.Errorf("%s holds definitions that fold alike resources, and it was edited since: its blocks are not the ones of the state, so a new state cannot be merged into it. Edit it as the specification it is, or take the shadow again whole with pravo shadow --force", f.out)
 	}
 	return string(b), l.Blocks, nil
 }
 
+func shadowDigest(text string) string {
+	sum := sha256.Sum256([]byte(text))
+	return hex.EncodeToString(sum[:])
+}
+
 // shadowNote writes the note of the shadow: the state it came from, where each resource sat,
 // and the text of each block as it was written.
-func shadowNote(rt *runContext, st *state.Store, sh *engine.ShadowResult, src engine.ShadowSource, data []byte, fresh string, vault, handedOver bool) error {
+func shadowNote(rt *runContext, st *state.Store, sh *engine.ShadowResult, src engine.ShadowSource, data []byte, fresh, text string, vault, handedOver bool) error {
 	lock := engine.NewShadowLock(src, data)
 	keepShadowSecrets(rt, st, sh.Secrets, vault, src.Name(), lock.Serial)
 	lock.Addresses = map[string]string{}
@@ -138,6 +156,7 @@ func shadowNote(rt *runContext, st *state.Store, sh *engine.ShadowResult, src en
 		lock.Addresses[n.Address] = n.From
 	}
 	lock.Blocks = engine.ShadowBlockTexts(fresh)
+	lock.FileSHA256 = shadowDigest(text)
 	if handedOver {
 		lock.Owner = state.OwnerPravo
 	}
@@ -214,7 +233,7 @@ func runShadow(cmd *cobra.Command, rt *runContext, place string, f *shadowFlags)
 		if err := writeShadowRecords(s.state, sh, res, src.Name(), f.noGuard); err != nil {
 			return err
 		}
-		if err := shadowNote(rt, s.state, sh, src, data, fresh, vault, f.noGuard); err != nil {
+		if err := shadowNote(rt, s.state, sh, src, data, fresh, text, vault, f.noGuard); err != nil {
 			return err
 		}
 	}
@@ -225,11 +244,56 @@ func runShadow(cmd *cobra.Command, rt *runContext, place string, f *shadowFlags)
 	var verdict error
 	if !f.noState {
 		verdict = verifyShadow(cmd, rt, &rep, edited)
+		if verdict == nil && f.fold {
+			verdict = foldShadow(cmd, rt, f, text, edited, &rep)
+		}
 	}
 	return finishShadow(rt, f, rep, res.Notes, verdict, began)
 }
 
 // finishShadow writes the report and says what to do next.
+// foldShadow writes the resources of the file that are alike as one definition and instances,
+// and plans the root again. The plan is the proof: a folded resource whose configuration is not
+// the one the provider has seen is planned, and a plan that wants anything the file did not
+// before puts the file back as it was.
+func foldShadow(cmd *cobra.Command, rt *runContext, f *shadowFlags, text string, edited map[string]bool, rep *engine.ShadowReport) error {
+	folded, err := extract.Fold([]extract.File{{Name: filepath.Base(f.out), Src: []byte(text)}}, nil)
+	if err != nil {
+		rt.out.Warning("not folded: " + err.Error())
+		return nil
+	}
+	out, ok := folded.Files[filepath.Base(f.out)]
+	if !ok {
+		rt.out.Println("Nothing to fold: no three resources are alike enough for a definition to make the file shorter.")
+		return nil
+	}
+	if err := os.WriteFile(f.out, out, 0o644); err != nil {
+		return err
+	}
+	before := *rep
+	verdict := verifyShadow(cmd, rt, rep, edited)
+	if verdict != nil {
+		*rep = before
+		if err := os.WriteFile(f.out, []byte(text), 0o644); err != nil {
+			return err
+		}
+		rt.out.Warning("not folded: the plan of the folded file does not match the objects (" + firstLine(verdict) + "). The file is back as it was.")
+		return nil
+	}
+	rep.Folded = len(folded.Definitions)
+	rep.FoldedResources = folded.Instances
+	l, err := engine.ReadShadowLock(".")
+	if err != nil || l == nil {
+		return err
+	}
+	l.Folded, l.FileSHA256 = true, shadowDigest(string(out))
+	if err := l.Write("."); err != nil {
+		return err
+	}
+	rt.out.Printf("Folded: %d definitions for %d resources, %d lines to %d.\n", len(folded.Definitions), folded.Instances, strings.Count(text, "\n"), strings.Count(string(out), "\n"))
+	return nil
+}
+
 func finishShadow(rt *runContext, f *shadowFlags, rep engine.ShadowReport, notes []string, verdict error, began time.Time) error {
 	if f.report != "" {
 		type timed struct {
@@ -276,7 +340,7 @@ func printShadowMerge(rt *runContext, m *engine.ShadowMerged, nodes []engine.Sha
 		rt.out.Warning(fmt.Sprintf("%s changed in the Terraform state and in your edit: yours is kept, and the plan shows the difference: %s", shadowNodes(len(m.Conflicts)), strings.Join(m.Conflicts, ", ")))
 	}
 	if m.Unknown > 0 {
-		rt.out.Warning(fmt.Sprintf("%s differ from the state and the note has no earlier text to tell an edit from a change of the state: they are kept as they are", shadowNodes(m.Unknown)))
+		rt.out.Warning(shadowNodes(m.Unknown) + " differ from the state and the note has no earlier text to tell an edit from a change of the state: they are kept as they are")
 	}
 	if len(m.Unplaced) > 0 {
 		rt.out.Warning(fmt.Sprintf("%s left the Terraform state and had been edited: their blocks are gone from the file: %s", shadowNodes(len(m.Unplaced)), strings.Join(m.Unplaced, ", ")))
@@ -291,6 +355,7 @@ func addShadowFlags(cmd *cobra.Command, f *shadowFlags) {
 	cmd.Flags().BoolVar(&f.offline, "offline", false, "render from the state without asking the provider about anything: the specification may then need repair")
 	cmd.Flags().BoolVar(&f.keepDerived, "keep-derived", false, "also write what the provider derives anyway")
 	cmd.Flags().BoolVar(&f.flat, "flat", false, "write every resource at the top level")
+	cmd.Flags().BoolVar(&f.fold, "fold", false, "write resources that are alike as one definition and instances, if the plan of the result is as clean")
 	cmd.Flags().BoolVar(&f.noRefs, "no-references", false, "write every value as a literal")
 	cmd.Flags().BoolVar(&f.force, "force", false, "replace the file and a non-empty state")
 	cmd.Flags().BoolVar(&f.noState, "no-state", false, "write the file only: no records, no guard and no plan")
@@ -432,13 +497,12 @@ func shadowVaultOpen(st *state.Store) bool {
 // keepShadowSecrets writes the sensitive values that the specification does not hold into the
 // vault as shadow/ADDRESS/ATTRIBUTE, so that they can be read, handed to a command and rotated
 // with pravo secret. The records keep them as well. A value that cannot be kept is a warning:
-// the shadow does not depend on the copy.
+// the shadow does not depend on the copy. A state that is not sealed keeps them in its records only.
 func keepShadowSecrets(rt *runContext, st *state.Store, secrets []engine.ShadowSecret, vault bool, from string, serial int64) {
 	if len(secrets) == 0 {
 		return
 	}
 	if !vault {
-		rt.out.Warning(fmt.Sprintf("%d sensitive values stay in the records only: with a sealed state (pravo protect init --encrypt) they are also kept in the vault, where pravo secret reads them", len(secrets)))
 		return
 	}
 	note := fmt.Sprintf("from the Terraform state %s, serial %d, by pravo shadow", from, serial)

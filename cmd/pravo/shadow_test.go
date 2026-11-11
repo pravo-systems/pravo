@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -168,7 +169,7 @@ func TestShadowOwnerLivesInTheState(t *testing.T) {
 	if text, code = runPravo(t, rt, dir, "shadow", "take-over"); code != 0 {
 		t.Fatalf("take-over exited %d:\n%s", code, text)
 	}
-	text, code = runPravo(t, rt, dir, "shadow", "status")
+	text, _ = runPravo(t, rt, dir, "shadow", "status")
 	contains(t, text, "Owner: pravo")
 	if text, code = runPravo(t, rt, dir, "shadow", "take-over"); code == 0 {
 		t.Fatalf("a second take-over succeeded:\n%s", text)
@@ -243,10 +244,10 @@ func TestShadowSyncKeepsEditsAndFollowsTheState(t *testing.T) {
 }`, 1)
 	mustWrite(t, dir, "terraform.tfstate", more)
 
-	text, code := runPravo(t, rt, dir, "shadow", "status")
+	text, _ := runPravo(t, rt, dir, "shadow", "status")
 	contains(t, text, "has moved", "serial 7 then, 8 now")
 
-	text, code = runPravo(t, rt, dir, "shadow", "sync")
+	text, code := runPravo(t, rt, dir, "shadow", "sync")
 	if code != 0 {
 		t.Fatalf("sync exited %d:\n%s", code, text)
 	}
@@ -261,9 +262,59 @@ func TestShadowSyncKeepsEditsAndFollowsTheState(t *testing.T) {
 		t.Fatalf("a second sync exited %d:\n%s", code, text)
 	}
 	contains(t, text, "0 are new", "1 are yours and kept")
-	text, code = runPravo(t, rt, dir, "shadow", "status")
+	text, _ = runPravo(t, rt, dir, "shadow", "status")
 	lacks(t, text, "has moved")
 	if text, code = runPravo(t, rt, dir, "apply", "-auto-approve"); code != 5 {
 		t.Fatalf("apply exited %d, want 5:\n%s", code, text)
 	}
+}
+
+// A state with eight servers that differ in their names and their sizes only.
+func foldTfstate() string {
+	var inst []string
+	for i := 1; i <= 8; i++ {
+		size := "small"
+		if i%4 == 0 {
+			size = "large"
+		}
+		inst = append(inst, fmt.Sprintf(`{"mode": "managed", "type": "demo_server", "name": "web%d", "provider": "provider[\"registry.opentofu.org/demo/demo\"]",
+     "instances": [{"schema_version": 0, "attributes": {"id": "srv-%d", "name": "web-%d.internal.example", "size": %q, "secret": null}}]}`, i, i, i, size))
+	}
+	return `{"version": 4, "terraform_version": "1.13.1", "serial": 3, "lineage": "0e1f6a40-5b9c-4a43-9d3d-2c5a1d0b7e11", "outputs": {}, "resources": [` + strings.Join(inst, ",\n") + `]}`
+}
+
+// Resources that are alike become a definition and instances, and the plan of the folded file is
+// the proof: it says No changes, and a shadow taken again whole folds the new state again.
+func TestShadowFoldWritesDefinitionsAndPlansClean(t *testing.T) {
+	rt := &runContext{}
+	newDemoProvider(t)
+	dir := demoEstate(t, rt, "")
+	mustWrite(t, dir, "terraform.tfstate", foldTfstate())
+
+	text, code := runPravo(t, rt, dir, "shadow", "--fold", "terraform.tfstate")
+	if code != 0 {
+		t.Fatalf("shadow --fold exited %d:\n%s", code, text)
+	}
+	contains(t, text, "Folded: 1 definitions for 8 resources", "Verified: the plan of the specification says No changes")
+	b, _ := os.ReadFile(filepath.Join(dir, "shadow.cue"))
+	contains(t, string(b), "#Server: $demo.#Resource.demo_server & {", "web1: #Server & {", "// demo_server.web8")
+	if got := strings.Count(string(b), "$demo.#Resource.demo_server"); got != 1 {
+		t.Errorf("the resource type is written %d times:\n%s", got, b)
+	}
+	if text, code = runPravo(t, rt, dir, "plan"); code != 0 {
+		t.Fatalf("plan exited %d:\n%s", code, text)
+	}
+	contains(t, text, "No changes")
+
+	// Untouched, the folded file is taken again whole; edited, it is not merged.
+	if text, code = runPravo(t, rt, dir, "shadow", "sync"); code != 0 {
+		t.Fatalf("sync of an untouched folded file exited %d:\n%s", code, text)
+	}
+	contains(t, text, "Folded: 1 definitions for 8 resources")
+	mustWrite(t, dir, "shadow.cue", strings.Replace(string(b), `size: "large"`, `size: "huge"`, 1)+"\n")
+	text, code = runPravo(t, rt, dir, "shadow", "sync")
+	if code == 0 {
+		t.Fatalf("an edited folded file was merged:\n%s", text)
+	}
+	contains(t, text, "was edited since")
 }
