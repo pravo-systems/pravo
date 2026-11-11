@@ -232,6 +232,7 @@ type specResolver struct {
 
 // LoopRead answers what a loop variable stands for; see convert.Loops.
 func (r *specResolver) LoopRead(rd convert.LoopRead) ([]cue.Path, bool) { return r.loops.Read(rd) }
+func (r *specResolver) SetLoops(l *convert.Loops)                       { r.loops = l }
 
 // InertFields is the memo of the reference analysis: the resolver reads one
 // unchanging value.
@@ -305,85 +306,24 @@ var _ convert.Resolver = (*specResolver)(nil)
 func (ss *specState) computeEdges() {
 	root := ss.root
 	res := newSpecResolver(root)
-	var loops *convert.Loops
-	if !engine.DependenciesFromSyntax {
-		if l, err := convert.NewLoops(root.Value, res); err == nil {
-			loops, res.loops = l, l
-		}
-	}
-	deps := map[string]map[string]bool{}
-	for _, r := range root.Resources {
-		v := root.At(r.Path)
-		var ds []cue.Path
-		if loops != nil {
-			ds, _ = loops.Dependencies(v, r.Path, res)
-		} else {
-			ds, _ = convert.Dependencies(v, r.Path, res)
-		}
-		set := deps[r.Address()]
-		if set == nil {
-			set = map[string]bool{}
-			deps[r.Address()] = set
-		}
-		for _, d := range ds {
-			if dr, ok := res.byPath[d.String()]; ok && dr != r {
-				set[dr.Address()] = true
-			}
-		}
-	}
-	providerDeps := map[string][]string{}
-	for _, key := range root.ProviderKeys {
-		p, ok := root.ProviderPath(key)
-		if !ok {
-			continue
-		}
-		v := root.At(p)
-		if !v.Exists() {
-			continue
-		}
-		ds, _ := convert.Dependencies(v, p, res)
-		for _, d := range ds {
-			if dr, ok := res.byPath[d.String()]; ok {
-				providerDeps[key] = append(providerDeps[key], dr.Address())
-			}
-		}
-	}
-	for _, r := range root.Resources {
-		for _, d := range providerDeps[r.ProviderKey] {
-			if d != r.Address() {
-				deps[r.Address()][d] = true
-			}
-		}
+	_, edges := engine.DeriveEdges(engine.SpecInput{
+		Root: root, Value: root.Value, At: root.At,
+		Resolver: res, ByPath: res.byPath, FromSyntax: engine.DependenciesFromSyntax,
+	})
+	for addr, list := range edges {
+		ss.edges[addr] = list
 	}
 	// An output reads what its value reads: a resource, a built-in value or another
 	// output. The reference analysis is the engine's, with the outputs counted as
-	// tasks, so a reference through a namespace or an intermediate field is followed
-	// and an output that reads another one is joined to it, not to what it reads.
+	// tasks, so an output that reads another one is joined to it, not to what it reads.
 	outRes := newSpecResolver(root).withOutputs()
-	for _, o := range root.Outputs {
-		if _, done := deps[o.Name]; done {
-			continue
-		}
-		set := map[string]bool{}
-		deps[o.Name] = set
-		p := o.ValuePath()
-		v := root.At(p)
-		ds, _ := convert.Dependencies(v, p, outRes)
-		for _, d := range ds {
-			if dr, ok := outRes.byPath[d.String()]; ok {
-				set[dr.Address()] = true
-			} else if do, ok := outRes.outputs[d.String()]; ok && do != o {
-				set[do.Name] = true
-			}
-		}
+	if l := res.loops; l != nil {
+		outRes.loops = l
 	}
-	for addr, set := range deps {
-		list := make([]string, 0, len(set))
-		for d := range set {
-			list = append(list, d)
+	for o, list := range engine.OutputReads(root, root.At, outRes, outRes.byPath, outRes.outputs) {
+		if _, done := ss.edges[o]; !done {
+			ss.edges[o] = list
 		}
-		sort.Strings(list)
-		ss.edges[addr] = list
 	}
 }
 

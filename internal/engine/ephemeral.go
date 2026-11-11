@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sync"
 	"time"
 
@@ -165,29 +164,5 @@ func (e *Engine) checkOutputs() error {
 // providerDepsOf returns, per provider key, the tasks its configuration
 // references, so that resources using the provider run after them.
 func (e *Engine) providerDepsOf() map[string][]string {
-	out := map[string][]string{}
-	// A provider the specification declares but no resource uses is in the list
-	// too: the record of a removed resource may still be read through it.
-	keys := slices.Clone(e.Root.ProviderKeys)
-	for _, d := range e.Root.ProviderDecls {
-		keys = append(keys, d.Key)
-	}
-	slices.Sort(keys)
-	for _, key := range slices.Compact(keys) {
-		p, ok := e.Root.ProviderPath(key)
-		if !ok {
-			continue
-		}
-		v := e.current.LookupPath(p)
-		if !v.Exists() {
-			continue
-		}
-		deps, _ := convert.Dependencies(v, p, e.resolver())
-		for _, d := range deps {
-			if dr, ok := e.byPath[d.String()]; ok {
-				out[key] = append(out[key], dr.Address())
-			}
-		}
-	}
-	return out
+	return ProviderDeps(e.Root, e.current.LookupPath, e.resolver(), e.byPath)
 }
