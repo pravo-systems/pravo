@@ -9,7 +9,7 @@
 import { h, clear, icon, plural, stamp, clamp, fmt, motionOn, signatureMark } from './util.js';
 import * as api from './api.js';
 import { busy } from './ui.js';
-import { build, activity, neighbours, NOT_YET, HERE, GONE, CLASS, WORD, ORDER } from './lapse-model.js';
+import { build, activity, neighbours, HERE, GONE, CLASS, WORD, ORDER } from './lapse-model.js';
 
 export const FOOTER = 'This page replays the runs that the state recorded. It runs nothing and writes nothing.';
 
