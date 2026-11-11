@@ -37,6 +37,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/promote.md](reference/promote.md) | Bring the release that the environments before one run into it, apply it there, withdraw a promotion or waive the check. Flags, checks, roles and exit codes. | 11 KB |
 | [reference/version.md](reference/version.md) | Print the version of pravo and the version of CUE that is built into it. | 2 KB |
 | [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 18 KB |
+| [reference/shadow.md](reference/shadow.md) | Decompile an OpenTofu or Terraform state into a specification that plans clean, keep it beside the Terraform root, hand the objects over, or write them back. | 13 KB |
 
 ### Language
 

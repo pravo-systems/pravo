@@ -98,6 +98,10 @@ func (e *Engine) Plan(ctx context.Context) (*Plan, error) {
 // changes and the nodes they read, destroys orphans and records outputs, as one
 // transaction.
 func (e *Engine) Apply(ctx context.Context, plan *Plan) (*ApplyResult, error) {
+	// A root that Terraform still owns changes no object (pravo shadow).
+	if err := e.shadowGuard(ctx, plan); err != nil {
+		return nil, err
+	}
 	e.runCtx = ctx
 	defer e.State.SetContext(ctx)
 	ctx, span := telemetry.Tracer().Start(ctx, "engine apply", trace.WithAttributes(e.runAttrs()...))
