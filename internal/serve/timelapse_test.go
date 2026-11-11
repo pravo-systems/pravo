@@ -3,6 +3,7 @@ package serve
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -191,7 +192,7 @@ func TestDetailAsOfARun(t *testing.T) {
 		}
 	}
 	// a run that is not in the state is not found
-	if resp, _ := p.do("GET", "/api/detail?addr=services.a.db&at=nope", nil); resp.StatusCode != 404 {
+	if resp, _ := p.do("GET", "/api/detail?addr=services.a.db&at=nope", nil); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("unknown run: status %d", resp.StatusCode)
 	}
 }

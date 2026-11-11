@@ -484,15 +484,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/graph":
 		writeRaw(w, http.StatusOK, m.graphJSON)
 	case "/api/detail":
-		if r.URL.Query().Has("at") {
-			s.detailAtRequest(w, r, m)
-			return
-		}
-		if mn := s.node(w, r, m); mn != nil {
-			if po, ok := s.planOf(w, r, m); ok {
-				writeJSON(w, http.StatusOK, m.detailFor(mn, po))
-			}
-		}
+		s.detailRequest(w, r, m)
 	case "/api/source":
 		if mn := s.node(w, r, m); mn != nil {
 			if po, ok := s.planOf(w, r, m); ok {

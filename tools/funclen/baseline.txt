@@ -21,12 +21,11 @@ internal/engine/plangc.go PlanStore.GC 105
 internal/engine/policyfile.go Trier.TryFile 121
 internal/engine/providers.go Providers.Resolve 129
 internal/schema/cue.go GenerateCUE 147
-internal/serve/detail.go model.detailFor 131
+internal/serve/detail.go model.detailFor 103
 internal/serve/model.go Server.newModel 147
 internal/serve/plan.go Server.overlay 113
 internal/serve/policies.go model.buildPolicies 109
 internal/serve/secrets.go model.buildSecrets 118
-internal/serve/server.go Server.api 102
 internal/serve/source.go blockReader.mask 115
 internal/serve/source.go blockReader.read 106
 internal/serve/templates.go model.buildTemplates 127
