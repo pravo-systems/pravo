@@ -1,0 +1,363 @@
+{
+ "version": 1,
+ "revision": "r-7c41e9b2",
+ "steps": [
+  {
+   "id": "0b1f6c1d2a3e4f50",
+   "kind": "apply",
+   "status": "applied",
+   "time": "2026-09-10T14:02:11Z",
+   "user": "ada",
+   "command": "pravo apply",
+   "changes": [
+    {
+     "addr": "network.igw",
+     "namespace": "network",
+     "action": "add"
+    },
+    {
+     "addr": "network.public.rt",
+     "namespace": "network.public",
+     "action": "add"
+    },
+    {
+     "addr": "network.public.rta_a",
+     "namespace": "network.public",
+     "action": "add"
+    },
+    {
+     "addr": "network.public.rta_b",
+     "namespace": "network.public",
+     "action": "add"
+    },
+    {
+     "addr": "network.public.subnet_a",
+     "namespace": "network.public",
+     "action": "add"
+    },
+    {
+     "addr": "network.public.subnet_b",
+     "namespace": "network.public",
+     "action": "add"
+    },
+    {
+     "addr": "network.vpc",
+     "namespace": "network",
+     "action": "add"
+    }
+   ]
+  },
+  {
+   "id": "1c2a7d2e3b4f5061",
+   "kind": "apply",
+   "status": "applied",
+   "time": "2026-09-18T14:02:11Z",
+   "user": "ada",
+   "command": "pravo apply",
+   "changes": [
+    {
+     "addr": "network.private.nat",
+     "namespace": "network.private",
+     "action": "add"
+    },
+    {
+     "addr": "network.private.nat_eip",
+     "namespace": "network.private",
+     "action": "add"
+    },
+    {
+     "addr": "network.private.rt",
+     "namespace": "network.private",
+     "action": "add"
+    },
+    {
+     "addr": "network.private.rta_a",
+     "namespace": "network.private",
+     "action": "add"
+    },
+    {
+     "addr": "network.private.rta_b",
+     "namespace": "network.private",
+     "action": "add"
+    },
+    {
+     "addr": "network.private.subnet_a",
+     "namespace": "network.private",
+     "action": "add"
+    },
+    {
+     "addr": "network.private.subnet_b",
+     "namespace": "network.private",
+     "action": "add"
+    },
+    {
+     "addr": "network.sg_app",
+     "namespace": "network",
+     "action": "add"
+    },
+    {
+     "addr": "network.sg_db",
+     "namespace": "network",
+     "action": "add"
+    },
+    {
+     "addr": "network.sg_lb",
+     "namespace": "network",
+     "action": "add"
+    },
+    {
+     "addr": "network.sg_old",
+     "namespace": "network",
+     "action": "add"
+    }
+   ]
+  },
+  {
+   "id": "2d3b8e3f4c506172",
+   "kind": "apply",
+   "status": "applied",
+   "time": "2026-09-25T14:02:11Z",
+   "user": "dan",
+   "command": "pravo apply",
+   "changes": [
+    {
+     "addr": "api.db_pass",
+     "namespace": "api",
+     "action": "add"
+    },
+    {
+     "addr": "api.db_password",
+     "namespace": "api",
+     "action": "add"
+    },
+    {
+     "addr": "api.policy",
+     "namespace": "api",
+     "action": "add"
+    },
+    {
+     "addr": "api.role",
+     "namespace": "api",
+     "action": "add"
+    },
+    {
+     "addr": "api.secret",
+     "namespace": "api",
+     "action": "add"
+    },
+    {
+     "addr": "api.secret_version",
+     "namespace": "api",
+     "action": "add"
+    }
+   ],
+   "git_revision": "8a41c0e"
+  },
+  {
+   "id": "3e4c9f405d617283",
+   "kind": "apply",
+   "status": "applied",
+   "time": "2026-10-02T14:02:11Z",
+   "user": "dan",
+   "command": "pravo apply",
+   "changes": [
+    {
+     "addr": "api.cluster",
+     "namespace": "api",
+     "action": "add"
+    },
+    {
+     "addr": "api.db",
+     "namespace": "api",
+     "action": "add"
+    },
+    {
+     "addr": "api.db_subnets",
+     "namespace": "api",
+     "action": "add"
+    },
+    {
+     "addr": "api.logs",
+     "namespace": "api",
+     "action": "add"
+    },
+    {
+     "addr": "api.scaling",
+     "namespace": "api",
+     "action": "add"
+    },
+    {
+     "addr": "api.service",
+     "namespace": "api",
+     "action": "add"
+    },
+    {
+     "addr": "api.task",
+     "namespace": "api",
+     "action": "add"
+    }
+   ],
+   "git_revision": "8a41c0e"
+  },
+  {
+   "id": "4f5da0516e728394",
+   "kind": "apply",
+   "status": "applied",
+   "time": "2026-10-07T14:02:11Z",
+   "user": "eve",
+   "command": "pravo apply",
+   "changes": [
+    {
+     "addr": "api.worker.dlq",
+     "namespace": "api.worker",
+     "action": "add"
+    },
+    {
+     "addr": "api.worker.queue",
+     "namespace": "api.worker",
+     "action": "add"
+    },
+    {
+     "addr": "api.worker.service",
+     "namespace": "api.worker",
+     "action": "add"
+    },
+    {
+     "addr": "api.worker.task",
+     "namespace": "api.worker",
+     "action": "add"
+    },
+    {
+     "addr": "edge.zone_old",
+     "namespace": "edge",
+     "action": "add"
+    }
+   ],
+   "actor": "deploy-bot",
+   "reason": "workers for the nightly import"
+  },
+  {
+   "id": "50e6b1627f8394a5",
+   "kind": "apply",
+   "status": "applied",
+   "time": "2026-10-12T14:02:11Z",
+   "user": "eve",
+   "command": "pravo apply",
+   "changes": [
+    {
+     "addr": "edge.assoc",
+     "namespace": "edge",
+     "action": "add"
+    },
+    {
+     "addr": "edge.cert",
+     "namespace": "edge",
+     "action": "add"
+    },
+    {
+     "addr": "edge.dns",
+     "namespace": "edge",
+     "action": "add"
+    },
+    {
+     "addr": "edge.lb",
+     "namespace": "edge",
+     "action": "add"
+    },
+    {
+     "addr": "edge.listener",
+     "namespace": "edge",
+     "action": "add"
+    },
+    {
+     "addr": "edge.tg",
+     "namespace": "edge",
+     "action": "add"
+    },
+    {
+     "addr": "edge.waf",
+     "namespace": "edge",
+     "action": "add"
+    }
+   ]
+  },
+  {
+   "id": "61f7c27380a4a5b6",
+   "kind": "apply",
+   "status": "applied",
+   "time": "2026-10-17T14:02:11Z",
+   "user": "ada",
+   "command": "pravo apply",
+   "changes": [
+    {
+     "addr": "api.db",
+     "namespace": "api",
+     "action": "change"
+    },
+    {
+     "addr": "api.role",
+     "namespace": "api",
+     "action": "change"
+    },
+    {
+     "addr": "api.task",
+     "namespace": "api",
+     "action": "replace"
+    },
+    {
+     "addr": "api.service",
+     "namespace": "api",
+     "action": "change"
+    }
+   ],
+   "git_revision": "9b52d1f"
+  },
+  {
+   "id": "7208d38491b5b6c7",
+   "kind": "apply",
+   "status": "applied",
+   "time": "2026-10-19T14:02:11Z",
+   "user": "ada",
+   "command": "pravo apply",
+   "changes": [
+    {
+     "addr": "network.sg_old",
+     "namespace": "network",
+     "action": "remove"
+    },
+    {
+     "addr": "edge.zone_old",
+     "namespace": "edge",
+     "action": "remove"
+    },
+    {
+     "addr": "network.sg_app",
+     "namespace": "network",
+     "action": "move"
+    },
+    {
+     "addr": "network.sg_web",
+     "namespace": "network",
+     "action": "remove"
+    }
+   ],
+   "git_revision": "9b52d1f"
+  },
+  {
+   "id": "8319e495a2c6c7d8",
+   "kind": "apply",
+   "status": "failed",
+   "time": "2026-10-21T11:02:11Z",
+   "user": "dan",
+   "command": "pravo apply -t region=eu-west-1",
+   "changes": [
+    {
+     "addr": "api.logs",
+     "namespace": "api",
+     "action": "change"
+    }
+   ],
+   "git_revision": "9b52d1f"
+  }
+ ]
+}

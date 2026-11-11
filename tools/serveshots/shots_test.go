@@ -75,7 +75,7 @@ var wantViews = []string{
 	"overview", "readme", "groups-collapsed", "groups-expanded", "clusters", "source", "sensitive", "palette", "narrow",
 	"list", "drift", "plan",
 	"plans", "plans-list", "plans-finder", "plan-expired", "state-unsealed",
-	"history", "landing-graph", "landing-plan", "plans-team", "policies", "policy-pending", "studio", "discovery", "traces", "trace-span", "traces-slowest", "members",
+	"history", "landing-graph", "landing-plan", "plans-team", "policies", "policy-pending", "studio", "discovery", "traces", "trace-span", "traces-slowest", "members", "timelapse",
 	"b02-plan", "environments-flow", "b03-state", "b05-groups", "b06-source", "b08-move", "b09-drift", "b10-discovery", "b11-policies", "c02-plans",
 	"c05-studio-shape", "c05-studio-template", "c05-studio-resources", "c05-studio-typo", "c06-waits", "c06-approved",
 	"templates-catalog", "templates-form", "templates-refused", "templates-instance",

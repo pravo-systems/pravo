@@ -10,6 +10,7 @@
 //   &policies=NAME                        the Policies view answers policies.NAME.json: platform (six policies in every status), empty
 //   &secrets=NAME                         the Secrets view answers secrets.NAME.json: platform (a version a reader wrote, a secret that was removed and one never set), clear (all clear), empty (sealed, none),
 //                                         unchecked (no readers file), unsealed (the specification reads secrets and the state is not sealed), off (not sealed, nothing reads one)
+//   &timelapse=NAME                       the Time lapse view answers timelapse.NAME.json: platform (nine runs), empty
 //   &traces=NAME                          the Traces view answers traces.NAME.json: platform (an apply, a plan, an apply that failed and a drift check), empty
 //   &access=NAME                          the Access view answers access.NAME.json: platform (sealed, a reader), off, immutable,
 //                                         drift, locked (no identity: every record is sealed), notreader, missing (no readers file), migrating, invalid,
@@ -73,6 +74,9 @@ function secretOf(addr) {
   for (const i of secrets.issues) for (const it of i.items || []) if ((it.used_by || []).includes(addr)) return { name: it.name, use: { addr }, entry: null };
   return null;
 }
+// ---- the Time lapse view: timelapse.NAME.json, the platform's unless the query says another; the other mocks have no runs ----
+const lapseName = params.get('timelapse') || (NAME === 'platform' ? 'platform' : 'empty');
+const timelapse = (await fixture(`timelapse.${lapseName}.json`)) || { version: 1, revision: graph.revision, steps: [] };
 // ---- the Traces view: traces.NAME.json lists the runs, and trace.XXXXXXXX.json (the first eight digits of the id) is each one ----
 const tracesName = params.get('traces') || (NAME === 'platform' ? 'platform' : 'empty');
 let traces = (await fixture(`traces.${tracesName}.json`)) || { version: 1, dir: '.pravo/traces', traces: [] };
@@ -502,6 +506,7 @@ window.fetch = async (input, init) => {
     const a = adoptOf(url.searchParams.get('discovery') || '', url.searchParams.get('key') || '');
     return a ? json(200, a) : json(404, { error: 'no such object in the last run of that discovery' });
   }
+  if (p === '/api/timelapse') return json(200, timelapse);
   if (p === '/api/traces') return json(200, Object.assign({}, traces, { traces: traces.traces.map((x) => Object.assign({}, x, { start: runStart(x.start, x.live ? 0 : by) })) }));
   if (p === '/api/trace') {
     const id = url.searchParams.get('id') || '';
