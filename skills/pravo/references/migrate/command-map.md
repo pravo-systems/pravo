@@ -57,6 +57,7 @@ These commands have no counterpart in OpenTofu:
 | `pravo state dependents addr` | Lists everything a change to the resource can reach. |
 | `pravo state log` | Lists recorded transactions, newest first. |
 | `pravo state import-tfstate f` | Converts an OpenTofu or Terraform state in format 4. |
+| `pravo shadow f` | Writes a specification from an OpenTofu or Terraform state, with no HCL, that plans clean beside the original root. |
 | `pravo gen` | Regenerates the CUE packages under `cue.mod/gen`. |
 | `pravo mcp` | Serves the commands to an agent over the Model Context Protocol. |
 | `pravo plan --store`, `pravo plan list`, `show`, `approve`, `pull`, `gc` | Keeps a plan in the state, where the team lists it, reads it, approves it and applies it by its id. |

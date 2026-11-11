@@ -49,6 +49,25 @@ type Result struct {
 	Renamed []Rename
 	// Notes lists anything that was dropped or approximated.
 	Notes []string
+	// Origins says where each record sat in the tfstate, by the address of the record.
+	// pravo shadow rebuilds the modules from it.
+	Origins map[string]Origin
+}
+
+// Origin is the place of an instance in a tfstate.
+type Origin struct {
+	Address string       // the tfstate address of the instance
+	Module  []ModuleStep // the module instance it sits in
+	Name    string       // the resource name
+	Key     string       // the instance key without quotes
+	Keyed   bool         // the instance has a key (count or for_each)
+}
+
+// ModuleStep is one module call of a module instance path.
+type ModuleStep struct {
+	Name  string
+	Key   string
+	Keyed bool
 }
 
 // file mirrors the parts of the tfstate format version 4 that are
@@ -95,7 +114,7 @@ func Convert(data []byte) (*Result, error) {
 		return nil, fmt.Errorf("unsupported state format version %d: pravo reads format version 4, which OpenTofu and Terraform 0.12 or newer write", f.Version)
 	}
 
-	res := &Result{Outputs: map[string]json.RawMessage{}}
+	res := &Result{Outputs: map[string]json.RawMessage{}, Origins: map[string]Origin{}}
 	for name, o := range f.Outputs {
 		if len(o.Value) == 0 {
 			continue
@@ -151,7 +170,7 @@ func Convert(data []byte) (*Result, error) {
 			if prev, ok := seen[addr]; ok {
 				return nil, fmt.Errorf("%s and %s would both become %s; rename one of them in OpenTofu first", prev, tfAddr, addr)
 			}
-			seen[addr] = tfAddr
+			seen[addr], res.Origins[addr] = tfAddr, originOf(tfAddr, r.Name, inst.IndexKey, steps)
 			if renamed {
 				res.Renamed = append(res.Renamed, Rename{From: tfAddr, To: addr})
 			}
@@ -527,4 +546,104 @@ func dedupe(s []string) []string {
 		}
 	}
 	return out
+}
+
+// originOf is where an instance sat in the state.
+func originOf(tfAddr, name string, indexKey json.RawMessage, steps []modStep) Origin {
+	o := Origin{Address: tfAddr, Name: name}
+	o.Key, o.Keyed = indexKeyText(indexKey)
+	for _, st := range steps {
+		o.Module = append(o.Module, ModuleStep{Name: st.name, Key: st.key, Keyed: st.keyed})
+	}
+	return o
+}
+
+// Replacement is what an instance of a tfstate
+// becomes when records are written back into it.
+type Replacement struct {
+	Attributes    json.RawMessage
+	SchemaVersion int64
+	Private       []byte
+	// Gone says that the object no longer exists: the instance is left out.
+	Gone bool
+}
+
+// RewriteStats counts what Rewrite did.
+type RewriteStats struct {
+	Rewritten int `json:"rewritten"`
+	Changed   int `json:"changed"`
+	Kept      int `json:"kept_as_they_were"`
+	Dropped   int `json:"dropped"`
+}
+
+// Rewrite returns the tfstate data with every instance that get knows replaced by what
+// it returns, the serial raised by one, and everything else as it was. get takes the
+// tfstate address of an instance and returns nil for one it does not know.
+func Rewrite(data []byte, get func(addr string) *Replacement) ([]byte, RewriteStats, error) {
+	var stats RewriteStats
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(data, &top); err != nil {
+		return nil, stats, fmt.Errorf("parsing tfstate: %w", err)
+	}
+	var resources []map[string]json.RawMessage
+	if err := json.Unmarshal(top["resources"], &resources); err != nil {
+		return nil, stats, fmt.Errorf("parsing tfstate: %w", err)
+	}
+	var out []map[string]json.RawMessage
+	for _, raw := range resources {
+		var r resource
+		b, _ := json.Marshal(raw)
+		if err := json.Unmarshal(b, &r); err != nil {
+			return nil, stats, err
+		}
+		var insts []map[string]json.RawMessage
+		if err := json.Unmarshal(raw["instances"], &insts); err != nil {
+			return nil, stats, err
+		}
+		var keep []map[string]json.RawMessage
+		for i, inst := range insts {
+			rep := get(instanceAddress(r, r.Instances[i].IndexKey))
+			switch {
+			case rep == nil:
+				stats.Kept++
+				keep = append(keep, inst)
+			case rep.Gone:
+				stats.Dropped++
+			default:
+				stats.Rewritten++
+				if !jsonSame(inst["attributes"], rep.Attributes) {
+					stats.Changed++
+				}
+				inst["attributes"] = rep.Attributes
+				inst["schema_version"], _ = json.Marshal(rep.SchemaVersion)
+				if len(rep.Private) > 0 {
+					inst["private"], _ = json.Marshal(base64.StdEncoding.EncodeToString(rep.Private))
+				} else {
+					delete(inst, "private")
+				}
+				keep = append(keep, inst)
+			}
+		}
+		if len(keep) == 0 {
+			continue
+		}
+		raw["instances"], _ = json.Marshal(keep)
+		out = append(out, raw)
+	}
+	top["resources"], _ = json.Marshal(out)
+	var serial int64
+	_ = json.Unmarshal(top["serial"], &serial)
+	top["serial"], _ = json.Marshal(serial + 1)
+	b, err := json.MarshalIndent(top, "", "  ")
+	return append(b, '\n'), stats, err
+}
+
+func jsonSame(a, b json.RawMessage) bool {
+	var x, y any
+	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+		return false
+	}
+	p, _ := json.Marshal(x)
+	q, _ := json.Marshal(y)
+	return string(p) == string(q)
 }
