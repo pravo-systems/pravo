@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -756,21 +755,8 @@ func vouchDigest(domain, lineage string, sig *protect.Signature, parts [][]byte)
 	if sig == nil {
 		return ""
 	}
-	h := sha256.New()
-	put := func(b []byte) {
-		var n [8]byte
-		binary.BigEndian.PutUint64(n[:], uint64(len(b)))
-		h.Write(n[:])
-		h.Write(b)
-	}
-	put([]byte(domain))
-	put([]byte(lineage))
-	put([]byte(sig.Key))
-	put(sig.Sig)
-	for _, p := range parts {
-		put(p)
-	}
-	return hex.EncodeToString(h.Sum(nil))
+	head := [][]byte{[]byte(domain), []byte(lineage), []byte(sig.Key), sig.Sig}
+	return protect.DigestFramed(append(head, parts...)...)
 }
 
 // VouchID is the id under which the roles vouch for the note. It cannot be the id of a

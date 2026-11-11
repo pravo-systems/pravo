@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -25,6 +24,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/filelock"
 	"github.com/pravo-systems/pravo/internal/plog"
+	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/sensitivity"
 )
@@ -197,14 +197,9 @@ var memoChecks atomic.Int64
 // hk is the keyed digest of the parts.
 func (e *Engine) hk(parts ...string) string {
 	h := hmac.New(sha256.New, e.Opts.Memo.Key)
-	var n [8]byte
-	binary.BigEndian.PutUint64(n[:], uint64(len(memoVersion)))
-	h.Write(n[:])
-	h.Write([]byte(memoVersion))
+	protect.WriteFramed(h, []byte(memoVersion))
 	for _, p := range parts {
-		binary.BigEndian.PutUint64(n[:], uint64(len(p)))
-		h.Write(n[:])
-		h.Write([]byte(p))
+		protect.WriteFramed(h, []byte(p))
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }

@@ -3,9 +3,6 @@ package state
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -347,25 +344,13 @@ func VouchDigest(lineage string, t *Transaction) string {
 	if t.FinishSig == nil && (t.Finished == nil || t.StartSig != nil) {
 		return ""
 	}
-	h := sha256.New()
-	put := func(b []byte) {
-		var n [8]byte
-		binary.BigEndian.PutUint64(n[:], uint64(len(b)))
-		h.Write(n[:])
-		h.Write(b)
-	}
-	put([]byte(lineage))
+	parts := [][]byte{[]byte(lineage)}
 	if t.FinishSig == nil {
-		put([]byte(protect.UnsignedKey))
-		put(nil)
+		parts = append(parts, []byte(protect.UnsignedKey), nil)
 	} else {
-		put([]byte(t.FinishSig.Key))
-		put(t.FinishSig.Sig)
+		parts = append(parts, []byte(t.FinishSig.Key), t.FinishSig.Sig)
 	}
-	for _, p := range txnFinishParts(t) {
-		put(p)
-	}
-	return hex.EncodeToString(h.Sum(nil))
+	return protect.DigestFramed(append(parts, txnFinishParts(t)...)...)
 }
 
 // StartVouchDigest is what an admin vouches for when an interrupted transaction t stays valid:
@@ -387,21 +372,8 @@ func startDigest(lineage string, t *Transaction) string {
 	if t.StartSig == nil {
 		return ""
 	}
-	h := sha256.New()
-	put := func(b []byte) {
-		var n [8]byte
-		binary.BigEndian.PutUint64(n[:], uint64(len(b)))
-		h.Write(n[:])
-		h.Write(b)
-	}
-	put([]byte("interrupted"))
-	put([]byte(lineage))
-	put([]byte(t.StartSig.Key))
-	put(t.StartSig.Sig)
-	for _, p := range txnStartParts(t) {
-		put(p)
-	}
-	return hex.EncodeToString(h.Sum(nil))
+	parts := [][]byte{[]byte("interrupted"), []byte(lineage), []byte(t.StartSig.Key), t.StartSig.Sig}
+	return protect.DigestFramed(append(parts, txnStartParts(t)...)...)
 }
 
 // LiveSigners lists, for each finished transaction (an unsigned one has the key protect.UnsignedKey) that is the latest writer of a
