@@ -372,20 +372,6 @@ func CheckGraph(root *config.Root, value cue.Value, schemas map[string]*schema.P
 	return nil
 }
 
-// stopGrace is how long the tasks of a plan that were running when another failed may go on.
-const stopGrace = 2 * time.Second
-
-// stopAfterFailure is what a run does when a task failed (no other task starts, see firstFailure): an
-// apply also stops the ones that run. A plan lets them finish, for a while, so that the error it reports
-// does not depend on which of the tasks that failed together got there first.
-func stopAfterFailure(apply bool, cancel context.CancelFunc) {
-	if apply {
-		cancel()
-		return
-	}
-	time.AfterFunc(stopGrace, cancel)
-}
-
 // checkCycles reports the tasks that wait for each other. Tasks that merely
 // depend on a cycle are not named: they are not part of it.
 func checkCycles(nodes map[string]*node) error {
@@ -482,13 +468,15 @@ func checkCycles(nodes map[string]*node) error {
 // nothing left to wait for. Once the queue is closed, because a failure stopped
 // the run, nothing is queued: a node that the stopped run finishes without
 // planning would otherwise send into a closed channel.
-func release(n *node, ready chan<- *node, closed bool) {
+func release(n *node, ready chan<- *node, closed bool) (queued int) {
 	for _, d := range n.dependents {
 		d.pending--
 		if d.pending == 0 && !closed {
 			ready <- d
+			queued++
 		}
 	}
+	return queued
 }
 
 // resetWalk puts the engine back to the specification as it was loaded, with
@@ -497,6 +485,22 @@ func (e *Engine) resetWalk() {
 	e.current, e.seeded = e.Value, false
 	e.pending, e.pendingOrder, e.refused = nil, nil, nil
 	e.memoRun()
+}
+
+// A failed task releases none of the tasks that wait for it. The others go on, in a plan as well, so
+// that what a plan reports does not depend on which tasks happened to start before the first failure: it
+// is the failure of the lowest address among all that could fail. An apply stops at the first failure.
+
+// seedReady queues the tasks that wait for nothing, in the order of their addresses and not in the order
+// a map gives them, so that two runs start the same ones first. It returns how many there are.
+func seedReady(nodes map[string]*node, ready chan<- *node) (queued int) {
+	for _, addr := range slices.Sorted(maps.Keys(nodes)) {
+		if n := nodes[addr]; n.pending == 0 {
+			ready <- n
+			queued++
+		}
+	}
+	return queued
 }
 
 // run executes every task in dependency order, with bounded parallelism,
@@ -531,27 +535,26 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 		first  firstFailure
 		done   int
 		closed bool
+		live   int // tasks that wait in ready or run
 		ready  = make(chan *node, len(nodes))
 		sem    = make(chan struct{}, Parallelism)
 	)
-	// The tasks that wait for nothing start in the order of their addresses, not in
-	// the order a map gives them, so that two runs start the same ones first.
-	for _, addr := range slices.Sorted(maps.Keys(nodes)) {
-		if n := nodes[addr]; n.pending == 0 {
-			ready <- n
-		}
-	}
+	live = seedReady(nodes, ready)
 	finish := func(n *node, err error) {
 		mu.Lock()
 		defer mu.Unlock()
 		done++
+		live--
 		if err != nil {
 			first.note(err, n.res.Address())
-			stopAfterFailure(apply, cancel)
+			if apply {
+				first.stopped.Store(true)
+				cancel()
+			}
 		} else {
-			release(n, ready, closed)
+			live += release(n, ready, closed)
 		}
-		if !closed && (done == len(nodes) || (first.err != nil && len(sem) == 0)) {
+		if !closed && (done == len(nodes) || live == 0) {
 			closed = true
 			close(ready)
 		}
@@ -563,7 +566,7 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 	walked := time.Now()
 	left := 0 // tasks that were not started because the run was stopped
 	for n := range ready {
-		if ctx.Err() != nil || first.stopped.Load() {
+		if ctx.Err() != nil || (apply && first.stopped.Load()) {
 			left++
 			finish(n, nil)
 			continue

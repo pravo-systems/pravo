@@ -17,12 +17,11 @@ import (
 type firstFailure struct {
 	err error
 	at  string
-	// stopped is set by the first failure: no other task is started.
+	// stopped is set by the first failure of an apply: no other task is started.
 	stopped atomic.Bool
 }
 
 func (f *firstFailure) note(err error, at string) {
-	f.stopped.Store(true)
 	stopped := wasStopped(err)
 	if f.err == nil || (!stopped && (wasStopped(f.err) || at < f.at)) {
 		f.err, f.at = err, at
