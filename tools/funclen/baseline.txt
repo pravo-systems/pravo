@@ -34,7 +34,6 @@ internal/serve/templates.go model.buildTemplates 127
 internal/serve/templates.go templateInputs 101
 internal/serve/templates_inputs.go model.choicesOf 102
 internal/serve/traces.go Server.traces 104
-internal/state/seal_upgrade.go Store.upgradeSealed 110
 internal/telemetry/telemetry.go Setup 118
 internal/tfstate/tfstate.go Convert 116
 internal/ui/ui.go Printer.RenderPlan 117
