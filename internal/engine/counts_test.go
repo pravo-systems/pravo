@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+
+	"github.com/pravo-systems/pravo/internal/convert"
 )
 
 // One way of counting a plan: the plan, the plan file and the summary of a stored plan
@@ -12,11 +14,11 @@ func TestCountsAgreeAcrossSurfaces(t *testing.T) {
 	obj := tftypes.Object{AttributeTypes: map[string]tftypes.Type{"id": tftypes.String}}
 	null := tftypes.NewValue(obj, nil)
 	known := tftypes.NewValue(obj, map[string]tftypes.Value{"id": tftypes.NewValue(tftypes.String, "x")})
-	nullBytes, err := packValue(null)
+	nullBytes, err := convert.Pack(null)
 	if err != nil {
 		t.Fatal(err)
 	}
-	knownBytes, err := packValue(known)
+	knownBytes, err := convert.Pack(known)
 	if err != nil {
 		t.Fatal(err)
 	}
