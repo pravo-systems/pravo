@@ -392,25 +392,7 @@ func WriteIfChanged(path string, data []byte) (bool, error) {
 	if old, err := os.ReadFile(path); err == nil && bytes.Equal(old, data) {
 		return false, nil
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return true, err
-	}
-	name := tmp.Name()
-	_, err = tmp.Write(data)
-	if cerr := tmp.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = os.Chmod(name, 0o644)
-	}
-	if err == nil {
-		err = filelock.Rename(name, path)
-	}
-	if err != nil {
-		os.Remove(name)
-	}
-	return true, err
+	return true, filelock.WriteFileAtomic(path, data, filelock.AtomicOptions{Mode: 0o644})
 }
 
 func lockString(l *engine.Lock) string {

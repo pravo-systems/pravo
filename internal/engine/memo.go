@@ -23,6 +23,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
+	"github.com/pravo-systems/pravo/internal/filelock"
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/sensitivity"
@@ -258,15 +259,7 @@ func (e *Engine) memoEnd(ctx context.Context, err error) {
 	if os.MkdirAll(filepath.Dir(path), 0o700) != nil {
 		return
 	}
-	tmp, terr := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*")
-	if terr != nil {
-		return
-	}
-	_, werr := tmp.Write(data)
-	cerr := tmp.Close()
-	if werr != nil || cerr != nil || os.Rename(tmp.Name(), path) != nil {
-		os.Remove(tmp.Name())
-	}
+	_ = filelock.WriteFileAtomic(path, data, filelock.AtomicOptions{TempPattern: "%s.*"})
 }
 
 // memoRun clears what the memo holds of one walk.

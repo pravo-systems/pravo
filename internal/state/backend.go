@@ -155,15 +155,7 @@ func (b *LocalBackend) Put(ctx context.Context, key string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
 		return err
 	}
-	tmp, err := writeTemp(p, data)
-	if err != nil {
-		return err
-	}
-	if err := filelock.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	return filelock.WriteFileAtomic(p, data, filelock.AtomicOptions{TempPattern: "%s.*.tmp"})
 }
 
 // writeTemp writes data to a new temporary file next to p, which List skips,

@@ -16,6 +16,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/env"
+	"github.com/pravo-systems/pravo/internal/filelock"
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
@@ -129,25 +130,7 @@ func (r *Recorder) save(key string, rec *record) {
 // new file that replaces the old one, so that a recording made before has no
 // effect on the mode.
 func writePrivate(path string, data []byte) error {
-	f, err := os.CreateTemp(filepath.Dir(path), ".record-*")
-	if err != nil {
-		return err
-	}
-	name := f.Name()
-	_, err = f.Write(data)
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = os.Chmod(name, recordingFileMode)
-	}
-	if err == nil {
-		err = os.Rename(name, path)
-	}
-	if err != nil {
-		_ = os.Remove(name)
-	}
-	return err
+	return filelock.WriteFileAtomic(path, data, filelock.AtomicOptions{Mode: recordingFileMode, TempPattern: ".record-*"})
 }
 
 // unpacked reads a recorded value. A record that holds none stands for a null of the type;
