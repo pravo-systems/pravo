@@ -25,6 +25,8 @@ import (
 $local:  loc.#Provider & {$version: "~> 2.5"}
 $random: rnd.#Provider & {$version: "~> 3.6"}
 
+// The name of an instance is its key, so two instances cannot write one file.
+services: [Name=string]: #Service & {name: Name}
 services: web: #Service & {name: "web", owner: "team-shop"}
 ```
 
@@ -37,7 +39,7 @@ package estate
 	// Lowercase letters, digits and dashes. It names the config file.
 	name: string & =~"^[a-z][a-z0-9-]{2,30}$"
 	// The team that answers for the service.
-	owner: string & =~"^team-"
+	owner: string & =~"^team-[a-z0-9-]+$"
 	// Where it runs.
 	env: *"dev" | "staging" | "prod"
 	// The port it listens on.
@@ -82,7 +84,7 @@ import "pravo.dev/pravo"
 	// Lowercase letters, digits and dashes. It names the config file.
 	name: string & =~"^[a-z][a-z0-9-]{2,30}$"
 	// The team that answers for the service.
-	owner: string & =~"^team-"
+	owner: string & =~"^team-[a-z0-9-]+$"
 	// Where it runs.
 	env: *"dev" | "staging" | "prod"
 	// The port it listens on.
@@ -138,7 +140,7 @@ import "pravo.dev/pravo"
 	// Lowercase letters, digits and dashes. It names the config file.
 	name: string & =~"^[a-z][a-z0-9-]{2,30}$"
 	// The team that answers for the service.
-	owner: string & =~"^team-"
+	owner: string & =~"^team-[a-z0-9-]+$"
 	// Where it runs.
 	env: *"dev" | "staging" | "prod"
 	// The port it listens on.
@@ -175,7 +177,7 @@ File `estate/api.cue`:
 ```cue
 package estate
 
-services: api: #Service & {name: "API", owner: "team-shop", env: "prod"}
+services: API: #Service & {name: "API", owner: "team-shop", env: "prod"}
 ```
 
 ```sh
@@ -186,9 +188,10 @@ Output:
 
 ```text
 Error: evaluating ./estate:
-services.api.name: invalid value "API" (out of bound =~"^[a-z][a-z0-9-]{2,30}$"):
+services.API.name: invalid value "API" (out of bound =~"^[a-z][a-z0-9-]{2,30}$"):
     ./estate/service.cue:18:17
     ./estate/api.cue:3:34
+    ./estate/main.cue:12:44
     ./estate/service.cue:18:8
 ```
 
@@ -211,6 +214,10 @@ Output:
 ```text
 Apply complete! Resources: 2 added, 0 changed, 0 destroyed. [txn <id>]
 ```
+
+A pattern that checks a value says where the value ends: `=~"^team-"` also accepts `"team-x\nPORT=22"`, and the line break puts a second line into the file that the template renders. End the pattern with `$` and allow only the characters that belong in the value.
+
+A constraint on one instance cannot see the others. The name of this template makes the file name, so two instances that carry the same `name` would write one file, and the second would hide the first. The line `services: [Name=string]: #Service & {name: Name}` in `main.cue` ties the name to the key of the instance, and two instances cannot share one.
 
 ## 5. Open the catalog
 

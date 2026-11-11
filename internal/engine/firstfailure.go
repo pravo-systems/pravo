@@ -3,6 +3,10 @@ package engine
 import (
 	"context"
 	"errors"
+	"strings"
+
+	grpccodes "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // firstFailure picks the error that a run reports when tasks fail side by side. They
@@ -15,8 +19,14 @@ type firstFailure struct {
 }
 
 func (f *firstFailure) note(err error, at string) {
-	stopped := errors.Is(err, context.Canceled)
-	if f.err == nil || (!stopped && (errors.Is(f.err, context.Canceled) || at < f.at)) {
+	stopped := wasStopped(err)
+	if f.err == nil || (!stopped && (wasStopped(f.err) || at < f.at)) {
 		f.err, f.at = err, at
 	}
+}
+
+// wasStopped reports whether err says only that the task was stopped: the run was cancelled, here or in
+// the call that a provider was serving.
+func wasStopped(err error) bool {
+	return errors.Is(err, context.Canceled) || status.Code(err) == grpccodes.Canceled || strings.Contains(err.Error(), "code = Canceled")
 }

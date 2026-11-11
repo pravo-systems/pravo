@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 
 	"github.com/pravo-systems/pravo/internal/schema"
 	"github.com/pravo-systems/pravo/internal/sensitivity"
@@ -70,7 +71,12 @@ func redactSnapshot(snap *state.Snapshot, schemaOf func(*state.Resource) *schema
 		for name, raw := range x.attrs {
 			if x.all || sensitivity.Withheld(name, top[name], false) {
 				x.by[name] = true
-				for _, x := range madeStrings(raw) {
+				made := madeStrings(raw)
+				if keys := nestedSecretKeys(sc, name); keys != nil {
+					// Withheld only for what is inside it: the settings beside the secret are not made values.
+					made = madeStringsUnder(raw, keys)
+				}
+				for _, x := range made {
 					taint.Add(x)
 				}
 			}
@@ -151,3 +157,105 @@ func madeStrings(raw json.RawMessage) []string {
 	walk(v)
 	return out
 }
+
+// nestedSecretKeys says, for an attribute that is withheld only because something inside it is sensitive,
+// the names of what is: nil when the attribute is withheld by what it is itself (or its schema is not
+// known), and every string of it is then a made value.
+func nestedSecretKeys(sc *schema.Schema, name string) map[string]bool {
+	// true: the schema marks it; false: only its name says so
+	if sc == nil || sc.Block == nil {
+		return nil
+	}
+	keys := map[string]bool{}
+	mark := func(a *schema.Attribute) {
+		if sensitivity.Withheld(a.Name, a.Sensitive, a.WriteOnly) {
+			keys[a.Name] = keys[a.Name] || a.Sensitive || a.WriteOnly
+		}
+	}
+	var object func(o *schema.Object, depth int)
+	var block func(b *schema.Block, depth int)
+	object = func(o *schema.Object, depth int) {
+		if o == nil || depth > sensitivity.MaxDepth {
+			return
+		}
+		for _, a := range o.Attributes {
+			mark(a)
+			object(a.NestedType, depth+1)
+		}
+	}
+	block = func(b *schema.Block, depth int) {
+		if b == nil || depth > sensitivity.MaxDepth {
+			return
+		}
+		for _, a := range b.Attributes {
+			mark(a)
+			object(a.NestedType, depth+1)
+		}
+		for _, nb := range b.BlockTypes {
+			if schema.NameGuard.MatchString(nb.TypeName) {
+				if _, ok := keys[nb.TypeName]; !ok {
+					keys[nb.TypeName] = false
+				}
+			}
+			block(nb.Block, depth+1)
+		}
+	}
+	for _, a := range sc.Block.Attributes {
+		if a.Name == name {
+			if sensitivity.Withheld(a.Name, a.Sensitive, a.WriteOnly) {
+				return nil
+			}
+			object(a.NestedType, 0)
+			return keys
+		}
+	}
+	for _, nb := range sc.Block.BlockTypes {
+		if nb.TypeName == name {
+			if schema.NameGuard.MatchString(nb.TypeName) {
+				return nil
+			}
+			block(nb.Block, 0)
+			return keys
+		}
+	}
+	return nil
+}
+
+// madeStringsUnder lists the strings of six characters or more that sit under a key of keys. Under a
+// key that only its name marks (http_tokens), a word of lowercase letters is a setting, an enum value,
+// and not a made value.
+func madeStringsUnder(raw json.RawMessage, keys map[string]bool) []string {
+	var v any
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	if dec.Decode(&v) != nil {
+		return nil
+	}
+	var out []string
+	var walk func(v any, under, marked bool)
+	walk = func(v any, under, marked bool) {
+		switch x := v.(type) {
+		case json.Number:
+			if under {
+				out = append(out, string(x))
+			}
+		case string:
+			if under && (marked || !settingWord.MatchString(x)) {
+				out = append(out, x)
+			}
+		case []any:
+			for _, e := range x {
+				walk(e, under, marked)
+			}
+		case map[string]any:
+			for k, e := range x {
+				m, ok := keys[k]
+				walk(e, under || ok, marked || m)
+			}
+		}
+	}
+	walk(v, false, false)
+	return out
+}
+
+var settingWord = regexp.MustCompile(`^[a-z_]{1,16}$`)

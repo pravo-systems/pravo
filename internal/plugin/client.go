@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
@@ -61,7 +62,36 @@ func Logger(levelName string) hclog.Logger {
 // handshake. A provider is code that pravo did not write and has no use for the
 // key that opens the state.
 func providerEnv(environ []string) []string {
-	return append(protect.ScrubEnv(environ), "TF_PLUGIN_MAGIC_COOKIE="+Handshake.MagicCookieValue)
+	return append(quietSDK(protect.ScrubEnv(environ)), "TF_PLUGIN_MAGIC_COOKIE="+Handshake.MagicCookieValue)
+}
+
+// sdkLogs are the loggers of the provider SDKs. Without a setting they write trace lines that pravo
+// throws away unless it was asked for the log of the providers, and a provider that writes thousands
+// of them spends a visible part of an apply on it.
+var sdkLogs = []string{"TF_LOG_SDK", "TF_LOG_SDK_PROTO", "TF_LOG_SDK_FRAMEWORK", "TF_LOG_SDK_HELPER_SCHEMA", "TF_LOG_SDK_MUX"}
+
+// quietSDK turns the SDK loggers off, unless the log of the providers is wanted (PRAVO_LOG) or the
+// person who runs pravo has set the logger.
+func quietSDK(environ []string) []string {
+	set := map[string]bool{}
+	for _, kv := range environ {
+		k, v, _ := strings.Cut(kv, "=")
+		switch {
+		case k == "PRAVO_LOG" && v != "":
+			return environ
+		case k == "TF_LOG" && v != "", strings.HasPrefix(k, "TF_LOG_"):
+			set[k] = true
+		}
+	}
+	if set["TF_LOG"] || set["TF_LOG_SDK"] {
+		return environ // the sub-loggers follow the level that was set
+	}
+	for _, k := range sdkLogs {
+		if !set[k] {
+			environ = append(environ, k+"=off")
+		}
+	}
+	return environ
 }
 
 // Start launches the provider binary at path and negotiates the protocol.

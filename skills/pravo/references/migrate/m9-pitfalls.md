@@ -427,19 +427,17 @@ note: $local.#Resource.local_file & {
 ```
 
 ```sh
-pravo -C selfref init > /dev/null
+pravo -C selfref init > /dev/null 2>&1
 pravo -C selfref validate
-pravo -C selfref plan -t filename=out/note.txt 2>&1 | grep -E '^(Error|Missing)'
 ```
 
 Output:
 
 ```text
-Success! 1 resources, 0 data sources, 0 ephemeral, 0 function calls, 0 outputs across 1 providers.
-Error: note: Missing Configuration for Required Attribute (at filename, ./selfref/main.cue:9:1): Must set a configuration value for the filename attribute as the provider has marked it as required.
+Error: note.filename: the attribute is required and has no value (the provider would stop the plan at it)
 ```
 
-`validate` passes. The plan fails, because the provider receives no `filename`: a field that refers to itself is not set. Fix: give the variable another name, or alias it outside the resource.
+`validate` refuses it, because the provider would receive no `filename`: a field that refers to itself is not set. Fix: give the variable another name, or alias it outside the resource.
 
 File `selfref/main.cue`:
 

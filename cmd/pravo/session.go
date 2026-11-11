@@ -468,7 +468,7 @@ func (s *session) writeGenerated(rt *runContext, verbose bool) error {
 		if err := os.MkdirAll(modDir, 0o755); err != nil {
 			return err
 		}
-		name := strings.NewReplacer(" ", "-", "_", "-").Replace(strings.ToLower(filepath.Base(root.Dir)))
+		name := moduleSegment(filepath.Base(root.Dir))
 		content := fmt.Sprintf("module: %q\nlanguage: version: \"v0.14.0\"\n", "pravo.local/"+name)
 		if _, err := pravo.WriteIfChanged(filepath.Join(modDir, "module.cue"), []byte(content)); err != nil {
 			return err
@@ -585,4 +585,23 @@ func checkBoundRecords(rt *runContext, root *config.Root, st *state.Store) error
 // any other key.
 func recordRules(readers []pravo.Reader, rs pravo.RolesStatus) state.RecordRules {
 	return state.RecordRules{Readers: readers, Vouched: rs.Vouched, Strict: rs.Source == "state"}
+}
+
+// moduleSegment turns the name of a folder into the last element of a module path, which holds
+// lowercase ASCII letters, digits, dots and dashes: any other character becomes a dash.
+func moduleSegment(dir string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(dir) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '.', r == '-':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('-')
+		}
+	}
+	name := strings.Trim(b.String(), "-.")
+	if name == "" {
+		return "project"
+	}
+	return name
 }

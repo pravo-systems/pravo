@@ -50,7 +50,7 @@ package team
 	// Lowercase letters, digits and dashes. It names the config file.
 	name: string & =~"^[a-z][a-z0-9-]{2,30}$"
 	// The team that answers for the service.
-	owner: string & =~"^team-"
+	owner: string & =~"^team-[a-z0-9-]+$"
 	// Where it runs.
 	env: *"dev" | "staging" | "prod"
 
@@ -126,7 +126,7 @@ import "pravo.dev/pravo"
 	// Lowercase letters, digits and dashes. It names the config file.
 	name: string & =~"^[a-z][a-z0-9-]{2,30}$"
 	// The team that answers for the service.
-	owner: string & =~"^team-"
+	owner: string & =~"^team-[a-z0-9-]+$"
 	// Where it runs.
 	env: *"dev" | "staging" | "prod"
 
@@ -226,7 +226,7 @@ PRAVO_CONFIG_DIR=people/eve pravo -C team validate; echo "exit=$?"
 
 ```text out
 Error: evaluating ./team:
-services.checkout.owner: invalid value "checkout" (out of bound =~"^team-"):
+services.checkout.owner: invalid value "checkout" (out of bound =~"^team-[a-z0-9-]+$"):
     ./team/service.cue:19:18
     ./team/checkout.cue:5:9
     ./team/service.cue:19:9

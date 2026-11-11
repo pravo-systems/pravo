@@ -20,6 +20,7 @@ import (
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 // Templates. A template is a definition that embeds pravo.#Template. The catalog lists the templates of the
@@ -825,6 +826,13 @@ func (s *Server) previewTry(m *model, out *TemplateTry, snippet string) {
 		out.Problems = append(out.Problems, templateProblems(m.scrubText(errorText(err)), out.Address)...)
 		return
 	}
+	if err := s.previewCheck(m, root); err != nil {
+		// What `pravo validate` would refuse: a value of the new resources that is not concrete, or an attribute
+		// that needs one and has none.
+		out.State = "invalid"
+		out.Problems = append(out.Problems, templateProblems(m.scrubText(errorText(err)), out.Address)...)
+		return
+	}
 	var changes []engine.ChangeView
 	marked := engine.TemplateCache{}
 	for _, res := range root.Resources {
@@ -1110,4 +1118,50 @@ func (s *Server) templateRefsHandler(w http.ResponseWriter, r *http.Request, m *
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// previewCheck runs the check of `pravo validate` on the resources that the snippet adds, with the schemas that
+// the server has cached. A provider whose schema is not cached is not checked.
+func (s *Server) previewCheck(m *model, root *config.Root) error {
+	schemas := map[string]*schema.ProviderSchema{}
+	for _, res := range root.Resources {
+		if _, had := m.spec.byPath[res.Address()]; had || (res.Mode != "managed" && res.Mode != "data") {
+			continue
+		}
+		local := config.LocalName(res.ProviderKey)
+		req := root.Providers[local]
+		if req == nil {
+			continue
+		}
+		e, locked := m.spec.lock.Providers[req.Source.String()]
+		if !locked {
+			continue
+		}
+		ps, ok := s.lookupSchema(req.Source, e.Version)
+		if !ok {
+			continue
+		}
+		sch := ps.Type(res.Mode, res.Type)
+		if sch == nil {
+			continue
+		}
+		if sch.Block != nil {
+			sch.Block.Type() // see resolveSchema
+		}
+		set := schemas[local]
+		if set == nil {
+			set = &schema.ProviderSchema{Resources: map[string]*schema.Schema{}, DataSources: map[string]*schema.Schema{},
+				Ephemerals: map[string]*schema.Schema{}, Functions: map[string]*schema.Function{}}
+			schemas[local] = set
+		}
+		if res.Mode == "data" {
+			set.DataSources[res.Type] = sch
+		} else {
+			set.Resources[res.Type] = sch
+		}
+	}
+	if len(schemas) == 0 {
+		return nil
+	}
+	return engine.CheckGraph(root, root.Value, schemas)
 }

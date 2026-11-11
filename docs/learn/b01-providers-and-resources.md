@@ -327,12 +327,12 @@ pravo plan -v 2>&1 | grep -c 'provider started'
 ```
 
 :::deep-dive What validate leaves to the provider
-`validate` checks names, types and constraints. A provider also has rules of its own, such as a required attribute. The provider checks those when it plans, and `validate` does not start it.
+`validate` checks names, types, constraints and that every attribute the provider requires has a value. A provider also has rules of its own, such as a lowest length. The provider checks those when it plans, and `validate` does not start it.
 
 ```cue file=lonely.cue
 package estate
 
-lonely: $random.#Resource.random_integer & {min: 1}
+lonely: $random.#Resource.random_password & {length: 0}
 ```
 
 ```sh run
@@ -348,9 +348,7 @@ pravo plan
 ```
 
 ```text out
-Error: lonely: Missing Configuration for Required Attribute (at max, ./lonely.cue:3:1): Must set a configuration value for the max attribute as the provider has marked it as required.
-
-Refer to the provider documentation or contact the provider developers for additional information about configurable attributes that are required. (checked by the provider when it read the configuration, so pravo validate cannot report it)
+Error: lonely: Invalid Attribute Value (at length, ./lonely.cue:3:54): Attribute length value must be at least 1, got: 0 (checked by the provider when it read the configuration, so pravo validate cannot report it)
 ```
 :::
 

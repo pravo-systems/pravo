@@ -22,7 +22,7 @@ A definition becomes a template when it embeds `pravo.#Template` and names itsel
 	}
 	// Lowercase letters, digits and dashes. It names the config file.
 	name:  string & =~"^[a-z][a-z0-9-]{2,30}$"
-	owner: string & =~"^team-"
+	owner: string & =~"^team-[a-z0-9-]+$"
 	env:   *"dev" | "staging" | "prod"
 
 	secret: $random.#Resource.random_password & {length: 24}
