@@ -212,8 +212,8 @@ type shadowGen struct {
 	// secrets collects the sensitive values that the specification leaves out.
 	secrets     []ShadowSecret
 	secretNames map[string]bool
-	provs map[string]plugin.Provider
-	ids   map[string]*shadowNode // the id and the arn of every object
+	provs       map[string]plugin.Provider
+	ids         map[string]*shadowNode // the id and the arn of every object
 	// literal is set while the name that a resource gives itself is written: resources
 	// that share a name share a variable, not a reference.
 	literal bool

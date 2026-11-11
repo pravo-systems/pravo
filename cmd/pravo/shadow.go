@@ -103,6 +103,45 @@ func shadowInputs(res *tfstate.Result) []engine.ShadowInput {
 type shadowFlags struct {
 	out, report                                                 string
 	offline, keepDerived, flat, noRefs, force, noState, noGuard bool
+	// sync takes the shadow again where it stands: the person's edits to the blocks of the
+	// file are kept.
+	sync bool
+}
+
+// shadowPrior reads what a shadow that is taken again starts from: the file as it is now, and
+// the blocks that the last shadow wrote, from the note.
+func shadowPrior(f *shadowFlags) (string, map[string]string, error) {
+	if !f.sync {
+		return "", nil, nil
+	}
+	b, err := os.ReadFile(f.out)
+	if err != nil {
+		return "", nil, fmt.Errorf("there is no %s to take again: this root is not a shadow, or it was written to another file (--out)", f.out)
+	}
+	l, err := engine.ReadShadowLock(".")
+	if err != nil {
+		return "", nil, err
+	}
+	if l == nil {
+		return string(b), nil, nil
+	}
+	return string(b), l.Blocks, nil
+}
+
+// shadowNote writes the note of the shadow: the state it came from, where each resource sat,
+// and the text of each block as it was written.
+func shadowNote(rt *runContext, st *state.Store, sh *engine.ShadowResult, src engine.ShadowSource, data []byte, fresh string, vault, handedOver bool) error {
+	lock := engine.NewShadowLock(src, data)
+	keepShadowSecrets(rt, st, sh.Secrets, vault, src.Name(), lock.Serial)
+	lock.Addresses = map[string]string{}
+	for _, n := range sh.Report.Nodes {
+		lock.Addresses[n.Address] = n.From
+	}
+	lock.Blocks = engine.ShadowBlockTexts(fresh)
+	if handedOver {
+		lock.Owner = state.OwnerPravo
+	}
+	return lock.Write(".")
 }
 
 // runShadow decompiles the state at place into the root of the working directory.
@@ -117,11 +156,15 @@ func runShadow(cmd *cobra.Command, rt *runContext, place string, f *shadowFlags)
 	if err != nil {
 		return fmt.Errorf("%s: %w", src.Name(), err)
 	}
+	prior, base, err := shadowPrior(f)
+	if err != nil {
+		return err
+	}
 	pkg, reserved, err := scanShadowRoot(f.out)
 	if err != nil {
 		return err
 	}
-	restore, err := setShadowAside(f.out, f.force)
+	restore, err := setShadowAside(f.out, f.force || f.sync)
 	if err != nil {
 		return err
 	}
@@ -139,18 +182,17 @@ func runShadow(cmd *cobra.Command, rt *runContext, place string, f *shadowFlags)
 	}
 	defer closeSession()
 	if !f.noState {
-		if err := refuseReshadow(cmd.Context(), s, rt); err != nil {
+		if err := refuseReshadow(cmd.Context(), s, rt, f.sync); err != nil {
 			return err
 		}
 	}
-	if !f.force && !f.noState && s.state.Len() > 0 {
+	if !f.force && !f.sync && !f.noState && s.state.Len() > 0 {
 		return fmt.Errorf("%s already holds %d resources; use --force to replace them", s.state.Dir(), s.state.Len())
 	}
 	vault := !f.noState && shadowVaultOpen(s.state)
-	in := shadowInputs(res)
 	asked := !f.offline
 	eng := s.engine(rt, engine.Options{})
-	sh, err := eng.Shadow(cmd.Context(), in, engine.ShadowOptions{
+	sh, err := eng.Shadow(cmd.Context(), shadowInputs(res), engine.ShadowOptions{
 		Repair: asked, Minimise: asked && !f.keepDerived, Refresh: asked,
 		Reserved: reserved, Flat: f.flat, NoReferences: f.noRefs, Vault: vault,
 	})
@@ -158,34 +200,37 @@ func runShadow(cmd *cobra.Command, rt *runContext, place string, f *shadowFlags)
 		return err
 	}
 	header := fmt.Sprintf("package %s\n\n// Decompiled from %s by pravo shadow: %d resources of the state, no HCL read.\n\n", pkg, src.Name(), sh.Report.Resources)
-	if err := os.WriteFile(f.out, []byte(header+sh.Source), 0o644); err != nil {
+	fresh, text := header+sh.Source, header+sh.Source
+	var merged *engine.ShadowMerged
+	if f.sync {
+		m := engine.MergeShadow(prior, base, fresh)
+		merged, text = &m, m.Source
+	}
+	if err := os.WriteFile(f.out, []byte(text), 0o644); err != nil {
 		return err
 	}
-	sh.Report.Lines = strings.Count(header+sh.Source, "\n")
+	sh.Report.Lines = strings.Count(text, "\n")
 	if !f.noState {
 		if err := writeShadowRecords(s.state, sh, res, src.Name(), f.noGuard); err != nil {
 			return err
 		}
-		lock := engine.NewShadowLock(src, data)
-		keepShadowSecrets(rt, s.state, sh.Secrets, vault, src.Name(), lock.Serial)
-		lock.Addresses = map[string]string{}
-		for _, n := range sh.Report.Nodes {
-			lock.Addresses[n.Address] = n.From
-		}
-		if f.noGuard {
-			lock.Owner = "pravo"
-		}
-		if err := lock.Write("."); err != nil {
+		if err := shadowNote(rt, s.state, sh, src, data, fresh, vault, f.noGuard); err != nil {
 			return err
 		}
 	}
 	closeSession()
 	rep := sh.Report
 	printShadowReport(rt, rep, src.Name(), f.out, time.Since(began))
+	edited := printShadowMerge(rt, merged, sh.Report.Nodes)
 	var verdict error
 	if !f.noState {
-		verdict = verifyShadow(cmd, rt, &rep)
+		verdict = verifyShadow(cmd, rt, &rep, edited)
 	}
+	return finishShadow(rt, f, rep, res.Notes, verdict, began)
+}
+
+// finishShadow writes the report and says what to do next.
+func finishShadow(rt *runContext, f *shadowFlags, rep engine.ShadowReport, notes []string, verdict error, began time.Time) error {
 	if f.report != "" {
 		type timed struct {
 			engine.ShadowReport
@@ -198,7 +243,7 @@ func runShadow(cmd *cobra.Command, rt *runContext, place string, f *shadowFlags)
 	for _, n := range rep.Notes {
 		rt.out.Warning(n)
 	}
-	for _, n := range res.Notes {
+	for _, n := range notes {
 		rt.out.Warning(n)
 	}
 	if verdict != nil {
@@ -210,6 +255,102 @@ func runShadow(cmd *cobra.Command, rt *runContext, place string, f *shadowFlags)
 		rt.out.Println("When you are ready to leave Terraform: pravo shadow take-over")
 	}
 	return nil
+}
+
+// printShadowMerge says what a shadow that was taken again did with the person's edits, and
+// returns the addresses of the resources whose block is the person's.
+func printShadowMerge(rt *runContext, m *engine.ShadowMerged, nodes []engine.ShadowNode) map[string]bool {
+	if m == nil {
+		return nil
+	}
+	pravo := map[string]string{}
+	for _, n := range nodes {
+		pravo[n.From] = n.Address
+	}
+	edited := map[string]bool{}
+	for _, a := range m.Edited {
+		edited[pravo[a]] = true
+	}
+	rt.out.Printf("  kept in step: %d blocks took the new state, %d are new, %d are yours and kept\n", len(m.Updated), len(m.Added), len(m.Edited))
+	if len(m.Conflicts) > 0 {
+		rt.out.Warning(fmt.Sprintf("%s changed in the Terraform state and in your edit: yours is kept, and the plan shows the difference: %s", shadowNodes(len(m.Conflicts)), strings.Join(m.Conflicts, ", ")))
+	}
+	if m.Unknown > 0 {
+		rt.out.Warning(fmt.Sprintf("%s differ from the state and the note has no earlier text to tell an edit from a change of the state: they are kept as they are", shadowNodes(m.Unknown)))
+	}
+	if len(m.Unplaced) > 0 {
+		rt.out.Warning(fmt.Sprintf("%s left the Terraform state and had been edited: their blocks are gone from the file: %s", shadowNodes(len(m.Unplaced)), strings.Join(m.Unplaced, ", ")))
+	}
+	return edited
+}
+
+// addShadowFlags registers the flags that decide what is written and how.
+func addShadowFlags(cmd *cobra.Command, f *shadowFlags) {
+	cmd.Flags().StringVar(&f.out, "out", "shadow.cue", "the file to write the resources to")
+	cmd.Flags().StringVar(&f.report, "report", "", "write the numbers as JSON to this file")
+	cmd.Flags().BoolVar(&f.offline, "offline", false, "render from the state without asking the provider about anything: the specification may then need repair")
+	cmd.Flags().BoolVar(&f.keepDerived, "keep-derived", false, "also write what the provider derives anyway")
+	cmd.Flags().BoolVar(&f.flat, "flat", false, "write every resource at the top level")
+	cmd.Flags().BoolVar(&f.noRefs, "no-references", false, "write every value as a literal")
+	cmd.Flags().BoolVar(&f.force, "force", false, "replace the file and a non-empty state")
+	cmd.Flags().BoolVar(&f.noState, "no-state", false, "write the file only: no records, no guard and no plan")
+	cmd.Flags().BoolVar(&f.noGuard, "no-guard", false, "let apply change objects at once: the root is not a shadow, it takes the objects over")
+}
+
+// shadowSyncCmd takes the shadow again where it stands.
+func shadowSyncCmd(rt *runContext) *cobra.Command {
+	f := &shadowFlags{sync: true}
+	cmd := &cobra.Command{
+		Use:   "sync [terraform.tfstate | s3://bucket/key | -]",
+		Short: "take the shadow again from the Terraform state, keeping the edits made to its blocks",
+		Long: `Reads the Terraform state again, as it is now (the one the shadow was taken from, unless
+one is named), and brings the shadow up to date with it: the records, and the file. A resource that
+the state changed gets the new text, a resource that is new gets a block, and a block that you edited
+is kept as it is. Blocks are told apart by the Terraform address above them, so an edit is safe from a
+state that moved. Where you and the state both changed the same block, yours is kept and the command says so.
+
+The plan at the end may want changes: they are your edits, and the command says that they are the only ones.
+Only blocks are kept. Resources of your own belong in another file of the package.
+
+A root that was handed over to pravo is not synced: its records are the truth.`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if f.noState || f.noGuard {
+				return errors.New("a shadow that is taken again keeps its records and its guard: --no-state and --no-guard do not apply")
+			}
+			l, err := engine.ReadShadowLock(".")
+			if err != nil {
+				return err
+			}
+			place := ""
+			if len(args) == 1 {
+				place = args[0]
+			} else if l != nil {
+				place = l.Source
+			}
+			if place == "" {
+				return errors.New("name the Terraform state to read: the shadow was taken from standard input, or its note is gone")
+			}
+			if len(args) == 0 && l != nil {
+				applyShadowSource(cmd, l)
+			}
+			return runShadow(cmd, rt, place, f)
+		},
+	}
+	addShadowFlags(cmd, f)
+	addShadowSourceFlags(cmd)
+	addTagFlags(rt, cmd)
+	return cmd
+}
+
+// applyShadowSource gives the flags of the source the values of the note, where the person
+// gave none.
+func applyShadowSource(cmd *cobra.Command, l *engine.ShadowLock) {
+	for name, v := range map[string]string{"region": l.Region, "endpoint": l.Endpoint, "profile": l.Profile} {
+		if v != "" && !cmd.Flags().Changed(name) {
+			_ = cmd.Flags().Set(name, v)
+		}
+	}
 }
 
 func shadowCmd(rt *runContext) *cobra.Command {
@@ -242,18 +383,10 @@ The root must declare the providers of the state and be initialised (pravo init)
 			return runShadow(cmd, rt, args[0], f)
 		},
 	}
-	cmd.Flags().StringVar(&f.out, "out", "shadow.cue", "the file to write the resources to")
-	cmd.Flags().StringVar(&f.report, "report", "", "write the numbers as JSON to this file")
-	cmd.Flags().BoolVar(&f.offline, "offline", false, "render from the state without asking the provider about anything: the specification may then need repair")
-	cmd.Flags().BoolVar(&f.keepDerived, "keep-derived", false, "also write what the provider derives anyway")
-	cmd.Flags().BoolVar(&f.flat, "flat", false, "write every resource at the top level")
-	cmd.Flags().BoolVar(&f.noRefs, "no-references", false, "write every value as a literal")
-	cmd.Flags().BoolVar(&f.force, "force", false, "replace the file and a non-empty state")
-	cmd.Flags().BoolVar(&f.noState, "no-state", false, "write the file only: no records, no guard and no plan")
-	cmd.Flags().BoolVar(&f.noGuard, "no-guard", false, "let apply change objects at once: the root is not a shadow, it takes the objects over")
+	addShadowFlags(cmd, f)
 	addShadowSourceFlags(cmd)
 	addTagFlags(rt, cmd)
-	cmd.AddCommand(shadowTakeOverCmd(rt), shadowStatusCmd(rt), shadowBackCmd(rt))
+	cmd.AddCommand(shadowSyncCmd(rt), shadowTakeOverCmd(rt), shadowStatusCmd(rt), shadowBackCmd(rt))
 	return cmd
 }
 
@@ -344,7 +477,7 @@ func printShadowReport(rt *runContext, rep engine.ShadowReport, from, out string
 // every object once and writes what it finds into the records, with the hashes of the
 // configuration, so that the plans after it read only what a change reaches. An empty
 // plan is the proof that the specification restates the objects.
-func verifyShadow(cmd *cobra.Command, rt *runContext, rep *engine.ShadowReport) error {
+func verifyShadow(cmd *cobra.Command, rt *runContext, rep *engine.ShadowReport, edited map[string]bool) error {
 	s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, planning: true})
 	if err != nil {
 		return fmt.Errorf("the specification was written, but this root cannot be planned: %w", err)
@@ -366,14 +499,24 @@ func verifyShadow(cmd *cobra.Command, rt *runContext, rep *engine.ShadowReport) 
 		return nil
 	}
 	var wants []string
+	foreign := 0
 	for _, c := range plan.Changes {
 		switch c.Action {
 		case engine.ActionCreate, engine.ActionUpdate, engine.ActionReplace, engine.ActionDelete:
 			wants = append(wants, fmt.Sprintf("%s (%s)", c.Addr, c.Action))
+			if !edited[c.Addr] {
+				foreign++
+			}
 		}
 	}
 	sort.Strings(wants)
 	rep.PlanWants = wants
+	if foreign == 0 {
+		// Every change is in a block that the person wrote: they are the edits, not a gap.
+		rep.Verified = true
+		rt.out.Printf("\nVerified: the plan of the specification wants %s, all of them in the blocks you edited: %s.\n", shadowNodes(len(wants)), strings.Join(wants, ", "))
+		return nil
+	}
 	shown := wants
 	if len(shown) > 8 {
 		shown = append(append([]string(nil), shown[:8]...), fmt.Sprintf("and %d more", len(wants)-8))
@@ -403,10 +546,16 @@ func shadowOwnership(ctx context.Context, rt *runContext, root *config.Root, st 
 
 // refuseReshadow refuses a new shadow over a root that was handed over to pravo: its records
 // hold what pravo changed since, and a shadow replaces them with those of the Terraform state.
-func refuseReshadow(ctx context.Context, s *session, rt *runContext) error {
+func refuseReshadow(ctx context.Context, s *session, rt *runContext, sync bool) error {
 	owner, _, err := shadowOwnership(ctx, rt, s.root, s.state)
-	if err != nil || owner != state.OwnerPravo || s.state.Len() == 0 {
+	if err != nil {
 		return err
+	}
+	if sync && owner == "" {
+		return errors.New("this root is not a shadow: its state holds none. Take one with pravo shadow STATE")
+	}
+	if owner != state.OwnerPravo || s.state.Len() == 0 {
+		return nil
 	}
 	return engine.WithCode(engine.ExitRefused, errors.New("this root was handed over to pravo, and a new shadow would replace the records that pravo has changed since with those of the Terraform state. Take the shadow in a root of its own"))
 }

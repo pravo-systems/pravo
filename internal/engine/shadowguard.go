@@ -41,6 +41,9 @@ type ShadowLock struct {
 	Taken    string `json:"taken"`
 	// Addresses maps the address of each resource here to its Terraform address.
 	Addresses map[string]string `json:"addresses,omitempty"`
+	// Blocks holds the text that the shadow wrote for each resource, by Terraform address:
+	// a shadow that is taken again tells an edit of the person from a change of the state by it.
+	Blocks map[string]string `json:"blocks,omitempty"`
 }
 
 // NewShadowLock describes the state that a shadow was taken from.

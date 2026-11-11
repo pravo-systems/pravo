@@ -221,3 +221,49 @@ func TestShadowKeepsSensitiveValuesInTheVaultOfASealedState(t *testing.T) {
 	}
 	contains(t, text, "Terraform still owns its objects")
 }
+
+// A shadow taken again follows the Terraform state and keeps what a person changed: a block that
+// only the person edited stays, a block of the state that moved is new, a resource the state
+// gained is a block, and the plan wants the edit and nothing else.
+func TestShadowSyncKeepsEditsAndFollowsTheState(t *testing.T) {
+	rt := &runContext{}
+	dir := shadowRoot(t, rt)
+	if text, code := runPravo(t, rt, dir, "shadow", "terraform.tfstate"); code != 0 {
+		t.Fatalf("shadow exited %d:\n%s", code, text)
+	}
+	src, _ := os.ReadFile(filepath.Join(dir, "shadow.cue"))
+	mustWrite(t, dir, "shadow.cue", strings.Replace(string(src), `size: logs.id`, `size: "large"`, 1))
+
+	// Terraform applied a change: a new server, and a new serial.
+	more := strings.Replace(shadowTfstate, `"serial": 7`, `"serial": 8`, 1)
+	more = strings.Replace(more, `  ]
+}`, `    ,{"mode": "managed", "type": "demo_server", "name": "api", "provider": "provider[\"registry.opentofu.org/demo/demo\"]",
+     "instances": [{"schema_version": 0, "attributes": {"id": "srv-api", "name": "api", "size": "small", "secret": null}}]}
+  ]
+}`, 1)
+	mustWrite(t, dir, "terraform.tfstate", more)
+
+	text, code := runPravo(t, rt, dir, "shadow", "status")
+	contains(t, text, "has moved", "serial 7 then, 8 now")
+
+	text, code = runPravo(t, rt, dir, "shadow", "sync")
+	if code != 0 {
+		t.Fatalf("sync exited %d:\n%s", code, text)
+	}
+	contains(t, text, "Shadowed 4 resources", "1 are new", "1 are yours and kept", "all of them in the blocks you edited: web (update)")
+	b, _ := os.ReadFile(filepath.Join(dir, "shadow.cue"))
+	contains(t, string(b), `size: "large"`, "// demo_server.api", "// demo_bucket.logs")
+	lacks(t, string(b), "hunter2")
+
+	// The note moved on: the same sync again changes nothing and still keeps the edit.
+	text, code = runPravo(t, rt, dir, "shadow", "sync")
+	if code != 0 {
+		t.Fatalf("a second sync exited %d:\n%s", code, text)
+	}
+	contains(t, text, "0 are new", "1 are yours and kept")
+	text, code = runPravo(t, rt, dir, "shadow", "status")
+	lacks(t, text, "has moved")
+	if text, code = runPravo(t, rt, dir, "apply", "-auto-approve"); code != 5 {
+		t.Fatalf("apply exited %d, want 5:\n%s", code, text)
+	}
+}
