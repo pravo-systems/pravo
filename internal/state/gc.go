@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -783,7 +782,7 @@ func (s *Store) dropGroups(o GCOptions, res *GCResult, m *meta, unused map[strin
 // transactions, for each group. A transaction that is not valid JSON is a damaged log entry, which
 // resealSummaries leaves alone as well, and counts for nothing.
 func (s *Store) sealedSummaries(ctx context.Context) (map[string]int, error) {
-	keys, err := s.b.List(ctx, "txn")
+	keys, err := s.txnKeys(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -794,9 +793,6 @@ func (s *Store) sealedSummaries(ctx context.Context) (map[string]int, error) {
 	)
 	s.each(len(keys), func(i int) {
 		k := keys[i]
-		if !strings.HasSuffix(k, ".json") {
-			return
-		}
 		data, err := s.b.Get(ctx, k)
 		if errors.Is(err, ErrNotFound) {
 			return

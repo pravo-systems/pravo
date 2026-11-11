@@ -450,23 +450,22 @@ func (s *Store) LiveSigners(ctx context.Context) ([]protect.Vouch, error) {
 	var mu sync.Mutex
 	var firstErr error
 	s.each(len(list), func(i int) {
-		data, err := s.b.Get(ctx, "txn/"+list[i]+".json")
+		data, err := s.b.Get(ctx, txnKey(list[i]))
 		if errors.Is(err, ErrNotFound) {
 			return
 		}
-		var t Transaction
-		if err == nil {
-			err = json.Unmarshal(data, &t)
-		}
 		if err != nil {
 			mu.Lock()
-			firstErr = errors.Join(firstErr, fmt.Errorf("txn/%s.json: %w", list[i], err))
+			firstErr = errors.Join(firstErr, fmt.Errorf("%s: %w", txnKey(list[i]), err))
 			mu.Unlock()
 			return
 		}
-		if t.ID != list[i] {
+		// A damaged transaction is left out here as it is by every other reader.
+		tp := decodeTxn(data, list[i])
+		if tp == nil {
 			return
 		}
+		t := *tp
 		if t.Finished == nil {
 			if d := StartVouchDigest(s.Lineage(), &t); d != "" && t.Status == "running" && !live[t.ID] {
 				out[i] = protect.Vouch{Key: t.StartSig.Key, Txn: t.ID, Digest: d}

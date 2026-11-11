@@ -293,7 +293,7 @@ func (s *Store) TxnRunning(id string) bool {
 	if id == "" {
 		return false
 	}
-	data, err := s.b.Get(s.cx(), "txn/"+id+".json")
+	data, err := s.b.Get(s.cx(), txnKey(id))
 	if err != nil {
 		return false
 	}

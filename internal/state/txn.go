@@ -154,7 +154,7 @@ func (t *Txn) start() error {
 	if err := t.signStart(); err != nil {
 		return err
 	}
-	if err := t.store.putJSON("txn/"+t.t.ID+".json", t.t); err != nil {
+	if err := t.store.putJSON(txnKey(t.t.ID), t.t); err != nil {
 		return err
 	}
 	t.store.forgetFacts()
@@ -312,7 +312,7 @@ func (t *Txn) FinishError(status, summary, full string, record bool) error {
 	// lose the record of what happened: it is written without the signature, and the
 	// error says so.
 	signErr := t.signFinish()
-	if err := t.store.putJSON("txn/"+t.t.ID+".json", t.t); err != nil {
+	if err := t.store.putJSON(txnKey(t.t.ID), t.t); err != nil {
 		return err
 	}
 	t.store.forgetFacts()
@@ -352,14 +352,11 @@ func (s *Store) SummaryText(t Transaction) string {
 // to stop.
 func (s *Store) resealSummaries(ctx context.Context, current string) error {
 	sl := s.Sealer()
-	keys, err := s.b.List(ctx, "txn")
+	keys, err := s.txnKeys(ctx)
 	if err != nil {
 		return err
 	}
 	for _, k := range keys {
-		if !strings.HasSuffix(k, ".json") {
-			continue
-		}
 		data, err := s.b.Get(ctx, k)
 		if errors.Is(err, ErrNotFound) {
 			continue
@@ -407,15 +404,9 @@ func (s *Store) resealSummaries(ctx context.Context, current string) error {
 
 // Transactions lists recorded transactions, newest first.
 func (s *Store) Transactions() ([]Transaction, error) {
-	keys, err := s.b.List(s.cx(), "txn")
+	jsonKeys, err := s.txnKeys(s.cx())
 	if err != nil {
 		return nil, err
-	}
-	var jsonKeys []string
-	for _, k := range keys {
-		if strings.HasSuffix(k, ".json") {
-			jsonKeys = append(jsonKeys, k)
-		}
 	}
 	// Remote backends pay a round trip per object, and a state has one per command that did work.
 	read := make([]*Transaction, len(jsonKeys))
@@ -425,14 +416,12 @@ func (s *Store) Transactions() ([]Transaction, error) {
 		if err != nil {
 			return
 		}
-		var t Transaction
-		// A transaction is in the object that has its id: a copy under another name is
-		// not another transaction.
-		if json.Unmarshal(data, &t) == nil && k == "txn/"+t.ID+".json" {
+		id, _ := txnIDOf(k)
+		if t := decodeTxn(data, id); t != nil {
 			if t.Changes == nil {
 				t.Changes = []Change{}
 			}
-			read[i] = &t
+			read[i] = t
 		}
 	})
 	out := []Transaction{}
@@ -449,23 +438,17 @@ func (s *Store) Transactions() ([]Transaction, error) {
 // with the time to the second and end in random hex, so only the objects of the last second
 // are read, and the newest of them by its start.
 func (s *Store) LatestTransaction() (*Transaction, error) {
-	keys, err := s.b.List(s.cx(), "txn")
+	ids, err := s.txnKeys(s.cx())
 	if err != nil {
 		return nil, err
-	}
-	var ids []string
-	for _, k := range keys {
-		if strings.HasSuffix(k, ".json") {
-			ids = append(ids, k)
-		}
 	}
 	sort.Strings(ids)
 	var newest *Transaction
 	for i := len(ids) - 1; i >= 0; i-- {
-		at, _, _ := strings.Cut(strings.TrimPrefix(ids[i], "txn/"), "-")
+		at, _, _ := strings.Cut(strings.TrimPrefix(ids[i], txnPrefix), "-")
 		if i+1 < len(ids) {
 			// A different second than the one after ends the search.
-			if next, _, _ := strings.Cut(strings.TrimPrefix(ids[i+1], "txn/"), "-"); next != at && newest != nil {
+			if next, _, _ := strings.Cut(strings.TrimPrefix(ids[i+1], txnPrefix), "-"); next != at && newest != nil {
 				break
 			}
 		}
@@ -473,16 +456,16 @@ func (s *Store) LatestTransaction() (*Transaction, error) {
 		if err != nil {
 			return nil, err
 		}
-		var t Transaction
-		if json.Unmarshal(data, &t) != nil || ids[i] != "txn/"+t.ID+".json" {
+		id, _ := txnIDOf(ids[i])
+		t := decodeTxn(data, id)
+		if t == nil {
 			continue
 		}
 		if t.Changes == nil {
 			t.Changes = []Change{}
 		}
 		if newest == nil || t.Started.After(newest.Started) {
-			c := t
-			newest = &c
+			newest = t
 		}
 	}
 	return newest, nil
@@ -603,7 +586,7 @@ func (s *Store) kindHints(readers []protect.Reader) (map[string]string, error) {
 // transaction whose hint (see KindDir) names another kind is not read, so the cost does not
 // grow with the plans, edits and secrets that came after the match.
 func (s *Store) LatestOfKinds(readers []protect.Reader, kinds ...string) (*Transaction, error) {
-	keys, err := s.b.List(s.cx(), "txn")
+	ids, err := s.txnKeys(s.cx())
 	if err != nil {
 		return nil, err
 	}
@@ -611,36 +594,30 @@ func (s *Store) LatestOfKinds(readers []protect.Reader, kinds ...string) (*Trans
 	if err != nil {
 		return nil, err
 	}
-	var ids []string
-	for _, k := range keys {
-		if strings.HasSuffix(k, ".json") {
-			ids = append(ids, k)
-		}
-	}
 	sort.Strings(ids)
 	var best *Transaction
 	for i := len(ids) - 1; i >= 0; i-- {
-		at, _, _ := strings.Cut(strings.TrimPrefix(ids[i], "txn/"), "-")
+		at, _, _ := strings.Cut(strings.TrimPrefix(ids[i], txnPrefix), "-")
 		if best != nil {
 			// Ids begin with the time to the second: an earlier second cannot be newer.
 			if bat, _, _ := strings.Cut(best.ID, "-"); at != bat {
 				break
 			}
 		}
-		if k, ok := hints[strings.TrimSuffix(strings.TrimPrefix(ids[i], "txn/"), ".json")]; ok && !slices.Contains(kinds, k) {
+		if k, ok := hints[mustTxnID(ids[i])]; ok && !slices.Contains(kinds, k) {
 			continue
 		}
 		data, err := s.b.Get(s.cx(), ids[i])
 		if err != nil {
 			return nil, err
 		}
-		var t Transaction
-		if json.Unmarshal(data, &t) != nil || ids[i] != "txn/"+t.ID+".json" || !slices.Contains(kinds, t.Kind) {
+		id, _ := txnIDOf(ids[i])
+		t := decodeTxn(data, id)
+		if t == nil || !slices.Contains(kinds, t.Kind) {
 			continue
 		}
 		if best == nil || t.Started.After(best.Started) {
-			tt := t
-			best = &tt
+			best = t
 		}
 	}
 	return best, nil

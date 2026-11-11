@@ -401,14 +401,11 @@ func (s *Store) unsealOutputs() error {
 // transaction is a log, and one that is damaged is not a reason to stop.
 func (s *Store) unsealSummaries(ctx context.Context) error {
 	sl := s.Sealer()
-	keys, err := s.b.List(ctx, "txn")
+	keys, err := s.txnKeys(ctx)
 	if err != nil {
 		return err
 	}
 	for _, k := range keys {
-		if !strings.HasSuffix(k, ".json") {
-			continue
-		}
 		data, err := s.b.Get(ctx, k)
 		if errors.Is(err, ErrNotFound) {
 			continue

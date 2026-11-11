@@ -249,14 +249,11 @@ func (s *Store) loadTxns(ctx context.Context, ids []string) txnLookup {
 	sort.Strings(list)
 	got := make([]*Transaction, len(list))
 	s.each(len(list), func(i int) {
-		data, err := s.b.Get(ctx, "txn/"+list[i]+".json")
+		data, err := s.b.Get(ctx, txnKey(list[i]))
 		if err != nil {
 			return
 		}
-		var t Transaction
-		if json.Unmarshal(data, &t) == nil && t.ID == list[i] {
-			got[i] = &t
-		}
+		got[i] = decodeTxn(data, list[i])
 	})
 	byID := make(map[string]*Transaction, len(list))
 	for i, id := range list {
