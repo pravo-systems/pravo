@@ -174,10 +174,6 @@ func (e *Engine) shadowGuard(ctx context.Context, plan *Plan) error {
 	if e.Root == nil || plan == nil || e.State == nil {
 		return nil
 	}
-	owned, l, err := TerraformOwns(e.State, e.Opts.Readers, e.Root.Dir)
-	if err != nil || !owned {
-		return err
-	}
 	var touched []string
 	for _, c := range plan.Changes {
 		if c.Applied || c.Mode == "data" {
@@ -190,6 +186,12 @@ func (e *Engine) shadowGuard(ctx context.Context, plan *Plan) error {
 	}
 	if len(touched) == 0 {
 		return nil
+	}
+	// The owner is read from the state, which costs requests: only a plan that changes an
+	// object asks.
+	owned, l, err := TerraformOwns(e.State, e.Opts.Readers, e.Root.Dir)
+	if err != nil || !owned {
+		return err
 	}
 	shown := touched
 	if len(shown) > 5 {
