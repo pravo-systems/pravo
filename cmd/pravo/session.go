@@ -594,9 +594,9 @@ func moduleSegment(dir string) string {
 	var b strings.Builder
 	run := ""
 	flush := func() {
-		switch {
-		case run == "":
-		case run == ".":
+		switch run {
+		case "":
+		case ".":
 			b.WriteByte('.')
 		default:
 			b.WriteByte('-')
