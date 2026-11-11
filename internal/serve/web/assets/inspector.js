@@ -202,8 +202,10 @@ export class Inspector {
   }
 
   // showNode shows a node; tab is the tab to show.
-  showNode(node, model, tab, graph) {
-    const same = this.mode === 'node' && this.addr === node.addr;
+  // asOf, when given, shows the node as a run of the time lapse left it: {id, label, when, by, hasPrev, hasNext}.
+  showNode(node, model, tab, graph, asOf = null) {
+    const same = this.mode === 'node' && this.addr === node.addr && !this.asOf === !asOf;
+    this.asOf = asOf;
     this.prevDetail = same ? this.detail : null; // a refresh of the node on show: what changed flashes
     this.mode = 'node';
     this.model = model;
@@ -224,7 +226,8 @@ export class Inspector {
   // the tabs that the node can fill; a tab that could never hold anything is not offered
   tabList() {
     const keys = tabsOf(this.node, this.model.hasPlan);
-    return TABS.filter((t) => keys.includes(t.key));
+    // a run left a record and a history: the source, the schema and the plan are of today
+    return TABS.filter((t) => keys.includes(t.key) && (!this.asOf || t.key === 'state' || t.key === 'history'));
   }
 
   // ---- header, strip, tabs of a node ----
@@ -250,7 +253,7 @@ export class Inspector {
     if (n.sensitive > 0) tags.push(h('span', { class: 'b lock' }, icon('lock'), out ? 'sensitive' : `${n.sensitive} sensitive`));
     if (n.no_schema) tags.push(h('span', { class: 'b chg' }, 'no schema'));
     // the header takes the colour of what the plan does to the resource, so that the panel says it before the strip does
-    this.root.dataset.act = n.action && n.action !== 'no-op' ? n.action : '';
+    this.root.dataset.act = !this.asOf && n.action && n.action !== 'no-op' ? n.action : '';
     this.header({
       kick: ENTITY_LABEL[entityOf(n)] || n.mode,
       kickFacet: entityOf(n),
@@ -260,7 +263,25 @@ export class Inspector {
       copy: n.addr,
       tags,
     });
-    this.nodeStrip(n, detail);
+    if (this.asOf) this.asOfStrip(); else this.nodeStrip(n, detail);
+  }
+
+  // asOfStrip says which run the panel is of, and walks along the runs that wrote the resource.
+  asOfStrip() {
+    const a = this.asOf;
+    const go = (what) => () => this.cb.onAsOf && this.cb.onAsOf(what);
+    clear(this.plansRow);
+    this.plansRow.hidden = true;
+    clear(this.strip);
+    this.strip.append(h('div', { class: 'asof' },
+      h('p', { class: 'asof-k' }, a.label, a.here === 'gone' ? h('span', { class: 'b bad' }, 'removed') : a.here === 'not-yet' ? h('span', { class: 'b' }, 'not there yet') : null),
+      h('p', { class: 'asof-t' }, a.when, a.by ? h('span', { class: 'dim' }, ' · ' + a.by) : null),
+      h('button', { type: 'button', class: 'iconbtn asof-x', 'aria-label': 'Put the resource down', 'data-tip': 'Put the resource down (Esc)', on: { click: go('close') } }, h('span', { class: 'i i-x', 'aria-hidden': 'true' })),
+      h('div', { class: 'asof-b' },
+        h('button', { type: 'button', class: 'btn', disabled: !a.hasPrev, 'data-tip': 'Go to the run before this one that wrote this resource', on: { click: go('prev') } }, icon('arrow-l'), 'Earlier change'),
+        h('button', { type: 'button', class: 'btn', disabled: !a.hasNext, 'data-tip': 'Go to the next run that wrote this resource', on: { click: go('next') } }, 'Later change', icon('arrow'))),
+      h('button', { type: 'button', class: 'linkbtn asof-open', 'data-tip': 'Leave the time lapse and show the resource as it is now', on: { click: go('open') } }, 'Open it in the inventory, as it is now')));
+    this.strip.hidden = false;
   }
 
   nodeStrip(n, detail) {
@@ -373,18 +394,29 @@ export class Inspector {
     const my = ++this.token;
     // the plan the answers are about: a stored plan by id, none at all, or (not given) the plan of the graph
     const plan = model.planParam;
-    const key = (k) => `${k}:${node.addr}:${model.graph.revision}:${plan || ''}`;
+    const asId = this.asOf ? this.asOf.id : '';
+    const key = (k) => `${k}:${node.addr}:${model.graph.revision}:${plan || ''}:${asId}`;
     this.nodeHead(node, null);
     this.ensureTabs();
     if (!keepScroll) this.body.scrollTop = 0;
     this.body.classList.add('loading');
     const timer = setTimeout(() => { if (my === this.token && this.body.classList.contains('loading')) { clear(this.body); this.body.append(this.skeleton()); } }, 150);
-    const need = [this.fetch(key('detail'), () => api.detail(node.addr, plan))];
+    if (this.asOf && this.asOf.here === 'before') {
+      // the film starts at the first run that the state kept: nothing is known of the time before it
+      clearTimeout(timer);
+      this.body.classList.remove('loading');
+      this.detail = null;
+      this.ensureTabs();
+      this.paint(h('div', { class: 'pane' }, h('div', { class: 'blank' }, icon('stack'), h('p', null, 'The film starts with the first run that the state kept. Step forward to see this resource as that run left it.'))));
+      return;
+    }
+    const need = [this.fetch(key('detail'), () => api.detail(node.addr, plan, asId))];
     if (this.tab === 'source') need.push(this.fetch(key('source'), () => api.source(node.addr, plan)));
     Promise.all(need).then(([detail, source]) => {
       clearTimeout(timer);
       if (my !== this.token) return;
       if (model.specError && detail && detail.node) detail.node = Object.assign({}, detail.node, { presence: 'both' });
+      if (asId && detail && detail.node) detail.node = Object.assign({}, node, detail.node, { name: node.name });
       this.detail = detail;
       this.nodeHead(node, detail);
       this.ensureTabs();
@@ -453,8 +485,35 @@ export class Inspector {
     return wrap;
   }
 
+  // asOfStatePane is the State tab of a resource as a run left it: its attributes then and what it was connected to, as
+  // the state records it now (a removed resource has none), and nothing of today's record, locks or plan.
+  asOfStatePane(d) {
+    const wrap = h('div', { class: 'pane state-pane' });
+    const a = d.as_of || {};
+    const here = this.asOf ? this.asOf.here : 'here';
+    if (here !== 'here') {
+      const gone = here === 'gone';
+      wrap.append(h('div', { class: 'blank' }, icon('stack'), h('p', null, gone ? 'A run removed this resource: it is not in the estate after this run.' : 'This resource was not there yet.'),
+        this.asOf && (gone ? this.asOf.hasPrev : this.asOf.hasNext) ? h('p', { class: 'dim' }, gone ? 'Go to an earlier change to see what it held.' : 'Go to a later change to see it.') : null));
+      if (!gone) return wrap;
+      wrap.append(h('p', { class: 'note quiet' }, icon('info'), h('span', null, 'The history lists every run that wrote it.')));
+      return wrap;
+    }
+    if (!a.known) wrap.append(h('p', { class: 'note' }, icon('info'), h('span', null, `The attributes as this run left them cannot be told. ${a.why || ''}`.trim())));
+    else wrap.append(this.state.render(d, new Set()));
+    if (a.known && a.withheld) wrap.append(h('p', { class: 'note quiet' }, icon('lock'), h('span', null, `${plural(a.withheld, 'attribute')} may hold a secret. The state never keeps what they held.`)));
+    if (a.gone) wrap.append(h('p', { class: 'note' }, icon('info'), h('span', null, 'A run removed this resource, so the state has no record of it now.')));
+    else {
+      wrap.append(this.refsRow(d));
+      wrap.append(h('p', { class: 'note quiet' }, icon('info'), h('span', null, 'Connections are the ones the state records now. The state does not keep what a resource was connected to at an earlier run.')));
+    }
+    for (const note of d.notes || []) wrap.append(h('p', { class: 'note' }, icon('info'), h('span', null, note)));
+    return wrap;
+  }
+
   statePane(d, node) {
     if (isOut(node)) return this.outputPane(d);
+    if (d.as_of) return this.asOfStatePane(d);
     const wrap = h('div', { class: 'pane state-pane' });
     const changed = new Set((d.change && d.change.attrs || []).map((a) => a.path));
     wrap.append(this.state.render(d, changed));
@@ -613,13 +672,16 @@ export class Inspector {
       return h('div', { class: 'pane' }, h('div', { class: 'blank' }, icon('stack'), h('p', null, 'No transaction wrote this resource.')));
     }
     const ol = h('ol', { class: 'timeline' });
+    const shown = d.as_of ? d.as_of.id : '';
     for (const e of list) {
       // a read that found the object changed outside pravo is a drift: it wrote the record to say so
       const a = actionOf(e.action) || (e.action === 'drift' ? { cls: 'a-update', label: 'drift' } : null);
-      ol.append(h('li', { class: 'tl st-' + e.status },
+      const later = d.as_of && e.id !== shown && new Date(e.time) > new Date(d.as_of.time);
+      ol.append(h('li', { class: 'tl st-' + e.status + (e.id === shown ? ' here' : '') + (later ? ' later' : '') },
         h('span', { class: 'tl-mark', 'aria-hidden': 'true' }),
         h('div', { class: 'tl-body' },
           h('div', { class: 'tl-top' },
+            e.id === shown ? h('span', { class: 'b here', 'data-tip': 'The time lapse shows the estate as this run left it' }, 'shown') : null,
             h('span', { class: 'b ' + statusClass(e.status) }, e.status),
             h('span', { class: 'kind' }, e.kind),
             a ? h('span', { class: 'act' }, h('span', { class: 'sq ' + a.cls }), a.label) : (e.action ? h('span', { class: 'dim' }, e.action) : null),
@@ -633,6 +695,7 @@ export class Inspector {
             e.git_revision ? h('span', { title: 'Revision of the specification' }, 'git ' + e.git_revision.slice(0, 8)) : null,
             e.signature ? signatureMark(e.signature, e.signer) : null,
             e.rev_before || e.rev_after ? h('span', null, `rev ${e.rev_before || 0} → ${e.rev_after || 0}`) : null),
+          e.in_lapse && e.id !== shown ? h('button', { type: 'button', class: 'linkbtn tl-jump', 'data-tip': d.as_of ? 'Show the estate as this run left it' : 'Open the time lapse at this run, with this resource picked', on: { click: () => this.cb.onLapse && this.cb.onLapse(e.id, this.node.addr) } }, icon('lapse'), d.as_of ? 'Jump to this run' : 'Show in time lapse') : null,
           this.historyDiff(e))));
     }
     return h('div', { class: 'pane' }, h('section', { class: 'sec' }, ol));

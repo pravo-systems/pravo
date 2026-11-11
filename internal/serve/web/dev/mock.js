@@ -77,6 +77,18 @@ function secretOf(addr) {
 // ---- the Time lapse view: timelapse.NAME.json, the platform's unless the query says another; the other mocks have no runs ----
 const lapseName = params.get('timelapse') || (NAME === 'platform' ? 'platform' : 'empty');
 const timelapse = (await fixture(`timelapse.${lapseName}.json`)) || { version: 1, revision: graph.revision, steps: [] };
+// lapseHistory is the history of a node made from the runs of the film that touched it, newest first, as the server words it
+function lapseHistory(addr) {
+  const out = [];
+  for (const st of timelapse.steps.slice().reverse()) {
+    const c = st.changes.find((x) => x.addr === addr);
+    if (!c) continue;
+    const action = { add: 'create', change: 'update', replace: 'replace', remove: 'delete', move: 'move-to' }[c.action];
+    out.push({ id: st.id, kind: st.kind, status: st.status, time: st.time, user: st.user, ...(st.actor ? { actor: st.actor } : {}), command: st.command, ...(st.reason ? { reason: st.reason } : {}), action, ...(st.git_revision ? { git_revision: st.git_revision } : {}), in_lapse: true,
+      ...(c.action === 'change' ? { attrs: [{ path: 'port', before: 5432, after: 5433 }, { path: 'tags.owner', before: 'team', after: 'ops' }] } : {}) });
+  }
+  return out;
+}
 // ---- the Traces view: traces.NAME.json lists the runs, and trace.XXXXXXXX.json (the first eight digits of the id) is each one ----
 const tracesName = params.get('traces') || (NAME === 'platform' ? 'platform' : 'empty');
 let traces = (await fixture(`traces.${tracesName}.json`)) || { version: 1, dir: '.pravo/traces', traces: [] };
@@ -526,6 +538,22 @@ window.fetch = async (input, init) => {
     const sealed = access && access.you && access.you.state !== 'reader' && access.state !== 'off';
     return json(200, Object.assign({}, o, { revision: graph.revision }, sealed ? { warnings: (o.warnings || []).concat('The values of this plan are sealed.') } : {}));
   }
+  if (p === '/api/detail' && url.searchParams.has('at')) {
+    // the node as the run left it: the history is the runs of the time lapse that touched it, and a later change shows as an older number
+    const addr = url.searchParams.get('addr') || '', at = url.searchParams.get('at');
+    const i = timelapse.steps.findIndex((x) => x.id === at);
+    if (i < 0) return json(404, { error: 'no such run' });
+    const n = graph.nodes.find((x) => x.addr === addr);
+    const gone = !n || n.mode === 'output';
+    const base = gone ? { version: 1, node: { addr }, attrs: [], depends_on: [], used_by: [], times: {} } : JSON.parse(JSON.stringify(synthDetail(n)));
+    delete base.change; delete base.lock; base.times = {}; delete base.notes;
+    base.history = lapseHistory(addr);
+    const later = timelapse.steps.slice(i + 1).filter((st) => st.changes.some((c) => c.addr === addr && (c.action === 'change' || c.action === 'replace'))).length;
+    for (const a of base.attrs || []) if (typeof a.value === 'number' && later) a.value -= later;
+    const step = timelapse.steps[i];
+    base.as_of = { id: step.id, kind: step.kind, time: step.time, known: !(n && n.sealed), ...(gone ? { gone: true } : {}), ...(n && n.sealed ? { why: 'The attributes of this record are sealed.' } : {}) };
+    return json(200, base);
+  }
   if (p === '/api/detail' || p === '/api/source') {
     const addr = url.searchParams.get('addr') || '';
     let n = graph.nodes.find((x) => x.addr === addr);
@@ -550,8 +578,9 @@ window.fetch = async (input, init) => {
       return json(200, synthSource(n));
     }
     const files = kind === 'detail' ? detailFiles : sourceFiles;
-    if (files[addr] && mutations === 0 && !n.sealed) { const v = await fixture(files[addr]); if (v) return json(200, shift(v, by)); }
-    return json(200, kind === 'detail' ? synthDetail(n) : synthSource(n));
+    if (files[addr] && mutations === 0 && !n.sealed) { const v = await fixture(files[addr]); if (v) { const out = shift(v, by); if (kind === 'detail' && out.history && timelapse.steps.length) { const hist = lapseHistory(addr); if (hist.length) out.history = hist; } return json(200, out); } }
+    if (kind === 'detail') { const d = synthDetail(n); if (timelapse.steps.length && d.history) d.history = lapseHistory(addr); return json(200, d); }
+    return json(200, synthSource(n));
   }
   if (p === '/api/fields') {
     // the same rules as the server: only what the detail sends, a path that names a field or what lies below it, * for any run

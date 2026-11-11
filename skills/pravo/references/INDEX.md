@@ -61,7 +61,7 @@ One page for each command and each part of the specification, tables first.
 
 | File | Covers | Size |
 |---|---|---|
-| [reference/viewer-sections.md](reference/viewer-sections.md) | What each section of the viewer shows and how to read it: Inventory, Templates, Plans, Discovery, Policies with the studio, Time lapse, Traces, Secrets, State and Environments, part by part, with the filter columns and the tabs of the inspector. | 68 KB |
+| [reference/viewer-sections.md](reference/viewer-sections.md) | What each section of the viewer shows and how to read it: Inventory, Templates, Plans, Discovery, Policies with the studio, Time lapse, Traces, Secrets, State and Environments, part by part, with the filter columns and the tabs of the inspector. | 70 KB |
 | [reference/viewer-keys-and-links.md](reference/viewer-keys-and-links.md) | The keyboard of the viewer, the command palette, and every parameter of the address that reproduces a view: selection, tabs, open groups, filters, a plan over the graph, a policy, a run. | 12 KB |
 | [reference/viewer-api.md](reference/viewer-api.md) | The read-only JSON endpoints behind the viewer, for a script: the graph, one node, the stored plans, a plan over the graph, the discoveries, the policies, the studio, the recorded runs and the event stream. | 28 KB |
 

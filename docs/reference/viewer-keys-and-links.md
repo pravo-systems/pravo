@@ -29,6 +29,8 @@ A fragment looks like `#/?sel=api.services.billing.config&tab=source&collapse=ne
 | `pol` | Text | The policy that is open in the Policies section, by its name. |
 | `ps` | `1` | The policy studio, the second page of the Policies section. |
 | `ls` | A number | The run that the Time lapse section shows, counted from 1 in the order they ran. Without it the film opens on the last run. |
+| `lr` | A resource address | The resource that is picked in the Time lapse section: the inspector shows it as the run in `ls` left it. |
+| `lt` | `history` | The History tab of that panel; without it the State tab. |
 | `trace` | A run id: 32 hexadecimal digits, a hyphen and 16 more | The recorded run that the Traces section opens. Without it the newest is open. A run that is not in the directory is told in a notice and ignored. |
 | `span` | A span id of 16 hexadecimal digits | The selected span of that run. |
 | `tv` | `table` | The Traces section shows the slowest spans as a table and not as a timeline. |

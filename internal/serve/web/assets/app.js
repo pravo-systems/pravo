@@ -157,6 +157,8 @@ function readFragment() {
     view: !p.view && onPhone() ? 'list' : p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : p.view === 'discovery' ? 'discovery' : p.view === 'policies' ? 'policies' : p.view === 'secrets' ? 'secrets' : p.view === 'templates' ? 'templates' : p.view === 'traces' ? 'traces' : p.view === 'environments' ? 'environments' : p.view === 'timelapse' ? 'timelapse' : 'graph',
     trace: /^[0-9a-f]{32}-[0-9a-f]{16}$/.test(p.trace || '') ? p.trace : '',
     ls: /^\d{1,5}$/.test(p.ls || '') ? p.ls : '',
+    lr: (p.lr || '').length <= 2048 ? p.lr || '' : '',
+    lt: p.lt === 'history' ? 'history' : '',
     span: /^[0-9a-f]{16}$/.test(p.span || '') ? p.span : '',
     pol: (p.pol || '').slice(0, 512),
     tpl: (p.tpl || '').slice(0, 64),
@@ -722,7 +724,25 @@ function clearSelection() {
   announce('Selection cleared');
 }
 
+// showLapseInspector shows the resource that is picked in the Time lapse as the shown run left it, beside the film, and the
+// inventory's own selection stays as it was.
+function showLapseInspector() {
+  const pk = lapseView && lapseView.picked();
+  $('app').dataset.sel = pk ? '1' : '';
+  if (!pk) { closeDrawer(); return; }
+  const n = S.model.nodes.get(pk.addr) || goneNode(pk.addr);
+  insp.showNode(n, S.model, pk.tab, S.graph, pk.asOf);
+  openDrawer();
+}
+
+// goneNode stands for a resource that a run removed: the graph has no node for it, the film and the history do.
+function goneNode(addr) {
+  const name = addr.slice(addr.lastIndexOf('.') + 1) || addr;
+  return { addr, name, type: '', mode: 'managed', namespace: addr.includes('.') ? addr.slice(0, addr.lastIndexOf('.')) : '', ns: null, deps: [], used: [], sensitive: 0, presence: 'state', gone: true };
+}
+
 function showInspector() {
+  if (S.view === 'timelapse') { showLapseInspector(); return; }
   const m = S.model;
   // the inspector is there while something is selected, or the project is asked for
   $('app').dataset.sel = S.sel || S.proj || (chatView && chatView.isOpen) ? '1' : '';
@@ -1002,6 +1022,9 @@ function setView(v) {
   else if (v === 'traces') tracesView.open();
   else if (v === 'timelapse') lapseView.open();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
+  if (v === 'timelapse' || S.lapseShown) showInspector();
+  S.lapseShown = v === 'timelapse';
+  updateLapseBack();
   setDocTitle();
   syncFragment();
   announce(v === 'list' ? 'Inventory, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : v === 'discovery' ? 'Discovery' : v === 'traces' ? 'Traces' : v === 'policies' ? 'Policies' : v === 'secrets' ? 'Secrets' : v === 'templates' ? 'Templates' : v === 'environments' ? 'Environments' : v === 'timelapse' ? 'Time lapse' : 'Inventory, graph view');
@@ -1606,11 +1629,43 @@ function openRun(id) {
   setView('traces');
 }
 
-// openFromLapse goes from a square of the Time lapse to the resource in the inventory. A resource that a run removed is not there.
+// openFromLapse goes from the Time lapse to a resource in the inventory, as it is now. The film keeps its place (the run and the
+// resource that is picked), the browser's Back and a button of the section bar return to it. A resource that a run removed is not there.
 function openFromLapse(addr) {
   if (!S.model || !S.model.nodes.has(addr)) { toast(`${addr} is not in the estate any more`, 'info', 4200, 'A run removed it.'); return; }
+  S.lapseBack = true;
+  pushEntry();
   setView(S.lastResources || 'graph');
   selectNode(addr, { center: true });
+}
+
+// pushEntry makes the place that is left an entry of the browser's history, so that Back returns to it.
+function pushEntry() {
+  if (!S.model) return;
+  try {
+    writeHash(currentHash());
+    history.pushState(null, '', location.href);
+  } catch { /* a sandboxed frame keeps no history */ }
+}
+
+// showInLapse goes from the history of a resource to the film, at the run that the entry names, with the resource picked. From the
+// film's own panel it jumps to that run.
+function showInLapse(id, addr) {
+  if (S.view !== 'timelapse') pushEntry();
+  S.lapseBack = false;
+  lapseView.focusRun(id, addr);
+  setView('timelapse');
+}
+
+// updateLapseBack shows the way back to the film in the section bar while the inventory is open on a resource that the film sent it to.
+function updateLapseBack() {
+  const b = $('lapse-back');
+  if (!b) return;
+  const on = S.lapseBack && (S.view === 'graph' || S.view === 'list') && lapseView && lapseView.model;
+  b.hidden = !on;
+  if (!on) return;
+  const i = lapseView.step, n = lapseView.model.steps.length;
+  b.querySelector('.lbl').textContent = i > 0 && i < n ? `Back to the time lapse · run ${i}` : 'Back to the time lapse';
 }
 
 // openFinding goes to the Discovery section with the filter on one object that a discovery found.
@@ -1695,6 +1750,7 @@ function onKey(ev) {
   const typing = isTyping(ev.target);
   if (k === 'Escape') {
     if (chatView && chatView.isOpen && !typing) { chatView.close(); return; }
+    if (S.view === 'timelapse' && lapseView.sel && !typing) { lapseView.pick(''); return; }
     if ($('app').classList.contains('insp-open')) { closeDrawer(); return; }
     if (S.proj && !S.sel && !typing) { setProject(false); return; }
     if (typing) { ev.target.blur(); return; }
@@ -1756,7 +1812,7 @@ function wire() {
     onToggleNamespace: toggleNamespace,
     onOpenNamespace: openNamespace,
     onPlan: openPlan,
-    onFacet: facetFilter,
+    onFacet: (...a) => { if (S.view !== 'timelapse') facetFilter(...a); },
     onCluster: clusterAction,
     onClear: clearSelection,
     onView: () => minimapDraw(),
@@ -1796,7 +1852,10 @@ function wire() {
     onState: () => setView('access'),
   });
   environmentsView = new EnvironmentsView($('envs-pane'), { onSwitch: (name) => switchEnvironment(name) });
-  lapseView = new TimeLapseView($('timelapse-pane'), { nodes: () => (S.model ? S.model.list : []), revision: () => (S.raw ? S.raw.revision : ''), onRoute: () => syncFragment(), onOpen: (addr) => openFromLapse(addr) });
+  lapseView = new TimeLapseView($('timelapse-pane'), { nodes: () => (S.model ? S.model.list : []), revision: () => (S.raw ? S.raw.revision : ''), onRoute: () => syncFragment(), onOpen: (addr) => openFromLapse(addr),
+    // the panel follows the run that is shown; while the film is scrubbed or plays, it is drawn once the hand rests
+    onPick: () => schedule('lapse-panel', () => { if (S.view === 'timelapse') showInspector(); }),
+    related: (addr) => { const n = S.model && S.model.nodes.get(addr); return n ? { deps: n.deps || [], used: n.used || [] } : null; } });
   templatesView = new TemplatesView($('templates-pane'), {
     // an instance: the graph opens on its group
     onNamespace: (path) => { setView(S.lastResources || 'graph'); showNamespace(path); },
@@ -1809,10 +1868,16 @@ function wire() {
     onFacet: facetFilter,
     fieldMatch: () => fieldMatcher(S.q),
     query: () => S.q,
-    onSelectNode: (a) => selectNode(a, { center: true }),
-    onSelectNamespace: (p) => selectNamespace(p, { center: true }),
+    onSelectNode: (a) => { if (S.view === 'timelapse') lapseView.pick(a); else selectNode(a, { center: true }); },
+    onSelectNamespace: (p) => { if (S.view !== 'timelapse') selectNamespace(p, { center: true }); },
+    onAsOf: (what) => {
+      if (what === 'prev' || what === 'next') lapseView.along(what);
+      else if (what === 'open') openFromLapse(lapseView.sel);
+      else lapseView.pick('');
+    },
+    onLapse: (id, addr) => showInLapse(id, addr),
     onTemplate: (name) => { templatesView.sel = name; templatesView.wizard = false; setView('templates'); },
-    onTab: setTab,
+    onTab: (t) => { if (S.view === 'timelapse') lapseView.setTab(t); else setTab(t); },
     onReach: (a) => { if (S.sel !== a) selectNode(a, {}); setReach(true, true); },
     onToggleNamespace: toggleNamespace,
     onFit: (p) => { const lane = S.lay.lanes.find((l) => l.path === p); if (lane) gv.centerOnBox(lane); else { const id = S.vis.items.get('ns:' + p) ? 'ns:' + p : null; if (id) gv.centerOn(id, 0.9); } if (S.view !== 'graph') setView('graph'); },
@@ -1863,6 +1928,7 @@ function wire() {
   $('sec-discovery').addEventListener('click', () => setView('discovery'));
   $('sec-traces').addEventListener('click', () => setView('traces'));
   $('sec-timelapse').addEventListener('click', () => setView('timelapse'));
+  $('lapse-back').addEventListener('click', () => { S.lapseBack = false; setView('timelapse'); });
   $('sec-policies').addEventListener('click', () => setView('policies'));
   $('sec-secrets').addEventListener('click', () => setView('secrets'));
   $('env-btn').addEventListener('click', () => toggleEnvMenu());

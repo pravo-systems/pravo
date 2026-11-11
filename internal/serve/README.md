@@ -28,7 +28,7 @@
 | `GET /` and `/assets/...` | the embedded interface (`web/`), no data |
 | `GET /api/ping` | `{"ok":true,"version":N}` |
 | `GET /api/graph` | `Graph` |
-| `GET /api/detail?addr=A` | `Detail`; with `&plan=ID` it answers for that stored plan, with `&plan=none` for no plan |
+| `GET /api/detail?addr=A` | `Detail`; with `&plan=ID` it answers for that stored plan, with `&plan=none` for no plan, and with `&at=RUN` for the node as that run left it (`Detail.AsOf`: the record with the later runs' diffs undone, newest first; what a diff does not keep is left out and said, never made up; a node that a run removed has its history and the names of its attributes) |
 | `GET /api/source?addr=A` | `Source`; `&plan=ID` marks the lines that stored plan changes |
 | `GET /api/plans` | `PlanList`: the plans stored in the state, newest first |
 | `GET /api/plan?id=ID` | `PlanOverlay`: a stored plan laid over the graph, as `--plan FILE` lays a plan file, with the text its author wrote (`reason`, `command`, `git_revision`), masked |

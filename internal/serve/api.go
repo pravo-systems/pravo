@@ -337,6 +337,24 @@ type Detail struct {
 	Lock           *LockInfo       `json:"lock,omitempty"`
 	Times          Times           `json:"times"`
 	Notes          []string        `json:"notes,omitempty"`
+	// AsOf is set when the request named a run (at=ID): the node as that run left it. Attrs are the attributes it held
+	// then, worked out from the diffs that the later runs recorded; Change, Lock and Times are left out.
+	AsOf *AsOf `json:"as_of,omitempty"`
+}
+
+// AsOf says which run a detail is of and how much of it could be told.
+type AsOf struct {
+	ID   string    `json:"id"`
+	Kind string    `json:"kind"`
+	Time time.Time `json:"time"`
+	// Known is false when the attributes cannot be told, and Why says why: a later run altered too much to keep the
+	// values, the state is sealed, or a run was recorded before diffs were kept.
+	Known bool   `json:"known"`
+	Why   string `json:"why,omitempty"`
+	// Withheld counts the attributes left out because they are or may hold a secret, whose values the state never keeps.
+	Withheld int `json:"withheld,omitempty"`
+	// Gone is set when the node is not in the state now: a run removed it, and only its history is told.
+	Gone bool `json:"gone,omitempty"`
 }
 
 // ProviderRef is the provider instance of a node.
@@ -443,6 +461,8 @@ type HistoryEntry struct {
 	// Signer is the name the readers file gives the key of a signature that verified.
 	Signature string `json:"signature,omitempty"`
 	Signer    string `json:"signer,omitempty"`
+	// InLapse says the run is a step of GET /api/timelapse, so that the page can show the estate as this run left it.
+	InLapse bool `json:"in_lapse,omitempty"`
 }
 
 // LockInfo is the lock or reservation that holds a node.
