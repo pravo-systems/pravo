@@ -54,20 +54,14 @@ func (s *Server) approvalsOf(ctx context.Context, m *model, e *engine.PlanEntry,
 		return out
 	}
 	// The key that stored the plan counts only when every need lets it.
-	var storers []string
-	sigs, err := ps.SignaturesOf(ctx, e.Meta.ID, pf.Digest, readers)
+	storers, err := ps.Storers(ctx, e.Meta.ID, pf.Digest, readers)
 	if err != nil {
 		out.Note = "not checked: the signatures could not be read"
 		return out
 	}
-	for _, v := range sigs {
-		if v.Status == protect.SigVerified {
-			storers = append(storers, v.Key)
-		}
-	}
 	for _, n := range needs {
-		counted := n.Counted(approvals, storers)
-		out.Needs = append(out.Needs, PlanApprovalNeed{Min: n.Min, Role: n.Role.String(), Self: n.Self, By: n.By, Have: len(counted), Met: len(counted) >= n.Min})
+		have, met := n.Standing(approvals, storers)
+		out.Needs = append(out.Needs, PlanApprovalNeed{Min: n.Min, Role: n.Role.String(), Self: n.Self, By: n.By, Have: have, Met: met})
 	}
 	return out
 }

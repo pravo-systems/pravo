@@ -175,18 +175,14 @@ func storedPlanApprovals(ctx context.Context, rt *runContext, s *session, eng *e
 				asked = ns
 			}
 		}
-		if sigs, err := ps.SignaturesOf(ctx, id, digest, readers); err == nil {
-			for _, v := range sigs {
-				if v.Status == protect.SigVerified {
-					storers = append(storers, v.Key)
-				}
-			}
+		if got, err := ps.Storers(ctx, id, digest, readers); err == nil {
+			storers = got
 		}
 	}
 	for _, n := range asked {
-		have := len(n.Counted(approvals, storers))
+		have, met := n.Standing(approvals, storers)
 		line := fmt.Sprintf("needs %s; has %d", n.Ask(), have)
-		if have >= n.Min {
+		if met {
 			line += " (met)"
 		} else {
 			line += " (not met; approve with pravo plan approve " + id + ")"

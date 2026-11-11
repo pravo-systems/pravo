@@ -235,6 +235,23 @@ func (ps *PlanStore) Signatures(ctx context.Context, id string, readers []protec
 	return ps.SignaturesOf(ctx, id, digest, readers)
 }
 
+// Storers returns the keys whose signature of the stored plan verifies: the keys that
+// stored it. The apply that counts approvals, the viewer and the commands that say
+// who approved a plan all ask here whether the key that approves also stored it.
+func (ps *PlanStore) Storers(ctx context.Context, id, digest string, readers []protect.Reader) ([]string, error) {
+	sigs, err := ps.SignaturesOf(ctx, id, digest, readers)
+	if err != nil {
+		return nil, err
+	}
+	var storers []string
+	for _, v := range sigs {
+		if v.Status == protect.SigVerified {
+			storers = append(storers, v.Key)
+		}
+	}
+	return storers, nil
+}
+
 // SignaturesOf checks the signatures of a stored plan against the readers, for a caller that
 // has the digest of the plan already (PlanFile.Digest).
 func (ps *PlanStore) SignaturesOf(ctx context.Context, id, digest string, readers []protect.Reader) ([]PlanVerdict, error) {
