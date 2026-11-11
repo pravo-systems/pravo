@@ -213,7 +213,7 @@ noted: $local.#Resource.local_file & {
 A variable that is not set and has no default is an error. A `#SecretEnv` has no default.
 
 ```sh
-env -u API_KEY pravo plan
+env -u API_KEY pravo plan 2>&1 | sed -n '/^Error/,$p'
 ```
 
 Output:

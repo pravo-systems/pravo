@@ -372,13 +372,18 @@ func CheckGraph(root *config.Root, value cue.Value, schemas map[string]*schema.P
 	return nil
 }
 
-// stopAfterFailure is what a run does when a task failed (no other task starts, see firstFailure): an apply also stops the
-// ones that run. A plan lets them finish, so that the error it reports does not depend on which of the
-// tasks that failed together got there first.
+// stopGrace is how long the tasks of a plan that were running when another failed may go on.
+const stopGrace = 2 * time.Second
+
+// stopAfterFailure is what a run does when a task failed (no other task starts, see firstFailure): an
+// apply also stops the ones that run. A plan lets them finish, for a while, so that the error it reports
+// does not depend on which of the tasks that failed together got there first.
 func stopAfterFailure(apply bool, cancel context.CancelFunc) {
 	if apply {
 		cancel()
+		return
 	}
+	time.AfterFunc(stopGrace, cancel)
 }
 
 // checkCycles reports the tasks that wait for each other. Tasks that merely
