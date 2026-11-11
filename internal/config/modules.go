@@ -135,8 +135,7 @@ func hashFiles(root string, files []string) string {
 		if err != nil {
 			rel = f
 		}
-		fmt.Fprintf(h, "%s\x00%d\x00", filepath.ToSlash(rel), len(data))
-		h.Write(data)
+		digestFrame(h, filepath.ToSlash(rel), data)
 	}
 	return "sha256:" + hex.EncodeToString(h.Sum(nil))
 }
@@ -255,14 +254,12 @@ func (r *Root) Fingerprint() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		fmt.Fprintf(h, "%s\x00%d\x00", e.name, len(data))
-		h.Write(data)
+		digestFrame(h, e.name, data)
 	}
 	// The module file pins dependency versions.
 	if mf := filepath.Join(r.modRootOrDir(), "cue.mod", "module.cue"); fileExists(mf) {
 		data, _ := os.ReadFile(mf)
-		fmt.Fprintf(h, "module.cue\x00%d\x00", len(data))
-		h.Write(data)
+		digestFrame(h, "module.cue", data)
 	}
 	return hex.EncodeToString(h.Sum(nil))[:32], nil
 }
