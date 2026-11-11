@@ -49,6 +49,25 @@ func stateCmd(rt *runContext) *cobra.Command {
 		}
 		return openStateEdit(commandContext(), rt, root)
 	}
+	// loadChange is loadEdit for a subcommand that changes what the records say about an
+	// object (rm, mv, import-tfstate): a root that Terraform owns refuses it.
+	loadChange := func(what string) func() (*state.Store, error) {
+		return func() (*state.Store, error) {
+			root, err := loadRoot(rt)
+			if err != nil {
+				return nil, err
+			}
+			st, err := openStateEdit(commandContext(), rt, root)
+			if err != nil {
+				return nil, err
+			}
+			if err := refuseShadowOwned(commandContext(), rt, root, st, what); err != nil {
+				st.Close()
+				return nil, err
+			}
+			return st, nil
+		}
+	}
 	// loadRead is for the subcommands that only look: a state that does not
 	// exist is empty, and none is created.
 	loadRead := func() (*state.Store, error) {
@@ -92,8 +111,8 @@ func stateCmd(rt *runContext) *cobra.Command {
 		verifyCmd(rt),
 		stateListCmd(whole(loadRead)),
 		stateShowCmd(rt, whole(loadValues)),
-		stateRmCmd(rt, loadEdit),
-		stateMvCmd(rt, loadEdit),
+		stateRmCmd(rt, loadChange("state rm")),
+		stateMvCmd(rt, loadChange("state mv")),
 		stateLogCmd(rt, loadRead),
 		stateProbeCmd(rt),
 		stateLocksCmd(rt, loadRead),
@@ -104,7 +123,7 @@ func stateCmd(rt *runContext) *cobra.Command {
 		stateEdgesCmd(rt, whole(loadRead)),
 		stateDependentsCmd(whole(loadRead)),
 		stateQueryCmd(rt, whole(loadValues)),
-		stateImportTfstateCmd(rt, loadEdit),
+		stateImportTfstateCmd(rt, loadChange("state import-tfstate")),
 	)
 	return cmd
 }

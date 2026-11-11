@@ -126,3 +126,98 @@ func TestShadowKeepsWhatIsThere(t *testing.T) {
 		t.Error("the file that was put aside is still there")
 	}
 }
+
+// The owner is in the state, not in a file beside the specification: a deleted note changes
+// nothing, a command that changes what a record says is refused while Terraform owns the
+// objects, and a root that was handed over is not shadowed again over what pravo changed.
+func TestShadowOwnerLivesInTheState(t *testing.T) {
+	rt := &runContext{}
+	dir := shadowRoot(t, rt)
+	if text, code := runPravo(t, rt, dir, "shadow", "terraform.tfstate"); code != 0 {
+		t.Fatalf("shadow exited %d:\n%s", code, text)
+	}
+	if err := os.Remove(filepath.Join(dir, "shadow.lock.json")); err != nil {
+		t.Fatal(err)
+	}
+	src, _ := os.ReadFile(filepath.Join(dir, "shadow.cue"))
+	mustWrite(t, dir, "shadow.cue", strings.Replace(string(src), `size: logs.id`, `size: "large"`, 1))
+
+	text, code := runPravo(t, rt, dir, "apply", "-auto-approve")
+	if code != 5 {
+		t.Fatalf("apply exited %d with the note deleted, want 5:\n%s", code, text)
+	}
+	contains(t, text, "Terraform still owns its objects")
+	text, code = runPravo(t, rt, dir, "shadow", "status")
+	if code != 0 {
+		t.Fatalf("status exited %d:\n%s", code, text)
+	}
+	contains(t, text, "Owner: terraform", "is gone")
+
+	for _, args := range [][]string{
+		{"state", "rm", "web"},
+		{"state", "mv", "web", "web2"},
+		{"import", "web", "srv-web"},
+	} {
+		text, code = runPravo(t, rt, dir, args...)
+		if code != 5 {
+			t.Fatalf("%v exited %d, want 5:\n%s", args, code, text)
+		}
+		contains(t, text, "Terraform still owns its objects", "pravo shadow take-over")
+	}
+
+	if text, code = runPravo(t, rt, dir, "shadow", "take-over"); code != 0 {
+		t.Fatalf("take-over exited %d:\n%s", code, text)
+	}
+	text, code = runPravo(t, rt, dir, "shadow", "status")
+	contains(t, text, "Owner: pravo")
+	if text, code = runPravo(t, rt, dir, "shadow", "take-over"); code == 0 {
+		t.Fatalf("a second take-over succeeded:\n%s", text)
+	}
+	if text, code = runPravo(t, rt, dir, "apply", "-auto-approve"); code != 0 {
+		t.Fatalf("apply exited %d after the hand-over:\n%s", code, text)
+	}
+	if text, code = runPravo(t, rt, dir, "state", "rm", "web"); code != 0 {
+		t.Fatalf("state rm exited %d after the hand-over:\n%s", code, text)
+	}
+	text, code = runPravo(t, rt, dir, "shadow", "--force", "terraform.tfstate")
+	if code == 0 {
+		t.Fatalf("a root that was handed over was shadowed again:\n%s", text)
+	}
+	contains(t, text, "handed over to pravo")
+}
+
+// In a sealed state a sensitive value that the specification leaves out is kept in the
+// vault too, where pravo secret reads it; the owner is signed there, and a deleted note
+// changes nothing.
+func TestShadowKeepsSensitiveValuesInTheVaultOfASealedState(t *testing.T) {
+	rt := &runContext{}
+	dir := shadowRoot(t, rt)
+	ids := isolateIdentities(t, rt)
+	_, ada := person(t, ids, "ada")
+	writeReaders(t, filepath.Join(dir, ".pravo", "access"), ada)
+	if text, code := runPravo(t, rt, dir, "protect", "init", "--encrypt", "--yes", "--allow-local"); code != 0 {
+		t.Fatalf("protect init exited %d:\n%s", code, text)
+	}
+	text, code := runPravo(t, rt, dir, "shadow", "terraform.tfstate")
+	if code != 0 {
+		t.Fatalf("shadow exited %d:\n%s", code, text)
+	}
+	contains(t, text, "sensitive values kept in the vault: 1", "Verified")
+	src, _ := os.ReadFile(filepath.Join(dir, "shadow.cue"))
+	contains(t, string(src), "a copy is in the vault as shadow/edge.this/secret")
+	lacks(t, string(src), "hunter2")
+	text, code = runPravo(t, rt, dir, "secret", "get", "shadow/edge.this/secret")
+	if code != 0 {
+		t.Fatalf("secret get exited %d:\n%s", code, text)
+	}
+	contains(t, text, "hunter2")
+
+	if err := os.Remove(filepath.Join(dir, "shadow.lock.json")); err != nil {
+		t.Fatal(err)
+	}
+	text, code = runPravo(t, rt, dir, "state", "rm", "web")
+	if code != 5 {
+		t.Fatalf("state rm exited %d with the note deleted, want 5:\n%s", code, text)
+	}
+	contains(t, text, "Terraform still owns its objects")
+}

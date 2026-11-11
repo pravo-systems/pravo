@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/tfstate"
@@ -136,15 +138,21 @@ func runShadow(cmd *cobra.Command, rt *runContext, place string, f *shadowFlags)
 		}
 	}
 	defer closeSession()
+	if !f.noState {
+		if err := refuseReshadow(cmd.Context(), s, rt); err != nil {
+			return err
+		}
+	}
 	if !f.force && !f.noState && s.state.Len() > 0 {
 		return fmt.Errorf("%s already holds %d resources; use --force to replace them", s.state.Dir(), s.state.Len())
 	}
+	vault := !f.noState && shadowVaultOpen(s.state)
 	in := shadowInputs(res)
 	asked := !f.offline
 	eng := s.engine(rt, engine.Options{})
 	sh, err := eng.Shadow(cmd.Context(), in, engine.ShadowOptions{
 		Repair: asked, Minimise: asked && !f.keepDerived, Refresh: asked,
-		Reserved: reserved, Flat: f.flat, NoReferences: f.noRefs,
+		Reserved: reserved, Flat: f.flat, NoReferences: f.noRefs, Vault: vault,
 	})
 	if err != nil {
 		return err
@@ -155,10 +163,11 @@ func runShadow(cmd *cobra.Command, rt *runContext, place string, f *shadowFlags)
 	}
 	sh.Report.Lines = strings.Count(header+sh.Source, "\n")
 	if !f.noState {
-		if err := writeShadowRecords(s.state, sh, res, src.Name()); err != nil {
+		if err := writeShadowRecords(s.state, sh, res, src.Name(), f.noGuard); err != nil {
 			return err
 		}
 		lock := engine.NewShadowLock(src, data)
+		keepShadowSecrets(rt, s.state, sh.Secrets, vault, src.Name(), lock.Serial)
 		lock.Addresses = map[string]string{}
 		for _, n := range sh.Report.Nodes {
 			lock.Addresses[n.Address] = n.From
@@ -250,8 +259,13 @@ The root must declare the providers of the state and be initialised (pravo init)
 
 // writeShadowRecords replaces the records of the root by those of the shadow, as one
 // transaction.
-func writeShadowRecords(st *state.Store, sh *engine.ShadowResult, res *tfstate.Result, from string) error {
-	txn := st.Begin("import", "pravo shadow "+from)
+func writeShadowRecords(st *state.Store, sh *engine.ShadowResult, res *tfstate.Result, from string, handedOver bool) error {
+	// The kind of the transaction is what says whose the objects are, in the state itself.
+	kind := state.KindShadow
+	if handedOver {
+		kind = state.KindHandover
+	}
+	txn := st.Begin(kind, "pravo shadow "+from)
 	if err := txn.WillRemove(st.Addresses()...); err != nil {
 		return err
 	}
@@ -271,6 +285,39 @@ func writeShadowRecords(st *state.Store, sh *engine.ShadowResult, res *tfstate.R
 		return err
 	}
 	return txn.Finish("applied", fmt.Sprintf("shadowed %d resources from %s", len(sh.Records), from), true)
+}
+
+// shadowVaultOpen says whether the sensitive values that a shadow leaves out can be kept in
+// the vault: the state is sealed, and the identity can write the first secret.
+func shadowVaultOpen(st *state.Store) bool {
+	if st.CanKeepSecrets("") != nil || st.Sealer() == nil {
+		return false
+	}
+	return st.CanRaiseFormat(state.FormatSecret) == nil
+}
+
+// keepShadowSecrets writes the sensitive values that the specification does not hold into the
+// vault as shadow/ADDRESS/ATTRIBUTE, so that they can be read, handed to a command and rotated
+// with pravo secret. The records keep them as well. A value that cannot be kept is a warning:
+// the shadow does not depend on the copy.
+func keepShadowSecrets(rt *runContext, st *state.Store, secrets []engine.ShadowSecret, vault bool, from string, serial int64) {
+	if len(secrets) == 0 {
+		return
+	}
+	if !vault {
+		rt.out.Warning(fmt.Sprintf("%d sensitive values stay in the records only: with a sealed state (pravo protect init --encrypt) they are also kept in the vault, where pravo secret reads them", len(secrets)))
+		return
+	}
+	note := fmt.Sprintf("from the Terraform state %s, serial %d, by pravo shadow", from, serial)
+	kept := 0
+	for _, sec := range secrets {
+		if _, err := st.SetSecret(context.Background(), sec.Name, []byte(sec.Value), note, "pravo shadow "+from); err != nil {
+			rt.out.Warning(fmt.Sprintf("%s: not kept in the vault: %v", sec.Name, err))
+			continue
+		}
+		kept++
+	}
+	rt.out.Printf("  sensitive values kept in the vault: %d (pravo secret list; they are named shadow/ADDRESS/ATTRIBUTE)\n", kept)
 }
 
 func printShadowReport(rt *runContext, rep engine.ShadowReport, from, out string, took time.Duration) {
@@ -334,27 +381,90 @@ func verifyShadow(cmd *cobra.Command, rt *runContext, rep *engine.ShadowReport) 
 	return fmt.Errorf("the specification was written, but it does not restate every object: the plan wants to change %s: %s.\nRun pravo plan to see why. Nothing was changed in the cloud", shadowNodes(len(wants)), strings.Join(shown, ", "))
 }
 
+// shadowOwnership reads whose the objects of the root are, from its state.
+func shadowOwnership(ctx context.Context, rt *runContext, root *config.Root, st *state.Store) (string, *engine.ShadowLock, error) {
+	eff, _, err := readersOf(rt, root).withRoles(st)
+	if err != nil {
+		return "", nil, engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
+	}
+	owner, _, err := st.ShadowOwner(eff.Readers)
+	if err != nil {
+		return "", nil, err
+	}
+	l, err := engine.ReadShadowLock(root.Dir)
+	if err != nil {
+		return "", nil, err
+	}
+	if owner == "" && l != nil {
+		owner = l.Owner
+	}
+	return owner, l, nil
+}
+
+// refuseReshadow refuses a new shadow over a root that was handed over to pravo: its records
+// hold what pravo changed since, and a shadow replaces them with those of the Terraform state.
+func refuseReshadow(ctx context.Context, s *session, rt *runContext) error {
+	owner, _, err := shadowOwnership(ctx, rt, s.root, s.state)
+	if err != nil || owner != state.OwnerPravo || s.state.Len() == 0 {
+		return err
+	}
+	return engine.WithCode(engine.ExitRefused, errors.New("this root was handed over to pravo, and a new shadow would replace the records that pravo has changed since with those of the Terraform state. Take the shadow in a root of its own"))
+}
+
+// refuseShadowOwned refuses a command that changes the records of a root that Terraform
+// owns (import, state rm, state mv, state import-tfstate).
+func refuseShadowOwned(ctx context.Context, rt *runContext, root *config.Root, st *state.Store, what string) error {
+	eff, _, err := readersOf(rt, root).withRoles(st)
+	if err != nil {
+		return engine.WithCode(engine.ExitUntrusted, errors.New(printable(err.Error())))
+	}
+	return engine.RefuseShadowEdit(ctx, st, eff.Readers, root.Dir, what)
+}
+
 func shadowTakeOverCmd(rt *runContext) *cobra.Command {
 	return &cobra.Command{
 		Use:   "take-over",
 		Short: "hand the objects of a shadow over to pravo, so that apply may change them",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			l, err := engine.ReadShadowLock(".")
+			s, err := newSession(cmd.Context(), rt, sessionOptions{loadState: true, editsRecords: true})
 			if err != nil {
 				return err
 			}
-			if l == nil {
-				return fmt.Errorf("this root is not a shadow: there is no %s", engine.ShadowLockFile)
-			}
-			if m := l.Moved(cmd.Context()); m != "" {
-				return fmt.Errorf("not taken over: %s", m)
-			}
-			l.Owner = "pravo"
-			if err := l.Write("."); err != nil {
+			defer s.close()
+			owner, l, err := shadowOwnership(cmd.Context(), rt, s.root, s.state)
+			if err != nil {
 				return err
 			}
-			rt.out.Printf("The objects are pravo's now. Stop applying %s with Terraform: remove its backend or lock it.\n", l.Source)
+			switch owner {
+			case "":
+				return errors.New("this root is not a shadow: its state holds no shadow")
+			case state.OwnerPravo:
+				return errors.New("the objects are pravo's already")
+			}
+			if l != nil {
+				if m := l.Moved(cmd.Context()); m != "" {
+					return fmt.Errorf("not taken over: %s", m)
+				}
+			}
+			txn := s.state.Begin(state.KindHandover, "pravo shadow take-over")
+			if err := txn.Start(); err != nil {
+				return err
+			}
+			if err := txn.Finish("applied", "handed the objects over to pravo", true); err != nil {
+				return err
+			}
+			from := "the Terraform state"
+			if l != nil {
+				l.Owner = state.OwnerPravo
+				if err := l.Write(s.root.Dir); err != nil {
+					return err
+				}
+				if l.Source != "" {
+					from = l.Source
+				}
+			}
+			rt.out.Printf("The objects are pravo's now. Stop applying %s with Terraform: remove its backend or lock it.\n", from)
 			return nil
 		},
 	}
@@ -366,15 +476,28 @@ func shadowStatusCmd(rt *runContext) *cobra.Command {
 		Short: "say whose the objects of this root are",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			l, err := engine.ReadShadowLock(".")
+			root, err := loadRoot(rt)
 			if err != nil {
 				return err
 			}
-			if l == nil {
+			st, err := openStateReadOnly(cmd.Context(), rt, root)
+			if err != nil {
+				return err
+			}
+			defer st.Close()
+			owner, l, err := shadowOwnership(cmd.Context(), rt, root, st)
+			if err != nil {
+				return err
+			}
+			if owner == "" {
 				rt.out.Println("Not a shadow.")
 				return nil
 			}
-			rt.out.Printf("Owner: %s. Shadow of %s (serial %d, lineage %s), taken %s, %d resources.\n", l.Owner, l.Source, l.Serial, l.Lineage, l.Taken, len(l.Addresses))
+			if l == nil {
+				rt.out.Printf("Owner: %s. The note %s is gone; the state says so.\n", owner, engine.ShadowLockFile)
+				return nil
+			}
+			rt.out.Printf("Owner: %s. Shadow of %s (serial %d, lineage %s), taken %s, %d resources.\n", owner, l.Source, l.Serial, l.Lineage, l.Taken, len(l.Addresses))
 			if m := l.Moved(cmd.Context()); m != "" {
 				rt.out.Warning(m)
 			}
