@@ -170,7 +170,7 @@ func Convert(data []byte) (*Result, error) {
 			if prev, ok := seen[addr]; ok {
 				return nil, fmt.Errorf("%s and %s would both become %s; rename one of them in OpenTofu first", prev, tfAddr, addr)
 			}
-			seen[addr] = tfAddr
+			seen[addr], res.Origins[addr] = tfAddr, originOf(tfAddr, r.Name, inst.IndexKey, steps)
 			if renamed {
 				res.Renamed = append(res.Renamed, Rename{From: tfAddr, To: addr})
 			}
@@ -179,12 +179,6 @@ func Convert(data []byte) (*Result, error) {
 				res.Notes = append(res.Notes, tfAddr+": tainted in the source state; recorded as tainted, the next plan replaces it")
 			}
 			p := &pending{r: sr, inst: inst, module: steps, tfAddr: tfAddr}
-			o := Origin{Address: tfAddr, Name: r.Name}
-			o.Key, o.Keyed = indexKeyText(inst.IndexKey)
-			for _, st := range steps {
-				o.Module = append(o.Module, ModuleStep{Name: st.name, Key: st.key, Keyed: st.keyed})
-			}
-			res.Origins[addr] = o
 			byConfig[key] = append(byConfig[key], p)
 			all = append(all, p)
 		}
@@ -552,6 +546,16 @@ func dedupe(s []string) []string {
 		}
 	}
 	return out
+}
+
+// originOf is where an instance sat in the state.
+func originOf(tfAddr, name string, indexKey json.RawMessage, steps []modStep) Origin {
+	o := Origin{Address: tfAddr, Name: name}
+	o.Key, o.Keyed = indexKeyText(indexKey)
+	for _, st := range steps {
+		o.Module = append(o.Module, ModuleStep{Name: st.name, Key: st.key, Keyed: st.keyed})
+	}
+	return o
 }
 
 // Replacement is what an instance of a tfstate

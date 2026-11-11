@@ -36,9 +36,175 @@ func addShadowSourceFlags(cmd *cobra.Command) {
 	cmd.Flags().String("profile", "", "the shared-configuration profile for an s3:// source")
 }
 
+// scanShadowRoot finds the package of the specification in this directory and the
+// names it holds at the top level, which a shadow must not take.
+func scanShadowRoot(out string) (pkg string, reserved []string, err error) {
+	files, _ := filepath.Glob("*.cue")
+	for _, f := range files {
+		if f == out {
+			continue
+		}
+		b, err := os.ReadFile(f)
+		if err != nil {
+			return "", nil, err
+		}
+		if m := shadowPackageRE.FindSubmatch(b); m != nil && pkg == "" {
+			pkg = string(m[1])
+		}
+		for _, m := range shadowTopRE.FindAllSubmatch(b, -1) {
+			reserved = append(reserved, string(m[1]))
+		}
+	}
+	if pkg == "" {
+		return "", nil, errors.New("no specification here: declare the providers of the state in a .cue file and run pravo init")
+	}
+	return pkg, reserved, nil
+}
+
+// setShadowAside moves the file of an earlier run out of the root, which must not load
+// it. The returned function puts it back when the run failed and removes it otherwise.
+func setShadowAside(out string, force bool) (func(error), error) {
+	if _, err := os.Stat(out); err != nil {
+		return func(error) {}, nil
+	}
+	if !force {
+		return nil, fmt.Errorf("%s exists; use --force to write it again", out)
+	}
+	aside := out + ".replaced"
+	if err := os.Rename(out, aside); err != nil {
+		return nil, err
+	}
+	return func(failed error) {
+		if failed != nil {
+			_ = os.Rename(aside, out)
+			return
+		}
+		_ = os.Remove(aside)
+	}, nil
+}
+
+// shadowInputs is what the engine decompiles: the records of the state and where each sat.
+func shadowInputs(res *tfstate.Result) []engine.ShadowInput {
+	var in []engine.ShadowInput
+	for _, r := range res.Resources {
+		o := res.Origins[r.Address()]
+		x := engine.ShadowInput{Record: r, Name: o.Name, Key: o.Key, Keyed: o.Keyed, Address: o.Address}
+		for _, st := range o.Module {
+			x.Module = append(x.Module, engine.ShadowStep{Name: st.Name, Key: st.Key, Keyed: st.Keyed})
+		}
+		in = append(in, x)
+	}
+	return in
+}
+
+// shadowFlags are the flags of pravo shadow.
+type shadowFlags struct {
+	out, report                                                 string
+	offline, keepDerived, flat, noRefs, force, noState, noGuard bool
+}
+
+// runShadow decompiles the state at place into the root of the working directory.
+func runShadow(cmd *cobra.Command, rt *runContext, place string, f *shadowFlags) (err error) {
+	began := time.Now()
+	src := shadowSourceFlags(cmd, place)
+	data, err := src.Read(cmd.Context())
+	if err != nil {
+		return err
+	}
+	res, err := tfstate.Convert(data)
+	if err != nil {
+		return fmt.Errorf("%s: %w", src.Name(), err)
+	}
+	pkg, reserved, err := scanShadowRoot(f.out)
+	if err != nil {
+		return err
+	}
+	restore, err := setShadowAside(f.out, f.force)
+	if err != nil {
+		return err
+	}
+	defer func() { restore(err) }()
+	s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, editsRecords: true})
+	if err != nil {
+		return err
+	}
+	closed := false
+	closeSession := func() {
+		if !closed {
+			closed = true
+			s.close()
+		}
+	}
+	defer closeSession()
+	if !f.force && !f.noState && s.state.Len() > 0 {
+		return fmt.Errorf("%s already holds %d resources; use --force to replace them", s.state.Dir(), s.state.Len())
+	}
+	in := shadowInputs(res)
+	asked := !f.offline
+	eng := s.engine(rt, engine.Options{})
+	sh, err := eng.Shadow(cmd.Context(), in, engine.ShadowOptions{
+		Repair: asked, Minimise: asked && !f.keepDerived, Refresh: asked,
+		Reserved: reserved, Flat: f.flat, NoReferences: f.noRefs,
+	})
+	if err != nil {
+		return err
+	}
+	header := fmt.Sprintf("package %s\n\n// Decompiled from %s by pravo shadow: %d resources of the state, no HCL read.\n\n", pkg, src.Name(), sh.Report.Resources)
+	if err := os.WriteFile(f.out, []byte(header+sh.Source), 0o644); err != nil {
+		return err
+	}
+	sh.Report.Lines = strings.Count(header+sh.Source, "\n")
+	if !f.noState {
+		if err := writeShadowRecords(s.state, sh, res, src.Name()); err != nil {
+			return err
+		}
+		lock := engine.NewShadowLock(src, data)
+		lock.Addresses = map[string]string{}
+		for _, n := range sh.Report.Nodes {
+			lock.Addresses[n.Address] = n.From
+		}
+		if f.noGuard {
+			lock.Owner = "pravo"
+		}
+		if err := lock.Write("."); err != nil {
+			return err
+		}
+	}
+	closeSession()
+	rep := sh.Report
+	printShadowReport(rt, rep, src.Name(), f.out, time.Since(began))
+	var verdict error
+	if !f.noState {
+		verdict = verifyShadow(cmd, rt, &rep)
+	}
+	if f.report != "" {
+		type timed struct {
+			engine.ShadowReport
+			Seconds float64 `json:"seconds"`
+		}
+		if err := os.WriteFile(f.report, engineJSON(timed{rep, time.Since(began).Seconds()}), 0o644); err != nil {
+			return err
+		}
+	}
+	for _, n := range rep.Notes {
+		rt.out.Warning(n)
+	}
+	for _, n := range res.Notes {
+		rt.out.Warning(n)
+	}
+	if verdict != nil {
+		return verdict
+	}
+	if !f.noState && !f.noGuard {
+		rt.out.Println()
+		rt.out.Println("Terraform still owns the objects: an apply here that would change one is refused. Plan as often as you like.")
+		rt.out.Println("When you are ready to leave Terraform: pravo shadow take-over")
+	}
+	return nil
+}
+
 func shadowCmd(rt *runContext) *cobra.Command {
-	var out, report string
-	var offline, keepDerived, flat, noRefs, force, noState, noGuard bool
+	f := &shadowFlags{}
 	cmd := &cobra.Command{
 		Use:   "shadow <terraform.tfstate | s3://bucket/key | ->",
 		Short: "Decompile an OpenTofu or Terraform state into a specification that plans clean",
@@ -63,151 +229,19 @@ The root must declare the providers of the state and be initialised (pravo init)
   pravo shadow s3://my-tf-state/estate/terraform.tfstate --region eu-west-1
   tofu state pull | pravo shadow -`,
 		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) (err error) {
-			began := time.Now()
-			src := shadowSourceFlags(cmd, args[0])
-			data, err := src.Read(cmd.Context())
-			if err != nil {
-				return err
-			}
-			res, err := tfstate.Convert(data)
-			if err != nil {
-				return fmt.Errorf("%s: %w", src.Name(), err)
-			}
-			pkg, reserved := "", []string{}
-			files, _ := filepath.Glob("*.cue")
-			for _, f := range files {
-				if f == out {
-					continue
-				}
-				b, err := os.ReadFile(f)
-				if err != nil {
-					return err
-				}
-				if m := shadowPackageRE.FindSubmatch(b); m != nil && pkg == "" {
-					pkg = string(m[1])
-				}
-				for _, m := range shadowTopRE.FindAllSubmatch(b, -1) {
-					reserved = append(reserved, string(m[1]))
-				}
-			}
-			if pkg == "" {
-				return errors.New("no specification here: declare the providers of the state in a .cue file and run pravo init")
-			}
-			// The file of an earlier run must not be part of the root that is loaded. It is
-			// put aside, and comes back if this run fails.
-			if _, statErr := os.Stat(out); statErr == nil {
-				if !force {
-					return fmt.Errorf("%s exists; use --force to write it again", out)
-				}
-				aside := out + ".replaced"
-				if err := os.Rename(out, aside); err != nil {
-					return err
-				}
-				defer func() {
-					if err != nil {
-						_ = os.Rename(aside, out)
-						return
-					}
-					_ = os.Remove(aside)
-				}()
-			}
-			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, schemas: true, loadState: true, editsRecords: true})
-			if err != nil {
-				return err
-			}
-			closed := false
-			closeSession := func() {
-				if !closed {
-					closed = true
-					s.close()
-				}
-			}
-			defer closeSession()
-			if !force && !noState && s.state.Len() > 0 {
-				return fmt.Errorf("%s already holds %d resources; use --force to replace them", s.state.Dir(), s.state.Len())
-			}
-			var in []engine.ShadowInput
-			for _, r := range res.Resources {
-				o := res.Origins[r.Address()]
-				x := engine.ShadowInput{Record: r, Name: o.Name, Key: o.Key, Keyed: o.Keyed, Address: o.Address}
-				for _, st := range o.Module {
-					x.Module = append(x.Module, engine.ShadowStep{Name: st.Name, Key: st.Key, Keyed: st.Keyed})
-				}
-				in = append(in, x)
-			}
-			asked := !offline
-			eng := s.engine(rt, engine.Options{})
-			sh, err := eng.Shadow(cmd.Context(), in, engine.ShadowOptions{
-				Repair: asked, Minimise: asked && !keepDerived, Refresh: asked,
-				Reserved: reserved, Flat: flat, NoReferences: noRefs,
-			})
-			if err != nil {
-				return err
-			}
-			header := fmt.Sprintf("package %s\n\n// Decompiled from %s by pravo shadow: %d resources of the state, no HCL read.\n\n", pkg, src.Name(), sh.Report.Resources)
-			if err := os.WriteFile(out, []byte(header+sh.Source), 0o644); err != nil {
-				return err
-			}
-			sh.Report.Lines = strings.Count(header+sh.Source, "\n")
-			if !noState {
-				if err := writeShadowRecords(s.state, sh, res, src.Name()); err != nil {
-					return err
-				}
-				lock := engine.NewShadowLock(src, data)
-				lock.Addresses = map[string]string{}
-				for _, n := range sh.Report.Nodes {
-					lock.Addresses[n.Address] = n.From
-				}
-				if noGuard {
-					lock.Owner = "pravo"
-				}
-				if err := lock.Write("."); err != nil {
-					return err
-				}
-			}
-			closeSession()
-			rep := sh.Report
-			printShadowReport(rt, rep, src.Name(), out, time.Since(began))
-			var verdict error
-			if !noState {
-				verdict = verifyShadow(cmd, rt, &rep)
-			}
-			if report != "" {
-				type timed struct {
-					engine.ShadowReport
-					Seconds float64 `json:"seconds"`
-				}
-				if err := os.WriteFile(report, engineJSON(timed{rep, time.Since(began).Seconds()}), 0o644); err != nil {
-					return err
-				}
-			}
-			for _, n := range rep.Notes {
-				rt.out.Warning(n)
-			}
-			for _, n := range res.Notes {
-				rt.out.Warning(n)
-			}
-			if verdict != nil {
-				return verdict
-			}
-			if !noState && !noGuard {
-				rt.out.Println()
-				rt.out.Println("Terraform still owns the objects: an apply here that would change one is refused. Plan as often as you like.")
-				rt.out.Println("When you are ready to leave Terraform: pravo shadow take-over")
-			}
-			return nil
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runShadow(cmd, rt, args[0], f)
 		},
 	}
-	cmd.Flags().StringVar(&out, "out", "shadow.cue", "the file to write the resources to")
-	cmd.Flags().StringVar(&report, "report", "", "write the numbers as JSON to this file")
-	cmd.Flags().BoolVar(&offline, "offline", false, "render from the state without asking the provider about anything: the specification may then need repair")
-	cmd.Flags().BoolVar(&keepDerived, "keep-derived", false, "also write what the provider derives anyway")
-	cmd.Flags().BoolVar(&flat, "flat", false, "write every resource at the top level")
-	cmd.Flags().BoolVar(&noRefs, "no-references", false, "write every value as a literal")
-	cmd.Flags().BoolVar(&force, "force", false, "replace the file and a non-empty state")
-	cmd.Flags().BoolVar(&noState, "no-state", false, "write the file only: no records, no guard and no plan")
-	cmd.Flags().BoolVar(&noGuard, "no-guard", false, "let apply change objects at once: the root is not a shadow, it takes the objects over")
+	cmd.Flags().StringVar(&f.out, "out", "shadow.cue", "the file to write the resources to")
+	cmd.Flags().StringVar(&f.report, "report", "", "write the numbers as JSON to this file")
+	cmd.Flags().BoolVar(&f.offline, "offline", false, "render from the state without asking the provider about anything: the specification may then need repair")
+	cmd.Flags().BoolVar(&f.keepDerived, "keep-derived", false, "also write what the provider derives anyway")
+	cmd.Flags().BoolVar(&f.flat, "flat", false, "write every resource at the top level")
+	cmd.Flags().BoolVar(&f.noRefs, "no-references", false, "write every value as a literal")
+	cmd.Flags().BoolVar(&f.force, "force", false, "replace the file and a non-empty state")
+	cmd.Flags().BoolVar(&f.noState, "no-state", false, "write the file only: no records, no guard and no plan")
+	cmd.Flags().BoolVar(&f.noGuard, "no-guard", false, "let apply change objects at once: the root is not a shadow, it takes the objects over")
 	addShadowSourceFlags(cmd)
 	addTagFlags(rt, cmd)
 	cmd.AddCommand(shadowTakeOverCmd(rt), shadowStatusCmd(rt), shadowBackCmd(rt))

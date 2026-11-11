@@ -191,8 +191,33 @@ type shadowGen struct {
 // Shadow decompiles the records of a converted Terraform state.
 func (e *Engine) Shadow(ctx context.Context, in []ShadowInput, opts ShadowOptions) (*ShadowResult, error) {
 	g := &shadowGen{e: e, ctx: ctx, opts: opts, by: map[string]*shadowNode{}, provs: map[string]plugin.Provider{}}
-	rep := &ShadowReport{Repairs: map[string]int{}, OracleAsked: opts.Oracle || opts.Repair, RepairAsked: opts.Repair, MinimiseAsked: opts.Minimise, ReferencesDisabled: opts.NoReferences}
-	g.rep = rep
+	g.rep = &ShadowReport{Repairs: map[string]int{}, OracleAsked: opts.Oracle || opts.Repair, RepairAsked: opts.Repair, MinimiseAsked: opts.Minimise, ReferencesDisabled: opts.NoReferences}
+	if err := g.collect(in); err != nil {
+		return nil, err
+	}
+	g.name()
+	if err := g.load(); err != nil {
+		return nil, err
+	}
+	for _, n := range g.nodes {
+		g.candidates(n)
+	}
+	// What the rules of an adoption leave out, before the provider is asked anything.
+	for _, n := range g.nodes {
+		n.out = ShadowNode{Address: n.addr, From: n.in.Address, Type: n.in.Record.Type, Drifted: n.out.Drifted}
+		g.sensitive(n)
+	}
+	if opts.Oracle || opts.Repair {
+		if err := g.interrogate(); err != nil {
+			return nil, err
+		}
+	}
+	return g.finish()
+}
+
+// collect makes a node of every managed resource and links the dependencies that the
+// state lists: to nodes, to data sources (which are dropped) or nowhere.
+func (g *shadowGen) collect(in []ShadowInput) error {
 	dataAddrs := map[string]string{}
 	keyOf := func(x ShadowInput) string {
 		var b strings.Builder
@@ -204,17 +229,17 @@ func (e *Engine) Shadow(ctx context.Context, in []ShadowInput, opts ShadowOption
 	groupKey := map[*shadowNode]string{}
 	for _, x := range in {
 		if x.Record.Mode != "managed" {
-			rep.DataSources++
+			g.rep.DataSources++
 			dataAddrs[x.Record.Address()] = keyOf(x)
 			continue
 		}
-		ps := e.Schemas[providerLocal(x.Record.ProviderKey)]
+		ps := g.e.Schemas[providerLocal(x.Record.ProviderKey)]
 		if ps == nil {
-			return nil, fmt.Errorf("%s: no schema for provider %s: declare it in the specification and run pravo init", x.Address, x.Record.ProviderKey)
+			return fmt.Errorf("%s: no schema for provider %s: declare it in the specification and run pravo init", x.Address, x.Record.ProviderKey)
 		}
 		s := ps.Resource(x.Record.Type)
 		if s == nil {
-			return nil, fmt.Errorf("%s: provider %s has no resource type %s", x.Address, x.Record.ProviderKey, x.Record.Type)
+			return fmt.Errorf("%s: provider %s has no resource type %s", x.Address, x.Record.ProviderKey, x.Record.Type)
 		}
 		n := &shadowNode{in: x, sch: s, omit: map[string]bool{}, ignore: map[string]bool{}, why: map[string]string{}, depSet: map[*shadowNode]bool{},
 			refTo: map[*shadowNode]bool{}, interTo: map[*shadowNode]bool{}, sensitiveKept: map[string]bool{}, pre: map[string]bool{}, private: x.Record.Private}
@@ -222,7 +247,7 @@ func (e *Engine) Shadow(ctx context.Context, in []ShadowInput, opts ShadowOption
 		g.by[x.Record.Address()] = n
 		groupKey[n] = keyOf(x)
 	}
-	rep.Resources = len(g.nodes)
+	g.rep.Resources = len(g.nodes)
 	for _, n := range g.nodes {
 		n.groups, n.dataEdges = map[string][]*shadowNode{}, map[string]bool{}
 		for _, d := range n.in.Record.Dependencies {
@@ -241,8 +266,13 @@ func (e *Engine) Shadow(ctx context.Context, in []ShadowInput, opts ShadowOption
 			}
 		}
 	}
-	g.name()
+	return nil
+}
 
+// load gives every node the value it is rendered from: the record, or the object that
+// the provider reads when it is asked.
+func (g *shadowGen) load() error {
+	opts := g.opts
 	needProvider := opts.Oracle || opts.Repair || opts.Minimise || opts.Refresh
 	for _, n := range g.nodes {
 		var prior tftypes.Value
@@ -250,125 +280,119 @@ func (e *Engine) Shadow(ctx context.Context, in []ShadowInput, opts ShadowOption
 		if needProvider {
 			prov, perr := g.provider(n.in.Record.ProviderKey)
 			if perr != nil {
-				return nil, perr
+				return perr
 			}
-			prior, err = e.upgrade(ctx, prov, n.in.Record, n.sch, n.in.Address)
+			prior, err = g.e.upgrade(g.ctx, prov, n.in.Record, n.sch, n.in.Address)
 			if err == nil && opts.Refresh {
-				read, private, diags, rerr := prov.ReadResource(ctx, n.in.Record.Type, prior, n.private)
-				switch {
-				case rerr != nil:
-					err = rerr
-				case diags.Err() != nil:
-					err = diags.Err()
-				case read.IsNull():
-					rep.Notes = append(rep.Notes, n.in.Address+": the object is gone; rendered from the state")
-				default:
-					if !read.Equal(prior) {
-						n.out.Drifted = true
-						rep.Drifted++
-					}
-					prior, n.private = read, private
-				}
+				prior, err = g.readObject(prov, n, prior)
 			}
 		} else {
 			prior, err = storedValue(n.in.Record, n.sch)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", n.in.Address, err)
+			return fmt.Errorf("%s: %w", n.in.Address, err)
 		}
 		n.prior = prior
 		if err := prior.As(&n.pm); err != nil {
-			return nil, fmt.Errorf("%s: %w", n.in.Address, err)
+			return fmt.Errorf("%s: %w", n.in.Address, err)
 		}
 	}
-	for _, n := range g.nodes {
-		g.candidates(n)
-	}
-	// What the rules of an adoption leave out, before the provider is asked anything.
-	for _, n := range g.nodes {
-		n.out = ShadowNode{Address: n.addr, From: n.in.Address, Type: n.in.Record.Type, Drifted: n.out.Drifted}
-		g.sensitive(n)
-	}
-	if opts.Oracle || opts.Repair {
-		for _, n := range g.nodes {
-			v, err := g.ask(n)
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", n.in.Address, err)
-			}
-			n.out.First = v.String()
-			switch {
-			case v.clean():
-				rep.FirstClean++
-			case len(v.invalid) > 0:
-				rep.FirstInvalid++
-			default:
-				rep.FirstChanges++
-			}
-			if opts.Repair {
-				if g.foreign(n) > 0 {
-					if v, err = g.ask(n); err != nil {
-						return nil, fmt.Errorf("%s: %w", n.in.Address, err)
-					}
-				}
-				if !v.clean() {
-					if v, err = g.repair(n, v); err != nil {
-						return nil, fmt.Errorf("%s: %w", n.in.Address, err)
-					}
-				}
-			}
-			if opts.Minimise && v.clean() {
-				if v, err = g.minimise(n); err != nil {
-					return nil, fmt.Errorf("%s: %w", n.in.Address, err)
-				}
-			}
-			n.out.Final = v.String()
-			switch {
-			case v.clean():
-				rep.FinalClean++
-			case len(v.invalid) > 0:
-				rep.FinalInvalid++
-			default:
-				rep.FinalChanges++
-			}
-		}
-	}
+	return nil
+}
 
+// readObject reads the object of a node and returns what it is now. An object that is
+// gone is rendered from the record.
+func (g *shadowGen) readObject(prov plugin.Provider, n *shadowNode, prior tftypes.Value) (tftypes.Value, error) {
+	read, private, diags, err := prov.ReadResource(g.ctx, n.in.Record.Type, prior, n.private)
+	switch {
+	case err != nil:
+		return prior, err
+	case diags.Err() != nil:
+		return prior, diags.Err()
+	case read.IsNull():
+		g.rep.Notes = append(g.rep.Notes, n.in.Address+": the object is gone; rendered from the state")
+		return prior, nil
+	}
+	if !read.Equal(prior) {
+		n.out.Drifted = true
+		g.rep.Drifted++
+	}
+	n.private = private
+	return read, nil
+}
+
+// interrogate asks the provider about every resource, repairs and minimises what it
+// objects to or derives, and counts the verdicts.
+func (g *shadowGen) interrogate() error {
+	rep := g.rep
+	tally := func(v shadowVerdict, clean, invalid, changes *int) {
+		switch {
+		case v.clean():
+			*clean++
+		case len(v.invalid) > 0:
+			*invalid++
+		default:
+			*changes++
+		}
+	}
+	for _, n := range g.nodes {
+		v, err := g.ask(n)
+		if err == nil {
+			n.out.First = v.String()
+			tally(v, &rep.FirstClean, &rep.FirstInvalid, &rep.FirstChanges)
+			v, err = g.settle(n, v)
+		}
+		if err != nil {
+			return fmt.Errorf("%s: %w", n.in.Address, err)
+		}
+		n.out.Final = v.String()
+		tally(v, &rep.FinalClean, &rep.FinalInvalid, &rep.FinalChanges)
+	}
+	return nil
+}
+
+// settle repairs the specification of n and then minimises it, as far as the options say.
+func (g *shadowGen) settle(n *shadowNode, v shadowVerdict) (shadowVerdict, error) {
+	var err error
+	if g.opts.Repair {
+		if g.foreign(n) > 0 {
+			if v, err = g.ask(n); err != nil {
+				return v, err
+			}
+		}
+		if !v.clean() {
+			if v, err = g.repair(n, v); err != nil {
+				return v, err
+			}
+		}
+	}
+	if g.opts.Minimise && v.clean() {
+		return g.minimise(n)
+	}
+	return v, nil
+}
+
+// finish writes the source and the records, and counts where the edges of the state went.
+func (g *shadowGen) finish() (*ShadowResult, error) {
+	rep := g.rep
 	res := &ShadowResult{}
 	res.Source = g.render()
 	rep.Lines = strings.Count(res.Source, "\n")
 	// The edges are counted once the source is written: a reference is an edge only
 	// where the source has it.
 	for _, n := range g.nodes {
-		rep.Edges.State += len(n.groups) + len(n.dataEdges) + n.lost
-		rep.Edges.Data += len(n.dataEdges)
-		rep.Edges.Lost += n.lost
-		for _, ds := range n.groups {
-			ref, inter, explicit := false, false, false
-			for _, d := range ds {
-				ref = ref || n.refTo[d]
-				inter = inter || n.interTo[d]
-				explicit = explicit || n.isExplicit(d)
-			}
-			switch {
-			case ref:
-				rep.Edges.Reference++
-			case inter:
-				rep.Edges.Interpolation++
-			case explicit:
-				rep.Edges.DependsOn++
-			default:
-				rep.Edges.Implied++
-			}
-		}
+		g.countEdges(n)
 		rep.IgnoredAttributes += len(n.ignore)
 		rep.Nodes = append(rep.Nodes, n.out)
 	}
+	opts := g.opts
+	refreshed := opts.Oracle || opts.Repair || opts.Minimise || opts.Refresh
 	for _, n := range g.nodes {
 		sr := *n.in.Record
 		sr.Addr, sr.Name = n.addr, n.path[len(n.path)-1]
 		// The record holds what the provider said last, upgraded to the schema of this
 		// provider: the first plan then finds nothing that changed behind its back.
-		if opts.Oracle || opts.Repair || opts.Minimise || opts.Refresh {
+		if refreshed {
 			attrs, err := convert.ToJSON(n.prior)
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", n.in.Address, err)
@@ -387,6 +411,32 @@ func (e *Engine) Shadow(ctx context.Context, in []ShadowInput, opts ShadowOption
 	}
 	res.Report = *rep
 	return res, nil
+}
+
+// countEdges adds the dependencies of n to the report, by how the source has them.
+func (g *shadowGen) countEdges(n *shadowNode) {
+	rep := g.rep
+	rep.Edges.State += len(n.groups) + len(n.dataEdges) + n.lost
+	rep.Edges.Data += len(n.dataEdges)
+	rep.Edges.Lost += n.lost
+	for _, ds := range n.groups {
+		ref, inter, explicit := false, false, false
+		for _, d := range ds {
+			ref = ref || n.refTo[d]
+			inter = inter || n.interTo[d]
+			explicit = explicit || n.isExplicit(d)
+		}
+		switch {
+		case ref:
+			rep.Edges.Reference++
+		case inter:
+			rep.Edges.Interpolation++
+		case explicit:
+			rep.Edges.DependsOn++
+		default:
+			rep.Edges.Implied++
+		}
+	}
 }
 
 func (n *shadowNode) isExplicit(d *shadowNode) bool {
@@ -454,20 +504,22 @@ func shadowTypeShort(typ string) string {
 	return typ
 }
 
-// name gives every resource its place in the specification: a struct per module
-// instance, and in it a field per resource.
-func (g *shadowGen) name() {
-	type group struct {
-		path  []string
-		nodes []*shadowNode
-		kids  map[string]bool
-	}
-	groups := map[string]*group{}
-	var order []string
-	get := func(path []string) *group {
+// shadowGroup is the resources of one module instance, and the structs of the module
+// instances inside it.
+type shadowGroup struct {
+	path  []string
+	nodes []*shadowNode
+	kids  map[string]bool
+}
+
+// groupByModule sorts the nodes into the module instances they sat in, and counts the
+// instances. order lists the keys of the groups, the top level first.
+func (g *shadowGen) groupByModule() (groups map[string]*shadowGroup, order []string) {
+	groups = map[string]*shadowGroup{}
+	get := func(path []string) *shadowGroup {
 		k := strings.Join(path, ".")
 		if groups[k] == nil {
-			groups[k] = &group{path: append([]string(nil), path...), kids: map[string]bool{}}
+			groups[k] = &shadowGroup{path: append([]string(nil), path...), kids: map[string]bool{}}
 			order = append(order, k)
 		}
 		return groups[k]
@@ -493,8 +545,13 @@ func (g *shadowGen) name() {
 	}
 	g.rep.Modules = len(modules)
 
-	// The names of the attributes of the types in use: a name at the top level that is
-	// also the name of a field further in would be hidden from a reference there.
+	return groups, order
+}
+
+// innerNames lists the names of the attributes of the types in use: a name at the top
+// level that is also the name of a field further in would be hidden from a reference
+// there.
+func (g *shadowGen) innerNames() map[string]bool {
 	inner := map[string]bool{}
 	var walk func(b *schema.Block)
 	walk = func(b *schema.Block) {
@@ -518,70 +575,83 @@ func (g *shadowGen) name() {
 			walk(n.sch.Block)
 		}
 	}
+	return inner
+}
+
+// labelGroup names the resources of a group: by the name they have, with the type in
+// front where two types share it and the key where an instance has one.
+func labelGroup(gr *shadowGroup) map[*shadowNode]string {
+	// How many types use a name, and how many instances a resource has.
+	types := map[string]map[string]bool{}
+	insts := map[string]int{}
+	for _, n := range gr.nodes {
+		if types[n.in.Name] == nil {
+			types[n.in.Name] = map[string]bool{}
+		}
+		types[n.in.Name][n.in.Record.Type] = true
+		insts[n.in.Record.Type+"."+n.in.Name]++
+	}
+	labels := map[*shadowNode]string{}
+	used := map[string]int{}
+	for kid := range gr.kids {
+		used[kid]++
+	}
+	label := func(n *shadowNode, qualify bool) string {
+		base := n.in.Name
+		if qualify || len(types[n.in.Name]) > 1 {
+			if n.in.Name == "this" {
+				base = shadowTypeShort(n.in.Record.Type)
+			} else {
+				base = shadowTypeShort(n.in.Record.Type) + "_" + n.in.Name
+			}
+		}
+		if n.in.Keyed && (insts[n.in.Record.Type+"."+n.in.Name] > 1 || n.in.Key != "0") {
+			base += "_" + n.in.Key
+		}
+		return shadowIdent(base)
+	}
+	for _, n := range gr.nodes {
+		labels[n] = label(n, false)
+		used[labels[n]]++
+	}
+	for _, n := range gr.nodes {
+		if used[labels[n]] > 1 {
+			used[labels[n]]--
+			labels[n] = label(n, true)
+			used[labels[n]]++
+		}
+	}
+	taken := map[string]bool{}
+	for kid := range gr.kids {
+		taken[kid] = true
+	}
+	sort.Slice(gr.nodes, func(i, j int) bool { return gr.nodes[i].in.Address < gr.nodes[j].in.Address })
+	for _, n := range gr.nodes {
+		l := labels[n]
+		for i := 2; taken[l]; i++ {
+			l = fmt.Sprintf("%s_%d", labels[n], i)
+		}
+		taken[l] = true
+		labels[n] = l
+	}
+	return labels
+}
+
+// name gives every resource its place in the specification: a struct per module
+// instance, and in it a field per resource.
+func (g *shadowGen) name() {
+	groups, order := g.groupByModule()
+	inner := g.innerNames()
 	reserved := map[string]bool{}
 	for _, r := range g.opts.Reserved {
 		reserved[r] = true
 	}
-
 	sort.Strings(order)
 	labelsOf := map[string]map[*shadowNode]string{}
 	for _, k := range order {
-		gr := groups[k]
-		// How many types use a name, and how many instances a resource has.
-		types := map[string]map[string]bool{}
-		insts := map[string]int{}
-		for _, n := range gr.nodes {
-			if types[n.in.Name] == nil {
-				types[n.in.Name] = map[string]bool{}
-			}
-			types[n.in.Name][n.in.Record.Type] = true
-			insts[n.in.Record.Type+"."+n.in.Name]++
-		}
-		labels := map[*shadowNode]string{}
-		used := map[string]int{}
-		for kid := range gr.kids {
-			used[kid]++
-		}
-		label := func(n *shadowNode, qualify bool) string {
-			base := n.in.Name
-			if qualify || len(types[n.in.Name]) > 1 {
-				if n.in.Name == "this" {
-					base = shadowTypeShort(n.in.Record.Type)
-				} else {
-					base = shadowTypeShort(n.in.Record.Type) + "_" + n.in.Name
-				}
-			}
-			if n.in.Keyed && (insts[n.in.Record.Type+"."+n.in.Name] > 1 || n.in.Key != "0") {
-				base += "_" + n.in.Key
-			}
-			return shadowIdent(base)
-		}
-		for _, n := range gr.nodes {
-			labels[n] = label(n, false)
-			used[labels[n]]++
-		}
-		for _, n := range gr.nodes {
-			if used[labels[n]] > 1 {
-				used[labels[n]]--
-				labels[n] = label(n, true)
-				used[labels[n]]++
-			}
-		}
-		taken := map[string]bool{}
-		for kid := range gr.kids {
-			taken[kid] = true
-		}
-		sort.Slice(gr.nodes, func(i, j int) bool { return gr.nodes[i].in.Address < gr.nodes[j].in.Address })
-		for _, n := range gr.nodes {
-			l := labels[n]
-			for i := 2; taken[l]; i++ {
-				l = fmt.Sprintf("%s_%d", labels[n], i)
-			}
-			taken[l] = true
-			labels[n] = l
-		}
-		labelsOf[k] = labels
+		labelsOf[k] = labelGroup(groups[k])
 	}
+
 	// The labels at the top level are the first step of every reference.
 	rename := map[string]string{}
 	top := groups[""]
@@ -1131,150 +1201,177 @@ func (g *shadowGen) did(n *shadowNode, kind, attr string) {
 // with no knowledge of the type: an attribute that the provider objects to is left out
 // when the specification need not set it, and otherwise left to the provider.
 func (g *shadowGen) repair(n *shadowNode, v shadowVerdict) (shadowVerdict, error) {
-	sh := shape{attrs: n.sch.Block.Attributes, blocks: n.sch.Block.BlockTypes}
-	settable := func(name string) bool {
-		if a := sh.attribute(name); a != nil {
-			return !a.Required
+	for round := 0; round < 12 && !v.clean() && v.failed == ""; round++ {
+		var progress bool
+		var err error
+		if len(v.invalid) > 0 {
+			v, progress, err = g.repairInvalid(n, v)
+		} else {
+			v, progress, err = g.repairChanges(n, v)
 		}
-		return false
-	}
-	set := func(name string) bool {
-		x, ok := n.pm[name]
-		if !ok || x.IsNull() || n.omit[name] {
-			return false
-		}
-		if a := sh.attribute(name); a != nil {
-			if (a.Computed && !a.Optional && !a.Required) || a.WriteOnly || (!a.Required && isEmptyString(x)) {
-				return false
-			}
-			return true
-		}
-		return sh.block(name) != nil
-	}
-	var err error
-	for round := 0; round < 12 && !v.clean(); round++ {
-		progress := false
-		switch {
-		case v.failed != "":
-			return v, nil
-		case len(v.invalid) > 0:
-			// The attributes that the provider names, and those its message quotes.
-			var names []string
-			seen := map[string]bool{}
-			add := func(name string) {
-				if name != "" && !seen[name] && set(name) && settable(name) {
-					seen[name] = true
-					names = append(names, name)
-				}
-			}
-			for _, d := range v.invalid {
-				add(shadowPathHead(d.Path))
-				for _, w := range shadowQuoted(d.Summary + " " + d.Detail) {
-					add(w)
-				}
-			}
-			if len(names) == 0 {
-				// A sensitive value that was left out, and that the provider wants set.
-				put := false
-				for _, d := range v.invalid {
-					words := append([]string{shadowPathHead(d.Path)}, shadowQuoted(d.Summary+" "+d.Detail)...)
-					for _, w := range words {
-						if a := sh.attribute(w); a != nil && a.Sensitive && n.omit[w] && n.ignore[w] && !n.placeholder[w] {
-							if n.placeholder == nil {
-								n.placeholder = map[string]bool{}
-							}
-							n.placeholder[w], n.sensitiveKept[w] = true, true
-							delete(n.omit, w)
-							n.why[w] = "sensitive: the provider wants it set, so a placeholder stands here and the object keeps the value it has"
-							g.did(n, "placeholder for a sensitive value", w)
-							put = true
-						}
-					}
-				}
-				if !put {
-					return v, nil
-				}
-				if v, err = g.ask(n); err != nil {
-					return v, err
-				}
-				continue
-			}
-			// Leave out the one that says least: the value that another one holds, then
-			// the longer name (name_prefix before name).
-			sort.SliceStable(names, func(i, j int) bool {
-				si, _ := shadowString(n.pm[names[i]])
-				sj, _ := shadowString(n.pm[names[j]])
-				ci, cj := si != "" && sj != "" && si != sj && strings.Contains(sj, si), si != "" && sj != "" && si != sj && strings.Contains(si, sj)
-				if ci != cj {
-					return ci
-				}
-				zi, zj := shadowZero(n.pm[names[i]]), shadowZero(n.pm[names[j]])
-				if zi != zj {
-					return zi
-				}
-				if len(names[i]) != len(names[j]) {
-					return len(names[i]) > len(names[j])
-				}
-				return names[i] < names[j]
-			})
-			before := len(v.invalid)
-			for _, name := range names {
-				n.omit[name] = true
-				nv, aerr := g.ask(n)
-				if aerr != nil {
-					return v, aerr
-				}
-				if len(nv.invalid) < before || nv.failed == "" && len(nv.invalid) == 0 {
-					n.why[name] = "left out: the provider refuses it beside another attribute"
-					g.did(n, "left out (conflict)", name)
-					v, progress = nv, true
-					break
-				}
-				delete(n.omit, name)
-			}
-		default:
-			for _, name := range v.changed {
-				a := sh.attribute(name)
-				switch {
-				case n.pre[name] && n.omit[name]:
-					// Left out on a guess, and the plan would change it: it goes back.
-					delete(n.omit, name)
-					delete(n.pre, name)
-					delete(n.why, name)
-					g.did(n, "put back (the plan would change it)", name)
-					progress = true
-				case n.omit[name] && !n.pre[name] && !n.ignore[name] && a != nil && !a.Computed && !a.Required:
-					// Left out because the provider refuses it, and the plan would change it
-					// to nothing: the object keeps the value it has.
-					n.ignore[name] = true
-					n.why[name] += "; ignore_changes keeps the value of the object"
-					g.did(n, "ignore_changes", name)
-					progress = true
-				case !set(name):
-					// Nothing the specification sets: the change follows from another one.
-				case a != nil && a.Optional && a.Computed:
-					n.omit[name] = true
-					n.why[name] = "left out: the provider computes it"
-					g.did(n, "left out (provider computes it)", name)
-					progress = true
-				default:
-					n.ignore[name] = true
-					n.why[name] = "the provider reads it back in another form"
-					g.did(n, "ignore_changes", name)
-					progress = true
-				}
-			}
-			if progress {
-				if v, err = g.ask(n); err != nil {
-					return v, err
-				}
-			}
+		if err != nil {
+			return v, err
 		}
 		if !progress {
 			break
 		}
 	}
 	return v, nil
+}
+
+func (n *shadowNode) shape() shape {
+	return shape{attrs: n.sch.Block.Attributes, blocks: n.sch.Block.BlockTypes}
+}
+
+// settable says that the specification need not set the attribute.
+func (n *shadowNode) settable(name string) bool {
+	if a := n.shape().attribute(name); a != nil {
+		return !a.Required
+	}
+	return false
+}
+
+// isSet says that the specification sets the attribute or the block now.
+func (n *shadowNode) isSet(name string) bool {
+	sh := n.shape()
+	x, ok := n.pm[name]
+	if !ok || x.IsNull() || n.omit[name] {
+		return false
+	}
+	if a := sh.attribute(name); a != nil {
+		if (a.Computed && !a.Optional && !a.Required) || a.WriteOnly || (!a.Required && isEmptyString(x)) {
+			return false
+		}
+		return true
+	}
+	return sh.block(name) != nil
+}
+
+// repairInvalid answers a provider that refuses the configuration: it leaves out an
+// attribute that the message names, or puts a placeholder where a sensitive value is
+// wanted. It says whether it changed anything.
+func (g *shadowGen) repairInvalid(n *shadowNode, v shadowVerdict) (shadowVerdict, bool, error) {
+	// The attributes that the provider names, and those its message quotes.
+	var names []string
+	seen := map[string]bool{}
+	add := func(name string) {
+		if name != "" && !seen[name] && n.isSet(name) && n.settable(name) {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+	for _, d := range v.invalid {
+		add(shadowPathHead(d.Path))
+		for _, w := range shadowQuoted(d.Summary + " " + d.Detail) {
+			add(w)
+		}
+	}
+	if len(names) == 0 {
+		return g.putPlaceholders(n, v)
+	}
+	// Leave out the one that says least: the value that another one holds, then the
+	// longer name (name_prefix before name).
+	sort.SliceStable(names, func(i, j int) bool {
+		si, _ := shadowString(n.pm[names[i]])
+		sj, _ := shadowString(n.pm[names[j]])
+		ci, cj := si != "" && sj != "" && si != sj && strings.Contains(sj, si), si != "" && sj != "" && si != sj && strings.Contains(si, sj)
+		if ci != cj {
+			return ci
+		}
+		zi, zj := shadowZero(n.pm[names[i]]), shadowZero(n.pm[names[j]])
+		if zi != zj {
+			return zi
+		}
+		if len(names[i]) != len(names[j]) {
+			return len(names[i]) > len(names[j])
+		}
+		return names[i] < names[j]
+	})
+	before := len(v.invalid)
+	for _, name := range names {
+		n.omit[name] = true
+		nv, err := g.ask(n)
+		if err != nil {
+			return v, false, err
+		}
+		if len(nv.invalid) < before || nv.failed == "" && len(nv.invalid) == 0 {
+			n.why[name] = "left out: the provider refuses it beside another attribute"
+			g.did(n, "left out (conflict)", name)
+			return nv, true, nil
+		}
+		delete(n.omit, name)
+	}
+	return v, false, nil
+}
+
+// putPlaceholders writes a placeholder for a sensitive value that was left out and that
+// the provider wants set, and asks again.
+func (g *shadowGen) putPlaceholders(n *shadowNode, v shadowVerdict) (shadowVerdict, bool, error) {
+	sh := n.shape()
+	put := false
+	for _, d := range v.invalid {
+		words := append([]string{shadowPathHead(d.Path)}, shadowQuoted(d.Summary+" "+d.Detail)...)
+		for _, w := range words {
+			if a := sh.attribute(w); a != nil && a.Sensitive && n.omit[w] && n.ignore[w] && !n.placeholder[w] {
+				if n.placeholder == nil {
+					n.placeholder = map[string]bool{}
+				}
+				n.placeholder[w], n.sensitiveKept[w] = true, true
+				delete(n.omit, w)
+				n.why[w] = "sensitive: the provider wants it set, so a placeholder stands here and the object keeps the value it has"
+				g.did(n, "placeholder for a sensitive value", w)
+				put = true
+			}
+		}
+	}
+	if !put {
+		return v, false, nil
+	}
+	nv, err := g.ask(n)
+	return nv, true, err
+}
+
+// repairChanges answers a plan that would change the object: it puts back what was left
+// out on a guess, leaves out what the provider computes and ignores what it reads back
+// in another form.
+func (g *shadowGen) repairChanges(n *shadowNode, v shadowVerdict) (shadowVerdict, bool, error) {
+	progress := false
+	for _, name := range v.changed {
+		a := n.shape().attribute(name)
+		switch {
+		case n.pre[name] && n.omit[name]:
+			// Left out on a guess, and the plan would change it: it goes back.
+			delete(n.omit, name)
+			delete(n.pre, name)
+			delete(n.why, name)
+			g.did(n, "put back (the plan would change it)", name)
+			progress = true
+		case n.omit[name] && !n.pre[name] && !n.ignore[name] && a != nil && !a.Computed && !a.Required:
+			// Left out because the provider refuses it, and the plan would change it
+			// to nothing: the object keeps the value it has.
+			n.ignore[name] = true
+			n.why[name] += "; ignore_changes keeps the value of the object"
+			g.did(n, "ignore_changes", name)
+			progress = true
+		case !n.isSet(name):
+			// Nothing the specification sets: the change follows from another one.
+		case a != nil && a.Optional && a.Computed:
+			n.omit[name] = true
+			n.why[name] = "left out: the provider computes it"
+			g.did(n, "left out (provider computes it)", name)
+			progress = true
+		default:
+			n.ignore[name] = true
+			n.why[name] = "the provider reads it back in another form"
+			g.did(n, "ignore_changes", name)
+			progress = true
+		}
+	}
+	if !progress {
+		return v, false, nil
+	}
+	nv, err := g.ask(n)
+	return nv, true, err
 }
 
 func shadowZero(v tftypes.Value) bool {
