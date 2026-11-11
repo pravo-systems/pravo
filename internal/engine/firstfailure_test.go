@@ -60,3 +60,20 @@ func TestPlanReportsTheLowestAddressOfTasksThatFailTogether(t *testing.T) {
 		}
 	}
 }
+
+// A task that fails and waits for a task that succeeds is still started when another task, of a higher
+// address, has failed before: a plan reports the lowest address of everything that could fail.
+func TestPlanStartsWhatWaitsForAValidTaskAfterAnotherFailed(t *testing.T) {
+	for range 20 {
+		h := newHarness(t)
+		h.fake.planFails = map[string]time.Duration{"alpha": 0, "zeta": 0}
+		s := spec{
+			cue:       "m: " + thing("m", "content: \"m\"") + "\nalpha: " + thing("alpha", "content: \"after \\(m.id)\"") + "\nzeta: " + thing("zeta", "content: \"z\"") + "\n",
+			resources: []string{"m", "alpha", "zeta"},
+		}
+		_, err := h.engine(s, Options{}).Plan(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "alpha is invalid") {
+			t.Fatalf("the error is %v, want the one of alpha", err)
+		}
+	}
+}
