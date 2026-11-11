@@ -485,18 +485,20 @@ func writerKey(readers []protect.Reader, sig *protect.Signature) bool {
 // factsOf returns what the signatures of t vouch for.
 func factsOf(t *Transaction, readers []protect.Reader, lineage string) txnFacts {
 	var f txnFacts
+	// The same judgement of the signatures as the records and the secrets get. A run that has
+	// not finished says what it may remove in its signed start, so its changes do not make it
+	// altered here; a finished one whose start and end were signed by two keys does.
+	verdict := VerifyTransaction(lineage, t, readers)
 	started := false
 	if (len(t.Policies) > 0 || len(t.Removes) > 0) && t.StartSig != nil {
-		st, _ := protect.VerifySignature(t.StartSig, readers, protect.DomainTxnStart, lineage, txnStartParts(t)...)
-		started = st == protect.SigVerified && writerKey(readers, t.StartSig)
+		started = verdict.Start == protect.SigVerified && writerKey(readers, t.StartSig)
 	}
 	if started {
 		f.policies = append(f.policies, t.Policies...)
 	}
 	finished := false
 	if t.FinishSig != nil && t.Finished != nil {
-		st, _ := protect.VerifySignature(t.FinishSig, readers, protect.DomainTxnFinish, lineage, txnFinishParts(t)...)
-		finished = st == protect.SigVerified && writerKey(readers, t.FinishSig)
+		finished = verdict.Finish == protect.SigVerified && !verdict.Altered && writerKey(readers, t.FinishSig)
 	}
 	if !finished {
 		if started {

@@ -201,8 +201,8 @@ type RolesStatus struct {
 // repository, as parsed, and pin is the digest its roles-genesis line holds, empty without the
 // line. With a pin, the chain decides, and the roles of the file only say what an admin asks
 // for; a pin without a chain, a chain that does not begin with the pin, or a chain that does
-// not verify is ErrUntrusted. Without a pin the readers file decides, and a chain is
-// reported and not used.
+// not verify is ErrUntrusted. Without a pin the readers file decides, lowered by a chain that
+// the state holds (protect.CapRoles): the chain only restricts.
 func (s *Store) RolesFor(ctx context.Context, file []protect.Reader, pin string) ([]protect.Reader, RolesStatus, error) {
 	st := RolesStatus{Source: "off"}
 	if protect.RolesOn(file) {
@@ -226,9 +226,11 @@ func (s *Store) RolesFor(ctx context.Context, file []protect.Reader, pin string)
 	case pin == "" && head == nil:
 		return file, st, nil
 	case pin == "":
+		// The chain only restricts: a file that dropped the pin line, or an old branch from
+		// before it, must not make a writer an admin. Every consumer gets the same answer.
 		st.Unpinned = true
 		st.Stored = head.Set
-		return file, st, nil
+		return protect.CapRoles(file, head.Set), st, nil
 	case head == nil:
 		return nil, st, fmt.Errorf("%w: the readers file pins the roles of the state, and the state has none", ErrUntrusted)
 	case chain.Versions[0].Digest() != pin:
