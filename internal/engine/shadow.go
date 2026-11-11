@@ -51,6 +51,9 @@ type ShadowOptions struct {
 	Reserved []string
 	// Flat writes every resource at the top level instead of in a struct per module.
 	Flat bool
+	// Vault says that the caller keeps the sensitive values in the vault of a sealed state,
+	// under the names of ShadowSecret, and the comments of the specification say so.
+	Vault bool
 	// NoReferences writes every value as a literal.
 	NoReferences bool
 }
@@ -111,8 +114,12 @@ type ShadowReport struct {
 	ReferencesDisabled bool           `json:"references_disabled,omitempty"`
 	// Verified says that the plan of the written specification was empty; PlanWants lists
 	// what it wanted to change otherwise. They are set by the command that plans it.
-	Verified  bool     `json:"verified"`
-	PlanWants []string `json:"plan_wants,omitempty"`
+	Verified bool `json:"verified"`
+	// Folded counts the definitions that fold alike resources (pravo shadow --fold), and
+	// FoldedResources the resources that became instances of them.
+	Folded          int      `json:"folded_definitions,omitempty"`
+	FoldedResources int      `json:"folded_resources,omitempty"`
+	PlanWants       []string `json:"plan_wants,omitempty"`
 }
 
 // ShadowResult is a decompiled state: the source of the resources, without a package
@@ -121,6 +128,33 @@ type ShadowResult struct {
 	Source  string
 	Records []*state.Resource
 	Report  ShadowReport
+	// Secrets are the sensitive string values that the specification leaves out, for a
+	// caller that can keep them in the vault of a sealed state.
+	Secrets []ShadowSecret
+}
+
+// ShadowSecret is a sensitive value of the state that the specification never holds.
+type ShadowSecret struct {
+	// Address is the address of the resource in this root, and Attribute the attribute.
+	Address, Attribute string
+	Value              string
+	// Name is the name of the secret that holds it: shadow/ADDRESS/ATTRIBUTE.
+	Name string
+}
+
+// shadowSecretName is the name of the secret that keeps a sensitive value of a shadow. An
+// address has brackets and quotes that a name does not allow: each becomes an underscore.
+func shadowSecretName(addr, attr string) string {
+	word := func(s string) string {
+		b := []byte(s)
+		for i, c := range b {
+			if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '.' && c != '-' && c != '_' {
+				b[i] = '_'
+			}
+		}
+		return strings.TrimLeft(string(b), "._-")
+	}
+	return "shadow/" + word(addr) + "/" + word(attr)
 }
 
 type shadowNode struct {
@@ -179,8 +213,11 @@ type shadowGen struct {
 	nodes []*shadowNode
 	by    map[string]*shadowNode // legacy address -> node
 	rep   *ShadowReport
-	provs map[string]plugin.Provider
-	ids   map[string]*shadowNode // the id and the arn of every object
+	// secrets collects the sensitive values that the specification leaves out.
+	secrets     []ShadowSecret
+	secretNames map[string]bool
+	provs       map[string]plugin.Provider
+	ids         map[string]*shadowNode // the id and the arn of every object
 	// literal is set while the name that a resource gives itself is written: resources
 	// that share a name share a variable, not a reference.
 	literal bool
@@ -410,6 +447,7 @@ func (g *shadowGen) finish() (*ShadowResult, error) {
 		res.Records = append(res.Records, &sr)
 	}
 	res.Report = *rep
+	res.Secrets = g.secrets
 	return res, nil
 }
 
@@ -920,6 +958,20 @@ func (g *shadowGen) sensitive(n *shadowNode) {
 			}
 			n.omit[name], n.ignore[name] = true, true
 			n.why[name] = "sensitive: the value stays in the state and is never written here"
+			if s, ok := shadowString(v); ok {
+				sec := ShadowSecret{Address: n.addr, Attribute: name, Value: s, Name: shadowSecretName(n.addr, name)}
+				for i := 2; g.secretNames[sec.Name]; i++ {
+					sec.Name = fmt.Sprintf("%s-%d", shadowSecretName(n.addr, name), i)
+				}
+				if g.secretNames == nil {
+					g.secretNames = map[string]bool{}
+				}
+				g.secretNames[sec.Name] = true
+				g.secrets = append(g.secrets, sec)
+				if g.opts.Vault {
+					n.why[name] += "; a copy is in the vault as " + sec.Name
+				}
+			}
 			n.out.Sensitive = append(n.out.Sensitive, name)
 			g.rep.SensitiveOmitted++
 			if a.Required {

@@ -92,8 +92,8 @@ func stateCmd(rt *runContext) *cobra.Command {
 		verifyCmd(rt),
 		stateListCmd(whole(loadRead)),
 		stateShowCmd(rt, whole(loadValues)),
-		stateRmCmd(rt, loadEdit),
-		stateMvCmd(rt, loadEdit),
+		stateRmCmd(rt, loadChange(rt, "state rm")),
+		stateMvCmd(rt, loadChange(rt, "state mv")),
 		stateLogCmd(rt, loadRead),
 		stateProbeCmd(rt),
 		stateLocksCmd(rt, loadRead),
@@ -104,7 +104,7 @@ func stateCmd(rt *runContext) *cobra.Command {
 		stateEdgesCmd(rt, whole(loadRead)),
 		stateDependentsCmd(whole(loadRead)),
 		stateQueryCmd(rt, whole(loadValues)),
-		stateImportTfstateCmd(rt, loadEdit),
+		stateImportTfstateCmd(rt, loadChange(rt, "state import-tfstate")),
 	)
 	return cmd
 }
@@ -261,6 +261,26 @@ func stateRmCmd(rt *runContext, load func() (*state.Store, error)) *cobra.Comman
 			rt.out.Printf("Removed %s\n", args[0])
 			return txn.Finish("applied", "forgot "+args[0], true)
 		},
+	}
+}
+
+// loadChange is loadEdit for a subcommand that changes what the records say about an object
+// (rm, mv, import-tfstate): a root that Terraform owns refuses it.
+func loadChange(rt *runContext, what string) func() (*state.Store, error) {
+	return func() (*state.Store, error) {
+		root, err := loadRoot(rt)
+		if err != nil {
+			return nil, err
+		}
+		st, err := openStateEdit(commandContext(), rt, root)
+		if err != nil {
+			return nil, err
+		}
+		if err := refuseShadowOwned(commandContext(), rt, root, st, what); err != nil {
+			st.Close()
+			return nil, err
+		}
+		return st, nil
 	}
 }
 

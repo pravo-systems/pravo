@@ -97,6 +97,6 @@ Each root has one tool, and you move one root at a time.
 
 pravo has no converter for HCL. You translate by hand, and the pages tell you how.
 
-To see your estate planned by pravo before you translate anything, run [`pravo shadow`](../reference/shadow.md) on the state. It writes a specification from the state, with no HCL, and it plans clean. OpenTofu keeps the objects until you say otherwise, so the two tools run side by side. A shadow gives you the estate and not the program: each instance is written once, with no loops, variables or module calls. Translate the HCL by the runbook when you want those.
+To see your estate planned by pravo before you translate anything, run [`pravo shadow`](../reference/shadow.md) on the state. It writes a specification from the state, with no HCL, and it plans clean. OpenTofu keeps the objects until you say otherwise, so the two tools run side by side, and `pravo shadow sync` takes the shadow again when the state moves, keeping what you edited. A shadow gives you the estate and not the program: each instance is written once, with no loops, variables or module calls. Translate the HCL by the runbook when you want those.
 
 Start with [Before you start](m1-before-you-start.md). The [concept map](m2-concept-map.md) lists what each construct, command and function becomes. The [worked example](m3-worked-example.md) runs the whole path on one stack.

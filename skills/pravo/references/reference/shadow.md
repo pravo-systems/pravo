@@ -8,9 +8,9 @@ Decompile an OpenTofu or Terraform state into a specification that plans clean, 
 
 | | |
 |---|---|
-| Synopsis | `pravo shadow STATE`, `pravo shadow take-over`, `pravo shadow status`, `pravo shadow back` |
+| Synopsis | `pravo shadow STATE`, `pravo shadow sync`, `pravo shadow take-over`, `pravo shadow status`, `pravo shadow back` |
 | Changes infrastructure | No. The provider reads the objects. |
-| Writes | `shadow.cue`, `shadow.lock.json`, and the state of the root: one record for each resource of `STATE`, in a transaction of kind `import`, and an apply with no changes that stores the hash of each configuration. The state file is read and never written. |
+| Writes | `shadow.cue`, `shadow.lock.json`, and the state of the root: one record for each resource of `STATE`, in a transaction of kind `shadow`, and an apply with no changes that stores the hash of each configuration. In a sealed state also one secret for each sensitive value that the specification leaves out. The state file is read and never written. |
 | Requires | A specification that declares the providers of `STATE`, and `pravo init`. |
 | Reads | A state file, `-` for standard input, or `s3://BUCKET/KEY` for the state that an S3 backend of OpenTofu or Terraform holds. Format version 4. |
 | Taught in | [Migrate](https://pravo.systems/migrate/index.html). A shadow replaces the translation of steps 4 and 5 for a first look. |
@@ -24,7 +24,7 @@ For each managed resource of the state, the command:
 1. Writes one resource of the specification, in a struct for each module instance, with the address that OpenTofu used as a comment.
 2. Reads the object through its provider, so that the specification states what the object is now. A record of the state that was behind its object is brought up to date.
 3. Writes the references that the values show. A string that equals the `id`, the `arn` or another computed value of a dependency becomes a reference to it, a long value inside a string becomes an interpolation, and a dependency that no value shows goes to `$depends_on`. The report counts every edge of the state: by reference, by interpolation, implied by those, in `$depends_on`, to data sources and lost.
-4. Keeps secrets out of the source. A sensitive attribute is left out and named in `$lifecycle.ignore_changes`, so the object keeps its value. The provider decides which attributes are sensitive. Where it refuses the resource without one, a placeholder stands in its place.
+4. Keeps secrets out of the source. A sensitive attribute is left out and named in `$lifecycle.ignore_changes`, so the object keeps its value. The provider decides which attributes are sensitive. Where it refuses the resource without one, a placeholder stands in its place. In a [sealed state](protect.md) the value is also kept in the vault, as the secret `shadow/ADDRESS/ATTRIBUTE`: see [Sensitive values](#sensitive-values).
 5. Asks the provider about every resource: it validates it and plans it against its object. What the provider refuses, or computes in another form, is left out, or left to the provider with `ignore_changes`, until the plan is empty. The command needs no list of cases for a type. A comment in `shadow.cue` says why each attribute was left out.
 6. Leaves out what the provider derives anyway, so that the specification holds what a person would write.
 7. Writes the records of the objects, plans the root as `pravo plan` does, and applies that plan, which has no changes, so that each record holds the hash of the configuration the provider has seen. The plans after it read only what a change reaches.
@@ -35,13 +35,59 @@ Data sources are not part of the specification. Their values are written as cons
 
 ## Whose objects they are
 
-The root that a shadow wrote stands beside the OpenTofu root, and OpenTofu still owns the objects. `shadow.lock.json` says so. Until the objects are handed over, `pravo apply` refuses a plan that creates, changes, replaces or destroys an object, with exit code 5. Plans are not refused, so the shadow can be planned as often as you like, from any number of machines, while OpenTofu goes on applying.
+The root that a shadow wrote stands beside the OpenTofu root, and OpenTofu still owns the objects. Until the objects are handed over, `pravo apply` refuses a plan that creates, changes, replaces or destroys an object, with exit code 5. So do the commands that change what a record says about an object: `pravo import`, `pravo state rm`, `pravo state mv` and `pravo state import-tfstate`. Plans are not refused, so the shadow can be planned as often as you like, from any number of machines, while OpenTofu goes on applying.
 
-`pravo shadow status` says who the owner is, and warns when the state has moved since the shadow was taken: a new serial means that the shadow is behind. `pravo shadow STATE --force` takes it again.
+The owner is kept in the state, not in a file beside the specification. The transaction that wrote the records has the kind `shadow`, and `pravo shadow take-over` writes one of the kind `handover`; the newest of them says whose the objects are. In a sealed state both are signed, and a hand-over that no reader signed does not count. Deleting `shadow.lock.json` therefore takes nothing over: that file only remembers where the state came from and what the shadow wrote.
 
-`pravo shadow take-over` hands the objects to pravo. It refuses when the state moved. After it `pravo apply` changes objects. Stop applying the OpenTofu root: remove its backend or lock it.
+`pravo shadow status` says who the owner is, and warns when the state has moved since the shadow was taken: a new serial means that the shadow is behind. [Keep it in step](#keep-it-in-step) takes it again without losing what you edited.
+
+`pravo shadow take-over` hands the objects to pravo. It refuses when the state moved. After it `pravo apply` changes objects. Stop applying the OpenTofu root: remove its backend or lock it. A root that was handed over is not shadowed again, since a shadow would replace the records that pravo changed since with those of the state file.
 
 `pravo shadow back` is the way back. It writes the records of this root into a copy of the OpenTofu state, one instance at a time, with the serial raised by one. What the shadow left out of the state, such as data sources, stays as it was. A resource that was created after the hand-over has no place in the HCL, and the command lists it. OpenTofu then plans against the copy, so that a change made by pravo is in its state.
+
+## Keep it in step
+
+While OpenTofu goes on applying, its state moves and the shadow falls behind. `pravo shadow sync` reads the state again (the one the shadow came from, unless you name another) and brings the records and `shadow.cue` up to date. It takes the same flags as `pravo shadow`.
+
+You may edit `shadow.cue`. Every resource is a block under a comment with its OpenTofu address, and the note keeps the text of each block as it was written. At a sync, each block is merged by that address, not by line:
+
+| The block | The file after the sync |
+|---|---|
+| is as the shadow wrote it | the text of the new state |
+| is edited, and the state did not change it | your text |
+| is edited, and the state changed it | your text, and the command names the block |
+| is new in the state | a new block |
+| is edited, and its resource left the state | gone, and the command names it |
+
+The plan that ends the command may want changes. If every one of them is in a block that you edited, the command says so and exits 0: they are your edits, and the shadow restates everything else. Any other change is a gap, as in a first shadow, and the command exits 1. Only blocks are kept: resources of your own belong in another file of the package. Without `shadow.lock.json` there is no earlier text to tell an edit from a change of the state, so every block that differs is kept as it is and the command counts them.
+
+## Fold what is alike
+
+`pravo shadow --fold` (and `pravo shadow sync --fold`) writes resources that are alike as one definition and small instances. Six buckets that differ in a name and a tag become:
+
+```cue
+// #S3Bucket is what 6 resources of type aws_s3_bucket have in common.
+#S3Bucket: $aws.#Resource.aws_s3_bucket & {
+	#name!: string
+	bucket: "acme-\(#name)"
+	tags: Name: "acme-\(#name)"
+}
+
+// aws_s3_bucket.logs
+logs: #S3Bucket & {#name: "logs"}
+```
+
+The folding reads the syntax only. It finds what the bodies have in common, turns what differs into parameters, and writes a definition only where that makes the file shorter: at least three resources, at least 15 percent saved and at most eight parameters. Every address stays, so the records do not move. A value that most instances share becomes the default of its parameter. A resource that is not written in the plain form, such as a module's, is left as it is.
+
+The proof is a plan. The command writes the folded file and plans the root again: each resource whose configuration is the one that the provider has seen is skipped, and one that is not is planned. The folded file stays only when that plan says as little as the plan of the file it came from. Otherwise the file is put back as it was, and the command says so. On an estate of 83 resources on AWS, 7 definitions took 67 of them and the file went from 858 lines to 512.
+
+A folded file is a specification that people write: it keeps no blocks for a sync to merge into. A sync of a folded file that was not touched folds the new state again. A folded file that was edited is refused, with the choice between editing it by hand and `pravo shadow --force`.
+
+## Sensitive values
+
+A sensitive attribute is never written to the specification. Its value stays in the records of the state, which a sealed state seals to its readers. In a sealed state the shadow also keeps each sensitive string value in the vault, as the secret `shadow/ADDRESS/ATTRIBUTE` (`shadow/edge.this/secret`, with the characters that a name does not allow turned into underscores), with a note that says which state and serial it came from. `pravo secret get` reads it, `pravo secret exec` hands it to a command, and `pravo secret history` shows who set each version, so the values can leave the Terraform state with the rest of it. The comment in `shadow.cue` names the secret. The first secret of a state needs a key that may write one: where yours may not, the shadow says that the values stay in the records only.
+
+The vault is for what runs, not for what is recorded: [a secret may not go into an attribute that is recorded](../how-to/secrets.md), so the specification cannot read these values back into the resource. An attribute that the provider insists on keeps its placeholder, and the object keeps the value it has.
 
 ## Flags
 
@@ -53,13 +99,14 @@ The root that a shadow wrote stands beside the OpenTofu root, and OpenTofu still
 | `--keep-derived` | off | Also write what the provider derives anyway. |
 | `--no-guard` | off | Make the root pravo's at once: apply changes objects with no hand-over. |
 | `--no-state` | off | Write the file only: no records, no note and no plan. |
+| `--fold` | off | Write resources that are alike as one definition and instances, and keep that only if the plan of the result is as clean. |
 | `--flat` | off | Write every resource at the top level, with no struct for each module. |
 | `--no-references` | off | Write every value as a literal. |
 | `--report FILE` | none | Write the numbers as JSON. |
 | `--region`, `--endpoint`, `--profile` | the AWS defaults | Where an `s3://` state is read from. The credentials come from the usual AWS chain. |
 | `-t`, `--tag key=value` | none | Inject a value for an `@tag()` field. Repeatable. |
 
-`pravo shadow back` takes `--out FILE` (default `back.tfstate`) and `--from STATE`, the file to rewrite. It is the file that the shadow was taken from unless the shadow read standard input. The [global flags](global-flags.md) apply.
+`pravo shadow sync` takes every flag of `pravo shadow` except `--no-state` and `--no-guard`, and reads the state of the note when it is given none. `pravo shadow back` takes `--out FILE` (default `back.tfstate`) and `--from STATE`, the file to rewrite. It is the file that the shadow was taken from unless the shadow read standard input. The [global flags](global-flags.md) apply.
 
 ### Exit codes
 
@@ -244,6 +291,7 @@ Apply complete! Resources: 0 added, 1 changed, 0 destroyed. [txn <txn>]
 - The result is the estate, not the program. Loops, variables and module calls of the HCL are not recovered: each instance is written once. The groups keep the boundaries of the module instances.
 - Data sources become constants.
 - A state read from an S3 bucket is read once, with the credentials of the caller. Workspaces and other backends are read by pulling the state to a file or to standard input: `tofu state pull | pravo shadow -`.
-- A sensitive value that the provider insists on has a placeholder in the source, and the specification cannot change it until the value is in the vault (`pravo secret`).
-- A shadow taken again replaces `shadow.cue`. An edit made by hand is lost, so edit it only after the hand-over.
-- The guard is the note `shadow.lock.json`. Whoever deletes it has taken the objects over.
+- A sensitive value that the provider insists on has a placeholder in the source. The vault keeps the value, but a specification cannot read a secret into a recorded attribute, so the placeholder stays and the object keeps the value it has.
+- A shadow taken again with `--force` replaces `shadow.cue` and the records. An edit made by hand is lost: use `pravo shadow sync`, which keeps it.
+- The guard is in the state. Whoever has a key that may write a hand-over has taken the objects over; deleting `shadow.lock.json` does not.
+- Folding works on resources written at the top of the file. Those of a module stay as they are.

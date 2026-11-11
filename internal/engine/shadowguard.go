@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/pravo-systems/pravo/internal/protect"
+	"github.com/pravo-systems/pravo/internal/state"
 )
 
 // A root that pravo shadow wrote stands beside the Terraform root it was decompiled
@@ -38,6 +41,14 @@ type ShadowLock struct {
 	Taken    string `json:"taken"`
 	// Addresses maps the address of each resource here to its Terraform address.
 	Addresses map[string]string `json:"addresses,omitempty"`
+	// Blocks holds the text that the shadow wrote for each resource, by Terraform address:
+	// a shadow that is taken again tells an edit of the person from a change of the state by it.
+	Blocks map[string]string `json:"blocks,omitempty"`
+	// FileSHA256 is the digest of the file as the shadow left it, and Folded says that the
+	// file holds definitions that fold alike resources (see pravo shadow --fold): a file that
+	// was not touched since is taken again whole, one that was is not merged with a new state.
+	FileSHA256 string `json:"file_sha256,omitempty"`
+	Folded     bool   `json:"folded,omitempty"`
 }
 
 // NewShadowLock describes the state that a shadow was taken from.
@@ -115,14 +126,53 @@ func (l *ShadowLock) Moved(ctx context.Context) string {
 	return fmt.Sprintf("the Terraform state has moved since the shadow was taken (serial %d then, %d now): take the shadow again with pravo shadow --force", l.Serial, head.Serial)
 }
 
+// TerraformOwns says whether the objects of the root in dir are still Terraform's, and the
+// note that names the state they were decompiled from, nil when the note is gone. The owner is
+// read from the state, where the transaction that wrote the shadow and the one that handed
+// it over are signed in a sealed state: a deleted note changes nothing. A note of a shadow
+// that was taken before the state said so still holds the objects until it is taken over.
+func TerraformOwns(st *state.Store, readers []protect.Reader, dir string) (bool, *ShadowLock, error) {
+	l, err := ReadShadowLock(dir)
+	if err != nil {
+		return false, nil, err
+	}
+	owner, _, err := st.ShadowOwner(readers)
+	if err != nil {
+		return false, l, err
+	}
+	switch owner {
+	case state.OwnerTerraform:
+		return true, l, nil
+	case state.OwnerPravo:
+		return false, l, nil
+	}
+	return l != nil && l.Owner == state.OwnerTerraform, l, nil
+}
+
+// refuseText is what a refusal says of the state the shadow came from.
+func (l *ShadowLock) refuseText() string {
+	if l == nil || l.Source == "" {
+		return "the Terraform state it was decompiled from"
+	}
+	return fmt.Sprintf("the Terraform state %s (serial %d)", l.Source, l.Serial)
+}
+
+// RefuseShadowEdit refuses a command that changes the records of a root that Terraform owns
+// (import, state rm, state mv): an object that a record says pravo manages would then be one
+// that both tools change.
+func RefuseShadowEdit(ctx context.Context, st *state.Store, readers []protect.Reader, dir, what string) error {
+	owned, l, err := TerraformOwns(st, readers, dir)
+	if err != nil || !owned {
+		return err
+	}
+	msg := fmt.Sprintf("%s refused: this root is a shadow of %s, and Terraform still owns its objects. Its records follow that state until they are handed over.\nTo change them, hand the objects over to pravo with: pravo shadow take-over", what, l.refuseText())
+	return WithCode(ExitRefused, errors.New(msg))
+}
+
 // shadowGuard refuses a plan that changes an object of a root that Terraform owns.
 func (e *Engine) shadowGuard(ctx context.Context, plan *Plan) error {
-	if e.Root == nil || plan == nil {
+	if e.Root == nil || plan == nil || e.State == nil {
 		return nil
-	}
-	l, err := ReadShadowLock(e.Root.Dir)
-	if err != nil || l == nil || l.Owner != "terraform" {
-		return err
 	}
 	var touched []string
 	for _, c := range plan.Changes {
@@ -137,14 +187,22 @@ func (e *Engine) shadowGuard(ctx context.Context, plan *Plan) error {
 	if len(touched) == 0 {
 		return nil
 	}
+	// The owner is read from the state, which costs requests: only a plan that changes an
+	// object asks.
+	owned, l, err := TerraformOwns(e.State, e.Opts.Readers, e.Root.Dir)
+	if err != nil || !owned {
+		return err
+	}
 	shown := touched
 	if len(shown) > 5 {
 		shown = append(append([]string(nil), shown[:5]...), fmt.Sprintf("and %d more", len(touched)-5))
 	}
-	msg := fmt.Sprintf("apply refused: this root is a shadow of the Terraform state %s (serial %d), and Terraform still owns its objects. The plan would change %s: %s. Nothing was changed.\nPlan here as often as you like. To change the objects, either apply the change with Terraform and take the shadow again, or hand the objects over to pravo with: pravo shadow take-over",
-		l.Source, l.Serial, nodes(len(touched)), strings.Join(shown, ", "))
-	if m := l.Moved(ctx); m != "" {
-		msg += "\nAlso: " + m + "."
+	msg := fmt.Sprintf("apply refused: this root is a shadow of %s, and Terraform still owns its objects. The plan would change %s: %s. Nothing was changed.\nPlan here as often as you like. To change the objects, either apply the change with Terraform and take the shadow again, or hand the objects over to pravo with: pravo shadow take-over",
+		l.refuseText(), nodes(len(touched)), strings.Join(shown, ", "))
+	if l != nil {
+		if m := l.Moved(ctx); m != "" {
+			msg += "\nAlso: " + m + "."
+		}
 	}
 	return WithCode(ExitRefused, errors.New(msg))
 }

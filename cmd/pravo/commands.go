@@ -970,6 +970,9 @@ func importCmd(rt *runContext) *cobra.Command {
 				return err
 			}
 			defer s.close()
+			if err := refuseShadowOwned(ctx, rt, s.root, s.state, "import"); err != nil {
+				return err
+			}
 			res := s.root.Resource(args[0])
 			if res == nil {
 				return fmt.Errorf("%s is not declared in the configuration; add it before importing", args[0])
