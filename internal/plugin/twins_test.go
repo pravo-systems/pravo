@@ -19,7 +19,8 @@ func TestProtocolClientsAreTheSameCode(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return string(b)
+		// A checkout on Windows may end its lines with CR LF.
+		return strings.ReplaceAll(string(b), "\r\n", "\n")
 	}
 	v5, v6 := read("v5.go"), read("v6.go")
 
