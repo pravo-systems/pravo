@@ -129,9 +129,6 @@ Shadowed 3 resources in 1 modules from terraform.tfstate into shadow.cue (24 lin
   the provider on what was written:    3 clean, 0 invalid, 0 with changes (8 questions)
     ignore_changes: 1
     left out (conflict): 1
-logs: Refreshing state... [id=b-1234]
-edge.this: Refreshing state... [id=srv-edge]
-web: Refreshing state... [id=srv-web]
 
 Verified: the plan of the specification says No changes (3 resources planned, 3 refreshed).
 
@@ -197,8 +194,6 @@ pravo apply --auto-approve
 Output:
 
 ```text
-web: Refreshing state... [id=srv-web]
-
 pravo will perform the following actions:
 
   # web (demo_server) will be updated in-place
@@ -226,7 +221,6 @@ Output:
 
 ```text
 The objects are pravo's now. Stop applying ./terraform.tfstate with Terraform: remove its backend or lock it.
-web: Refreshing state... [id=srv-web]
 
 pravo will perform the following actions:
 
