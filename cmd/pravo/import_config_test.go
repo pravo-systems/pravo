@@ -30,4 +30,18 @@ func TestImportConfiguresTheProviderFromItsBlock(t *testing.T) {
 	if !strings.Contains(string(b), "token=tk-import-7") {
 		t.Errorf("the provider was not given the token of its block: %q", b)
 	}
+	// The record that came from the import carries the stamp of the provider configuration that
+	// an $import record carries, so that a later change of the configuration is noticed.
+	stamped := false
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			if b, err := os.ReadFile(path); err == nil && strings.Contains(string(b), `"addr": "web"`) && strings.Contains(string(b), "provider_config") {
+				stamped = true
+			}
+		}
+		return nil
+	})
+	if !stamped {
+		t.Error("the record of an imported resource has no provider configuration stamp")
+	}
 }

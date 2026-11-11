@@ -189,23 +189,8 @@ func (s *Server) overlay(ctx context.Context, m *model, pf *engine.PlanFile, dis
 		}
 		po.info.Summary.Add, po.info.Summary.Change, po.info.Summary.Destroy, po.info.Summary.Read = plan.Counts()
 	} else {
-		for _, sc := range pf.Changes {
-			switch sc.Action {
-			case engine.ActionCreate:
-				po.info.Summary.Add++
-			case engine.ActionUpdate:
-				po.info.Summary.Change++
-			case engine.ActionReplace:
-				po.info.Summary.Add++
-				po.info.Summary.Destroy++
-			case engine.ActionDelete:
-				po.info.Summary.Destroy++
-			case engine.ActionRead:
-				if !sc.Skipped {
-					po.info.Summary.Read++
-				}
-			}
-		}
+		c := pf.Counts()
+		po.info.Summary.Add, po.info.Summary.Change, po.info.Summary.Destroy, po.info.Summary.Read = c.Add, c.Change, c.Destroy, c.Read
 	}
 	po.info.Hints = renameHints(m, pf)
 	if len(po.info.Reasons) > 0 {

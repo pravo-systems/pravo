@@ -273,84 +273,49 @@ func (w *Workspace) ApplyStored(ctx context.Context, ref string, o ApplyStoredOp
 	eng := w.Engine(eopts)
 	eng.SetPlan(id, pf.Digest)
 
-	res := &StoredApply{ID: id, Meta: meta, Again: meta.ApplyCommand()}
-	plan, err := eng.LoadPlanFor(pf, o.Only)
-	if err != nil {
-		return nil, engine.WithCode(engine.ExitStale, err)
-	}
-	res.Destroy = plan.Destroy
-	remaining := plan.Remaining()
-	if !pf.LeftToApply(remaining) {
-		res.NothingLeft = true
-		return res, nil
-	}
-	// The saved plan is judged whole, whatever Only selects, so that a limit on
-	// the size of a plan cannot be passed by applying it in stages.
-	eng.SetPlanFile(pf)
-	selected := remaining
-	if len(o.Only) > 0 {
-		selected, err = plan.Subset(o.Only)
-		if err != nil {
-			return nil, err
-		}
-		if o.Selected != nil {
-			o.Selected(id, selected.PendingCount(), remaining.PendingCount())
-		}
-	}
-	applied, err := eng.ApplySaved(ctx, selected)
-	res.Result = applied
-	if err != nil {
-		if applied != nil && len(applied.Applied) > 0 {
-			again := res.Again
-			if len(o.Only) > 0 {
-				again += " --only " + engine.ShellWord(strings.Join(o.Only, ","))
+	sa, err := ApplySavedPlan(ctx, eng, pf, SavedApplyOptions{
+		Only: o.Only, Name: id, Again: meta.ApplyCommand(),
+		Selected: func(selected, left int) {
+			if o.Selected != nil {
+				o.Selected(id, selected, left)
 			}
-			res.Partial = w.recordPartial(background, ps, id, again, applied, remaining.PendingAddrs())
-		}
-		return res, err
+		},
+		Sink: storeSink{w: w, ps: ps, id: id},
+	})
+	res := &StoredApply{ID: id, Meta: meta, Again: meta.ApplyCommand()}
+	if sa == nil {
+		return nil, err
 	}
-	var addrs []string
-	for _, ch := range selected.Changes {
-		addrs = append(addrs, ch.Addr)
-	}
-	res.Left = remaining.PendingCount() - selected.PendingCount()
-	if err := ps.MarkApplied(background, id, addrs, applied.Txn, remaining.PendingAddrs()); err != nil {
-		return res, fmt.Errorf("the changes were applied (txn %s) but the progress of %s could not be recorded: %w", applied.Txn, id, err)
-	}
-	return res, nil
+	res.NothingLeft, res.Result, res.Destroy, res.Left, res.Partial = sa.NothingLeft, sa.Result, sa.Destroy, sa.Left, sa.Partial
+	return res, err
 }
 
-// recordPartial records in the stored plan the changes that an apply finished
-// before it failed or was interrupted. The number is that of the changes of the
-// plan, which pending lists, and not of the data sources and records that the
-// apply also recorded: it is the number that "plan list" gives.
-func (w *Workspace) recordPartial(ctx context.Context, ps *PlanStore, id, again string, res *ApplyResult, pending []string) *PartialApply {
-	isChange := map[string]bool{}
-	for _, a := range pending {
-		isChange[a] = true
-	}
-	pa := &PartialApply{}
-	for _, a := range res.Applied {
-		if isChange[a] {
-			pa.Count++
-		}
-	}
-	if err := ps.MarkPartlyApplied(ctx, id, res.Applied, res.Txn); err != nil {
-		pa.RecordErr = fmt.Errorf("the changes were applied (txn %s) but the progress of %s could not be recorded: %w", res.Txn, id, err)
-		return pa
-	}
-	// The records that the apply changed may have made the rest of the plan stale,
-	// or only a part of it.
-	e, err := ps.Entry(ctx, id, engine.PlanCheckFor(w.state))
+// storeSink keeps the progress of an apply in the stored plan.
+type storeSink struct {
+	w  *Workspace
+	ps *PlanStore
+	id string
+}
+
+func (k storeSink) Applied(ctx context.Context, applied []string, txn string, pending []string) error {
+	return k.ps.MarkApplied(ctx, k.id, applied, txn, pending)
+}
+
+func (k storeSink) PartlyApplied(ctx context.Context, applied []string, txn string) error {
+	return k.ps.MarkPartlyApplied(ctx, k.id, applied, txn)
+}
+
+// Next looks at the stored plan as it stands: the records that the apply changed may have
+// made the rest of the plan stale, or only a part of it.
+func (k storeSink) Next(ctx context.Context, again string) string {
+	e, err := k.ps.Entry(ctx, k.id, engine.PlanCheckFor(k.w.state))
 	switch {
 	case err != nil:
-		pa.Next = fmt.Sprintf("run \"%s\" again to apply the rest", again)
+		return fmt.Sprintf("run \"%s\" again to apply the rest", again)
 	case e.Status == engine.PlanPartlyStale:
-		pa.Next = fmt.Sprintf("some of the rest is stale; apply the part that is still valid with \"%s\"", e.ApplyLiveCommand())
+		return fmt.Sprintf("some of the rest is stale; apply the part that is still valid with \"%s\"", e.ApplyLiveCommand())
 	case e.Status == engine.PlanStale:
-		pa.Next = "the rest is stale now and must be planned again with \"pravo plan --store\""
-	default:
-		pa.Next = fmt.Sprintf("run \"%s\" again to apply the rest", again)
+		return "the rest is stale now and must be planned again with \"pravo plan --store\""
 	}
-	return pa
+	return fmt.Sprintf("run \"%s\" again to apply the rest", again)
 }

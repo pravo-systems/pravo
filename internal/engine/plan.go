@@ -230,28 +230,56 @@ type Stats struct {
 
 // Counts summarises a plan.
 func (p *Plan) Counts() (add, change, destroy, read int) {
-	for _, c := range p.Changes {
-		switch c.Action {
-		case ActionCreate:
-			add++
-		case ActionUpdate:
-			change++
-		case ActionReplace:
-			add++
-			destroy++
-		case ActionDelete:
-			if _, dep := deposedBase(c.Addr); dep && c.Prior.Type() != nil && c.Prior.IsNull() {
-				// A deposed record of the object the node holds: only the record goes.
-				continue
-			}
-			destroy++
-		case ActionRead:
-			if !c.Skipped {
-				read++
-			}
+	var c PlanCounts
+	for _, ch := range p.Changes {
+		c.count(ch.Addr, ch.Action, ch.Skipped, ch.Prior.Type() != nil && ch.Prior.IsNull())
+	}
+	return c.Add, c.Change, c.Destroy, c.Read
+}
+
+// count adds one change to the counts, the one way every surface counts a plan: a
+// replace is an add and a destroy, a read that was skipped is nothing, and the delete of
+// a deposed record whose prior is a null (only the record goes, the object stays with
+// its node) is nothing. priorNull says that the prior is a typed null.
+func (c *PlanCounts) count(addr string, a Action, skipped, priorNull bool) {
+	switch a {
+	case ActionCreate:
+		c.Add++
+	case ActionUpdate:
+		c.Change++
+	case ActionReplace:
+		c.Add++
+		c.Destroy++
+	case ActionDelete:
+		if _, dep := deposedBase(addr); dep && priorNull {
+			return
+		}
+		c.Destroy++
+	case ActionRead:
+		if !skipped {
+			c.Read++
 		}
 	}
-	return
+}
+
+// Counts summarises the plan file as Plan.Counts does the plan it was made from.
+func (pf *PlanFile) Counts() PlanCounts {
+	var c PlanCounts
+	for _, sc := range pf.Changes {
+		// A typed null packs to the single msgpack nil byte; no prior packs to nothing.
+		c.count(sc.Addr, sc.Action, sc.Skipped, len(sc.Prior) == 1 && sc.Prior[0] == 0xc0)
+	}
+	return c
+}
+
+// ActsOnProvider reports whether a change of this action does something to an object
+// at a provider: a no-op, a read, an open, a call, a move and a deferred change do not.
+func (a Action) ActsOnProvider() bool {
+	switch a {
+	case ActionNoop, ActionRead, ActionOpen, ActionCall, ActionMove, ActionDefer:
+		return false
+	}
+	return true
 }
 
 // RecreatedCount is the number of creates that make an object again that a record
@@ -275,7 +303,7 @@ func (p *Plan) PendingCount() int {
 		if c.Applied {
 			continue
 		}
-		if c.Action != ActionNoop && c.Action != ActionRead && c.Action != ActionOpen && c.Action != ActionCall && c.Action != ActionMove && c.Action != ActionDefer {
+		if c.Action.ActsOnProvider() {
 			n++
 		}
 	}
@@ -289,7 +317,7 @@ func (p *Plan) PendingAddrs() []string {
 		if c.Applied {
 			continue
 		}
-		if c.Action != ActionNoop && c.Action != ActionRead && c.Action != ActionOpen && c.Action != ActionCall && c.Action != ActionMove && c.Action != ActionDefer {
+		if c.Action.ActsOnProvider() {
 			out = append(out, c.Addr)
 		}
 	}
@@ -308,7 +336,7 @@ func (p *Plan) hasProviderChanges() bool {
 		if c.Applied {
 			continue
 		}
-		if c.Action != ActionNoop && c.Action != ActionRead && c.Action != ActionOpen && c.Action != ActionCall && c.Action != ActionMove && c.Action != ActionDefer {
+		if c.Action.ActsOnProvider() {
 			return true
 		}
 	}

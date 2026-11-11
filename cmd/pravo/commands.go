@@ -27,7 +27,6 @@ import (
 	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
-	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
 	"github.com/pravo-systems/pravo/pravo"
 )
@@ -598,112 +597,65 @@ func applySaved(rt *runContext, cmd *cobra.Command, path, refresh string, full b
 	}
 	eng := s.engine(rt, engine.Options{Refresh: engine.RefreshNone, AllowCreate: allowCreate})
 	eng.SetPlan("", pf.Digest)
-	mark := func(applied []string, txn string, pending []string, finished bool) error {
-		mark := engine.MarkApplied
-		if !finished {
-			mark = engine.MarkPartlyApplied
-		}
-		if err := mark(path, pf, applied, txn); err != nil {
-			return fmt.Errorf("the changes were applied but %s could not be updated: %w", path, err)
-		}
-		return nil
-	}
-	res, err := applyPlanFile(rt, cmd, eng, pf, path, "planfile", "pravo apply "+path, nil, only, mark)
+	res, err := applyPlanFile(rt, cmd, eng, pf, path, "planfile", "pravo apply "+path, only, fileSink{path: path, pf: pf})
 	if err != nil || res == nil || res.Deferred == 0 {
 		return err
 	}
 	return saveFollowUp(ctx, rt, s, path, res.Deferred)
 }
 
-// applyPlanFile applies what is left of a plan that was saved, in a file or in
-// the state. name says which, and kind is the key under which --json repeats it.
-// again is the command that applies the rest of the plan. mark records what was
-// applied: the changes, the transaction and the changes that were left to apply
-// when this apply began; finished says whether the apply ran to its end. An apply
-// that failed or was interrupted records the changes it did finish, and the error
-// it returns is the error of the apply.
-func applyPlanFile(rt *runContext, cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, name, kind, again string, next func() string, only []string, mark func(applied []string, txn string, pending []string, finished bool) error) (*engine.ApplyResult, error) {
-	ctx := cmd.Context()
-	plan, err := eng.LoadPlanFor(pf, only)
-	if err != nil {
-		return nil, engine.WithCode(engine.ExitStale, err)
-	}
-	remaining := plan.Remaining()
-	if !pf.LeftToApply(remaining) {
-		if rt.flags.JSON {
-			emitLine(map[string]any{"kind": "apply", "phase": "done", "message": "nothing left to apply", kind: name})
-			return nil, nil
-		}
-		rt.out.Println(rt.out.C(ui.Bold+ui.Green, "No changes.") + " The saved plan has nothing left to apply.")
-		return nil, nil
-	}
-	// The saved plan is judged whole, whatever -only selects, so that a limit
-	// on the size of a plan cannot be passed by applying it in stages.
-	eng.SetPlanFile(pf)
-	selected := remaining
-	if len(only) > 0 {
-		selected, err = plan.Subset(only)
-		if err != nil {
-			return nil, err
-		}
-		rt.out.Printf("Applying %d of %d remaining changes from %s.\n", selected.PendingCount(), remaining.PendingCount(), name)
-	}
-	res, err := eng.ApplySaved(ctx, selected)
-	if err != nil {
-		if res != nil && len(res.Applied) > 0 {
-			if len(only) > 0 {
-				again += " --only " + engine.ShellWord(strings.Join(only, ","))
-			}
-			recordPartial(rt, res, name, again, next, remaining.PendingAddrs(), mark)
-		}
-		return nil, err
-	}
-	var applied []string
-	for _, ch := range selected.Changes {
-		applied = append(applied, ch.Addr)
-	}
-	left := remaining.PendingCount() - selected.PendingCount()
-	if err := mark(applied, res.Txn, remaining.PendingAddrs(), true); err != nil {
-		return nil, err
-	}
-	reportApply(rt, res, plan.Destroy, kind, name, again, left)
-	return res, nil
+// fileSink keeps the progress of an apply in the plan file.
+type fileSink struct {
+	path string
+	pf   *engine.PlanFile
 }
 
-// recordPartial records in the saved plan the changes that an apply finished
-// before it failed or was interrupted, and says so, so that the rest of the plan
-// is applied by the same command. The error of the apply is the one the command
-// returns: a mark that fails is said here and does not replace it. The notice is
-// for the person who reads the output, and goes to the error stream with --json.
-//
-// next says what to do with the rest, once what was applied is recorded: it looks at
-// the plan as it stands then, since the records that the apply changed may have made
-// the rest of the plan stale. Without it the plan is a file, and the note says that
-// the same command applies the rest unless the resource that failed was changed.
-//
-// The number is that of the changes of the plan, which pending lists, and not of the
-// data sources and records that the apply also recorded: it is the number that
-// "plan list" gives.
-func recordPartial(rt *runContext, res *engine.ApplyResult, name, again string, next func() string, pending []string, mark func(applied []string, txn string, pending []string, finished bool) error) {
-	isChange := map[string]bool{}
-	for _, a := range pending {
-		isChange[a] = true
+func (k fileSink) Applied(_ context.Context, applied []string, txn string, _ []string) error {
+	return engine.MarkApplied(k.path, k.pf, applied, txn)
+}
+
+func (k fileSink) PartlyApplied(_ context.Context, applied []string, txn string) error {
+	return engine.MarkPartlyApplied(k.path, k.pf, applied, txn)
+}
+
+// Next is the default: a file has no state to look at.
+func (k fileSink) Next(context.Context, string) string { return "" }
+
+// applyPlanFile applies what is left of a plan that was saved, in a file or in the
+// state, with the one sequence of pravo.ApplySavedPlan, and says what happened. name says
+// which, and kind is the key under which --json repeats it. again is the command that
+// applies the rest of the plan. The error is the error of the apply.
+func applyPlanFile(rt *runContext, cmd *cobra.Command, eng *engine.Engine, pf *engine.PlanFile, name, kind, again string, only []string, sink pravo.SavedSink) (*engine.ApplyResult, error) {
+	sa, err := pravo.ApplySavedPlan(cmd.Context(), eng, pf, pravo.SavedApplyOptions{
+		Only: only, Name: name, Again: again, Sink: sink,
+		Selected: func(selected, left int) { reportSelected(rt, name, selected, left) },
+	})
+	if sa != nil && sa.Partial != nil {
+		reportPartial(rt, sa.Partial, name)
 	}
-	n := 0
-	for _, a := range res.Applied {
-		if isChange[a] {
-			n++
-		}
+	if err != nil {
+		return nil, err
 	}
-	if err := mark(res.Applied, res.Txn, nil, false); err != nil {
-		reportPartial(rt, &pravo.PartialApply{Count: n, RecordErr: err}, name)
+	if sa.NothingLeft {
+		reportNothingLeft(rt, kind, name)
+		return nil, nil
+	}
+	reportApply(rt, sa.Result, sa.Destroy, kind, name, again, sa.Left)
+	return sa.Result, nil
+}
+
+// reportSelected says how many of the remaining changes of a saved plan an apply with --only takes.
+func reportSelected(rt *runContext, name string, selected, left int) {
+	rt.out.Printf("Applying %d of %d remaining changes from %s.\n", selected, left, name)
+}
+
+// reportNothingLeft says that a saved plan has nothing left to apply.
+func reportNothingLeft(rt *runContext, kind, name string) {
+	if rt.flags.JSON {
+		emitLine(map[string]any{"kind": "apply", "phase": "done", "message": "nothing left to apply", kind: name})
 		return
 	}
-	step := fmt.Sprintf("run \"%s\" again to apply the rest; if the resource that failed was changed, the plan is stale and must be made again", again)
-	if next != nil {
-		step = next()
-	}
-	reportPartial(rt, &pravo.PartialApply{Count: n, Next: step}, name)
+	rt.out.Println(rt.out.C(ui.Bold+ui.Green, "No changes.") + " The saved plan has nothing left to apply.")
 }
 
 // reportPartial says what an apply that failed had applied, and what to do with the rest.
@@ -1018,55 +970,22 @@ func importCmd(rt *runContext) *cobra.Command {
 			if s.state.Get(args[0]) != nil {
 				return fmt.Errorf("%s is already in state", args[0])
 			}
-			ps := s.schemas[res.LocalProvider()]
-			sch := ps.Resource(res.Type)
+			sch := s.schemas[res.LocalProvider()].Resource(res.Type)
 			// The engine hands the providers the configuration of their blocks (region, endpoint,
-			// credentials); without one the provider is configured with an empty block.
-			s.engine(rt, engine.Options{Command: "import"})
-			prov, err := s.providers.Provider(ctx, res.ProviderKey)
-			if err != nil {
-				return err
-			}
-			imported, diags, err := prov.ImportResourceState(ctx, res.Type, plugin.ImportTarget{ID: args[1]}, typesOf(ps))
-			if err != nil {
-				return err
-			}
-			if err := diags.Err(); err != nil {
-				return err
-			}
-			if len(imported) == 0 {
-				return fmt.Errorf("provider returned nothing for %s %q", res.Type, args[1])
-			}
-			imp := imported[0]
+			// credentials) and reads the object as a plan of an $import does.
+			eng := s.engine(rt, engine.Options{Command: "import"})
 			rt.out.Printf("%s: Importing from ID %q...\n", args[0], args[1])
-			newState, private, diags, err := prov.ReadResource(ctx, res.Type, imp.State, imp.Private)
+			node, err := eng.ImportRecord(ctx, res, sch, plugin.ImportTarget{ID: args[1]})
 			if err != nil {
 				return err
 			}
-			if err := diags.Err(); err != nil {
-				return err
-			}
-			if newState.IsNull() {
-				return fmt.Errorf("%s: provider reports that %q does not exist", args[0], args[1])
-			}
-			attrs, err := convert.ToJSON(newState)
-			if err != nil {
-				return err
-			}
-			if holder := engine.HeldBy(s.state, &state.Resource{Addr: res.Address(), Mode: "managed", Type: res.Type, ProviderKey: res.ProviderKey, Attributes: attrs}); holder != "" {
+			if holder := engine.HeldBy(s.state, node); holder != "" {
 				return engine.ErrHeld(args[0], args[1], holder)
 			}
-			rp := s.providers.Resolved[res.LocalProvider()]
 			txn := s.state.Begin("import", "pravo import "+args[0]+" "+args[1])
 			if err := txn.Start(); err != nil {
 				return err
 			}
-			protocol := ""
-			if rp.Protocol != config.ProtocolTfplugin {
-				protocol = rp.Protocol
-			}
-			node := &state.Resource{Addr: res.Address(), Mode: "managed", Type: res.Type, Name: res.Name, Provider: rp.Req.Source.String(), ProviderProtocol: protocol,
-				ProviderKey: res.ProviderKey, ProviderVersion: rp.Version, SchemaVersion: sch.Version, Attributes: attrs, Private: private, RefreshedAt: state.Now()}
 			if err := s.state.Set(node, txn.ID()); err != nil {
 				return err
 			}
