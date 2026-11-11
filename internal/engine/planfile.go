@@ -430,28 +430,79 @@ func (e *Engine) LoadPlan(pf *PlanFile) (*Plan, error) {
 // revision, or when a record that the changes read has another revision. A node
 // that the plan left alone and that no change reads is not looked at.
 func (e *Engine) LoadPlanFor(pf *PlanFile, only []string) (*Plan, error) {
-	var reasons []string
-	if reason := ConfigChange(e.Root, pf); reason != "" {
-		reasons = append(reasons, reason)
-	}
-	if pf.Lineage != e.State.Lineage() {
-		reasons = append(reasons, "the plan was made against a different state (lineage mismatch)")
-	}
-	for local, ver := range pf.Providers {
-		if rp, ok := e.Providers.Resolved[local]; !ok || rp.Version != ver {
-			reasons = append(reasons, fmt.Sprintf("provider %s is now a different version than %s used by the plan", local, ver))
-		}
-	}
 	plan, err := e.newPlan(pf)
 	if err != nil {
 		return nil, err
 	}
-	inputs, generations := pf.Inputs, pf.InputGenerations
-	selected := stringSet(only)
+	providers := map[string]string{}
+	for local, rp := range e.Providers.Resolved {
+		providers[local] = rp.Version
+	}
+	reasons := pf.StaleReasons(StaleFacts{
+		Root: e.Root, Lineage: e.State.Lineage(), Providers: providers, Only: only,
+		Version: func(addr string) state.Version {
+			rev, gen := e.versionOf(addr)
+			return state.Version{Revision: rev, Generation: gen}
+		},
+		Heads: e.State.Versions,
+	})
+	if len(reasons) > 0 {
+		return nil, &ErrStalePlan{Reasons: reasons}
+	}
+	return plan, nil
+}
+
+// LineageReason is the reason of a plan that was made against another state.
+const LineageReason = "the plan was made against a different state (lineage mismatch)"
+
+// StaleFacts is what a saved plan is judged against: the configuration, the state
+// and, when it is known, the providers that are in use. The apply of a plan and the
+// viewer that shows one hold these in different places, and judge with the same
+// function.
+type StaleFacts struct {
+	Root    *config.Root
+	Lineage string
+	// Providers maps the local name of each provider to its resolved version; nil
+	// when the caller does not know them, and the versions are then not compared.
+	Providers map[string]string
+	// Only narrows the check to the changes with these addresses; nil checks all.
+	Only []string
+	// Version is the version of the record at an address in the store as it was
+	// read, the zero Version when there is none.
+	Version func(addr string) state.Version
+	// Heads reads the versions of records in the backend, for the move of a record.
+	Heads func(addrs []string) (map[string]state.Version, error)
+}
+
+// StaleReasons returns why the plan can no longer be applied to the facts, empty
+// when it can. A plan is stale when the configuration, the state it was made
+// against (lineage), or a provider version changed; when a record that a change
+// writes is at another revision or in another generation; when the source of a
+// move is not where the plan saw it; or when a record the changes read has
+// another version. A node that the plan left alone and that no change reads is not
+// looked at.
+func (pf *PlanFile) StaleReasons(f StaleFacts) []string {
+	var reasons []string
+	if f.Root != nil {
+		if reason := ConfigChange(f.Root, pf); reason != "" {
+			reasons = append(reasons, reason)
+		}
+	}
+	if pf.Lineage != f.Lineage {
+		reasons = append(reasons, LineageReason)
+	}
+	if f.Providers != nil {
+		for local, ver := range pf.Providers {
+			if have, ok := f.Providers[local]; !ok || have != ver {
+				reasons = append(reasons, fmt.Sprintf("provider %s is now a different version than %s used by the plan", local, ver))
+			}
+		}
+	}
+	selected := stringSet(f.Only)
 	for _, sc := range pf.Changes {
 		if sc.Action == ActionMove && !sc.Applied {
 			// The record to move is at the old address as the plan saw it, or it was moved already.
-			if reason := e.moveReason(sc); reason != "" {
+			if reason := moveReason(f.Heads, sc); reason != "" {
 				reasons = append(reasons, reason)
 			}
 			continue
@@ -459,24 +510,23 @@ func (e *Engine) LoadPlanFor(pf *PlanFile, only []string) (*Plan, error) {
 		if sc.Applied || sc.Skipped || sc.Kept || sc.Action == ActionMove || (selected != nil && !selected[sc.Addr]) {
 			continue
 		}
-		if reason := e.versionReason(sc.Addr, sc.PriorRevision, sc.PriorGeneration, false); reason != "" {
+		want := state.Version{Revision: sc.PriorRevision, Generation: sc.PriorGeneration}
+		if reason := staleReason(sc.Addr, f.Version(sc.Addr), want, false); reason != "" {
 			reasons = append(reasons, reason)
 		}
 	}
-	read := make([]string, 0, len(inputs))
-	for addr := range inputs {
+	read := make([]string, 0, len(pf.Inputs))
+	for addr := range pf.Inputs {
 		read = append(read, addr)
 	}
 	sort.Strings(read)
 	for _, addr := range read {
-		if reason := e.versionReason(addr, inputs[addr], generations[addr], true); reason != "" {
+		want := state.Version{Revision: pf.Inputs[addr], Generation: pf.InputGenerations[addr]}
+		if reason := staleReason(addr, f.Version(addr), want, true); reason != "" {
 			reasons = append(reasons, reason)
 		}
 	}
-	if len(reasons) > 0 {
-		return nil, &ErrStalePlan{Reasons: reasons}
-	}
-	return plan, nil
+	return reasons
 }
 
 func (e *Engine) restoreChange(sc savedChange) (*Change, error) {
@@ -671,13 +721,6 @@ func staleReason(addr string, have, want state.Version, reads bool) string {
 		reason += "; the plan reads it"
 	}
 	return reason
-}
-
-// versionReason compares the record that the store holds at addr with the version
-// a saved plan expected, and returns the reason the plan is stale, or "".
-func (e *Engine) versionReason(addr string, rev int, gen string, reads bool) string {
-	haveRev, haveGen := e.versionOf(addr)
-	return staleReason(addr, state.Version{Revision: haveRev, Generation: haveGen}, state.Version{Revision: rev, Generation: gen}, reads)
 }
 
 // checkRevisions compares the records in the backend with the plan once the

@@ -877,7 +877,7 @@ func TestOverlapsNameEachResourceOnceAndIgnoreWhatWasApplied(t *testing.T) {
 		twice := gcPlan(t0.Add(time.Minute), change("a", ActionUpdate, 1), change("a", ActionReplace, 1), change("b", ActionCreate, 0))
 		theirs := putFile(t, ps, twice, "bob", 0)
 		es, _ := ps.Entries(ctx, nil)
-		over := Overlaps(es, mine.ID, mine.Changes)
+		over := OverlapsOf(es, mine)
 		if len(over) != 1 || strings.Join(over[0].Addrs, ",") != "a" {
 			t.Fatalf("%+v", over)
 		}
@@ -885,7 +885,7 @@ func TestOverlapsNameEachResourceOnceAndIgnoreWhatWasApplied(t *testing.T) {
 			t.Fatal(err)
 		}
 		es, _ = ps.Entries(ctx, nil)
-		if over := Overlaps(es, mine.ID, mine.Changes); len(over) != 0 {
+		if over := OverlapsOf(es, mine); len(over) != 0 {
 			t.Errorf("a change that was applied still overlaps: %+v", over)
 		}
 		if got := Touching(es, "a"); len(got) != 1 || got[0].Meta.ID != mine.ID {

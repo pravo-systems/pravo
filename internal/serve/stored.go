@@ -47,9 +47,6 @@ type storedPlans struct {
 	byID    map[string]*engine.PlanEntry
 	// skipped are the plans that are not listed because they cannot be read.
 	skipped []engine.SkippedPlan
-	// touched maps the id of each plan to the addresses that it still has a change
-	// to apply on, once each, in the order of its summary.
-	touched map[string][]string
 	// lapse is when the first claim on a plan lapses: a plan that a collector hid
 	// shows again, an apply that left its claim stops counting as running.
 	lapse time.Time
@@ -65,7 +62,7 @@ type storedPlans struct {
 // where each stands, against the state alone: the configuration and the providers
 // belong to one working copy, and "pravo apply" checks them.
 func (s *Server) loadStored(ctx context.Context, m *model) *storedPlans {
-	sp := &storedPlans{srv: s, byID: map[string]*engine.PlanEntry{}, overlays: map[string]*planOverlay{}, touched: map[string][]string{}}
+	sp := &storedPlans{srv: s, byID: map[string]*engine.PlanEntry{}, overlays: map[string]*planOverlay{}}
 	sp.ps = engine.NewPlanStoreFor(m.store)
 	// The summaries are written once: a rebuild of the model reads them again only
 	// for a plan it has not seen, and forgets the ones that were collected.
@@ -86,24 +83,8 @@ func (s *Server) loadStored(ctx context.Context, m *model) *storedPlans {
 		}
 		sp.entries = append(sp.entries, e)
 		sp.byID[e.Meta.ID] = e
-		sp.touched[e.Meta.ID] = unappliedAddrs(e)
 	}
 	return sp
-}
-
-// unappliedAddrs lists the resources that a plan still has a change to apply on,
-// once each: what the plan has left to do, as the commands that list plans say.
-func unappliedAddrs(e *engine.PlanEntry) []string {
-	var out []string
-	seen := map[string]bool{}
-	for _, t := range e.Meta.Changes {
-		if _, done := e.Progress.Applied[t.Addr]; done || seen[t.Addr] {
-			continue
-		}
-		seen[t.Addr] = true
-		out = append(out, t.Addr)
-	}
-	return out
 }
 
 // skippedWarning says which plans are not listed because they cannot be read, so
@@ -138,23 +119,15 @@ func (sp *storedPlans) resolve(ref string) (*engine.PlanEntry, error) {
 	if sp.err != nil {
 		return nil, sp.err
 	}
-	if e := sp.byID[ref]; e != nil {
-		return e, nil
-	}
-	var match []string
+	ids := make([]string, 0, len(sp.byID))
 	for id := range sp.byID {
-		if strings.HasPrefix(id, ref) {
-			match = append(match, id)
-		}
+		ids = append(ids, id)
 	}
-	sort.Strings(match)
-	switch len(match) {
-	case 0:
-		return nil, fmt.Errorf("%w: %s (see: pravo plan list --all)", engine.ErrNoPlan, ref)
-	case 1:
-		return sp.byID[match[0]], nil
+	id, err := engine.MatchPlanID(ref, ids)
+	if err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("%s fits %d stored plans: %s", ref, len(match), strings.Join(match, ", "))
+	return sp.byID[id], nil
 }
 
 // readFile reads the plan, with what has been applied from it marked.
@@ -202,7 +175,7 @@ func (m *model) markNodes() {
 		if !e.Status.Open() {
 			continue
 		}
-		for _, addr := range m.stored.touched[e.Meta.ID] {
+		for _, addr := range e.Touched() {
 			if mn := m.nodes[addr]; mn != nil {
 				mn.Plans = append(mn.Plans, e.Meta.ID)
 				if _, blocked := e.Conflicts[addr]; !blocked {
@@ -261,64 +234,33 @@ func (m *model) planList() *PlanList {
 	return sp.list
 }
 
-// changing lists the resources that a plan can still change: what it has left to
-// apply, less the changes that a partly stale plan cannot apply.
-func (sp *storedPlans) changing(e *engine.PlanEntry) []string {
-	var out []string
-	for _, addr := range sp.touched[e.Meta.ID] {
-		if _, blocked := e.Conflicts[addr]; !blocked {
-			out = append(out, addr)
-		}
-	}
-	return out
-}
-
-// overlaps works out, for every open plan, the other open plans that can apply a
-// change on a resource that it can apply one on. The relation is symmetric. Each
-// resource is looked at once for each plan that has a change on it.
+// overlaps works out, for every open plan, the other open plans that it overlaps,
+// with the function that the command line uses: a change on the same resource, a
+// move out of it, a record that one plan reads and the other changes.
 func (m *model) overlaps() map[string][]PlanOverlap {
 	sp := m.stored
-	byAddr := map[string][]string{}
-	for _, e := range sp.entries {
-		if e.Status.Open() {
-			for _, addr := range sp.changing(e) {
-				byAddr[addr] = append(byAddr[addr], e.Meta.ID)
-			}
-		}
-	}
 	out := map[string][]PlanOverlap{}
 	for _, e := range sp.entries {
 		if !e.Status.Open() {
 			continue
 		}
-		mine := sp.changing(e)
-		sort.Strings(mine)
-		with := map[string]*PlanOverlap{}
-		for _, addr := range mine {
-			for _, other := range byAddr[addr] {
-				if other == e.Meta.ID {
-					continue
-				}
-				o := with[other]
-				if o == nil {
-					o = &PlanOverlap{ID: other}
-					with[other] = o
-				}
-				o.Count++
-				if len(o.Addrs) < maxOverlapAddrs {
-					o.Addrs = append(o.Addrs, addr)
-				} else {
-					o.Truncated++
-				}
-			}
-		}
-		for _, other := range sp.entries { // newest first
-			if o := with[other.Meta.ID]; o != nil {
-				out[e.Meta.ID] = append(out[e.Meta.ID], *o)
-			}
+		for _, o := range engine.OverlapsOfEntry(sp.entries, e) {
+			po := PlanOverlap{ID: o.Plan.ID, Count: len(o.Addrs)}
+			po.Addrs, po.Truncated = capped(o.Addrs)
+			po.Changes, _ = capped(o.Changes)
+			po.ReadBy, _ = capped(o.ReadBy)
+			out[e.Meta.ID] = append(out[e.Meta.ID], po)
 		}
 	}
 	return out
+}
+
+// capped returns the first maxOverlapAddrs of addrs and how many were left out.
+func capped(addrs []string) ([]string, int) {
+	if len(addrs) <= maxOverlapAddrs {
+		return addrs, 0
+	}
+	return addrs[:maxOverlapAddrs], len(addrs) - maxOverlapAddrs
 }
 
 // storedPlan describes one stored plan, with everything bounded. The author is

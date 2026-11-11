@@ -17,3 +17,6 @@ var DependenciesFromSyntax = false
 func (r taskResolver) LoopRead(rd convert.LoopRead) ([]cue.Path, bool) {
 	return r.e.loops.Read(rd)
 }
+
+// SetLoops sets what the engine reads the loops of the graph from.
+func (r taskResolver) SetLoops(l *convert.Loops) { r.e.loops = l }

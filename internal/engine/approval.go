@@ -188,6 +188,13 @@ func (ps *PlanStore) Approvals(ctx context.Context, id, digest string, readers [
 	return out, nil
 }
 
+// Standing says how many approvals count toward the need and whether that meets it. The
+// apply, the viewer and the commands that list a plan's approvals all say it this way.
+func (n *ApprovalNeed) Standing(approvals []Approval, storers []string) (have int, met bool) {
+	have = len(n.Counted(approvals, storers))
+	return have, have >= n.Min
+}
+
 // Counted reports which approvals count toward need, by the key that signed: verified,
 // of a role that suffices, and not the key that stored the plan unless need allows it.
 // storers are the keys whose signature of the storing verified.
@@ -280,22 +287,16 @@ func (e *Engine) checkApprovals(ctx context.Context, need *ApprovalNeed) error {
 	if err != nil {
 		return err
 	}
-	stored, err := ps.SignaturesOf(ctx, e.planID, digest, readers)
+	storers, err := ps.Storers(ctx, e.planID, digest, readers)
 	if err != nil {
 		return err
-	}
-	var storers []string
-	for _, v := range stored {
-		if v.Status == protect.SigVerified {
-			storers = append(storers, v.Key)
-		}
 	}
 	approvals, err := ps.Approvals(ctx, e.planID, digest, readers)
 	if err != nil {
 		return err
 	}
 	counted := need.Counted(approvals, storers)
-	if len(counted) >= need.Min {
+	if _, met := need.Standing(approvals, storers); met {
 		return nil
 	}
 	var have []string

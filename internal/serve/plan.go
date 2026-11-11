@@ -332,31 +332,21 @@ func (s *Server) planEngine(m *model, pf *engine.PlanFile) (*engine.Engine, erro
 	return engine.New(root, m.store, provs, schemas, root.Value, engine.Options{}), nil
 }
 
-// staleReasons judges a plan whose values cannot be decoded, from the parts that
-// need no schema: the configuration, the state it was made against, and the
-// revisions of the records it changes.
+// staleReasons judges a plan whose values cannot be decoded with the function that
+// the apply of a plan uses, over the facts the viewer holds: the configuration, the
+// state, and the versions of the records the plan writes or reads. The versions of
+// the providers are not known here, and a plan is not judged on them.
 func (s *Server) staleReasons(m *model, pf *engine.PlanFile) (bool, []string) {
-	var reasons []string
-	if m.spec.root != nil {
-		if reason := engine.ConfigChange(m.spec.root, pf); reason != "" {
-			reasons = append(reasons, reason)
-		}
-	}
-	if pf.Lineage != m.store.Lineage() {
-		reasons = append(reasons, "the plan was made against a different state (lineage mismatch)")
-	}
-	for _, sc := range pf.Changes {
-		if sc.Applied || sc.Skipped || sc.Kept || sc.Action == engine.ActionMove {
-			continue
-		}
-		have := 0
-		if rec := m.store.Get(sc.Addr); rec != nil {
-			have = rec.Revision
-		}
-		if have != sc.PriorRevision {
-			reasons = append(reasons, fmt.Sprintf("%s changed in the state since the plan was made (revision %d, the plan expected %d)", sc.Addr, have, sc.PriorRevision))
-		}
-	}
+	reasons := pf.StaleReasons(engine.StaleFacts{
+		Root: m.spec.root, Lineage: m.store.Lineage(),
+		Version: func(addr string) state.Version {
+			if rec := m.store.Get(addr); rec != nil {
+				return state.Version{Revision: rec.Revision, Generation: rec.Generation}
+			}
+			return state.Version{}
+		},
+		Heads: m.store.Versions,
+	})
 	return len(reasons) > 0, reasons
 }
 

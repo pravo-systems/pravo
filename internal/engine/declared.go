@@ -180,8 +180,8 @@ func (e *Engine) commitImports(plan *Plan) error {
 
 // moveReason says why a saved move cannot be carried out: the record at the old address is not the
 // one the plan saw. A record that is at the new address and not at the old one was moved already.
-func (e *Engine) moveReason(sc savedChange) string {
-	have, err := e.State.Versions([]string{sc.MovedFrom, sc.Addr})
+func moveReason(heads func([]string) (map[string]state.Version, error), sc savedChange) string {
+	have, err := heads([]string{sc.MovedFrom, sc.Addr})
 	if err != nil {
 		return fmt.Sprintf("%s: the record could not be read: %v", sc.MovedFrom, err)
 	}
