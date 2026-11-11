@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	grpccodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -38,5 +40,23 @@ func TestFirstFailureIgnoresWhatWasOnlyStopped(t *testing.T) {
 	f.note(errors.New("a"), "a")
 	if f.err.Error() != "a" {
 		t.Errorf("not the lowest address: %v", f.err)
+	}
+}
+
+// A plan whose tasks all fail reports the one with the lowest address, however long each takes: the
+// tasks that already started are not stopped by the first failure, so the one that gets there first is
+// not the one that is reported.
+func TestPlanReportsTheLowestAddressOfTasksThatFailTogether(t *testing.T) {
+	for range 5 {
+		h := newHarness(t)
+		h.fake.planFails = map[string]time.Duration{"a": 60 * time.Millisecond, "b": 30 * time.Millisecond, "c": 0}
+		s := spec{
+			cue:       "a: " + thing("a", "content: \"a\"") + "\nb: " + thing("b", "content: \"b\"") + "\nc: " + thing("c", "content: \"c\"") + "\n",
+			resources: []string{"a", "b", "c"},
+		}
+		_, err := h.engine(s, Options{}).Plan(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "a is invalid") {
+			t.Fatalf("the error is %v, want the one of a", err)
+		}
 	}
 }

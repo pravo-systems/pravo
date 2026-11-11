@@ -58,6 +58,8 @@ A definition becomes a template when it embeds `pravo.#Template` and names itsel
 	}
 }
 
+// The name of an instance is its key, so two instances cannot write one file.
+services: [Name=string]: #Service & {name: Name}
 services: web: #Service & {name: "web", owner: "team-shop"}
 ```
 
