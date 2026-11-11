@@ -15,6 +15,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/pravo-systems/pravo/internal/env"
+	"github.com/pravo-systems/pravo/internal/filelock"
 )
 
 // The recorder keeps the spans of a run in a file of the project, so that
@@ -264,12 +265,7 @@ func writeTrace(dir string, rt *RunTrace) error {
 		_ = os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("*\n"), 0o644)
 	}
 	final := filepath.Join(dir, rt.ID()+".json")
-	tmp := final + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, final); err != nil {
-		_ = os.Remove(tmp)
+	if err := filelock.WriteFileAtomic(final, data, filelock.AtomicOptions{}); err != nil {
 		return err
 	}
 	trim(dir, KeepTraces)

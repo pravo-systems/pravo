@@ -155,15 +155,7 @@ func (b *LocalBackend) Put(ctx context.Context, key string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
 		return err
 	}
-	tmp, err := writeTemp(p, data)
-	if err != nil {
-		return err
-	}
-	if err := filelock.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	return filelock.WriteFileAtomic(p, data, filelock.AtomicOptions{TempPattern: "%s.*.tmp"})
 }
 
 // writeTemp writes data to a new temporary file next to p, which List skips,
@@ -351,32 +343,29 @@ func Copy(ctx context.Context, src, dst Backend) (int, error) {
 			return n, err
 		}
 	}
-	for _, prefix := range []string{"rec", "resources", "txn", KindDir, "plans", DiscoveryRunDir, RunDir, PromotionDir} {
-		keys, err := src.List(ctx, prefix)
-		if err != nil {
-			return n, err
-		}
-		for _, k := range keys {
-			// A stored plan is removed on its own schedule by a collection: one
-			// that went since the listing is not part of the copy. The same goes for
-			// a record that was superseded, and for a discovery object that someone
-			// withdrew.
-			if err := copyKey(k, prefix != "resources" && prefix != "txn" && prefix != KindDir); err != nil {
+	for _, kind := range stateKinds {
+		switch kind.copy {
+		case copyHistory, copySecretVersions:
+			var onDiffer func(string, []byte, []byte) (bool, string)
+			if kind.copy == copySecretVersions {
+				onDiffer = copiedSecretDiffers
+			}
+			copied, err := copyVersions(ctx, src, dst, kind.prefix, onDiffer)
+			n += copied
+			if err != nil {
 				return n, err
 			}
+		default:
+			keys, err := src.List(ctx, kind.prefix)
+			if err != nil {
+				return n, err
+			}
+			for _, k := range keys {
+				if err := copyKey(k, kind.copy == copyPlainOptional); err != nil {
+					return n, err
+				}
+			}
 		}
-	}
-	for _, dir := range []string{policyDir, rolesDir, environmentDir} {
-		copied, err := copyVersions(ctx, src, dst, dir)
-		n += copied
-		if err != nil {
-			return n, err
-		}
-	}
-	copied, err := copySecrets(ctx, src, dst)
-	n += copied
-	if err != nil {
-		return n, err
 	}
 	for _, k := range []string{"meta.json", "outputs.json"} {
 		if k == "meta.json" && srcMeta != nil && srcMeta.Format > Format {
@@ -393,7 +382,10 @@ func Copy(ctx context.Context, src, dst Backend) (int, error) {
 // that dst holds with other bytes, and a version of dst that src lacks, would rewrite
 // the history of a policy, and are refused. A copy that skipped the prefix would
 // leave the destination without its policies, which judges nothing.
-func copyVersions(ctx context.Context, src, dst Backend, dir string) (int, error) {
+//
+// onDiffer decides what happens to a version that both hold with other bytes: nil refuses it,
+// and a function says whether the bytes of the source replace those of dst, or why not.
+func copyVersions(ctx context.Context, src, dst Backend, dir string, onDiffer func(key string, cur, data []byte) (replace bool, refusal string)) (int, error) {
 	have, err := src.List(ctx, dir)
 	if err != nil {
 		return 0, err
@@ -425,9 +417,22 @@ func copyVersions(ctx context.Context, src, dst Backend, dir string) (int, error
 		if err != nil {
 			return n, fmt.Errorf("%s: %w", k, err)
 		}
-		if !bytes.Equal(cur, data) {
-			return n, fmt.Errorf("%w: %s holds another version at %s", ErrCopyRefused, dst.Name(), k)
+		if bytes.Equal(cur, data) {
+			continue
 		}
+		replace, refusal := false, "holds another version at "+k
+		if onDiffer != nil {
+			if replace, refusal = onDiffer(k, cur, data); !replace && refusal == "" {
+				refusal = "holds another version at " + k
+			}
+		}
+		if !replace {
+			return n, fmt.Errorf("%w: %s %s", ErrCopyRefused, dst.Name(), refusal)
+		}
+		if err := dst.Put(ctx, k, data); err != nil {
+			return n, fmt.Errorf("%s: %w", k, Advise(err))
+		}
+		n++
 	}
 	return n, nil
 }
@@ -498,8 +503,11 @@ func checkCopy(ctx context.Context, src *meta, dst Backend) error {
 // holdsNothing reports whether b holds no record, output, stored plan or
 // discovery object, which is what a store that was opened and never written holds.
 func holdsNothing(ctx context.Context, b Backend) (bool, error) {
-	for _, prefix := range []string{"resources", "rec", "plans", DiscoveryRunDir, policyDir, rolesDir, secretDir, environmentDir, RunDir, PromotionDir} {
-		keys, err := b.List(ctx, prefix)
+	for _, kind := range stateKinds {
+		if !kind.content {
+			continue
+		}
+		keys, err := b.List(ctx, kind.prefix)
 		if err != nil {
 			return false, err
 		}
