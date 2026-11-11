@@ -18,6 +18,8 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	grpccodes "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/plugin"
@@ -60,6 +62,10 @@ type fakeProvider struct {
 	// data makes ReadDataSource answer this content for the data source whose name
 	// attribute is the key, as a file that changed since the last read.
 	data map[string]string
+	// planFails makes PlanResourceChange of the resource with this name fail after this long,
+	// and end early with a cancellation error if the call is cancelled first, as a provider
+	// that is stopped does.
+	planFails map[string]time.Duration
 	// latency holds up every ReadResource and every destroy by this long, as a
 	// provider that calls a remote API does.
 	latency time.Duration
@@ -482,11 +488,29 @@ func (f *fakeProvider) ReadResource(_ context.Context, _ string, st tftypes.Valu
 	}
 	return st, private, nil, nil
 }
-func (f *fakeProvider) PlanResourceChange(_ context.Context, _ string, prior, proposed, _ tftypes.Value, _ []byte) (*plugin.PlanResult, plugin.Diagnostics, error) {
+func (f *fakeProvider) PlanResourceChange(ctx context.Context, _ string, prior, proposed, _ tftypes.Value, _ []byte) (*plugin.PlanResult, plugin.Diagnostics, error) {
 	if f.configUnknown() {
 		return nil, nil, errors.New("the provider cannot answer yet (provider configuration unknown)")
 	}
 	f.count("PlanResourceChange")
+	if len(f.planFails) > 0 && !proposed.IsNull() {
+		var pm map[string]tftypes.Value
+		var nm string
+		if proposed.As(&pm) == nil {
+			_ = pm["name"].As(&nm)
+		}
+		f.mu.Lock()
+		d, fails := f.planFails[nm]
+		f.mu.Unlock()
+		if fails {
+			select {
+			case <-time.After(d):
+				return nil, nil, errors.New(nm + " is invalid")
+			case <-ctx.Done():
+				return nil, nil, status.Error(grpccodes.Canceled, "context canceled")
+			}
+		}
+	}
 	if proposed.IsNull() {
 		return &plugin.PlanResult{PlannedState: proposed}, nil, nil
 	}
