@@ -406,7 +406,7 @@ func readersKey(readers []protect.Reader) string {
 // not in the result, so a caller that needs the facts of one kind does not pay for the plans,
 // edits and secret sets of the state. A transaction without a hint is read.
 func (s *Store) signedFactsOf(ctx context.Context, readers []protect.Reader, kinds ...string) (map[string]txnFacts, error) {
-	keys, err := s.b.List(ctx, "txn")
+	keys, err := s.txnKeys(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -420,13 +420,7 @@ func (s *Store) signedFactsOf(ctx context.Context, readers []protect.Reader, kin
 	var ids []string
 	s.listedMu.Lock()
 	for _, k := range keys {
-		id, ok := strings.CutPrefix(k, "txn/")
-		if !ok {
-			continue
-		}
-		if id, ok = strings.CutSuffix(id, ".json"); !ok {
-			continue
-		}
+		id, _ := txnIDOf(k)
 		if k, ok := hints[id]; ok && !slices.Contains(kinds, k) {
 			continue
 		}
@@ -451,11 +445,11 @@ func (s *Store) signedFactsOf(ctx context.Context, readers []protect.Reader, kin
 		if err != nil {
 			return
 		}
-		var t Transaction
-		if json.Unmarshal(data, &t) != nil || t.ID != ids[i] {
+		t := decodeTxn(data, ids[i])
+		if t == nil {
 			return
 		}
-		got[i] = read{f: factsOf(&t, readers, lineage), ok: true, keep: t.Finished != nil && t.FinishSig != nil}
+		got[i] = read{f: factsOf(t, readers, lineage), ok: true, keep: t.Finished != nil && t.FinishSig != nil}
 	})
 	s.listedMu.Lock()
 	defer s.listedMu.Unlock()
@@ -555,7 +549,7 @@ func (s *Store) txnBytes(ctx context.Context, id string) ([]byte, error) {
 	if data, ok := s.txnRead.Load(id); ok {
 		return data.([]byte), nil
 	}
-	data, err := s.b.Get(ctx, "txn/"+id+".json")
+	data, err := s.b.Get(ctx, txnKey(id))
 	if err != nil {
 		return nil, err
 	}

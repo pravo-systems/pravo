@@ -53,7 +53,7 @@ func openPlanStore(ctx context.Context, rt *runContext, write bool) (*state.Stor
 	}
 	var st *state.Store
 	if write {
-		st, err = openState(ctx, rt, root)
+		st, err = openStateEdit(ctx, rt, root)
 	} else {
 		st, err = openStateReadOnly(ctx, rt, root)
 	}
@@ -667,17 +667,13 @@ func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 	}
 	pf, entry := rd.File, rd.Entry
 	eng := s.engine(rt, engine.Options{})
-	plan, err := eng.LoadPlan(pf)
-	var stale *engine.ErrStalePlan
-	if errors.As(err, &stale) {
-		plan, _ = eng.LoadPlanUnchecked(pf)
-	} else if err != nil {
+	plan, stale, err := loadToShow(eng, pf)
+	if err != nil {
 		return err
 	}
 	sigs, sigNote := storedPlanSignatures(ctx, rt, s, entry.Meta.ID)
 	if rt.flags.Markdown {
-		v := eng.NewView(plan, engine.ViewOptions{Redact: rt.flags.Withhold})
-		v.Actor, v.Reason, v.GitRevision = pf.Actor, pf.Reason, pf.GitRevision
+		v := showView(rt, eng, plan, pf, false)
 		m := entry.Meta
 		opts := engine.MarkdownOptions{Title: "Stored plan " + m.ID, Refused: ""}
 		if sigNote == "" && sigs != nil {
@@ -699,10 +695,7 @@ func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 		return emitMarkdown(v.Markdown(opts))
 	}
 	if rt.flags.JSON {
-		v := eng.NewView(plan, engine.ViewOptions{Redact: rt.flags.Withhold})
-		v.Created, v.Actor, v.Reason, v.GitRevision = pf.Created, pf.Actor, pf.Reason, pf.GitRevision
-		v.Reservation = pf.Reservation
-		doc := map[string]any{"plan_id": entry.Meta.ID, "stored": storedPlanView(entry), "stale": stale, "plan": v}
+		doc := map[string]any{"plan_id": entry.Meta.ID, "stored": storedPlanView(entry), "stale": stale, "plan": showView(rt, eng, plan, pf, true)}
 		if sigs != nil || sigNote != "" {
 			doc["signatures"] = planSigsJSON(sigs, sigNote)
 		}
@@ -754,6 +747,9 @@ func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 		rt.out.Warning("this plan can no longer be applied: " + strings.Join(entry.Reasons, "; "))
 	}
 	rt.out.RenderPlan(plan)
+	if err := eng.JudgeFile(ctx, pf); err != nil {
+		rt.out.Warning("the policies in force would refuse this plan: " + err.Error())
+	}
 	return nil
 }
 

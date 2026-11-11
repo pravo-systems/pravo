@@ -154,3 +154,6 @@ func (h handler) Handle(ctx context.Context, r slog.Record) error {
 
 func (h handler) WithAttrs(attrs []slog.Attr) slog.Handler { return handler{append(h.attrs, attrs...)} }
 func (h handler) WithGroup(string) slog.Handler            { return h }
+
+// Took is the time since began, to the millisecond, as the debug log writes it.
+func Took(began time.Time) time.Duration { return time.Since(began).Round(time.Millisecond) }

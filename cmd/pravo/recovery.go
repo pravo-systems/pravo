@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pravo-systems/pravo/internal/engine"
+	"github.com/pravo-systems/pravo/internal/filelock"
 	"github.com/pravo-systems/pravo/internal/protect"
 	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/ui"
@@ -220,25 +221,7 @@ func writeRecoveryFile(rcf recoveryFile, rec *protect.Recovery) error {
 	if fi, err := os.Lstat(rcf.Path); err == nil && !fi.Mode().IsRegular() {
 		return fmt.Errorf("%s is not a regular file", rcf.shown())
 	}
-	f, err := os.CreateTemp(dir, ".recovery.tmp")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	_, werr := f.WriteString(rec.Line())
-	if werr == nil {
-		werr = f.Chmod(0o644)
-	}
-	if werr == nil {
-		werr = f.Sync()
-	}
-	if cerr := f.Close(); werr == nil {
-		werr = cerr
-	}
-	if werr != nil {
-		return werr
-	}
-	return os.Rename(f.Name(), rcf.Path)
+	return filelock.WriteFileAtomic(rcf.Path, []byte(rec.Line()), filelock.AtomicOptions{Mode: 0o644, Sync: true, TempPattern: ".recovery.tmp*"})
 }
 
 // storedRecovery is the recovery recipient that the store holds now, read afresh. ok

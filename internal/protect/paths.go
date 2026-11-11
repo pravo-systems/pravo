@@ -9,6 +9,7 @@ import (
 	"runtime"
 
 	"github.com/pravo-systems/pravo/internal/env"
+	"github.com/pravo-systems/pravo/internal/filelock"
 )
 
 // ConfigDir is where pravo keeps per-user files that are not a cache:
@@ -102,6 +103,9 @@ func WritePrivateFile(path string, data []byte, replace bool) error {
 		if _, err := os.Lstat(path); err == nil {
 			return fmt.Errorf("%s already exists", path)
 		}
+	}
+	if replace {
+		return filelock.WriteFileAtomic(path, data, filelock.AtomicOptions{Sync: true, TempPattern: ".%s.tmp*"})
 	}
 	tmp := filepath.Join(dir, "."+filepath.Base(path)+".tmp"+hexSuffix())
 	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)

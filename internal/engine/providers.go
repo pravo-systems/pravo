@@ -20,6 +20,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/convert"
 	"github.com/pravo-systems/pravo/internal/env"
+	"github.com/pravo-systems/pravo/internal/filelock"
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/plugin/netcap"
@@ -776,15 +777,7 @@ func writePack(path string, s *schema.ProviderSchema) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp*")
-	if err != nil {
-		return
-	}
-	_, werr := tmp.Write(data)
-	cerr := tmp.Close()
-	if werr != nil || cerr != nil || os.Rename(tmp.Name(), path) != nil {
-		_ = os.Remove(tmp.Name())
-	}
+	_ = filelock.WriteFileAtomic(path, data, filelock.AtomicOptions{TempPattern: "%s.tmp*"})
 }
 
 // Partial reports whether the provider instance key is running with a
