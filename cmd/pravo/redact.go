@@ -193,7 +193,9 @@ func nestedSecretKeys(sc *schema.Schema, name string) map[string]bool {
 		}
 		for _, nb := range b.BlockTypes {
 			if schema.NameGuard.MatchString(nb.TypeName) {
-				keys[nb.TypeName] = keys[nb.TypeName]
+				if _, ok := keys[nb.TypeName]; !ok {
+					keys[nb.TypeName] = false
+				}
 			}
 			block(nb.Block, depth+1)
 		}
