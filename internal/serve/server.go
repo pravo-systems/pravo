@@ -470,7 +470,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/trace":
 		s.trace(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/secrets", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan", "/api/templates", "/api/templates/try", "/api/templates/refs", "/api/templates/choices", "/api/templates/entities", "/api/environments", "/api/environment":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/secrets", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan", "/api/templates", "/api/templates/try", "/api/templates/refs", "/api/templates/choices", "/api/templates/entities", "/api/environments", "/api/environment", "/api/timelapse":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -505,10 +505,10 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		writeRaw(w, http.StatusOK, m.polJSON)
 	case "/api/secrets":
 		writeRaw(w, http.StatusOK, m.secsJSON)
-	case "/api/environments":
-		s.environmentsHandler(w, r, m)
-	case "/api/environment":
-		s.switchEnvironment(w, r, m)
+	case "/api/timelapse":
+		writeJSON(w, http.StatusOK, m.timelapse())
+	case "/api/environments", "/api/environment":
+		s.environmentRequest(w, r, m)
 	case "/api/studio":
 		writeJSON(w, http.StatusOK, s.studio(m))
 	case "/api/studio/plan":

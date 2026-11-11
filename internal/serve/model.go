@@ -97,6 +97,10 @@ type model struct {
 	txOnce sync.Once
 	txns   []state.Transaction
 
+	// lapse is the answer of /api/timelapse, built from the transactions the first time it is asked for.
+	lapseOnce sync.Once
+	lapse     *TimeLapse
+
 	// fieldsOnce builds fieldIdx the first time a field search asks for it.
 	fieldsOnce sync.Once
 	fieldIdx   *fieldIndex

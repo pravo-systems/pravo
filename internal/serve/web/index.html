@@ -20,6 +20,7 @@
 <link rel="stylesheet" href="assets/secrets.css">
 <link rel="stylesheet" href="assets/templates.css">
 <link rel="stylesheet" href="assets/environments.css">
+<link rel="stylesheet" href="assets/timelapse.css">
 <link rel="stylesheet" href="assets/chat.css">
 <script type="module" src="assets/app.js"></script>
 </head>
@@ -38,6 +39,7 @@
     <button type="button" class="sec-tab" id="sec-templates" aria-pressed="false" aria-keyshortcuts="m" data-tip="Templates" data-key="m"><span class="i i-template" aria-hidden="true"></span><span class="lbl">Templates</span></button>
     <button type="button" class="sec-tab" id="sec-discovery" aria-pressed="false" aria-keyshortcuts="d" data-tip="Discovery" data-key="d"><span class="i i-radar" aria-hidden="true"></span><span class="lbl">Discovery</span><span class="cnt" id="sec-disc-count" hidden></span></button>
     <button type="button" class="sec-tab" id="sec-policies" aria-pressed="false" aria-keyshortcuts="o" data-tip="Policies" data-key="o"><span class="i i-policy" aria-hidden="true"></span><span class="lbl">Policies</span><span class="cnt" id="sec-pol-count" hidden></span></button>
+    <button type="button" class="sec-tab" id="sec-timelapse" aria-pressed="false" aria-keyshortcuts="l" data-tip="Time lapse" data-key="l"><span class="i i-lapse" aria-hidden="true"></span><span class="lbl">Time lapse</span></button>
     <button type="button" class="sec-tab" id="sec-traces" aria-pressed="false" aria-keyshortcuts="r" data-tip="Traces" data-key="r"><span class="i i-trace" aria-hidden="true"></span><span class="lbl">Traces</span></button>
     <button type="button" class="sec-tab" id="sec-plans" aria-pressed="false" aria-keyshortcuts="p" data-tip="Plans" data-key="p"><span class="i i-file" aria-hidden="true"></span><span class="lbl">Plans</span><span class="cnt" id="sec-plans-count" hidden></span></button>
     <button type="button" class="sec-tab" id="sec-secrets" aria-pressed="false" aria-keyshortcuts="e" data-tip="Secrets" data-key="e"><span class="i i-key" aria-hidden="true"></span><span class="lbl">Secrets</span><span class="cnt" id="sec-sec-count" hidden></span></button>
@@ -122,6 +124,7 @@
     <div class="pane templates-pane" id="templates-pane" role="region" aria-label="Templates" tabindex="-1" hidden></div>
     <div class="pane secrets-pane" id="secrets-pane" role="region" aria-label="Secrets" tabindex="-1" hidden></div>
     <div class="pane envs-pane" id="envs-pane" role="region" aria-label="Environments" tabindex="-1" hidden></div>
+    <div class="pane tl-pane" id="timelapse-pane" role="region" aria-label="Time lapse" tabindex="-1" hidden></div>
     <div class="pane access-pane" id="access-pane" role="region" aria-label="State" tabindex="-1" hidden></div>
   </main>
 

@@ -182,3 +182,12 @@ func (s *Server) switchEnvironment(w http.ResponseWriter, r *http.Request, m *mo
 	rev, _ := s.watch.sample()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "environment": name, "revision": rev})
 }
+
+// environmentRequest answers GET /api/environments and POST /api/environment.
+func (s *Server) environmentRequest(w http.ResponseWriter, r *http.Request, m *model) {
+	if r.URL.Path == "/api/environment" {
+		s.switchEnvironment(w, r, m)
+		return
+	}
+	s.environmentsHandler(w, r, m)
+}

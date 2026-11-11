@@ -2,9 +2,9 @@
 
 # The viewer
 
-How pravo serve reads an estate: what a group is, what presence means, how the first view is chosen, what the eight sections show, which values are withheld and why the viewer changes nothing.
+How pravo serve reads an estate: what a group is, what presence means, how the first view is chosen, what the nine sections show, which values are withheld and why the viewer changes nothing.
 
-`pravo serve` shows an estate in a browser. It joins what it can read by address: the specification, which it evaluates, the state, which it reads, the plans that people stored in the state, the runs that pravo recorded, and optionally a plan file. The result is one page with eight sections, and the first of them is a graph of groups and resources. This page explains how the viewer builds that picture and what it leaves out. [Explore an estate in a browser](../how-to/explore-your-estate.md) shows the steps, [The sections of the viewer](../reference/viewer-sections.md) lists every part, and [`pravo serve`](../reference/serve.md) is the command.
+`pravo serve` shows an estate in a browser. It joins what it can read by address: the specification, which it evaluates, the state, which it reads, the plans that people stored in the state, the runs that pravo recorded, and optionally a plan file. The result is one page with nine sections, and the first of them is a graph of groups and resources. This page explains how the viewer builds that picture and what it leaves out. [Explore an estate in a browser](../how-to/explore-your-estate.md) shows the steps, [The sections of the viewer](../reference/viewer-sections.md) lists every part, and [`pravo serve`](../reference/serve.md) is the command.
 
 ## One address, several sources
 
@@ -138,9 +138,9 @@ A record that the viewer cannot open is listed with its address, type, dependenc
 
 With a readers file, the viewer also judges signatures. The History tab says who signed each transaction, the Plans section who stored each plan, and the Policies section who applied each version of a policy, each as `signed by NAME` when the signature verifies against a key of the file. A signature that does not verify is said so, and a version of a policy that is not trusted is not shown as in force. The viewer verifies and reports. It decides nothing: a writer that opens the state makes the same checks and refuses what fails them.
 
-## The eight sections
+## The nine sections
 
-The bar at the top switches between eight sections, and each keeps its own view in the address, so that a link reproduces it.
+The bar at the top switches between nine sections, and each keeps its own view in the address, so that a link reproduces it.
 
 | Section | What it is for | What it does not do |
 |---|---|---|
@@ -149,6 +149,7 @@ The bar at the top switches between eight sections, and each keeps its own view 
 | Plans | The plans stored in the state: who made each, where it stands, what it changes, and the command that applies it. | Applies, approves, claims and removes nothing. |
 | Discovery | What the discoveries of the specification found, and which objects nothing manages, with the resource that adopts each and the entry that acknowledges it. | Runs no discovery, which would start a provider. |
 | Policies | The policies in force, as signed versions, what the next apply adds, changes or removes, and the policy studio, which tries a rule on the resources and on a plan before it is stored. | Stores no policy. A rule you like still goes into the specification and is applied. |
+| Time lapse | The runs that wrote resources, replayed one after another over a drawing of the estate in which every resource keeps its place: what each run added, changed, replaced, moved and removed, and by whom. | Records nothing. It reads the transactions that the state keeps. |
 | Traces | The runs that pravo recorded, each as a timeline of spans: what the run did, where its time went and where it stopped. | Records nothing. A run is recorded by the command that made it, with `PRAVO_TRACES=on`. |
 | Secrets | The secrets that a sealed state keeps: each by name, with its latest version, who set it and when, and the nodes that read it, with a check that a signed record of a writer stands behind every version. | Shows no value, and holds no key that could open one. |
 | State | Where the state is kept, how it is sealed, who can read it, what role each key has, and what needs doing, with the commands to copy. | Runs no command and edits no file. A line to add to the readers file is shown as a line, and you add it. |

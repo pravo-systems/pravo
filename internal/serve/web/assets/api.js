@@ -88,6 +88,8 @@ export async function switchEnvironment(name) {
 export const traces = () => get('/api/traces').catch((err) => { if (err && err.status === 404) return { version: 1, dir: '.pravo/traces', traces: [] }; throw err; });
 // trace is the spans of one run.
 export const trace = (id) => get('/api/trace?id=' + encodeURIComponent(id));
+// timelapse is the runs that wrote nodes, oldest first, each with what it did to which node.
+export const timelapse = () => get('/api/timelapse');
 // adopt is what to do with one object of a discovery: the resource that adopts it, and commands to copy.
 export const adopt = (discovery, key) => get('/api/adopt?discovery=' + encodeURIComponent(discovery) + '&key=' + encodeURIComponent(key));
 // plan is a stored plan as an overlay of the graph: the plan, and the action of each node it ran.

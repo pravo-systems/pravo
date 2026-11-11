@@ -1,12 +1,12 @@
 ---
 title: The sections of the viewer
-description: "What each section of the viewer shows and how to read it: Inventory, Templates, Plans, Discovery, Policies with the studio, Traces, Secrets, State and Environments, part by part, with the filter columns and the tabs of the inspector."
+description: "What each section of the viewer shows and how to read it: Inventory, Templates, Plans, Discovery, Policies with the studio, Time lapse, Traces, Secrets, State and Environments, part by part, with the filter columns and the tabs of the inspector."
 order: 30
 group: Viewer
-keywords: "viewer sections inventory templates form wizard graph list inspector plans discovery policies studio traces secrets state environments ladder members filter columns tabs"
+keywords: "viewer sections time lapse history film replay inventory templates form wizard graph list inspector plans discovery policies studio traces secrets state environments ladder members filter columns tabs"
 ---
 
-The viewer that [`pravo serve`](serve.md) starts is one page with eight sections, and a ninth, Environments, for a specification that declares `$environments`. A row of tabs under the bar at the top switches between them, each with its name at every width, and each keeps its own view in the address, so that [a link reproduces it](viewer-keys-and-links.md). [The viewer](../concepts/the-viewer.md) explains how to read the graph; this page says what each part of the page holds.
+The viewer that [`pravo serve`](serve.md) starts is one page with nine sections, and a tenth, Environments, for a specification that declares `$environments`. A row of tabs under the bar at the top switches between them, each with its name at every width, and each keeps its own view in the address, so that [a link reproduces it](viewer-keys-and-links.md). [The viewer](../concepts/the-viewer.md) explains how to read the graph; this page says what each part of the page holds.
 
 | Section | Shows | Key | Link |
 |---|---|---|---|
@@ -15,6 +15,7 @@ The viewer that [`pravo serve`](serve.md) starts is one page with eight sections
 | Plans | The plans stored in the state: who made each, where it stands, what it changes, and the command that applies it. | `p` | `view=plans` |
 | Discovery | What the discoveries of the specification found, and which objects nothing manages. | `d` | `view=discovery` |
 | Policies | The policies in force, what the next apply writes, and the studio that tries a rule on plans. | `o`, and `s` for the studio | `view=policies` |
+| Time lapse | The history of the estate as a film: the runs that wrote resources, replayed one after another over a drawing in which every resource keeps its place. | `l` | `view=timelapse` |
 | Traces | The runs that pravo recorded, as a timeline of spans. | `r` | `view=traces` |
 | Secrets | The secrets that a sealed state keeps, each with its latest version, who set it and the nodes that read it, and whether a signed record of a writer stands behind every version. Never a value. | `e` | `view=secrets` |
 | State | Where the state is kept, how it is protected, who can read it and what needs doing. | `a` | `view=state` |
@@ -286,6 +287,28 @@ The Policies section has a second page, the policy studio, for trying policies o
 :::
 
 A text that does not parse, compile or fit the plan document shows its error on its line. The studio runs the rule in a CUE context of its own and writes nothing: the state, the plans and the policies are as they were. The text travels in the address of a `GET` and is limited to 32 KiB. A dropped plan file is the one request that is not a `GET`: the page sends the file to `POST /api/studio/plan`, the server reads it, keeps it in memory with the last eight, and writes it nowhere. Restarting the viewer forgets it. Values in the answers are masked with the secret sets of the plan, as everywhere in the viewer.
+
+## The Time lapse section
+
+The Time lapse section replays the history of the estate. The state keeps a transaction for every command that wrote it, and the section reads them: each apply, destroy or import that wrote a resource is a step, oldest first, and the page plays the steps one after another over a drawing of the estate. Nothing is recorded for it and nothing is run. A project whose state holds no such run shows a sentence that says so. It has no toolbar of the Inventory and no inspector.
+
+The drawing has a group for each namespace and a square for each resource, in the order of the addresses. A resource keeps its place from the first step to the last, so that between two steps only what a run did moves. It covers the managed resources that the graph shows as recorded, and those that a run named and that are gone now; connections are not drawn, because a resource that was removed has none to show. A resource that the state records and that no run names was there before the first run that is kept.
+
+| Part | Holds |
+|---|---|
+| The readout | Which run is shown, when it ran, its kind and who ran it (the actor, else the user), the revision of the specification it ran against, the reason it was given, its command line with the values masked as everywhere in the viewer, a count of what it added, changed, replaced, removed and moved, and how many resources the estate has after it. A run that did not finish says its status. |
+| The drawing | A square for each resource. One that the run wrote takes the mark of its action, the one that a plan gives the same action: plus for added, a wave for changed, plus over a line for replaced, minus for removed and an arrow for moved. A grey square is there, a dotted frame is not there yet, and an empty frame with a red edge was there and a run removed it. A rename is a removal at the old address and a move to the new one. Hover a square for its address; a click opens the resource in the Inventory, or says that a run removed it. |
+| The controls | Back, Play and Next. Play steps through the runs in about fourteen seconds, however many there are, stops at the end and then offers Replay. |
+| The timeline | A bar for each run, as tall as the number of resources it wrote, filled up to the run that is shown. Click or drag to go to a run. With the focus on it, the arrow keys step by one, Page Up and Page Down by ten, Home goes to the state before the first run, End to the last run, and Space or Enter plays or pauses. |
+| What the run did | The resources of the run by name, each with its action, up to forty at first; a button shows the rest. A name opens the resource. |
+| The runs | A table of every run with its time, kind, who ran it, what it changed, how many resources there were after it and, where the state is sealed and a readers file is checked, whether its signature verifies. A row goes to that run. |
+
+:::figure The Time lapse section of a project with two runs: the second replaced three resources, which are marked in the drawing and listed under it.
+<a class="shot shot-dark" href="../img/serve/timelapse-dark.png"><img src="../img/serve/timelapse-dark.png" width="1440" height="900" alt="The Time lapse section of the viewer with a project of two runs. The readout says run 2 of 2, an apply by ben that replaced three resources, with 49 resources after it. Under it the estate is drawn as a group of grey squares for each namespace, such as api.services.search and edge.routes, with the three replaced squares marked. A key names the marks, a row of Back, Replay and Next sits beside the timeline of two bars, and under it are the three resources the run replaced and a table of the two runs, each signed." loading="lazy"></a>
+<a class="shot shot-light" href="../img/serve/timelapse-light.png"><img src="../img/serve/timelapse-light.png" width="1440" height="900" alt="The Time lapse section of the viewer with a project of two runs. The readout says run 2 of 2, an apply by ben that replaced three resources, with 49 resources after it. Under it the estate is drawn as a group of grey squares for each namespace, such as api.services.search and edge.routes, with the three replaced squares marked. A key names the marks, a row of Back, Replay and Next sits beside the timeline of two bars, and under it are the three resources the run replaced and a table of the two runs, each signed." loading="lazy"></a>
+:::
+
+The step is in the address as `ls=N`, the number of the run, so that a link shows the estate as one run left it. At most the newest 400 runs are read; when there are more, a sentence says how many were left out, and what they made is drawn as there from the start. A plan writes no resource and is not a step.
 
 ## The Traces section
 

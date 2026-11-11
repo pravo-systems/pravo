@@ -80,7 +80,7 @@ type Fragment struct {
 var (
 	fragmentTabs   = []string{"state", "source", "schema", "history", "change"}
 	fragmentThemes = []string{"light", "dark"}
-	fragmentViews  = []string{"graph", "list", "state", "plans", "discovery", "policies", "templates", "traces", "environments"}
+	fragmentViews  = []string{"graph", "list", "state", "plans", "discovery", "policies", "templates", "traces", "environments", "timelapse"}
 )
 
 // String is the fragment without the leading #, in the order of the deep-link
@@ -460,6 +460,8 @@ func allShots() []Shot {
 	s = append(s, sized(1440, 1500, both("trace-span", "team", situationTeam, Fragment{View: "traces", Trace: "@apply:search", Span: "@network PUT 127.0.0.1"}))...)
 	s = append(s, both("traces-slowest", "team", situationTeam, Fragment{View: "traces", Trace: "@apply", TV: "table"})...)
 	s = append(s, both("members", "team", situationTeam, Fragment{View: "state"})...)
+	// The Time lapse of the team's estate: every run that wrote a resource, played over the drawing of the estate.
+	s = append(s, both("timelapse", "team", situationTeam, Fragment{View: "timelapse"})...)
 
 	// The estates of the lessons, each as its lesson opens the viewer there.
 	// B2: the plan of one changed number, laid over the graph, with the file

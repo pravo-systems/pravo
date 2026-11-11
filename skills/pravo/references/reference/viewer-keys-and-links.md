@@ -12,7 +12,7 @@ A fragment looks like `#/?sel=api.services.billing.config&tab=source&collapse=ne
 
 | Parameter | Value | Meaning |
 |---|---|---|
-| `view` | `graph`, `list`, `plans`, `discovery`, `policies`, `templates`, `traces`, `secrets`, `state` or `environments` | The section, and for the Inventory whether the graph or the list is shown. `table` and `access` are older names of `list` and `state`, and a link that has them still opens. |
+| `view` | `graph`, `list`, `plans`, `discovery`, `policies`, `templates`, `timelapse`, `traces`, `secrets`, `state` or `environments` | The section, and for the Inventory whether the graph or the list is shown. `table` and `access` are older names of `list` and `state`, and a link that has them still opens. |
 | `sel` | An address, or the path of a group | The selected node or group. It opens the groups and the cluster that hide the node, unless `collapse` names a group that holds it. |
 | `tab` | `state`, `source`, `schema`, `history` or `change` | The tab of the inspector. `change` shows what the plan over the graph does to the node. |
 | `collapse` | Group paths, or `all` | Groups drawn as one card, on top of the first view. |
@@ -26,6 +26,7 @@ A fragment looks like `#/?sel=api.services.billing.config&tab=source&collapse=ne
 | `tn` | `1` | The wizard of that template, which makes a new instance. |
 | `pol` | Text | The policy that is open in the Policies section, by its name. |
 | `ps` | `1` | The policy studio, the second page of the Policies section. |
+| `ls` | A number | The run that the Time lapse section shows, counted from 1 in the order they ran. Without it the film opens on the last run. |
 | `trace` | A run id: 32 hexadecimal digits, a hyphen and 16 more | The recorded run that the Traces section opens. Without it the newest is open. A run that is not in the directory is told in a notice and ignored. |
 | `span` | A span id of 16 hexadecimal digits | The selected span of that run. |
 | `tv` | `table` | The Traces section shows the slowest spans as a table and not as a timeline. |
@@ -65,6 +66,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `d` | Switch between the Inventory and the Discovery sections. |
 | `o` | Switch between the Inventory and the Policies sections. |
 | `s` | Open the policy studio, or go back to the register when it is open. |
+| `l` | Switch between the Inventory and the Time lapse sections. |
 | `r` | Switch between the Inventory and the Traces sections. |
 | `e` | Switch between the Inventory and the Secrets sections. |
 | `m` | Switch between the Inventory and the Templates sections. |

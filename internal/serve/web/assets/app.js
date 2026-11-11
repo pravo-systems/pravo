@@ -15,6 +15,7 @@ import { TracesView } from './traces.js';
 import { PoliciesView } from './policies.js';
 import { SecretsView } from './secrets.js';
 import { EnvironmentsView, menuLine } from './environments.js';
+import { TimeLapseView } from './timelapse.js';
 import { TemplatesView } from './templates.js';
 import { ChatView } from './chat.js';
 import { Palette, Sheet } from './palette.js';
@@ -40,7 +41,9 @@ const S = {
   runs: [], // the runs that pravo recorded, read when the palette opens
   live: 'connecting', focus: null, palette: false, help: false, proj: false,
 };
-let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView, discoveryView, tracesView, policiesView, secretsView, templatesView, environmentsView, chatView;
+let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView, discoveryView, tracesView, policiesView, secretsView, templatesView, environmentsView, lapseView, chatView;
+// PAGES are the views that are sections of their own: the keys and the finder of the resources are not theirs.
+const PAGES = new Set(['access', 'plans', 'discovery', 'traces', 'policies', 'secrets', 'templates', 'environments', 'timelapse']);
 let booted = false;
 
 // ---------------------------------------------------------------------------------------------------------
@@ -151,8 +154,9 @@ function readFragment() {
     q: Object.hasOwn(LEGACY_FILTERS, p.filter) ? addTerm(p.q || '', LEGACY_FILTERS[p.filter].col, LEGACY_FILTERS[p.filter].value, false) : p.q || '',
     // an address from before the view was renamed says table, or tree
     // a phone opens the list: the graph of a real estate cannot be read at the width of a hand (it stays a tap away, and then the address says so)
-    view: !p.view && onPhone() ? 'list' : p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : p.view === 'discovery' ? 'discovery' : p.view === 'policies' ? 'policies' : p.view === 'secrets' ? 'secrets' : p.view === 'templates' ? 'templates' : p.view === 'traces' ? 'traces' : p.view === 'environments' ? 'environments' : 'graph',
+    view: !p.view && onPhone() ? 'list' : p.view === 'list' || p.view === 'table' || p.view === 'tree' ? 'list' : p.view === 'access' || p.view === 'state' ? 'access' : p.view === 'plans' ? 'plans' : p.view === 'discovery' ? 'discovery' : p.view === 'policies' ? 'policies' : p.view === 'secrets' ? 'secrets' : p.view === 'templates' ? 'templates' : p.view === 'traces' ? 'traces' : p.view === 'environments' ? 'environments' : p.view === 'timelapse' ? 'timelapse' : 'graph',
     trace: /^[0-9a-f]{32}-[0-9a-f]{16}$/.test(p.trace || '') ? p.trace : '',
+    ls: /^\d{1,5}$/.test(p.ls || '') ? p.ls : '',
     span: /^[0-9a-f]{16}$/.test(p.span || '') ? p.span : '',
     pol: (p.pol || '').slice(0, 512),
     tpl: (p.tpl || '').slice(0, 64),
@@ -186,7 +190,7 @@ function currentHash() {
   expand = expand.concat([...S.clusters.keys()].sort());
   return writeFragment({
     sel: S.sel, tab: S.sel && S.model.nodes.has(S.sel) ? S.tab : null, collapse, expand, plan: planFragment(), q: S.q, dq: S.dq, plq: S.plq,
-    view: S.view, graphChosen: onPhone(), ...(S.view === 'traces' && tracesView ? tracesView.route() : {}), ...(S.view === 'policies' && policiesView ? policiesView.route() : {}), ...(S.view === 'templates' && templatesView ? templatesView.route() : {}), theme: S.theme && (store.get('pravo.theme') === S.theme || new URLSearchParams(location.hash.replace(/^#\/?\??/, '')).has('theme')) ? S.theme : null,
+    view: S.view, graphChosen: onPhone(), ...(S.view === 'traces' && tracesView ? tracesView.route() : {}), ...(S.view === 'timelapse' && lapseView ? lapseView.route() : {}), ...(S.view === 'policies' && policiesView ? policiesView.route() : {}), ...(S.view === 'templates' && templatesView ? templatesView.route() : {}), theme: S.theme && (store.get('pravo.theme') === S.theme || new URLSearchParams(location.hash.replace(/^#\/?\??/, '')).has('theme')) ? S.theme : null,
     motion: S.motion ? '' : 'off', zoom: S.zoom,
   });
 }
@@ -953,6 +957,7 @@ const TITLES = {
   templates: 'pravo serve: the templates of the specification, their instances, and a form for a new one',
   traces: 'pravo serve: the recorded runs of pravo, as timelines of spans',
   environments: 'pravo serve: the environments of the specification, what each runs, and the release moving along the promotion flow',
+  timelapse: 'pravo serve: the history of the estate, run by run, as a film',
 };
 
 function setView(v) {
@@ -968,7 +973,9 @@ function setView(v) {
   $('secrets-pane').hidden = v !== 'secrets';
   $('templates-pane').hidden = v !== 'templates';
   $('envs-pane').hidden = v !== 'environments';
+  $('timelapse-pane').hidden = v !== 'timelapse';
   if (v !== 'traces' && tracesView) tracesView.close();
+  if (v !== 'timelapse' && lapseView) lapseView.close();
   if (v === 'graph' || v === 'list') S.lastResources = v;
   $('view-graph').setAttribute('aria-pressed', v === 'graph' ? 'true' : 'false');
   $('view-list').setAttribute('aria-pressed', v === 'list' ? 'true' : 'false');
@@ -976,6 +983,7 @@ function setView(v) {
   $('sec-plans').setAttribute('aria-pressed', v === 'plans' ? 'true' : 'false');
   $('sec-discovery').setAttribute('aria-pressed', v === 'discovery' ? 'true' : 'false');
   $('sec-traces').setAttribute('aria-pressed', v === 'traces' ? 'true' : 'false');
+  $('sec-timelapse').setAttribute('aria-pressed', v === 'timelapse' ? 'true' : 'false');
   $('sec-policies').setAttribute('aria-pressed', v === 'policies' ? 'true' : 'false');
   $('sec-secrets').setAttribute('aria-pressed', v === 'secrets' ? 'true' : 'false');
   $('sec-templates').setAttribute('aria-pressed', v === 'templates' ? 'true' : 'false');
@@ -983,7 +991,7 @@ function setView(v) {
   $('env-btn').setAttribute('aria-pressed', v === 'environments' ? 'true' : 'false');
   $('app').dataset.view = v;
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'list' ? 'Skip to the list' : v === 'plans' ? 'Skip to the plans' : v === 'discovery' ? 'Skip to the discoveries' : v === 'traces' ? 'Skip to the traces' : v === 'policies' ? 'Skip to the policies' : v === 'secrets' ? 'Skip to the secrets' : v === 'templates' ? 'Skip to the templates' : v === 'environments' ? 'Skip to the environments' : 'Skip to the state';
+  if (skip) skip.textContent = v === 'graph' ? 'Skip to the graph' : v === 'list' ? 'Skip to the list' : v === 'plans' ? 'Skip to the plans' : v === 'discovery' ? 'Skip to the discoveries' : v === 'traces' ? 'Skip to the traces' : v === 'policies' ? 'Skip to the policies' : v === 'secrets' ? 'Skip to the secrets' : v === 'templates' ? 'Skip to the templates' : v === 'environments' ? 'Skip to the environments' : v === 'timelapse' ? 'Skip to the time lapse' : 'Skip to the state';
   if (v === 'list') renderList();
   else if (v === 'access') renderAccess();
   else if (v === 'discovery') renderDiscovery();
@@ -992,10 +1000,11 @@ function setView(v) {
   else if (v === 'templates') renderTemplates();
   else if (v === 'environments') renderEnvironments();
   else if (v === 'traces') tracesView.open();
+  else if (v === 'timelapse') lapseView.open();
   else { gv.resize(); if (S.vis && !S.shaped && gv.size.w > 0) relayout({ animate: false }); if (!gv.userMoved && gv.lay) gv.fit(false); minimapDraw(); }
   setDocTitle();
   syncFragment();
-  announce(v === 'list' ? 'Inventory, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : v === 'discovery' ? 'Discovery' : v === 'traces' ? 'Traces' : v === 'policies' ? 'Policies' : v === 'secrets' ? 'Secrets' : v === 'templates' ? 'Templates' : v === 'environments' ? 'Environments' : 'Inventory, graph view');
+  announce(v === 'list' ? 'Inventory, list view' : v === 'access' ? 'State' : v === 'plans' ? 'Plans' : v === 'discovery' ? 'Discovery' : v === 'traces' ? 'Traces' : v === 'policies' ? 'Policies' : v === 'secrets' ? 'Secrets' : v === 'templates' ? 'Templates' : v === 'environments' ? 'Environments' : v === 'timelapse' ? 'Time lapse' : 'Inventory, graph view');
 }
 
 // openPlan goes to the Plans page with the detail of a plan open under its row.
@@ -1276,7 +1285,7 @@ function renderHeader() {
 }
 
 // the tab says where the page is: the project, then the section, so that several estates in several tabs tell apart
-const SECTION = { graph: 'Inventory', list: 'Inventory', plans: 'Plans', discovery: 'Discovery', traces: 'Traces', policies: 'Policies', secrets: 'Secrets', templates: 'Templates', environments: 'Environments', access: 'State' };
+const SECTION = { graph: 'Inventory', list: 'Inventory', plans: 'Plans', discovery: 'Discovery', traces: 'Traces', policies: 'Policies', secrets: 'Secrets', templates: 'Templates', environments: 'Environments', timelapse: 'Time lapse', access: 'State' };
 function setDocTitle() {
   const dir = S.graph && S.graph.project && S.graph.project.dir;
   document.title = dir ? `${baseName(dir)} \u00b7 ${SECTION[S.view] || 'Inventory'} \u00b7 pravo serve` : 'pravo serve';
@@ -1426,6 +1435,7 @@ async function refresh() {
   S.environments = r.environments;
   S.plan = r.plan;
   S.overlay = r.overlay;
+  lapseView.changed(); // the runs are read again: the one that changed the project is in them
   const g = shown(r.raw);
   const nm = buildModel(g, S.plans);
   nm.planParam = planParam();
@@ -1596,6 +1606,13 @@ function openRun(id) {
   setView('traces');
 }
 
+// openFromLapse goes from a square of the Time lapse to the resource in the inventory. A resource that a run removed is not there.
+function openFromLapse(addr) {
+  if (!S.model || !S.model.nodes.has(addr)) { toast(`${addr} is not in the estate any more`, 'info', 4200, 'A run removed it.'); return; }
+  setView(S.lastResources || 'graph');
+  selectNode(addr, { center: true });
+}
+
 // openFinding goes to the Discovery section with the filter on one object that a discovery found.
 function openFinding(r) {
   setView('discovery');
@@ -1625,6 +1642,7 @@ function paletteActions() {
   if (S.view !== 'policies') add('Go to', 'Go to Policies', ['o'], into('policies'), { icon: 'policy', words: 'rules judge plan versions signed' });
   add('Go to', 'Open the policy studio', S.view === 'policies' ? ['s'] : [], () => { setView('policies'); policiesView.setMode('studio'); }, { icon: 'policy', words: 'try rule draft playground preview plans refuse policy test' });
   if (S.view !== 'traces') add('Go to', 'Go to Traces', ['r'], into('traces'), { icon: 'trace', words: 'runs recorded timeline spans transactions' });
+  if (S.view !== 'timelapse') add('Go to', 'Go to Time lapse', ['l'], into('timelapse'), { icon: 'lapse', words: 'history film replay play runs applies over time estate grew' });
   if (S.view !== 'plans') add('Go to', 'Go to Plans', ['p'], into('plans'), { icon: 'file', words: 'stored plans' });
   if (S.view !== 'templates') add('Go to', 'Go to Templates', ['m'], into('templates'), { icon: 'template', words: 'templates catalog blueprints wizard instance new form create' });
   if (S.view !== 'secrets') add('Go to', 'Go to Secrets', ['e'], into('secrets'), { icon: 'key', words: 'secrets vault sealed values passwords tokens credentials keys' });
@@ -1702,8 +1720,9 @@ function onKey(ev) {
   if (k === 'm') { setView(S.view === 'templates' ? (S.lastResources || 'graph') : 'templates'); return; }
   if (k === 'v' && !$('env-btn').hidden) { ev.preventDefault(); toggleEnvMenu(); return; }
   if (k === 's' && S.view === 'policies') { policiesView.toggleStudio(); return; }
+  if (k === 'l') { setView(S.view === 'timelapse' ? (S.lastResources || 'graph') : 'timelapse'); return; }
   if (k === 'r') { setView(S.view === 'traces' ? (S.lastResources || 'graph') : 'traces'); return; }
-  if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies' || S.view === 'secrets' || S.view === 'templates' || S.view === 'environments') return; // the keys below are for the resources
+  if (PAGES.has(S.view)) return; // the keys below are for the resources
   if (k === 'g') { setView(S.view === 'graph' ? 'list' : 'graph'); return; }
   if (S.view !== 'graph') return;
   const onCanvas = ev.target === document.body || ev.target === $('canvas') || ev.target.closest('#canvas');
@@ -1777,6 +1796,7 @@ function wire() {
     onState: () => setView('access'),
   });
   environmentsView = new EnvironmentsView($('envs-pane'), { onSwitch: (name) => switchEnvironment(name) });
+  lapseView = new TimeLapseView($('timelapse-pane'), { nodes: () => (S.model ? S.model.list : []), revision: () => (S.raw ? S.raw.revision : ''), onRoute: () => syncFragment(), onOpen: (addr) => openFromLapse(addr) });
   templatesView = new TemplatesView($('templates-pane'), {
     // an instance: the graph opens on its group
     onNamespace: (path) => { setView(S.lastResources || 'graph'); showNamespace(path); },
@@ -1806,7 +1826,7 @@ function wire() {
       const there = !away && S.sel === key && (S.view === 'list' || kind === 'namespace' || !!(S.vis && itemOf(key) && gv.visible(itemOf(key), 60)));
       if (!there) pushReturn();
       S.foundAt = key;
-      if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies' || S.view === 'secrets' || S.view === 'templates' || S.view === 'environments') setView(S.lastResources || 'graph'); // a resource is found among the resources
+      if (PAGES.has(S.view)) setView(S.lastResources || 'graph'); // a resource is found among the resources
       if (kind === 'namespace') {
         const ns = S.model.namespaces.get(key);
         for (const m of chain(ns)) S.collapsed.delete(m.path);
@@ -1839,9 +1859,10 @@ function wire() {
 
   $('view-graph').addEventListener('click', () => setView('graph'));
   $('view-list').addEventListener('click', () => setView('list'));
-  $('sec-inventory').addEventListener('click', () => { if (S.view === 'access' || S.view === 'plans' || S.view === 'discovery' || S.view === 'traces' || S.view === 'policies' || S.view === 'secrets' || S.view === 'templates' || S.view === 'environments') setView(S.lastResources || 'graph'); });
+  $('sec-inventory').addEventListener('click', () => { if (PAGES.has(S.view)) setView(S.lastResources || 'graph'); });
   $('sec-discovery').addEventListener('click', () => setView('discovery'));
   $('sec-traces').addEventListener('click', () => setView('traces'));
+  $('sec-timelapse').addEventListener('click', () => setView('timelapse'));
   $('sec-policies').addEventListener('click', () => setView('policies'));
   $('sec-secrets').addEventListener('click', () => setView('secrets'));
   $('env-btn').addEventListener('click', () => toggleEnvMenu());
@@ -1873,7 +1894,7 @@ function wire() {
   initTips();
   // the skip link goes to the graph, or to the list in the list view; it must not write #canvas into the address, which is the view
   const skip = document.querySelector('.skiplink');
-  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else if (S.view === 'access') $('access-pane').focus(); else if (S.view === 'plans') $('plans-pane').focus(); else if (S.view === 'discovery') $('discovery-pane').focus(); else if (S.view === 'traces') $('traces-pane').focus(); else if (S.view === 'policies') $('policies-pane').focus(); else if (S.view === 'secrets') $('secrets-pane').focus(); else if (S.view === 'templates') $('templates-pane').focus(); else if (S.view === 'environments') $('envs-pane').focus(); else list.scroller.focus(); });
+  if (skip) skip.addEventListener('click', (ev) => { ev.preventDefault(); if (S.view === 'graph') $('canvas').focus(); else if (S.view === 'access') $('access-pane').focus(); else if (S.view === 'plans') $('plans-pane').focus(); else if (S.view === 'discovery') $('discovery-pane').focus(); else if (S.view === 'traces') $('traces-pane').focus(); else if (S.view === 'policies') $('policies-pane').focus(); else if (S.view === 'secrets') $('secrets-pane').focus(); else if (S.view === 'templates') $('templates-pane').focus(); else if (S.view === 'environments') $('envs-pane').focus(); else if (S.view === 'timelapse') $('timelapse-pane').focus(); else list.scroller.focus(); });
   // the mark at the top left goes back to the start: nothing selected, no filter, the first view (not the address "#/", which would drop the theme and the motion setting too)
   const brand = document.querySelector('.brand');
   if (brand) brand.addEventListener('click', (ev) => {
@@ -1953,6 +1974,7 @@ function applyView(f, cam = null) {
   S.plq = f.plq;
   plansList.setQuery(f.plq);
   tracesView.setRoute(f);
+  lapseView.setRoute(f);
   policiesView.setRoute(f);
   templatesView.setRoute(f);
   $('filter-q').value = f.q;
@@ -1965,6 +1987,7 @@ function applyView(f, cam = null) {
   applyMatch();
   if (f.view !== S.view) setView(f.view);
   else if (S.view === 'traces') tracesView.open();
+  else if (S.view === 'timelapse') lapseView.open();
   S.sel = sel;
   S.reach = false;
   applySelection(false);
@@ -2047,6 +2070,7 @@ async function load(frag) {
   S.plq = frag.plq;
   plansList.setQuery(frag.plq);
   tracesView.setRoute(frag);
+  lapseView.setRoute(frag);
   policiesView.setRoute(frag);
   templatesView.setRoute(frag);
   S.tab = frag.tab;
@@ -2095,7 +2119,7 @@ async function load(frag) {
   conn = api.events(onChange, onLiveState);
   if (frag.palette) palette.open(frag.pq);
   if (frag.help) sheet.open();
-  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, pills, plansList, list, accessView, discoveryView, tracesView, policiesView, secretsView, templatesView, environmentsView, insp, palette, chatView, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setQueryText, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
+  if (/[?&](mock|debug)=/.test(location.search)) window.__pravo = { S, gv, pills, plansList, list, accessView, discoveryView, tracesView, policiesView, secretsView, templatesView, environmentsView, lapseView, insp, palette, chatView, relayout, selectNode, selectNamespace, toggleNamespace, clusterAction, setQueryText, setView, refresh, toast, applyExternal, readFragment, resetView, selectPlan };
   beat();
   root.dataset.ready = '1';
 }

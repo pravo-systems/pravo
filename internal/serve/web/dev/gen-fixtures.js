@@ -790,6 +790,31 @@ function specError() {
 
 // ---------------------------------------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------------------------------------
+// timelapse: the runs that wrote the platform, oldest first: the network, the api, the edge, two changes, a removal and a rename.
+
+function timelapse(g) {
+  const managed = g.nodes.filter((n) => n.mode === 'managed' && n.presence !== 'spec' && n.presence !== 'state').map((n) => n);
+  const under = (...prefix) => managed.filter((n) => prefix.some((p) => n.addr === p || n.addr.startsWith(p + '.'))).map((n) => n.addr);
+  const ch = (addr, action) => ({ addr, namespace: addr.includes('.') ? addr.slice(0, addr.lastIndexOf('.')) : '', action });
+  const adds = (addrs) => addrs.map((a) => ch(a, 'add'));
+  const net = under('network');
+  const api = under('api').filter((a) => !a.startsWith('api.worker'));
+  const run = (id, ago, who, command, changes, extra = {}) => ({ id, kind: 'apply', status: 'applied', time: iso(ago), user: who, command, changes, ...extra });
+  const steps = [
+    run('0b1f6c1d2a3e4f50', 41 * D, 'ada', 'pravo apply', adds(net.filter((a) => a.startsWith('network.vpc') || a.startsWith('network.igw') || a.startsWith('network.public')))),
+    run('1c2a7d2e3b4f5061', 33 * D, 'ada', 'pravo apply', adds(net.filter((a) => !a.startsWith('network.vpc') && !a.startsWith('network.igw') && !a.startsWith('network.public')).concat(['network.sg_old']))),
+    run('2d3b8e3f4c506172', 26 * D, 'dan', 'pravo apply', adds(api.filter((a) => /role|policy|secret|db_pass/.test(a))), { git_revision: '8a41c0e' }),
+    run('3e4c9f405d617283', 19 * D, 'dan', 'pravo apply', adds(api.filter((a) => !/role|policy|secret|db_pass/.test(a))), { git_revision: '8a41c0e' }),
+    run('4f5da0516e728394', 14 * D, 'eve', 'pravo apply', adds(under('api.worker').concat(['edge.zone_old'])), { actor: 'deploy-bot', reason: 'workers for the nightly import' }),
+    run('50e6b1627f8394a5', 9 * D, 'eve', 'pravo apply', adds(under('edge'))),
+    run('61f7c27380a4a5b6', 4 * D, 'ada', 'pravo apply', [ch('api.db', 'change'), ch('api.role', 'change'), ch('api.task', 'replace'), ch('api.service', 'change')], { git_revision: '9b52d1f' }),
+    run('7208d38491b5b6c7', 2 * D, 'ada', 'pravo apply', [ch('network.sg_old', 'remove'), ch('edge.zone_old', 'remove'), ch('network.sg_app', 'move'), ch('network.sg_web', 'remove')], { git_revision: '9b52d1f' }),
+    run('8319e495a2c6c7d8', 3 * H, 'dan', 'pravo apply -t region=eu-west-1', [ch('api.logs', 'change')], { status: 'failed', git_revision: '9b52d1f' }),
+  ];
+  return { version: 1, revision: g.revision, steps };
+}
+
 const P = platform();
 out('graph.platform.json', P.g);
 out('detail.db.json', detailDB(P.b, P.g));
@@ -802,6 +827,7 @@ out('detail.outputmap.json', detailSummary(P.b, P.g));
 out('detail.outputsecret.json', detailDBPassword(P.b, P.g));
 out('source.output.json', sourceURL());
 out('plans.platform.json', P.stored.list);
+out('timelapse.platform.json', timelapse(P.g));
 for (const [id, overlay] of Object.entries(P.stored.overlays)) out(`plan.${id.replace(/^plan-/, '')}.json`, overlay);
 const F = fleet();
 out('graph.fleet.json', F.g);

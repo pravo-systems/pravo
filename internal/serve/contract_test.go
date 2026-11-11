@@ -50,8 +50,10 @@ func TestInterfaceFixturesMatchTheContract(t *testing.T) {
 			into = &TraceList{}
 		case "trace":
 			into = &Trace{}
+		case "timelapse":
+			into = &TimeLapse{}
 		default:
-			t.Errorf("%s: a fixture is named graph.*, detail.*, source.*, search.*, event.*, plans.*, plan.*, access.*, discovery.*, policies.*, secrets.*, adopt.*, traces.* or trace.*", name)
+			t.Errorf("%s: a fixture is named graph.*, detail.*, source.*, search.*, event.*, plans.*, plan.*, access.*, discovery.*, policies.*, secrets.*, adopt.*, traces.*, trace.* or timelapse.*", name)
 			continue
 		}
 		data, err := os.ReadFile(f)
