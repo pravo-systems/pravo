@@ -40,6 +40,8 @@ import (
 $local:  loc.#Provider & {$version: "~> 2.5"}
 $random: rnd.#Provider & {$version: "~> 3.6"}
 
+// The name of an instance is its key, so two instances cannot write one file.
+services: [Name=string]: #Service & {name: Name}
 services: web: #Service & {name: "web", owner: "team-shop"}
 services: api: #Service & {name: "api", owner: "team-shop", env: "prod"}
 EOF

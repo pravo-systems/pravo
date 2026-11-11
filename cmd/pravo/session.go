@@ -588,17 +588,33 @@ func recordRules(readers []pravo.Reader, rs pravo.RolesStatus) state.RecordRules
 }
 
 // moduleSegment turns the name of a folder into the last element of a module path, which holds
-// lowercase ASCII letters, digits, dots and dashes: any other character becomes a dash.
+// lowercase ASCII letters and digits, and dots and dashes between them: any other character becomes a
+// dash, and a run of separators becomes one dash, or one dot when that is all it was.
 func moduleSegment(dir string) string {
 	var b strings.Builder
-	for _, r := range strings.ToLower(dir) {
+	run := ""
+	flush := func() {
 		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '.', r == '-':
-			b.WriteRune(r)
+		case run == "":
+		case run == ".":
+			b.WriteByte('.')
 		default:
 			b.WriteByte('-')
 		}
+		run = ""
 	}
+	for _, r := range strings.ToLower(dir) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			flush()
+			b.WriteRune(r)
+		case r == '.':
+			run += "."
+		default:
+			run += "-"
+		}
+	}
+	flush()
 	name := strings.Trim(b.String(), "-.")
 	if name == "" {
 		return "project"
