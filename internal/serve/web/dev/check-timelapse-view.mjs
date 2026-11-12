@@ -86,6 +86,8 @@ try {
   check(/After run 3 of 9/.test(pn.k) && pn.title === 'db_pass', `the panel is of the shown run: ${JSON.stringify(pn)}`);
   check(/lr=api\.db_pass/.test(pn.hash) && /ls=3/.test(pn.hash), `the pick is in the address: ${pn.hash}`);
   check(pn.ticks >= 1, 'the runs that wrote it are marked under the timeline');
+  const key = await b.eval(`(document.querySelector('#timelapse-pane .tl-rel') || {}).textContent`);
+  check(key && !/null|undefined/.test(key), `the key of the picked resource says no null: ${key}`);
   // the panel follows the film
   await focus();
   await b.key('ArrowRight');
@@ -124,6 +126,12 @@ try {
   await wait(500);
   pn = await panel();
   check(pn.view === 'timelapse' && pn.picked === 1 && /After run \d of 9/.test(pn.k), `a history entry opens the film at its run: ${JSON.stringify(pn)}`);
+  // a resource with no recorded connection says so, and nothing prints null
+  await b.load(`${origin}&again=4#/?view=timelapse&ls=2&lr=network.sg_old&motion=off`);
+  await wait(600);
+  const none = await b.eval(`(document.querySelector('#timelapse-pane .tl-rel') || {}).textContent`);
+  check(none && !/null|undefined/.test(none), `the key of a resource without connections: ${none}`);
+
   // a resource that a run removed is told, with its history
   await b.load(`${origin}&again=3#/?view=timelapse&ls=9&lr=network.sg_old&motion=off`);
   await wait(600);

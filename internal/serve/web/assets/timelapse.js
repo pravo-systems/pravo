@@ -313,11 +313,11 @@ export class TimeLapseView {
     clear(e.rel);
     e.rel.hidden = !this.sel;
     if (!this.sel) return;
-    e.rel.append(
+    e.rel.append(...[
       h('li', null, h('span', { class: 'sq tl-c sel', 'aria-hidden': 'true' }), 'picked'),
       deps ? h('li', null, h('span', { class: 'sq tl-c rel-dep', 'aria-hidden': 'true' }), `it depends on ${deps}`) : null,
       used ? h('li', null, h('span', { class: 'sq tl-c rel-use', 'aria-hidden': 'true' }), `${used} depend${used === 1 ? 's' : ''} on it`) : null,
-      !deps && !used ? h('li', { class: 'dim' }, 'The state records no connection for it.') : h('li', { class: 'dim' }, 'Connections are as the state records them now.'));
+      !deps && !used ? h('li', { class: 'dim' }, 'The state records no connection for it.') : h('li', { class: 'dim' }, 'Connections are as the state records them now.')].filter(Boolean));
   }
 
   drawPlay() {
