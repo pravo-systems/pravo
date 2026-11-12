@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"maps"
 	"net/http/httptest"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -25,7 +26,11 @@ func fakeProviderZip(t *testing.T, typ, ver string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	hdr := &zip.FileHeader{Name: "terraform-provider-" + typ + "_v" + ver, Method: zip.Deflate}
+	name := "terraform-provider-" + typ + "_v" + ver
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	hdr := &zip.FileHeader{Name: name, Method: zip.Deflate}
 	hdr.SetMode(0o755)
 	w, err := zw.CreateHeader(hdr)
 	if err != nil {
