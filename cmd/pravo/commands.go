@@ -83,14 +83,14 @@ func initCmd(rt *runContext) *cobra.Command {
 // up as a load error, so repeat with what the error names. With report set,
 // each package written is listed.
 func loadOrGenerate(ctx context.Context, rt *runContext, upgrade, report bool) (root *config.Root, generated bool, err error) {
-	root, loadErr := loadRoot(rt)
+	root, loadErr := loadRootWith(rt, true)
 	var none *config.NoSpecificationError
 	if errors.As(loadErr, &none) {
 		return nil, false, loadErr // there is nothing to generate packages for
 	}
 	var extra []registry.Source
 	for round := 0; loadErr != nil && round < 6; round++ {
-		settings, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Env: environment()})
+		settings, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Env: environment(), LazyState: true})
 		if err != nil {
 			// The pravo block is the first thing to fix, and its error is
 			// more useful than the load error about missing imports.
@@ -120,7 +120,7 @@ func loadOrGenerate(ctx context.Context, rt *runContext, upgrade, report bool) (
 			return nil, generated, err
 		}
 		generated = true
-		root, loadErr = loadRoot(rt)
+		root, loadErr = loadRootWith(rt, true)
 		if loadErr == nil {
 			break
 		}
@@ -151,7 +151,7 @@ func loadOrGenerate(ctx context.Context, rt *runContext, upgrade, report bool) (
 // initWithoutSpecification initialises a directory that holds no CUE file yet:
 // it creates the module and says what to write next.
 func initWithoutSpecification(ctx context.Context, rt *runContext, upgrade bool) error {
-	settings, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Env: environment()})
+	settings, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Env: environment(), LazyState: true})
 	if err != nil {
 		return engine.WithCode(engine.ExitInvalid, err)
 	}
@@ -1064,10 +1064,10 @@ func providersCmd(rt *runContext) *cobra.Command {
 
 // providersSchemaCmd is "pravo providers schema".
 func providersSchemaCmd(rt *runContext) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use: "schema <local-name>", Short: "Print a provider's full schema as CUE", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, lazyState: true})
 			if err != nil {
 				return err
 			}
@@ -1085,6 +1085,8 @@ func providersSchemaCmd(rt *runContext) *cobra.Command {
 			return nil
 		},
 	}
+	addTagFlags(rt, cmd)
+	return cmd
 }
 
 // providersLockCmd is "pravo providers lock".
@@ -1106,7 +1108,7 @@ Platforms default to linux and darwin on amd64 and arm64.`,
 			if err != nil {
 				return err
 			}
-			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true})
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, lazyState: true})
 			if err != nil {
 				return err
 			}
@@ -1138,6 +1140,7 @@ Platforms default to linux and darwin on amd64 and arm64.`,
 			return nil
 		},
 	}
+	addTagFlags(rt, lk)
 	lk.Flags().StringVar(&lockPlats, "platforms", "", "comma-separated os_arch list (default linux_amd64,linux_arm64,darwin_arm64,darwin_amd64)")
 	return lk
 }

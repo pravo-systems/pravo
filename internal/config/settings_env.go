@@ -24,7 +24,7 @@ func (r *Root) settingsWithEnv(first error, opts LoadOptions) error {
 	if err != nil {
 		return notes.after(first)
 	}
-	r.State, r.StatePath, r.Refresh, r.AccessDir = s.State, s.StatePath, s.Refresh, s.AccessDir
+	r.State, r.StatePath, r.Refresh, r.AccessDir, r.StateErr = s.State, s.StatePath, s.Refresh, s.AccessDir, s.StateErr
 	return nil
 }
 

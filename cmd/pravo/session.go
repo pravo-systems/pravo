@@ -57,6 +57,9 @@ type sessionOptions struct {
 	// regenerates is set by the commands that write the generated provider
 	// packages in this run, which therefore do not warn that they are old.
 	regenerates bool
+	// lazyState loads the configuration without requiring $settings.state to be readable: for
+	// a command that never opens the state.
+	lazyState bool
 	// root, when set, is used instead of loading the configuration.
 	root *config.Root
 	// relockModules accepts changed module content (pravo init).
@@ -69,9 +72,13 @@ type sessionOptions struct {
 // loadRoot loads and evaluates the specification in the working directory. An
 // error from loading or evaluating it exits with ExitInvalid, in every
 // command.
-func loadRoot(rt *runContext) (*config.Root, error) {
+func loadRoot(rt *runContext) (*config.Root, error) { return loadRootWith(rt, false) }
+
+// loadRootWith is loadRoot; lazyState is for a command that never opens the state (see
+// config.LoadOptions.LazyState).
+func loadRootWith(rt *runContext, lazyState bool) (*config.Root, error) {
 	ctx, end := setupSpan("load specification")
-	root, err := config.Load(".", config.LoadOptions{Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Context: ctx, Env: environment()})
+	root, err := config.Load(".", config.LoadOptions{Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Context: ctx, Env: environment(), LazyState: lazyState})
 	end(err)
 	if err != nil {
 		return nil, engine.WithCode(engine.ExitInvalid, err)
@@ -101,7 +108,7 @@ func newSession(ctx context.Context, rt *runContext, opts sessionOptions) (*sess
 			}
 		},
 		Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Env: environment(), Root: opts.root,
-		Install: opts.install, Upgrade: opts.upgrade, Schemas: opts.schemas, State: mode, RelockModules: opts.relockModules,
+		LazyState: opts.lazyState, Install: opts.install, Upgrade: opts.upgrade, Schemas: opts.schemas, State: mode, RelockModules: opts.relockModules,
 		Actor: rt.flags.Actor, Reason: rt.flags.Reason, Args: os.Args[1:],
 		OpenState: func(ctx context.Context, root *config.Root, mode pravo.StateMode) (*state.Store, error) {
 			if mode == pravo.StateRead {

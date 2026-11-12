@@ -139,6 +139,9 @@ type Root struct {
 	StatePath string
 	// State holds the remote state settings when $settings.state.backend is set.
 	State StateConfig
+	// StateErr is why $settings.state could not be read, when the root was loaded with
+	// LazyState. State and StatePath hold their defaults then. Nil otherwise.
+	StateErr error
 	// AccessDir is $settings.access.dir: the directory of the readers file of this
 	// root's state, as written (relative to Dir unless absolute). Empty when unset.
 	AccessDir string
@@ -274,6 +277,12 @@ type LoadOptions struct {
 	// declaredOnly reads $environments without selecting one of them, for a command that
 	// looks at them all.
 	declaredOnly bool
+
+	// LazyState keeps an error in $settings.state in Root.StateErr instead of failing the
+	// load, for a command that never opens the state: init, gen and the providers
+	// commands need no state location, so a bucket that comes from a tag need not be given.
+	// A caller that opens the state checks StateErr first (Root.RequireState).
+	LazyState bool
 }
 
 // stage starts the span of a stage of loading.
@@ -417,7 +426,7 @@ func (r *Root) extract(opts LoadOptions) error {
 	v := r.Value
 	settings := v.LookupPath(cue.MakePath(cue.Str("$settings")))
 	if settings.Exists() {
-		if err := r.extractSettings(settings); err != nil {
+		if err := r.extractSettings(settings, opts.LazyState); err != nil {
 			if err = r.settingsWithEnv(err, opts); err != nil {
 				return err
 			}
@@ -523,7 +532,7 @@ func validateProtocol(local string, pr *ProviderReq) error {
 	return nil
 }
 
-func (r *Root) extractSettings(v cue.Value) error {
+func (r *Root) extractSettings(v cue.Value, lazyState bool) error {
 	if fs, err := v.Fields(); err == nil {
 		for fs.Next() {
 			switch name := fs.Selector().Unquoted(); name {
@@ -535,12 +544,16 @@ func (r *Root) extractSettings(v cue.Value) error {
 	}
 	if sb := v.LookupPath(cue.ParsePath("state")); sb.Exists() {
 		st, path, err := parseState(sb, "$settings.state")
-		if err != nil {
+		switch {
+		case err != nil && lazyState:
+			r.StateErr = err
+		case err != nil:
 			return err
-		}
-		r.State = st
-		if path != "" {
-			r.StatePath = path
+		default:
+			r.State = st
+			if path != "" {
+				r.StatePath = path
+			}
 		}
 	}
 	if ab := v.LookupPath(cue.ParsePath("access")); ab.Exists() {
@@ -600,7 +613,7 @@ func loadSettings(dir string, opts LoadOptions, scan bool) (root *Root, notes en
 	r := &Root{Dir: src.abs, PkgName: src.pkg, Ctx: ctx, Value: v, Providers: map[string]*ProviderReq{}, StatePath: DefaultStatePath, ModRoot: FindModuleRoot(src.abs),
 		Environments: src.envs, Environment: src.env}
 	if settings := v.LookupPath(cue.MakePath(cue.Str("$settings"))); settings.Exists() {
-		if err := r.extractSettings(settings); err != nil {
+		if err := r.extractSettings(settings, opts.LazyState); err != nil {
 			if src.env != "" {
 				err = fmt.Errorf("%w\n(in the settings of the environment %s)", err, src.env)
 			}
@@ -1015,6 +1028,10 @@ func parseAccess(ab cue.Value) (string, error) {
 	}
 	return s, nil
 }
+
+// RequireState is the error to return before the state of the root is opened: why the
+// state settings could not be read, when the root was loaded with LazyState.
+func (r *Root) RequireState() error { return r.StateErr }
 
 // notSetError is the error for a setting that has no value. err is what reading it gave
 // and is never nil here. When the value comes from an @tag, the message names the tag and
