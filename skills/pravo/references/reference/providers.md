@@ -27,7 +27,7 @@ List the providers a root resolves, print a provider's schema, pin archive hashe
 | Flag | Subcommand | Default | Meaning |
 |---|---|---|---|
 | `--platforms os_arch,...` | `lock`, `copy` | `linux_amd64,linux_arm64,darwin_arm64,darwin_amd64` | The platforms to pin or to publish. |
-| `-t`, `--tag key=value`, `-T`, `--env` | none, `schema`, `lock` | none | Tags and the environment, as for [`pravo plan`](plan.md). `copy` reads no specification and takes none. |
+| `-t`, `--tag key=value`, `-T`, `--env` | all but `copy` | none | Tags and the environment, as for [`pravo plan`](plan.md). `copy` reads no specification and takes none. |
 
 The [global flags](global-flags.md) apply. `schema` and `lock` do not open the state, so a tag that only `$settings.state` reads needs no value for them, as for [`init`](init.md). The list reads the state to find providers that only the state requires, and asks for it. With `--json`, the list is an array of objects.
 
