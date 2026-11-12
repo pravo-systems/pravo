@@ -1057,7 +1057,7 @@ func providersCmd(rt *runContext) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.AddCommand(providersSchemaCmd(rt), providersLockCmd(rt), providersCopyCmd(rt))
+	cmd.AddCommand(providersSchemaCmd(rt), providersLockCmd(rt), providersCopyCmd(rt), providersMirrorCmd(rt))
 	addTagFlags(rt, cmd)
 	return cmd
 }
@@ -1108,7 +1108,8 @@ Platforms default to linux and darwin on amd64 and arm64.`,
 			if err != nil {
 				return err
 			}
-			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, lazyState: true})
+			// The hashes are what the sources state, whatever mirror is set.
+			s, err := newSession(cmd.Context(), rt, sessionOptions{install: true, lazyState: true, direct: true})
 			if err != nil {
 				return err
 			}
@@ -1184,6 +1185,98 @@ Platforms default to linux and darwin on amd64 and arm64.`,
 	}
 	cp.Flags().StringVar(&plats, "platforms", "", "comma-separated os_arch list (default linux_amd64,linux_arm64,darwin_arm64,darwin_amd64)")
 	return cp
+}
+
+// providersMirrorCmd is "pravo providers mirror".
+func providersMirrorCmd(rt *runContext) *cobra.Command {
+	return &cobra.Command{
+		Use:   "mirror <oci://host/path>",
+		Short: "Publish every locked provider to a container registry that can serve as a mirror",
+		Long: `Copy each provider that pravo.lock.cue locks, for each platform the lock pins, into
+repositories of a container registry laid out as a provider mirror reads them:
+<prefix>/<namespace>/<type>, tagged with the locked version. Each archive is read
+from the provider's source and checked against the checksum the source gives and
+against the hash the lock pins, and nothing is published when they differ. A
+version that is published already is checked against the lock and left as it is,
+so the command can run again.
+
+  pravo providers mirror oci://123456789012.dkr.ecr.us-east-2.amazonaws.com/pravo-providers
+
+A run then reads the providers from there with PRAVO_PROVIDER_MIRROR set to the same
+prefix, or --provider-mirror. The repositories must exist where the registry
+does not create them on a push (Amazon ECR does not).`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			prefix, err := registry.ParseMirrorPrefix(args[0])
+			if err != nil {
+				return fmt.Errorf("%s: %w", args[0], err)
+			}
+			lock, err := engine.ReadLock(".")
+			if err != nil {
+				return err
+			}
+			keys := make([]string, 0, len(lock.Providers))
+			for k := range lock.Providers {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			c := registry.NewClient(environment()).Direct()
+			var published, kept int
+			for _, k := range keys {
+				src, err := registry.ParseSource(k)
+				if err != nil {
+					return err
+				}
+				if src.OCI {
+					continue // already in a container registry
+				}
+				e := lock.Providers[k]
+				pins, err := lockedArchives(src, e)
+				if err != nil {
+					return err
+				}
+				pub, err := c.MirrorVersion(cmd.Context(), src, prefix.Under(src), e.Version, pins, func(m string) { rt.out.Println(m) })
+				if err != nil {
+					return err
+				}
+				if pub {
+					published++
+					rt.out.Printf("Published %s v%s to %s\n", src.Display(), e.Version, prefix.Under(src).Display())
+				} else {
+					kept++
+					rt.out.Printf("%s v%s is in %s already\n", src.Display(), e.Version, prefix.Under(src).Display())
+				}
+			}
+			if len(keys) == 0 {
+				return fmt.Errorf("%s locks no provider; run \"pravo init\" first", engine.LockFileName)
+			}
+			rt.out.Printf("\nPublished %d, already there %d. Read from it with PRAVO_PROVIDER_MIRROR=%s\n", published, kept, registry.OCIPrefix+prefix.Host+"/"+prefix.Namespace)
+			return nil
+		},
+	}
+}
+
+// lockedArchives is the sha256 of the archive of each platform that the lock entry pins.
+func lockedArchives(src registry.Source, e *engine.LockEntry) (map[registry.Platform]string, error) {
+	pins := map[registry.Platform]string{}
+	for k, h := range e.Hashes {
+		if k == engine.SignerKey || strings.HasPrefix(k, "binary:") {
+			continue
+		}
+		list, err := parsePlatforms(k)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", engine.LockFileName, err)
+		}
+		sum, ok := strings.CutPrefix(h, "sha256:")
+		if !ok {
+			return nil, fmt.Errorf("%s pins %s for %s %s, which is not a sha256:HEX hash", engine.LockFileName, h, src.Display(), k)
+		}
+		pins[list[0]] = sum
+	}
+	if len(pins) == 0 {
+		return nil, fmt.Errorf("%s pins no archive hash for %s v%s; run \"pravo providers lock\" first", engine.LockFileName, src.Display(), e.Version)
+	}
+	return pins, nil
 }
 
 func validateCmd(rt *runContext) *cobra.Command {

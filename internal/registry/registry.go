@@ -161,6 +161,10 @@ type Client struct {
 	// Env is the environment the client reads TF_PLUGIN_CACHE_DIR and the home of the
 	// user from, to find providers that OpenTofu installed. Empty unless set.
 	Env env.Env
+	// Mirror, when set, says where the archives of providers are downloaded from, in place
+	// of their sources (see Mirror). NewClient sets it from PRAVO_PROVIDER_MIRROR.
+	Mirror    *Mirror
+	mirrorErr error
 
 	mu        sync.Mutex
 	discovery map[string]string
@@ -168,7 +172,14 @@ type Client struct {
 
 // NewClient returns a client using the default home directory of e.
 func NewClient(e env.Env) *Client {
-	return &Client{HTTP: newHTTPClient(), Home: Home(e), Env: e}
+	c := &Client{HTTP: newHTTPClient(), Home: Home(e), Env: e}
+	// A setting that does not parse is reported by the first use of the client, not by
+	// reading what is installed.
+	c.Mirror, c.mirrorErr = ParseMirror(e.Get(MirrorVar))
+	if c.mirrorErr != nil {
+		c.mirrorErr = fmt.Errorf("%s: %w", MirrorVar, c.mirrorErr)
+	}
+	return c
 }
 
 // newHTTPClient is the client for registries. It retries what may pass, gives up
@@ -480,6 +491,12 @@ func (c *Client) Versions(ctx context.Context, src Source) ([]VersionInfo, error
 // Resolve picks the newest version satisfying constraint (empty = any) that is
 // available for the current platform and speaks protocol 5 or 6.
 func (c *Client) Resolve(ctx context.Context, src Source, constraint string) (string, error) {
+	if c.mirrorErr != nil {
+		return "", c.mirrorErr
+	}
+	if m, ok := c.MirrorOf(src); ok {
+		return c.resolveOCI(ctx, m, constraint)
+	}
 	if src.OCI {
 		return c.resolveOCI(ctx, src, constraint)
 	}
@@ -742,6 +759,12 @@ func (c *Client) Install(ctx context.Context, src Source, ver string, progress f
 // Checksum returns the sha256 of the archive of one provider version for plat,
 // as the source states it, without downloading the archive.
 func (c *Client) Checksum(ctx context.Context, src Source, ver string, plat Platform) (string, error) {
+	if c.mirrorErr != nil {
+		return "", c.mirrorErr
+	}
+	if m, ok := c.MirrorOf(src); ok {
+		return c.checksumOCI(ctx, m, ver, plat)
+	}
 	if src.OCI {
 		return c.checksumOCI(ctx, src, ver, plat)
 	}
@@ -759,6 +782,15 @@ func (c *Client) Checksum(ctx context.Context, src Source, ver string, plat Plat
 // signature that does not verify is an error, and so is a missing one when
 // PRAVO_REQUIRE_SIGNED is set; the checksum is not returned then.
 func (c *Client) ChecksumSigned(ctx context.Context, src Source, ver string, plat Platform) (sum, signer string, err error) {
+	if c.mirrorErr != nil {
+		return "", "", c.mirrorErr
+	}
+	if m, ok := c.MirrorOf(src); ok {
+		// What the mirror states is not a source of truth: the lock file is. The caller
+		// compares the archive with the lock file; there is no signature to check here.
+		sum, err = c.checksumOCI(ctx, m, ver, plat)
+		return sum, "", err
+	}
 	if src.OCI {
 		sum, err = c.checksumOCI(ctx, src, ver, plat)
 		if err != nil {
@@ -842,6 +874,18 @@ func (c *Client) Archive(ctx context.Context, src Source, ver string, plat Platf
 // archive is Archive that also returns the fingerprint of the key that signed
 // the checksum list, or "" when the registry did not sign it.
 func (c *Client) archive(ctx context.Context, src Source, ver string, plat Platform, dir string, progress func(string)) (path, sum, signer string, err error) {
+	if c.mirrorErr != nil {
+		return "", "", "", c.mirrorErr
+	}
+	if m, ok := c.MirrorOf(src); ok {
+		// The archive is checked against the lock file by the caller, which refuses one that
+		// differs; a container registry has no signed checksum list of its own.
+		path, sum, err = c.archiveOCI(ctx, m, ver, plat, dir, progress)
+		if err != nil {
+			return "", "", "", err
+		}
+		return path, sum, "", nil
+	}
 	if src.OCI {
 		path, sum, err = c.archiveOCI(ctx, src, ver, plat, dir, progress)
 		if err != nil {

@@ -9,6 +9,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/env"
 	"github.com/pravo-systems/pravo/internal/filelock"
 	"github.com/pravo-systems/pravo/internal/protect"
+	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
@@ -34,6 +35,9 @@ func setEnvironment(e env.Env) {
 	runSet = map[string]string{}
 	if v := e.Get("PRAVO_LOG"); v != env.OS().Get("PRAVO_LOG") {
 		runSet["PRAVO_LOG"] = v
+	}
+	if v := e.Get(registry.MirrorVar); v != env.OS().Get(registry.MirrorVar) {
+		runSet[registry.MirrorVar] = v
 	}
 }
 

@@ -31,6 +31,7 @@ These flags belong to the command `pravo` and every subcommand accepts them.
 | `--json` | off | Machine-readable output on stdout, progress on stderr. See [JSON](#json). |
 | `--actor LABEL` | `$PRAVO_ACTOR` | A label for who is acting. Recorded on transactions, locks, reservations and plans, and it is the author that `pravo plan list` shows for a stored plan. It is not verified. In a sealed state the actor is the name of the identity that signs, and the flag is ignored with a warning. |
 | `--reason TEXT` | `$PRAVO_REASON` | Why. Recorded with the actor. On a plan, it is the note that the viewer and `pravo plan show` give. An apply of a saved or stored plan records the reason of the plan, unless it is given its own. |
+| `--provider-mirror oci://HOST/PATH` | `$PRAVO_PROVIDER_MIRROR` | Downloads the archives of providers from a container registry, in place of their sources. Repeatable; the flag takes the place of the variable. See [Install providers from a mirror](../how-to/provider-mirror.md). |
 | `--identity NAME` | `$PRAVO_IDENTITY` | The identity file to read a sealed state with, from the identity directory. It wins over `$PRAVO_IDENTITY`, and it matters only for a state that is sealed. See [`pravo id and pravo protect`](protect.md#the-identity). |
 | `-h`, `--help` | | Print the help of the command. |
 
@@ -247,6 +248,7 @@ Copying a recording, or keeping it in version control, does not keep the modes. 
 
 | Variable | Meaning |
 |---|---|
+| `PRAVO_PROVIDER_MIRROR` | Where provider archives are downloaded from: `oci://HOST/PATH`, and exceptions `SOURCE=oci://HOST/PATH/TYPE`, separated by commas. `--provider-mirror` takes its place. See [Install providers from a mirror](../how-to/provider-mirror.md). |
 | `PRAVO_HOME` | Where providers and cached schemas are kept. Default `~/.pravo`. |
 | `PRAVO_LOG` | `trace`, `debug`, `info`, `warn` or `error`. See [The debug log](#the-debug-log). |
 | `PRAVO_PARALLELISM` | How many resources a command plans, applies or reads at once, from 1 to 256. Default 10. A value outside that range is an error. |

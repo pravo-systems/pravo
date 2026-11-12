@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -256,6 +257,15 @@ func (c *Client) checksumOCI(ctx context.Context, src Source, ver string, plat P
 // provider registry or another container registry. It refuses to replace a
 // version that is already published.
 func (c *Client) Copy(ctx context.Context, src, dst Source, ver string, plats []Platform, progress func(string)) error {
+	return c.copyVersion(ctx, src, dst, ver, plats, nil, progress)
+}
+
+// copyVersion is Copy. With pins (the sha256 of the archive of each platform, as the lock
+// file holds them, without the "sha256:"), a platform that the source does not have and an
+// archive that is not the pinned one are errors, and nothing is published.
+func (c *Client) copyVersion(ctx context.Context, src, dst Source, ver string, plats []Platform, pins map[Platform]string, progress func(string)) error {
+	// The source is read as it is named: a mirror is what this fills.
+	c = c.Direct()
 	if !dst.OCI {
 		return fmt.Errorf("the destination %s is not an oci:// address", dst.String())
 	}
@@ -291,6 +301,13 @@ func (c *Client) Copy(ctx context.Context, src, dst Source, ver string, plats []
 	if len(have) == 0 {
 		return fmt.Errorf("%s %s has none of the requested platforms", src.Display(), ver)
 	}
+	if pins != nil {
+		for _, p := range plats {
+			if !slices.Contains(have, p) {
+				return fmt.Errorf("%s %s has no build for %s, which the lock file pins", src.Display(), ver, p)
+			}
+		}
+	}
 	tmp, err := os.MkdirTemp("", "pravo-copy-")
 	if err != nil {
 		return err
@@ -305,6 +322,10 @@ func (c *Client) Copy(ctx context.Context, src, dst Source, ver string, plats []
 		path, sum, err := c.Archive(ctx, src, ver, p, tmp, nil)
 		if err != nil {
 			return err
+		}
+		if want, ok := pins[p]; ok && want != sum {
+			os.Remove(path)
+			return fmt.Errorf("%s %s for %s: the source gives the archive %s, but the lock file pins %s; a published version must not change", src.Display(), ver, p, sum, want)
 		}
 		built = append(built, archive{plat: p, path: path, sum: sum})
 	}
@@ -353,4 +374,40 @@ func pushVersion(ctx context.Context, cl ociregistry.Interface, dst Source, ver 
 		return fmt.Errorf("pushing to %s: %w", dst.Display(), err)
 	}
 	return nil
+}
+
+// MirrorVersion makes sure that the mirror repository dst holds version ver of the provider
+// src for each platform of pins, which are the sha256 of the archives that the lock file
+// pins. A version that is published already is checked against them and left as it is; one
+// that is not is copied from src, and an archive that is not the pinned one is refused before
+// anything is published. It reports whether it published.
+func (c *Client) MirrorVersion(ctx context.Context, src, dst Source, ver string, pins map[Platform]string, progress func(string)) (published bool, err error) {
+	if !dst.OCI {
+		return false, fmt.Errorf("the destination %s is not an oci:// address", dst.String())
+	}
+	plats := make([]Platform, 0, len(pins))
+	for p := range pins {
+		plats = append(plats, p)
+	}
+	sort.Slice(plats, func(i, j int) bool { return plats[i].String() < plats[j].String() })
+	cl, err := ociClient(dst.Host)
+	if err != nil {
+		return false, err
+	}
+	if _, err := cl.ResolveTag(ctx, dst.repo(), ver); err == nil {
+		d := c.Direct()
+		for _, p := range plats {
+			got, err := d.checksumOCI(ctx, dst, ver, p)
+			if err != nil {
+				return false, fmt.Errorf("%s already has version %s, but not the archive for %s that the lock file pins: %w", dst.Display(), ver, p, err)
+			}
+			if got != pins[p] {
+				return false, fmt.Errorf("%s already has version %s, and its archive for %s is %s, but the lock file pins %s; a published version must not change", dst.Display(), ver, p, got, pins[p])
+			}
+		}
+		return false, nil
+	} else if !errors.Is(err, ociregistry.ErrManifestUnknown) && !errors.Is(err, ociregistry.ErrNameUnknown) {
+		return false, err
+	}
+	return true, c.copyVersion(ctx, src, dst, ver, plats, pins, progress)
 }

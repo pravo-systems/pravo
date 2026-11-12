@@ -7,7 +7,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"maps"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -49,6 +51,18 @@ func ociRegistry(t *testing.T) string {
 // the archive of each.
 func pushFakeProvider(t *testing.T, host, repo, typ, ver string, platforms ...string) map[string]string {
 	t.Helper()
+	archives := map[string][]byte{}
+	for _, p := range platforms {
+		// Each platform gets its own bytes, so that its hash differs.
+		archives[p] = append(fakeProviderZip(t, typ, ver), []byte(p)...)
+	}
+	return pushProviderArchives(t, host, repo, ver, archives)
+}
+
+// pushProviderArchives publishes the given archives, by os_arch, as repo:ver, and returns the
+// sha256 of each as "sha256:HEX".
+func pushProviderArchives(t *testing.T, host, repo, ver string, archives map[string][]byte) map[string]string {
+	t.Helper()
 	ctx := context.Background()
 	cl, err := ociclient.New(host, &ociclient.Options{Insecure: true})
 	if err != nil {
@@ -61,9 +75,8 @@ func pushFakeProvider(t *testing.T, host, repo, typ, ver string, platforms ...st
 	idx := ocispec.Index{MediaType: ocispec.MediaTypeImageIndex, ArtifactType: "application/vnd.pravo.provider.v1"}
 	idx.SchemaVersion = 2
 	sums := map[string]string{}
-	for _, p := range platforms {
-		// Each platform gets its own bytes, so that its hash differs.
-		data := append(fakeProviderZip(t, typ, ver), []byte(p)...)
+	for _, p := range slices.Sorted(maps.Keys(archives)) {
+		data := archives[p]
 		sum := sha256.Sum256(data)
 		layer := ocispec.Descriptor{MediaType: "application/vnd.pravo.provider.layer.v1.zip", Digest: digest.NewDigestFromEncoded(digest.SHA256, hex.EncodeToString(sum[:])), Size: int64(len(data))}
 		if _, err := cl.PushBlob(ctx, repo, layer, bytes.NewReader(data)); err != nil {

@@ -60,6 +60,9 @@ type sessionOptions struct {
 	// lazyState loads the configuration without requiring $settings.state to be readable: for
 	// a command that never opens the state.
 	lazyState bool
+	// direct reads providers from their sources, whatever mirror is set: for a command that
+	// records what a source states.
+	direct bool
 	// root, when set, is used instead of loading the configuration.
 	root *config.Root
 	// relockModules accepts changed module content (pravo init).
@@ -100,6 +103,10 @@ func newSession(ctx context.Context, rt *runContext, opts sessionOptions) (*sess
 	case opts.loadState:
 		mode = pravo.StateWrite
 	}
+	runEnv := environment()
+	if opts.direct {
+		runEnv = runEnv.Without(registry.MirrorVar)
+	}
 	var s *session
 	ws, err := pravo.Open(ctx, pravo.Config{
 		EngineDefaults: func(o *engine.Options) {
@@ -107,7 +114,7 @@ func newSession(ctx context.Context, rt *runContext, opts sessionOptions) (*sess
 				s.readersInto(rt, o)
 			}
 		},
-		Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Env: environment(), Root: opts.root,
+		Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Env: runEnv, Root: opts.root,
 		LazyState: opts.lazyState, Install: opts.install, Upgrade: opts.upgrade, Schemas: opts.schemas, State: mode, RelockModules: opts.relockModules,
 		Actor: rt.flags.Actor, Reason: rt.flags.Reason, Args: os.Args[1:],
 		OpenState: func(ctx context.Context, root *config.Root, mode pravo.StateMode) (*state.Store, error) {
