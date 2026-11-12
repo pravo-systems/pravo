@@ -11,12 +11,11 @@ import (
 	"strings"
 	"testing"
 
+	"cuelabs.dev/go/oci/ociregistry/ociclient"
 	"cuelabs.dev/go/oci/ociregistry/ocimem"
 	"cuelabs.dev/go/oci/ociregistry/ociserver"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-
-	"cuelabs.dev/go/oci/ociregistry/ociclient"
 )
 
 // fakeProviderZip is a provider archive that holds a program of the name pravo looks for.
