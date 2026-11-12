@@ -254,11 +254,12 @@ Flags:
   -t, --tag stringArray        inject a value for an @tag() field: -t key=value
 
 Global Flags:
-      --actor string      a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)
-  -C, --chdir string      run as if started in this directory
-      --identity string   name of the identity to read a sealed state with; overrides $PRAVO_IDENTITY
-      --json              machine-readable output on stdout (progress goes to stderr)
-      --no-color          disable coloured output
-      --reason string     why; recorded on transactions and plans ($PRAVO_REASON)
-  -v, --verbose count     log what pravo decides and does to stderr; -vv adds finer detail and the providers' own log ($PRAVO_LOG=debug|trace)
+      --actor string                  a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)
+  -C, --chdir string                  run as if started in this directory
+      --identity string               name of the identity to read a sealed state with; overrides $PRAVO_IDENTITY
+      --json                          machine-readable output on stdout (progress goes to stderr)
+      --no-color                      disable coloured output
+      --provider-mirror stringArray   download provider archives from a container registry: oci://host/path reads namespace/type from host/path/namespace/type, and SOURCE=oci://host/path/type gives one source its repository; repeatable ($PRAVO_PROVIDER_MIRROR, comma-separated)
+      --reason string                 why; recorded on transactions and plans ($PRAVO_REASON)
+  -v, --verbose count                 log what pravo decides and does to stderr; -vv adds finer detail and the providers' own log ($PRAVO_LOG=debug|trace)
 ```
