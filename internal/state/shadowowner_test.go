@@ -62,7 +62,7 @@ func TestShadowOwnerIsTheNewestTransaction(t *testing.T) {
 func TestTransactionsStartInOrder(t *testing.T) {
 	s := sealedStore(t, testBackends()[0].make(t), testIdentity(t, "admin"))
 	var last time.Time
-	for i := 0; i < 5000; i++ {
+	for i := range 5000 {
 		at := s.Begin("test", "t").t.Started
 		if !at.After(last) {
 			t.Fatalf("transaction %d started at %v, not after %v", i, at, last)
