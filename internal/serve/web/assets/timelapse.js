@@ -221,7 +221,7 @@ export class TimeLapseView {
     e.next = h('button', { type: 'button', class: 'btn tl-btn', 'aria-label': 'Next run', on: { click: () => { this.stop(); this.go(this.step + 1); } } }, icon('arrow'));
     const act = activity(m);
     const top = Math.max(1, ...act);
-    e.bars = act.map((n, i) => h('i', { class: 'tl-bar', style: `height: ${Math.round(3 + (BAR_MAX - 3) * Math.sqrt(n / top))}px`, 'aria-hidden': 'true', data: { i: String(i + 1) } }));
+    e.bars = act.map((n, i) => h('i', { class: 'tl-bar', style: `height: ${Math.round(3 + (BAR_MAX - 3) * Math.sqrt(n / top))}px`, 'aria-hidden': 'true', title: `Run ${i + 1}: ${plural(n, 'resource')} written`, data: { i: String(i + 1) } }));
     e.ticks = m.steps.map(() => h('i', { class: 'tl-tick', 'aria-hidden': 'true' }));
     e.tickrow = h('div', { class: 'tl-ticks', 'aria-hidden': 'true' }, e.ticks);
     e.strip = h('div', { class: 'tl-strip', role: 'slider', tabIndex: 0, 'aria-label': 'Run', 'aria-valuemin': '0', 'aria-valuemax': String(m.steps.length) }, e.bars);
@@ -236,9 +236,14 @@ export class TimeLapseView {
       e.stage,
       e.legend,
       e.rel,
-      h('div', { class: 'tl-ctl' },
-        h('div', { class: 'tl-btns' }, e.back, e.play, e.next),
-        h('div', { class: 'tl-time' }, e.strip, e.tickrow, h('div', { class: 'tl-ends' }, h('span', null, stamp(first.time)), h('span', null, stamp(last.time))))),
+      h('div', { class: 'tl-deck' },
+        h('div', { class: 'tl-deck-h' },
+          h('span', { class: 'tl-deck-t' }, 'Runs'),
+          h('span', { class: 'tl-deck-d' }, `${stamp(first.time)} to ${stamp(last.time)}`)),
+        h('div', { class: 'tl-deck-b' }, e.strip, e.tickrow),
+        h('div', { class: 'tl-deck-f' },
+          h('div', { class: 'tl-btns' }, e.back, e.play, e.next),
+          h('p', { class: 'tl-deck-k' }, 'One bar for each run, as tall as the resources it wrote. Green bars have happened, the bright one is on screen. Click or drag to pick a run.'))),
       older,
       e.changes,
       e.runs);
