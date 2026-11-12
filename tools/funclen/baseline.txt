@@ -18,7 +18,7 @@ internal/engine/graph.go Engine.run 106
 internal/engine/orphans.go inReverse 120
 internal/engine/plangc.go PlanStore.GC 105
 internal/engine/policyfile.go Trier.TryFile 121
-internal/engine/providers.go Providers.Resolve 129
+internal/engine/providers.go Providers.Resolve 123
 internal/schema/cue.go GenerateCUE 147
 internal/serve/detail.go model.detailFor 103
 internal/serve/model.go Server.newModel 147

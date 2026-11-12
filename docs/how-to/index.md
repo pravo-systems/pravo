@@ -24,6 +24,7 @@ How one specification covers several environments, shares code, and gets its pro
 | Publish code for other repositories | [Publish a CUE module](publishing-a-module.md) | [Reuse](../reference/spec-reuse.md) |
 | Use code that someone published, and take an upgrade when you choose to | [Use a published CUE module](using-a-module.md) | [Reuse](../reference/spec-reuse.md) |
 | Install providers from a registry of my own | [Install providers from your own registry](providers-from-a-registry.md) | [Providers](../concepts/providers.md) |
+| Install providers where the OpenTofu registry cannot be reached | [Install providers from a mirror](provider-mirror.md) | [Providers](../concepts/providers.md) |
 
 ## Share and protect
 

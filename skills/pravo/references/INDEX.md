@@ -22,7 +22,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/import.md](reference/import.md) | Bring an existing object under management from the command line, by the address of a declared resource and the provider's import id. | 5 KB |
 | [reference/discover.md](reference/discover.md) | Run the discoveries of the specification, show what they found against the state, show the objects that are meant to stay unmanaged apart and write the resource that adopts one. | 7 KB |
 | [reference/why-and-drift.md](reference/why-and-drift.md) | Explain why a plan creates, changes, replaces or skips a resource, and read the records that a plan does not read to report what changed outside pravo. | 20 KB |
-| [reference/providers.md](reference/providers.md) | List the providers a root resolves, print a provider's schema, pin archive hashes for more platforms and copy a provider to a container registry. | 6 KB |
+| [reference/providers.md](reference/providers.md) | List the providers a root resolves, print a provider's schema, pin archive hashes for more platforms and copy a provider to a container registry. | 8 KB |
 | [reference/validate-eval-fmt-gen.md](reference/validate-eval-fmt-gen.md) | Check a specification without planning it, print its evaluated value, format the CUE files and regenerate the provider packages. | 9 KB |
 | [reference/schema.md](reference/schema.md) | Print the CUE definition of a resource, data source, ephemeral resource or function type, with the provider's documentation. | 9 KB |
 | [reference/serve.md](reference/serve.md) | Start the viewer: a read-only page on the loopback interface that shows the specification, the state, the plans stored in it, the policies, the discoveries and the recorded runs. | 26 KB |
@@ -109,7 +109,7 @@ How pravo behaves: evaluation, plans, state, providers, policies.
 | [concepts/plans.md](concepts/plans.md) | What a plan contains, how pravo decides which resources a plan reaches, what an unknown value is, how refresh age works, and how a saved plan is checked when it is applied. | 55 KB |
 | [concepts/state.md](concepts/state.md) | What pravo records for each resource, how revisions, locks and transactions work, why the cost of a run follows the change, and where the state lives. | 29 KB |
 | [concepts/what-a-plan-reaches.md](concepts/what-a-plan-reaches.md) | Change one setting, replace a root key, add a zone or run two applies on one estate, and see which resources each plan reaches and which locks each apply holds. | 2 KB |
-| [concepts/providers.md](concepts/providers.md) | How pravo finds, installs, locks, starts and talks to a provider, how a provider becomes a CUE struct, and how an instance is named. | 25 KB |
+| [concepts/providers.md](concepts/providers.md) | How pravo finds, installs, locks, starts and talks to a provider, how a provider becomes a CUE struct, and how an instance is named. | 26 KB |
 | [concepts/stored-plans-and-approvals.md](concepts/stored-plans-and-approvals.md) | How a plan lives in the state: what pravo plan --store writes, how a listing judges a stored plan, how an apply claims it and records its progress, how it is collected, and how a policy makes a plan wait for the approval of other people. | 18 KB |
 | [concepts/policies.md](concepts/policies.md) | A constraint on a provider is checked when the specification evaluates. A policy, a pravo.#Policy node, judges a plan and is kept in the state. What each binds and what neither guarantees. | 20 KB |
 | [concepts/secrets-and-ephemeral-values.md](concepts/secrets-and-ephemeral-values.md) | Which values pravo records in state, saved plans and outputs, what an ephemeral value is, where it may go, and what hiding a value does and does not do. | 16 KB |
@@ -188,6 +188,7 @@ One task each, for a reader who knows the basics.
 | [how-to/publishing-a-module.md](how-to/publishing-a-module.md) | Put shared definitions in a CUE module of their own, try them from an example, and publish a version to a registry that other repositories fetch. | 9 KB |
 | [how-to/using-a-module.md](how-to/using-a-module.md) | Add a published CUE module to a root, lock it, read an upgrade before you take it and know what happens in CI and offline. | 9 KB |
 | [how-to/providers-from-a-registry.md](how-to/providers-from-a-registry.md) | Copy a provider into a container registry, install it from there and move a root that has resources to the copy without touching them. | 8 KB |
+| [how-to/provider-mirror.md](how-to/provider-mirror.md) | Fill a container registry with the providers a lock file pins, and read their archives from there while nothing else about the providers changes. | 8 KB |
 
 ## Learn
 

@@ -233,6 +233,12 @@ func (m *Providers) Resolve(ctx context.Context, lock *Lock, upgrade, install bo
 			if !install {
 				return fmt.Errorf("provider %s v%s is not installed; run \"pravo init\"", req.Source.Display(), ver)
 			}
+			mirror, mirrored := m.Registry.MirrorOf(req.Source)
+			if mirrored {
+				if err := m.checkMirrorPin(lock, req.Source, mirror, ver); err != nil {
+					return err
+				}
+			}
 			ictx, end := setup(ctx, "install provider "+local, attribute.String("pravo.provider.source", req.Source.Display()), attribute.String("pravo.provider.version", ver))
 			res, err := m.Registry.Install(ictx, req.Source, ver, m.Log)
 			end(err)
@@ -241,23 +247,11 @@ func (m *Providers) Resolve(ctx context.Context, lock *Lock, upgrade, install bo
 			}
 			rp.Path, rp.Hash = res.Path, res.Hash
 			rp.Signer, rp.recordSigner = res.Signer, res.Signer != ""
-			plat := registry.CurrentPlatform().String()
-			if e, ok := lock.Providers[req.Source.String()]; ok && e.Version == ver {
-				if want := e.Hashes[SignerKey]; want != "" && want != res.Signer {
-					_ = os.RemoveAll(filepath.Dir(res.Path))
-					got := res.Signer
-					if got == "" {
-						got = "no signature"
-					}
-					return fmt.Errorf("provider %s v%s: the checksum list was signed by %s, but %s pins the key %s. The registry changed its signing key or stopped signing. If that is expected, remove the %q line from the lock file and run \"pravo init\"", req.Source.Display(), ver, got, LockFileName, want, SignerKey)
-				}
-				if want, ok := e.Hashes[plat]; ok && want != res.Hash {
-					_ = os.RemoveAll(filepath.Dir(res.Path))
-					return fmt.Errorf("provider %s v%s: the downloaded archive for %s is %s, but %s pins %s; a published version must not change. If this is expected, remove the hash from the lock file and run \"pravo init\"", req.Source.Display(), ver, plat, res.Hash, LockFileName, want)
-				}
+			if err := checkInstalledArchive(lock, req.Source, ver, res, mirror, mirrored); err != nil {
+				return err
 			}
 		}
-		if rp.Hash == "" && install {
+		if rp.Hash == "" && install && !m.mirrored(req.Source) {
 			// Found in the provider store, so nothing was downloaded. Pin what
 			// the source states for this platform when the lock has no hash.
 			plat := registry.CurrentPlatform()
@@ -286,6 +280,57 @@ func (m *Providers) Resolve(ctx context.Context, lock *Lock, upgrade, install bo
 			return err
 		}
 		m.Resolved[local] = rp
+	}
+	return nil
+}
+
+// checkInstalledArchive compares what an install gave with what the lock file pins for the
+// version: the key that signed the checksum list, and the hash of the archive for this
+// platform. What differs is removed and refused. mirrored is whether the archive came from the
+// mirror repository, which has no signed checksum list.
+func checkInstalledArchive(lock *Lock, src registry.Source, ver string, res *registry.InstallResult, mirror registry.Source, mirrored bool) error {
+	e, ok := lock.Providers[src.String()]
+	if !ok || e.Version != ver {
+		return nil
+	}
+	plat := registry.CurrentPlatform().String()
+	if want := e.Hashes[SignerKey]; want != "" && want != res.Signer && !mirrored {
+		_ = os.RemoveAll(filepath.Dir(res.Path))
+		got := res.Signer
+		if got == "" {
+			got = "no signature"
+		}
+		return fmt.Errorf("provider %s v%s: the checksum list was signed by %s, but %s pins the key %s. The registry changed its signing key or stopped signing. If that is expected, remove the %q line from the lock file and run \"pravo init\"", src.Display(), ver, got, LockFileName, want, SignerKey)
+	}
+	want, ok := e.Hashes[plat]
+	if !ok || want == res.Hash {
+		return nil
+	}
+	_ = os.RemoveAll(filepath.Dir(res.Path))
+	if mirrored {
+		return fmt.Errorf("provider %s v%s: the archive for %s in the mirror %s is %s, but %s pins %s. The mirror holds other bytes than the source gave. Nothing was installed and the public registry was not asked; publish the pinned archive to the mirror with \"pravo providers mirror\"", src.Display(), ver, plat, mirror.Display(), res.Hash, LockFileName, want)
+	}
+	return fmt.Errorf("provider %s v%s: the downloaded archive for %s is %s, but %s pins %s; a published version must not change. If this is expected, remove the hash from the lock file and run \"pravo init\"", src.Display(), ver, plat, res.Hash, LockFileName, want)
+}
+
+// mirrored reports whether the archives of src are downloaded from a mirror.
+func (m *Providers) mirrored(src registry.Source) bool {
+	_, ok := m.Registry.MirrorOf(src)
+	return ok
+}
+
+// checkMirrorPin refuses to download from a mirror what the lock file does not pin. The mirror
+// holds copies, and the lock file is what says which bytes the provider is: an archive is
+// installed only when the lock file pins its hash for this platform, and the install is
+// refused when the hash differs.
+func (m *Providers) checkMirrorPin(lock *Lock, src, mirror registry.Source, ver string) error {
+	plat := registry.CurrentPlatform().String()
+	e, ok := lock.Providers[src.String()]
+	if !ok || e.Version != ver || e.Hashes[plat] == "" {
+		return fmt.Errorf("provider %s v%s is read from the mirror %s, and %s pins no hash for %s. A mirror is not trusted to say what a provider is: pin the hashes where the source can be reached, with \"pravo providers lock --platforms %s\", and commit %s", src.Display(), ver, mirror.Display(), LockFileName, plat, plat, LockFileName)
+	}
+	if m.Registry.RequireSigned() && e.Hashes[SignerKey] == "" {
+		return fmt.Errorf("provider %s v%s is read from the mirror %s and PRAVO_REQUIRE_SIGNED is set, but %s pins no signing key for it: it was locked from a source that does not sign", src.Display(), ver, mirror.Display(), LockFileName)
 	}
 	return nil
 }

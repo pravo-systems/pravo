@@ -27,6 +27,9 @@ type rootFlags struct {
 	// directory, for every command that opens a sealed state. It takes
 	// precedence over $PRAVO_IDENTITY.
 	Identity string
+	// ProviderMirror is the --provider-mirror flag, repeatable: it sets PRAVO_PROVIDER_MIRROR
+	// for the run, so that providers are downloaded from a mirror.
+	ProviderMirror []string
 	// AccessDir is the --access-dir flag of the commands that read the readers
 	// file.
 	AccessDir string

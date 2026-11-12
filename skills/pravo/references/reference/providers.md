@@ -12,6 +12,7 @@ List the providers a root resolves, print a provider's schema, pin archive hashe
 | | `pravo providers schema LOCAL_NAME [-t key=value] [-T]` |
 | | `pravo providers lock [--platforms os_arch,...] [-t key=value] [-T]` |
 | | `pravo providers copy SOURCE VERSION oci://HOST/PATH/TYPE [--platforms os_arch,...]` |
+| | `pravo providers mirror oci://HOST/PATH` |
 | Changes infrastructure | No. |
 | Taught in | [Upgrade pravo and providers](../how-to/upgrading.md) and [Install providers from your own registry](../how-to/providers-from-a-registry.md). [B1, Providers and resources](../learn/b01-providers-and-resources.md) teaches the declaration. |
 
@@ -21,6 +22,7 @@ List the providers a root resolves, print a provider's schema, pin archive hashe
 | `schema` | Prints the schema of one provider as CUE. | no |
 | `lock` | Records archive hashes of the locked providers for more platforms in `pravo.lock.cue`. | yes |
 | `copy` | Publishes one version of a provider to a container registry. | yes |
+| `mirror` | Publishes every locked provider, for every pinned platform, to a container registry laid out as a mirror. | yes |
 
 ### Flags
 
@@ -139,6 +141,14 @@ pravo providers copy hashicorp/random 3.6.3 oci://ghcr.io/acme/providers/random
 ```
 
 On success the command prints `Published`, the target and the version, and the import line to use. It needs credentials for the target registry, so this page does not run it. See [Providers from a registry](../how-to/providers-from-a-registry.md).
+
+### pravo providers mirror
+
+`mirror` fills a [provider mirror](../how-to/provider-mirror.md) from the lock file. For each provider that `pravo.lock.cue` locks, it publishes the locked version, for each platform that the lock file pins, to the repository `PATH/namespace/type` of the registry. It reads the archives from their sources, whatever mirror is set, checks them against the checksums that the source gives and against the hashes in the lock file, and publishes nothing when one differs. A version that is published already is compared with the lock file and left as it is. A provider that the lock file keys by an `oci://` address is not copied. Run `pravo providers lock` first, so that the lock file pins the platforms that will install from the mirror.
+
+A run reads the mirror with `PRAVO_PROVIDER_MIRROR=oci://HOST/PATH` or `--provider-mirror`. A mirror changes where an archive is downloaded from. The import path, the key in the lock file and the provider in the state records stay those of the source. The lock file must pin the hash of the archive for the platform, and an archive that differs is refused. A version that the mirror lacks is an error, and the source is not asked. `lock` reads the checksums from the sources and ignores the mirror. See [Install providers from a mirror](../how-to/provider-mirror.md).
+
+`copy` publishes one version into the same layout when the destination is `oci://HOST/PATH/namespace/type`.
 
 ## See also
 

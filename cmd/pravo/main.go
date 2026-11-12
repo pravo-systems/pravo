@@ -26,6 +26,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/plog"
 	"github.com/pravo-systems/pravo/internal/plugin"
 	"github.com/pravo-systems/pravo/internal/progress"
+	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/serve"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 	"github.com/pravo-systems/pravo/internal/ui"
@@ -324,6 +325,9 @@ func newRootCmd(rt *runContext) *cobra.Command {
 			if rt.flags.Verbose >= 2 && e.Get("PRAVO_LOG") == "" {
 				e = e.With("PRAVO_LOG", "debug") // the providers' own log, too
 			}
+			if len(rt.flags.ProviderMirror) > 0 {
+				e = e.With(registry.MirrorVar, strings.Join(rt.flags.ProviderMirror, ","))
+			}
 			setEnvironment(e)
 			applyProcessSettings(e)
 			if err := applyParallelism(e); err != nil {
@@ -372,6 +376,7 @@ func newRootCmd(rt *runContext) *cobra.Command {
 	pf.StringVar(&rt.flags.Actor, "actor", "", "a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)")
 	pf.StringVar(&rt.flags.Reason, "reason", "", "why; recorded on transactions and plans ($PRAVO_REASON)")
 	pf.StringVar(&rt.flags.Identity, "identity", "", identityUsage)
+	pf.StringArrayVar(&rt.flags.ProviderMirror, "provider-mirror", nil, providerMirrorUsage)
 	cmd.AddCommand(
 		initCmd(rt), planCmd(rt), applyCmd(rt), destroyCmd(rt), showCmd(rt), outputCmd(rt), stateCmd(rt), importCmd(rt), discoverCmd(rt),
 		providersCmd(rt), genCmd(rt), validateCmd(rt), evalCmd(rt), fmtCmd(), versionCmd(),
@@ -381,6 +386,9 @@ func newRootCmd(rt *runContext) *cobra.Command {
 	cmd.SetFlagErrorFunc(flagError)
 	return cmd
 }
+
+// providerMirrorUsage is the help of --provider-mirror.
+const providerMirrorUsage = "download provider archives from a container registry: oci://host/path reads namespace/type from host/path/namespace/type, and SOURCE=oci://host/path/type gives one source its repository; repeatable ($PRAVO_PROVIDER_MIRROR, comma-separated)"
 
 const (
 	tagUsage     = "inject a value for an @tag() field: -t key=value"
