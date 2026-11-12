@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -74,11 +75,11 @@ func ParseMirror(spec string) (*Mirror, error) {
 func ParseMirrorPrefix(s string) (Source, error) {
 	rest, ok := strings.CutPrefix(strings.TrimSpace(s), OCIPrefix)
 	if !ok {
-		return Source{}, fmt.Errorf("want oci://host/path, as in oci://123456789012.dkr.ecr.us-east-2.amazonaws.com/pravo-providers")
+		return Source{}, errors.New("want oci://host/path, as in oci://123456789012.dkr.ecr.us-east-2.amazonaws.com/pravo-providers")
 	}
 	parts := strings.Split(strings.TrimRight(rest, "/"), "/")
 	if len(parts) < 2 || slices.Contains(parts, "") {
-		return Source{}, fmt.Errorf("want oci://host/path, as in oci://123456789012.dkr.ecr.us-east-2.amazonaws.com/pravo-providers")
+		return Source{}, errors.New("want oci://host/path, as in oci://123456789012.dkr.ecr.us-east-2.amazonaws.com/pravo-providers")
 	}
 	return Source{Host: strings.ToLower(parts[0]), Namespace: strings.Join(parts[1:], "/"), OCI: true}, nil
 }
