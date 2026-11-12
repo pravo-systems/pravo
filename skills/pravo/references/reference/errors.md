@@ -533,6 +533,7 @@ terraform.tfstate
 | `$settings.refresh: "soon" is not a refresh age; want "always", "never" or a duration such as "30m", "6h" or "7d"` | The value is not a refresh age. | Use `"always"`, `"never"` or a number with `ms`, `s`, `m`, `h` or `d`. |
 | `$settings.state.path belongs to the local backend: remove it, or remove backend: "s3"` | Local and S3 keys are mixed. | Keep the keys of one backend. |
 | `$settings.state.path is not concrete:` | The state path depends on a tag that has no value. | Pass `-t env=...`, or give the field a default. |
+| `$settings.state.bucket is not set: it comes from @tag(state_bucket); pass -t state_bucket=...` | The bucket of the state comes from a tag that has no value. | Pass `-t state_bucket=...`, or give the tag a default. |
 | `the state path ./filestate/terraform.tfstate is a file; a state path is a directory` | `state.path` names a file, such as the state file of OpenTofu. | Set `state.path` to a directory, or remove it. Convert the file with `pravo state import-tfstate`. |
 
 Provider declarations have their own errors:

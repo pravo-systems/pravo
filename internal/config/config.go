@@ -1016,6 +1016,48 @@ func parseAccess(ab cue.Value) (string, error) {
 	return s, nil
 }
 
+// notSetError is the error for a setting that has no value. err is what reading it gave
+// and is never nil here. When the value comes from an @tag, the message names the tag and
+// how to pass it.
+func notSetError(label, name string, f cue.Value, err error) error {
+	if tag := tagOf(f); tag != "" {
+		return fmt.Errorf("%s.%s is not set: it comes from @tag(%s); pass -t %s=...", label, name, tag, tag)
+	}
+	if err == nil {
+		err = errors.New("no value")
+	}
+	return fmt.Errorf("%s.%s is not concrete: %w\n(if it depends on a tagged field such as env, pass -t env=...; if its value is a field of the same name, as in %s: %s, the name refers to the field itself; give the other field a different name)", label, name, err, name, name)
+}
+
+// tagOf is the name that the @tag attribute on a field, or on a field it refers to, gives, or "".
+func tagOf(v cue.Value) string {
+	return tagWithin(v, 8)
+}
+
+func tagWithin(v cue.Value, depth int) string {
+	if depth == 0 {
+		return ""
+	}
+	if a := v.Attribute("tag"); a.Err() == nil {
+		if s, err := a.String(0); err == nil {
+			if n, _, _ := strings.Cut(s, ","); n != "" {
+				return n
+			}
+		}
+	}
+	if root, path := v.ReferencePath(); len(path.Selectors()) > 0 {
+		return tagWithin(root.LookupPath(path), depth-1)
+	}
+	if op, args := v.Expr(); op == cue.AndOp {
+		for _, a := range args {
+			if n := tagWithin(a, depth-1); n != "" {
+				return n
+			}
+		}
+	}
+	return ""
+}
+
 // parseState reads a state location, as it appears in $settings.state and in
 // a pravo.#RemoteOutputs: the s3 settings, or a local directory path. label
 // names it in errors.
@@ -1037,18 +1079,16 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 		if !f.Exists() {
 			return "", nil
 		}
+		// A field that has a default (string | *"x") is not concrete, but it has a value:
+		// String reads the default, and fails only when there is none.
 		s, err := f.String()
 		if err != nil {
 			if !f.IsConcrete() {
-				return "", fmt.Errorf("%s.%s: %w\n(if its value is a field of the same name, as in %s: %s, the name refers to the field itself; give the other field a different name)", label, name, err, name, name)
+				return "", notSetError(label, name, f, err)
 			}
 			return "", fmt.Errorf("%s.%s: %w", label, name, err)
 		}
 		return s, nil
-	}
-	if bv := sb.LookupPath(cue.ParsePath("bucket")); bv.Exists() && !bv.IsConcrete() {
-		_, err := bv.String()
-		return st, "", fmt.Errorf("%s.bucket is not concrete: %w\n(if it depends on a tagged field such as env, pass -t env=...; if it is written as bucket: bucket, the name refers to the field itself)", label, err)
 	}
 	var err error
 	fields := map[string]*string{

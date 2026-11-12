@@ -7,7 +7,6 @@ cmd/pravo/environments_cmd.go diffEnvironments 112
 cmd/pravo/protect_rewrap.go protectRun.rewrap 112
 cmd/pravo/statecmd.go stateLogCmd 110
 cmd/pravo/unseal.go protectRun.unseal 108
-internal/config/config.go parseState 101
 internal/config/config.go readSettingsSource 156
 internal/config/discover.go Root.register 148
 internal/config/providers.go Root.resolveProviders 136

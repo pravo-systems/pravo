@@ -81,6 +81,30 @@ Error: $settings.state.path is not concrete: $settings.state.path: non-concrete 
 (if it depends on a tagged field such as env, pass -t env=...)
 ```
 
+A tag that gives a bucket works the same way. When no `-t` gives it, the error names the tag and how to pass it. A default on the tag, as in `string | *"dev-state" @tag(state_bucket)`, is the value when no `-t` is given.
+
+File `main.cue`:
+
+```cue
+package demo
+
+import "pravo.dev/pravo"
+
+_env: state_bucket: string @tag(state_bucket)
+
+$settings: pravo.#Settings & {state: pravo.#S3State & {backend: "s3", bucket: _env.state_bucket, prefix: "demo", region: "us-east-1"}}
+```
+
+```sh
+pravo validate
+```
+
+Output:
+
+```text
+Error: $settings.state.bucket is not set: it comes from @tag(state_bucket); pass -t state_bucket=...
+```
+
 The block can read an environment variable too. A [`pravo.#Env`](spec-env.md#env) is filled in before the block is read, with the variable when it is set and with its `default` when it is not, so one specification can keep its state where a variable says. The block reads the `name` and the `default` of a `pravo.#Env` as strings, which may interpolate the value of another `pravo.#Env`, as in `name: "BUCKET_\(stage.value)"`. A function of an imported package cannot be read there. A `pravo.#SecretEnv` is not read into the block. A variable that is not set and has no default leaves the setting not concrete, and the error names the variable.
 
 File `main.cue`:

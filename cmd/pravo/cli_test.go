@@ -39,7 +39,15 @@ func runPravo(t *testing.T, rt *runContext, dir string, args ...string) (string,
 	os.Stdout = stdout
 	text := string(<-done)
 	if err != nil {
-		return text + "Error: " + err.Error() + "\n", exitCodeOf(err)
+		text += "Error: " + err.Error() + "\n"
+	}
+	// A fmt verb that met a wrong operand prints as %!w(<nil>) or %!s(int=1). No command
+	// says that, so every test through here guards against it.
+	if i := strings.Index(text, "%!"); i >= 0 {
+		t.Errorf("pravo %s printed a broken format verb: %s", strings.Join(args, " "), text[i:min(len(text), i+80)])
+	}
+	if err != nil {
+		return text, exitCodeOf(err)
 	}
 	return text, 0
 }
