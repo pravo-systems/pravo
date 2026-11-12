@@ -2,6 +2,7 @@ package state
 
 import (
 	"testing"
+	"time"
 )
 
 func finishKind(t *testing.T, s *Store, kind string) {
@@ -53,5 +54,19 @@ func TestShadowOwnerIsTheNewestTransaction(t *testing.T) {
 				t.Fatalf("owner after a second shadow = %q", got)
 			}
 		})
+	}
+}
+
+// Transactions begun one after the other never share a start, whatever the clock's grain:
+// the newest of them is the one with the latest start, and a tie left it to a random id.
+func TestTransactionsStartInOrder(t *testing.T) {
+	s := sealedStore(t, testBackends()[0].make(t), testIdentity(t, "admin"))
+	var last time.Time
+	for i := range 5000 {
+		at := s.Begin("test", "t").t.Started
+		if !at.After(last) {
+			t.Fatalf("transaction %d started at %v, not after %v", i, at, last)
+		}
+		last = at
 	}
 }
