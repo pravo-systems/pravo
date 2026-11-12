@@ -65,6 +65,11 @@ type Config struct {
 	State StateMode
 	// RelockModules accepts changed module content (pravo init).
 	RelockModules bool
+	// LazyState loads the specification without requiring $settings.state to be readable,
+	// for a program that never opens the state (State is StateNone): a bucket that
+	// comes from a tag need not be given to install providers. Opening the state of such a
+	// specification fails with the reason.
+	LazyState bool
 
 	// Actor and Reason are recorded on transactions, locks and plan files for
 	// attribution. They are not verified.
@@ -127,7 +132,7 @@ func Open(ctx context.Context, cfg Config) (*Workspace, error) {
 			dir = "."
 		}
 		lctx, end := telemetry.Span(ctx, "setup load specification")
-		root, err = config.Load(dir, config.LoadOptions{Tags: cfg.Tags, SysTags: cfg.SysTags, Context: lctx, Env: cfg.Env})
+		root, err = config.Load(dir, config.LoadOptions{Tags: cfg.Tags, SysTags: cfg.SysTags, Context: lctx, Env: cfg.Env, LazyState: cfg.LazyState})
 		end(err)
 		if err != nil {
 			return nil, engine.WithCode(engine.ExitInvalid, err)
@@ -158,6 +163,9 @@ func (w *Workspace) open(ctx context.Context) error {
 		return err
 	}
 	if cfg.State != StateNone {
+		if err := root.RequireState(); err != nil {
+			return engine.WithCode(engine.ExitInvalid, err)
+		}
 		octx, end := telemetry.Span(ctx, "setup open state", attribute.String("pravo.state.backend", BackendName(root.State.Backend)))
 		began := time.Now()
 		open := cfg.OpenState

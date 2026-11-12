@@ -856,3 +856,32 @@ func TestLoadWithExtraFiles(t *testing.T) {
 		t.Error("a conflicting extra file loaded")
 	}
 }
+
+func TestLazyStateKeepsTheErrorOfTheStateSettings(t *testing.T) {
+	dir := t.TempDir()
+	src := "package x\n\n_env: bucket: string @tag(b)\n\n$settings: state: {backend: \"s3\", bucket: _env.bucket}\n\nname: \"x\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "main.cue"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(dir, LoadOptions{}); err == nil || !strings.Contains(err.Error(), "@tag(b)") {
+		t.Fatalf("a strict load = %v, want the error naming the tag", err)
+	}
+	r, err := Load(dir, LoadOptions{LazyState: true})
+	if err != nil {
+		t.Fatalf("a lazy load: %v", err)
+	}
+	if e := r.RequireState(); e == nil || !strings.Contains(e.Error(), "@tag(b)") {
+		t.Errorf("RequireState = %v, want the error naming the tag", e)
+	}
+	r, err = Load(dir, LoadOptions{LazyState: true, Tags: []string{"b=x"}})
+	if err != nil || r.RequireState() != nil || r.State.Bucket != "x" {
+		t.Errorf("with the tag: %+v %v", r, err)
+	}
+	// A setting that is not about the state is still an error.
+	if err := os.WriteFile(filepath.Join(dir, "main.cue"), []byte("package x\n\n$settings: refresh: \"soon\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(dir, LoadOptions{LazyState: true}); err == nil {
+		t.Error("a lazy load accepted a wrong refresh age")
+	}
+}

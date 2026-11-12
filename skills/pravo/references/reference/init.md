@@ -81,7 +81,7 @@ Write a `.cue` file, then run `pravo eval` or `pravo validate`. A file that impo
 
 ### A state path that depends on a tag
 
-`init` reads the `$settings` block before the packages it imports exist. A tag that has no default needs a value there too, and `-t` gives it:
+`init` reads the `$settings` block before the packages it imports exist, and it never opens the state. A tag that only `$settings.state` reads needs no value, so the build of an image can run `init` without the name of a state bucket or a directory. The commands that open the state, such as `plan`, ask for the tag. `-t`, `-T` and `--env` still give a value to any other field that reads a tag:
 
 File `tagged/main.cue`:
 
@@ -101,7 +101,7 @@ $random: rnd.#Provider
 ```
 
 ```sh
-pravo -C tagged init -t env=dev
+pravo -C tagged init
 ```
 
 Output:

@@ -16,9 +16,9 @@ normalize:
 
 | | |
 |---|---|
-| Synopsis | `pravo providers [--json]` |
-| | `pravo providers schema LOCAL_NAME` |
-| | `pravo providers lock [--platforms os_arch,...]` |
+| Synopsis | `pravo providers [--json] [-t key=value] [-T]` |
+| | `pravo providers schema LOCAL_NAME [-t key=value] [-T]` |
+| | `pravo providers lock [--platforms os_arch,...] [-t key=value] [-T]` |
 | | `pravo providers copy SOURCE VERSION oci://HOST/PATH/TYPE [--platforms os_arch,...]` |
 | Changes infrastructure | No. |
 | Taught in | [Upgrade pravo and providers](../how-to/upgrading.md) and [Install providers from your own registry](../how-to/providers-from-a-registry.md). [B1, Providers and resources](../learn/b01-providers-and-resources.md) teaches the declaration. |
@@ -35,9 +35,9 @@ normalize:
 | Flag | Subcommand | Default | Meaning |
 |---|---|---|---|
 | `--platforms os_arch,...` | `lock`, `copy` | `linux_amd64,linux_arm64,darwin_arm64,darwin_amd64` | The platforms to pin or to publish. |
-| `-t`, `--tag key=value`, `-T` | none | none | Tags, as for [`pravo plan`](plan.md). |
+| `-t`, `--tag key=value`, `-T`, `--env` | all but `copy` | none | Tags and the environment, as for [`pravo plan`](plan.md). `copy` reads no specification and takes none. |
 
-The [global flags](global-flags.md) apply. `schema`, `lock` and `copy` take no tags. With `--json`, the list is an array of objects.
+The [global flags](global-flags.md) apply. `schema` and `lock` do not open the state, so a tag that only `$settings.state` reads needs no value for them, as for [`init`](init.md). The list reads the state to find providers that only the state requires, and asks for it. With `--json`, the list is an array of objects.
 
 ### Exit codes
 
