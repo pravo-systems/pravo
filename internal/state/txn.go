@@ -99,12 +99,33 @@ type Txn struct {
 	removing map[string]bool
 }
 
+var (
+	txnClockMu   sync.Mutex
+	txnClockLast time.Time
+)
+
+// txnClock is the time a transaction starts, made to grow with every call in the process.
+// The newest transaction is the one with the latest start, and a coarse clock (Windows
+// ticks every few milliseconds) gives two transactions begun one after the other the same
+// time, which left the order to their random ids.
+func txnClock() time.Time {
+	txnClockMu.Lock()
+	defer txnClockMu.Unlock()
+	now := time.Now().UTC()
+	if !now.After(txnClockLast) {
+		now = txnClockLast.Add(time.Nanosecond)
+	}
+	txnClockLast = now
+	return now
+}
+
 // Begin starts a transaction of the given kind (plan, apply, destroy, import, edit).
 func (s *Store) Begin(kind, command string) *Txn {
 	host, _ := os.Hostname()
+	started := txnClock()
 	return &Txn{store: s, t: Transaction{
 		ID: newTxnID(), Kind: kind, Command: command,
-		User: osUser(), Host: host, Started: time.Now().UTC(), Status: "running", Changes: []Change{},
+		User: osUser(), Host: host, Started: started, Status: "running", Changes: []Change{},
 		Actor: s.actor, Reason: s.reason, GitRevision: s.gitRevision, TraceID: s.traceID, Version: PravoVersion,
 	}}
 }
