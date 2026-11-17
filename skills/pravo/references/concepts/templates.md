@@ -85,6 +85,10 @@ The person who asks for an instance needs a checkout of the repository and the `
 
 So a plan can be prepared by one role and applied by another. A team that wants a pull request in between commits the pasted code first and lets its pipeline plan it, as [Run pravo in a pipeline](../how-to/ci.md) shows.
 
+## From the command line
+
+The catalog and the check are also commands, so that a pipeline, a script or an agent can use them without a browser. `pravo template list --json` prints the templates with their inputs, and `pravo template try` makes the code of an instance from values and says what the specification and the policies say of it. They run the code of the viewer's wizard in process and write nothing. See [pravo template](../reference/template.md).
+
 ## What it does not do
 
 - The viewer writes nothing. It shows the code, and a person pastes it. It opens no pull request and applies nothing.

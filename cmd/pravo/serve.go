@@ -51,27 +51,11 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			if port < 0 || port > 65535 {
 				return fmt.Errorf("--port %d is not a port number", port)
 			}
-			dir, err := os.Getwd()
+			v, opts, err := viewerOptions(rt)
 			if err != nil {
 				return err
 			}
-			traceDir, err := filepath.Abs(telemetry.TraceDir(environment()))
-			if err != nil {
-				return err
-			}
-			// The directory of the readers file that the flag or the variable names; without one,
-			// each environment reads the one its settings name, else the one found by default.
-			explicit := rt.flags.AccessDir
-			if explicit == "" {
-				explicit, _ = environment().Lookup("PRAVO_ACCESS_DIR")
-			}
-			v := &viewerState{name: rt.flags.Identity, dir: dir, accessDir: loadReadersFile(dir, rt.flags.AccessDir).Dir, explicitAccess: explicit}
 			defer v.close()
-			opts := serve.Options{Dir: dir, Env: environment(), Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Version: Version, Protection: v.protection, AccessDir: explicit, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, SecretRules: v.secretRules, VerifyPlan: v.verifyPlan}
-			opts.OpenState = func(ctx context.Context, root *config.Root) (*state.Store, error) { return v.open(ctx, rt, root) }
-			opts.Environments = func(ctx context.Context, root *config.Root) (*serve.Environments, error) {
-				return viewerEnvironments(ctx, rt, root)
-			}
 			if err := servePlan(rt, &opts, planFile); err != nil {
 				return err
 			}
@@ -123,6 +107,33 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 	addTagFlags(rt, cmd)
 	addAccessDirFlag(rt, cmd)
 	return cmd
+}
+
+// viewerOptions makes the options of a viewer of the specification in the current directory, and the state that
+// reads it with the reader identity: the options of "pravo serve", and of every command that asks the viewer's code
+// in process, so that each sees what the viewer shows. The caller closes the state.
+func viewerOptions(rt *runContext) (*viewerState, serve.Options, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, serve.Options{}, err
+	}
+	traceDir, err := filepath.Abs(telemetry.TraceDir(environment()))
+	if err != nil {
+		return nil, serve.Options{}, err
+	}
+	// The directory of the readers file that the flag or the variable names; without one,
+	// each environment reads the one its settings name, else the one found by default.
+	explicit := rt.flags.AccessDir
+	if explicit == "" {
+		explicit, _ = environment().Lookup("PRAVO_ACCESS_DIR")
+	}
+	v := &viewerState{name: rt.flags.Identity, dir: dir, accessDir: loadReadersFile(dir, rt.flags.AccessDir).Dir, explicitAccess: explicit}
+	opts := serve.Options{Dir: dir, Env: environment(), Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Version: Version, Protection: v.protection, AccessDir: explicit, TraceDir: traceDir, VerifyTxn: v.verifyTxn, PolicyReaders: v.policyReaders, SecretRules: v.secretRules, VerifyPlan: v.verifyPlan}
+	opts.OpenState = func(ctx context.Context, root *config.Root) (*state.Store, error) { return v.open(ctx, rt, root) }
+	opts.Environments = func(ctx context.Context, root *config.Root) (*serve.Environments, error) {
+		return viewerEnvironments(ctx, rt, root)
+	}
+	return v, opts, nil
 }
 
 // servePlan puts the plan that --plan names into the options of the viewer: the id of a plan in the state, or a plan file.

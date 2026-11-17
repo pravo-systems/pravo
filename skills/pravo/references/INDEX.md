@@ -38,6 +38,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/version.md](reference/version.md) | Print the version of pravo and the version of CUE that is built into it. | 2 KB |
 | [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 18 KB |
 | [reference/shadow.md](reference/shadow.md) | Decompile an OpenTofu or Terraform state into a specification that plans clean, keep it beside the Terraform root, hand the objects over, or write them back. | 19 KB |
+| [reference/template.md](reference/template.md) | List the templates of a specification and make the CUE of a new instance from the command line, checked against the specification and the policies in force, as the viewer's wizard does. Flags, the JSON documents and exit codes. | 6 KB |
 
 ### Language
 
