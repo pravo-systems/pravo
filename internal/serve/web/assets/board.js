@@ -26,6 +26,11 @@ export class Board {
     this.plan = null;
     this.saved = null;
     this.moved = null;
+    // the start from a Terraform state: shown on a board whose state holds nothing
+    this.empty = false;
+    this.starting = false;
+    this.startOpen = true;
+    this.startFile = null;
     this.codeOpen = false;
     this.el = null;
     this.hits = [];
@@ -68,11 +73,13 @@ export class Board {
       h('div', { class: 'bd-lamps', role: 'group', 'aria-label': 'Checks' }, this.lampEls.spec.el, this.lampEls.policy.el, this.lampEls.plan.el),
       h('div', { class: 'bd-acts' }, this.btn.review, this.btn.code, this.btn.save, this.btn.plan, this.btn.apply));
     this.guideEl = h('section', { class: 'bd-guide', 'aria-label': 'The guide', 'aria-live': 'polite', hidden: true });
-    this.el = h('div', { class: 'overlay board', id: 'board', hidden: true }, this.sweep, this.guideEl, this.code, this.tb, this.hint, this.strip);
+    this.startEl = h('section', { class: 'bd-start', 'aria-labelledby': 'bd-start-h', hidden: true });
+    this.el = h('div', { class: 'overlay board', id: 'board', hidden: true }, this.sweep, this.startEl, this.guideEl, this.code, this.tb, this.hint, this.strip);
     canvas.append(this.el);
     this.input.addEventListener('input', () => this.findTypes(this.input.value));
     this.input.addEventListener('keydown', (ev) => this.onBarKey(ev));
-    this.input.addEventListener('focus', () => { if (this.input.value) this.findTypes(this.input.value); else this.searchTypes(''); });
+    // an empty bar lists every type as it takes the focus; over the start of an empty state it waits for a word
+    this.input.addEventListener('focus', () => { if (this.input.value) this.findTypes(this.input.value); else if (!this.startShown()) this.searchTypes(''); });
     this.input.addEventListener('blur', () => setTimeout(() => { if (!this.hitsEl.contains(document.activeElement)) this.closeHits(); }, 120));
     this.hitsEl.addEventListener('mousedown', (ev) => ev.preventDefault());
     this.hitsEl.addEventListener('click', (ev) => { const b = ev.target.closest('[data-i]'); if (b) { if (b.dataset.ask) this.askFromBar(); else this.pick(this.hits[+b.dataset.i]); } });
@@ -108,6 +115,9 @@ export class Board {
     if (!this.on || !g) return g;
     // another revision: the title block names it (an apply checks its plan against the state itself)
     if (g.revision !== this.rev) { this.rev = g.revision; queueMicrotask(() => this.render()); }
+    // a state with no record yet can start from a Terraform state
+    const empty = !(g.nodes || []).some((n) => (n.mode === 'managed' || n.mode === 'data') && n.presence !== 'spec');
+    if (empty !== this.empty) { this.empty = empty; queueMicrotask(() => this.renderStart()); }
     const have = new Set((g.nodes || []).map((n) => n.addr));
     // a thing that was saved and that the graph now shows is the real node: the drawing lets go of it
     const before = this.items.length;
@@ -671,6 +681,7 @@ export class Board {
         : 'Draw into the specification, or select a resource to change it. Nothing is written until you save, and nothing is applied: that stays a command.')
       : 'Draw into the specification, or select a resource to change it. Nothing is written: copy the code, or start pravo serve --edit to save and plan from here.');
     this.renderTitle();
+    this.renderStart();
     if (this.codeOpen) this.renderCode();
     // the form of a change says whether there is one yet, without being drawn again under the cursor
     const it = this.formItem;
@@ -1138,6 +1149,93 @@ export class Board {
       commit(kind === 'number' ? { expr: t.trim() } : { text: t });
     }, 160));
     return inp;
+  }
+
+  // ---- starting from a Terraform state ----
+
+  // renderStart shows the start on a board whose state holds nothing yet, and nothing is drawn: draw the first
+  // resource, or bring a Terraform state, as pravo shadow does. Folded, it is one button in the corner.
+  renderStart() {
+    const el = this.startEl;
+    if (!el) return;
+    const show = !!(this.on && this.cfg && this.cfg.start && this.empty && (!this.items.length || this.starting));
+    el.hidden = !show;
+    // the hint says what the start says: one of them at a time
+    this.hint.hidden = this.items.length > 0 || (show && this.startOpen);
+    if (!show) return;
+    el.classList.toggle('folded', !this.startOpen);
+    el.classList.toggle('busy', this.starting);
+    if (el.dataset.open === String(this.startOpen)) { this.startState(); return; }
+    el.dataset.open = String(this.startOpen);
+    clear(el);
+    if (!this.startOpen) {
+      el.append(h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Bring what a Terraform state holds onto the board, as pravo shadow does', on: { click: () => { this.startOpen = true; this.renderStart(); this.startIn.focus(); } } }, icon('file'), h('span', { class: 'lbl' }, 'Bring a Terraform state')));
+      return;
+    }
+    this.startIn = h('input', { type: 'text', class: 'bd-tin', placeholder: 'terraform.tfstate, or s3://bucket/key', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Where the Terraform state is' });
+    this.startIn.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') this.runStart(); });
+    this.startIn.addEventListener('input', () => { if (this.startFile) { this.startFile = null; this.startIn.classList.remove('chosen'); } });
+    const pick = h('input', { type: 'file', accept: '.tfstate,.json,application/json', hidden: true });
+    pick.addEventListener('change', () => {
+      const f = pick.files && pick.files[0];
+      if (!f) return;
+      this.startFile = f;
+      this.startIn.value = f.name;
+      this.startIn.classList.add('chosen');
+      this.startState();
+    });
+    this.startGo = h('button', { type: 'button', class: 'bd-b go', on: { click: () => this.runStart() } }, h('span', { class: 'bd-play', 'aria-hidden': 'true' }), h('span', { class: 'lbl' }, 'Bring it onto the board'));
+    this.startSt = h('p', { class: 'bd-sst', role: 'status' });
+    el.append(
+      h('div', { class: 'bd-sk' }, h('span', null, 'Start'), h('button', { type: 'button', class: 'iconbtn sm', 'aria-label': 'Fold the start away', 'data-tip': 'Fold it away', on: { click: () => { this.startOpen = false; this.renderStart(); } } }, icon('minus'))),
+      h('h2', { id: 'bd-start-h' }, 'The state holds nothing yet'),
+      h('p', { class: 'bd-sp' }, 'Draw the first resource in the bar below, or bring what a Terraform state holds: every resource, written as code, with the record of its object.'),
+      h('div', { class: 'bd-srow' }, this.startIn, h('button', { type: 'button', class: 'bd-b sm', on: { click: () => pick.click() } }, icon('file'), h('span', { class: 'lbl' }, 'Choose a file')), pick),
+      h('div', { class: 'bd-srow' }, this.startGo),
+      h('p', { class: 'bd-fd' }, 'As pravo shadow does: it writes a new file and the records of the objects, asks the provider about each, and plans it. Terraform keeps the objects until pravo shadow take-over, and nothing is applied. The providers of the state are declared here first.'),
+      this.startSt);
+    this.startState();
+  }
+
+  startShown() { return !!(this.on && this.cfg && this.cfg.start && this.empty && this.startOpen && !this.items.length); }
+
+  startState() {
+    if (!this.startGo) return;
+    this.startGo.disabled = this.starting;
+    this.startIn.disabled = this.starting;
+    if (this.starting) this.startSt.textContent = 'Reading the state, and asking the provider about each resource. A large state takes a while.';
+  }
+
+  // runStart brings the state the person named, or chose, onto the board. The server refuses it once the state holds
+  // anything.
+  async runStart() {
+    if (this.starting || !this.startIn) return;
+    const place = this.startIn.value.trim();
+    let body;
+    if (this.startFile) {
+      try { body = { state: await this.startFile.text() }; } catch { this.startSt.textContent = 'The file could not be read.'; return; }
+    } else if (place) body = { place };
+    else { this.startSt.textContent = 'Name the state: a path on this machine, an s3:// address, or a file you choose.'; this.startIn.focus(); return; }
+    this.starting = true;
+    this.renderStart();
+    this.sweepRun(true);
+    try {
+      const out = await api.boardStart(body);
+      if (out.error) throw new Error(out.error);
+      const d = out.done;
+      const said = d.verified ? 'the plan of it changes nothing' : `the plan of it wants ${plural((d.wants || []).length, 'change')}: ${(d.wants || []).slice(0, 4).join(', ')}`;
+      const notes = (d.notes || []).length ? ` ${plural(d.notes.length, 'note')}: ${clipText(d.notes.join(' '), 300)}` : '';
+      this.cb.toast(`Brought ${plural(d.resources, 'resource')} onto the board`, d.verified ? 'info' : 'warn', 14000, `Wrote ${d.file}; ${said}. Terraform keeps the objects until pravo shadow take-over.${notes}`);
+      this.cb.announce(`Brought ${plural(d.resources, 'resource')} onto the board from ${d.from}: ${said}.`);
+      this.startFile = null;
+      this.startSt.textContent = '';
+    } catch (err) {
+      this.startSt.textContent = clipText(err.message, 600);
+      this.cb.toast('The state was not brought onto the board', 'error', 12000, clipText(err.message, 400));
+    }
+    this.starting = false;
+    this.sweepRun(false);
+    this.renderStart();
   }
 
   // ---- folding into a template ----

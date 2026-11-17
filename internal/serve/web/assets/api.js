@@ -109,6 +109,9 @@ export async function boardPost(path, draft) {
 export const boardPlan = (draft, onLine) => boardRun('/api/board/plan', draft, onLine);
 // boardApply applies the plan of the board that a ticket names (with --apply): steps, then the result, as a plan streams.
 export const boardApply = (ticket, onLine) => boardRun('/api/board/apply', { ticket }, onLine);
+// boardStart brings a Terraform state onto the board as pravo shadow does (with --edit, into a state that holds nothing):
+// { place } that the server reads, or { state } that the person chose. It streams as a plan does: a step, then the result.
+export const boardStart = (body, onLine) => boardRun('/api/board/start', body, onLine);
 
 async function boardRun(path, body, onLine) {
   let r;

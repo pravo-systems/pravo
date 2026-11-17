@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -143,5 +144,52 @@ func TestBoardAppliesAMove(t *testing.T) {
 	got, err := opts.Apply(ctx, res.Ticket, step)
 	if err != nil || got.Moved != 1 || got.Added+got.Changed+got.Destroyed != 0 {
 		t.Fatalf("the apply of a move: %+v %v", got, err)
+	}
+}
+
+// The board starts from a Terraform state as "pravo shadow" does: the same file, the same records, the same plan of
+// them, and the secret of the state is in neither the file nor what the page sees. The text of a state that the person
+// chose is read as standard input is. A second start finds the state holding records and is refused.
+func TestBoardStartsFromATerraformState(t *testing.T) {
+	rt := &runContext{}
+	dir := shadowRoot(t, rt)
+	rt.out = ui.NewPrinter(io.Discard, false)
+	t.Chdir(dir)
+	opts, closeBoard := boardOptions(rt, false)
+	defer closeBoard()
+	ctx := context.Background()
+	res, err := opts.Start(ctx, serve.BoardStartRequest{Place: "terraform.tfstate"})
+	if err != nil || res.File != "shadow.cue" || res.From != "terraform.tfstate" || res.Resources != 3 || !res.Verified || !res.Guarded || res.Secrets == 0 {
+		t.Fatalf("the start: %+v %v", res, err)
+	}
+	seen, _ := json.Marshal(res)
+	src, _ := os.ReadFile(filepath.Join(dir, "shadow.cue"))
+	if strings.Contains(string(seen), "hunter2") || strings.Contains(string(src), "hunter2") {
+		t.Errorf("the secret of the state reached the page or the file:\n%s\n%s", seen, src)
+	}
+	if !strings.Contains(string(src), "size: logs.id") {
+		t.Errorf("the file of the start:\n%s", src)
+	}
+	text, code := runPravo(t, rt, dir, "plan")
+	if code != 0 || !strings.Contains(text, "No changes") {
+		t.Errorf("the plan after the start (%d):\n%s", code, text)
+	}
+	rt.out = ui.NewPrinter(io.Discard, false)
+	if _, err := opts.Start(ctx, serve.BoardStartRequest{State: shadowTfstate}); err == nil || !strings.Contains(err.Error(), "already holds 3 resources") {
+		t.Errorf("a start into a state that holds records: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "shadow-2.cue")); err == nil {
+		t.Error("a refused start left a file")
+	}
+
+	rt2 := &runContext{}
+	dir2 := shadowRoot(t, rt2)
+	rt2.out = ui.NewPrinter(io.Discard, false)
+	t.Chdir(dir2)
+	opts2, close2 := boardOptions(rt2, false)
+	defer close2()
+	res, err = opts2.Start(ctx, serve.BoardStartRequest{State: shadowTfstate})
+	if err != nil || res.Resources != 3 || !res.Verified || res.From != "the state you chose" {
+		t.Fatalf("the start from the text of a state: %+v %v", res, err)
 	}
 }
