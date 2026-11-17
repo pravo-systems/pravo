@@ -24,7 +24,8 @@ type LeafRef struct {
 //
 // ok is false when the body depends on such a task in any other way: in an
 // expression, a condition, a comprehension, an embedded struct, a let, or as a
-// whole struct or list. A value that is built from the attribute cannot be put
+// whole struct or list. A leaf that reads one pending element of a loop (v.id)
+// is a plain reference to it, as it is for BodyRefs. A value that is built from the attribute cannot be put
 // together without CUE, so the caller unifies the values into the
 // specification then.
 func PureRefs(body cue.Value, self cue.Path, resolve Resolver, pending func(task cue.Path) bool) (refs []LeafRef, ok bool) {
@@ -47,7 +48,7 @@ func pureRefs(body cue.Value, self cue.Path, resolve Resolver, pending func(task
 		return nil, false
 	}
 	w := &pureWalk{self: self, resolve: resolve, pending: pending, whole: whole}
-	if loops, ok := resolve.(LoopReader); ok && whole {
+	if loops, ok := resolve.(LoopReader); ok {
 		w.keys = keyless{resolve, loops}
 	}
 	if !w.walk(body, nil) {
@@ -152,7 +153,7 @@ func (w *pureWalk) leaf(v cue.Value, rel []cue.Selector) bool {
 	if !root.Exists() || len(p.Selectors()) == 0 || p.Err() != nil {
 		// The variable of a loop has no path in the specification.
 		ref, ok := loopLeaf(item, w.self, w.resolve)
-		if !w.whole || !ok {
+		if !ok || (!w.whole && !w.pending(ref.Task)) {
 			return false
 		}
 		ref.Path = cue.MakePath(rel...)
