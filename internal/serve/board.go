@@ -121,6 +121,14 @@ type BoardItem struct {
 	Provider string                `json:"provider,omitempty"`
 	Template string                `json:"template,omitempty"`
 	Values   map[string]BoardValue `json:"values,omitempty"`
+	// Adopt makes the resource adopt an object that a discovery found, by its identity in $import.
+	Adopt *BoardAdopt `json:"adopt,omitempty"`
+}
+
+// BoardAdopt names an object of the last run of a discovery, as /api/discovery names it.
+type BoardAdopt struct {
+	Discovery string `json:"discovery"`
+	Key       string `json:"key"`
 }
 
 // BoardValue is what one field is set to: a string, CUE as written, or a wire to another resource (or several).
@@ -396,6 +404,22 @@ type boardCode struct {
 	missing []BoardProblem
 }
 
+// drawProblems collects what is wrong with a drawing.
+type drawProblems []BoardProblem
+
+func (p *drawProblems) add(item, field, msg string) {
+	*p = append(*p, BoardProblem{Item: item, Field: field, Message: msg})
+}
+
+// boardField is one field of a thing drawn, as CUE, and boardBlock the struct of one thing drawn.
+type boardField struct{ name, expr string }
+
+type boardBlock struct {
+	label, head string
+	fields      []boardField
+	heads       map[string]bool // the identifiers its references start with
+}
+
 // boardGenerate writes the CUE of a drawing. A problem that it returns means that no code could be written for the
 // drawing as it is: a name that cannot be used, a type that no provider has, an expression that does not parse.
 func (s *Server) boardGenerate(m *model, d *BoardDraft) (*boardCode, []BoardProblem) {
@@ -404,115 +428,140 @@ func (s *Server) boardGenerate(m *model, d *BoardDraft) (*boardCode, []BoardProb
 	if code.file == "" {
 		code.file = s.boardFile()
 	}
-	var problems []BoardProblem
-	bad := func(item, field, msg string) {
-		problems = append(problems, BoardProblem{Item: item, Field: field, Message: msg})
-	}
+	var problems drawProblems
 	if !boardFileOK.MatchString(code.file) || code.file == previewFile {
-		bad("", "@file", "The file is named with small letters, digits, dashes and underscores, and ends in .cue.")
+		problems.add("", "@file", "The file is named with small letters, digits, dashes and underscores, and ends in .cue.")
 		return nil, problems
 	}
 	if bm.pkg == "" {
-		bad("", "", "The specification does not load, so nothing can be drawn into it.")
+		problems.add("", "", "The specification does not load, so nothing can be drawn into it.")
 		return nil, problems
 	}
+	labels := boardLabels(bm, d, &problems)
+	if len(problems) > 0 {
+		return nil, problems
+	}
+	var blocks []boardBlock
+	lets := map[string]bool{}
+	for _, it := range d.Items {
+		if bl, ok := s.boardBlockOf(m, it, labels, code, &problems); ok {
+			// A reference that starts with the name of a field of its own struct would read that field: it reads an
+			// alias of the file instead.
+			for i, f := range bl.fields {
+				for h := range bl.heads {
+					for _, g := range bl.fields {
+						if g.name == h {
+							bl.fields[i].expr = replaceHead(f.expr, h, "ref_"+h)
+							lets[h] = true
+						}
+					}
+				}
+			}
+			blocks = append(blocks, bl)
+		}
+	}
+	if len(problems) > 0 {
+		return nil, problems
+	}
+	if !boardWrite(bm, code, blocks, lets, labels, &problems) {
+		return nil, problems
+	}
+	return code, nil
+}
+
+// boardLabels checks the name of each thing drawn, and returns the names.
+func boardLabels(bm *boardModel, d *BoardDraft, problems *drawProblems) map[string]bool {
 	labels := map[string]bool{}
 	for _, it := range d.Items {
 		switch {
 		case !boardLabelOK.MatchString(it.Label) || cueKeywords[it.Label]:
-			bad(it.Label, "@label", "A name is small letters, digits and underscores, starts with a letter, and is no word of CUE.")
+			problems.add(it.Label, "@label", "A name is small letters, digits and underscores, starts with a letter, and is no word of CUE.")
 		case labels[it.Label]:
-			bad(it.Label, "@label", "Two things are named "+it.Label+".")
+			problems.add(it.Label, "@label", "Two things are named "+it.Label+".")
 		case bm.top[it.Label]:
-			bad(it.Label, "@label", it.Label+" is taken: the specification has a field of that name at the top level.")
+			problems.add(it.Label, "@label", it.Label+" is taken: the specification has a field of that name at the top level.")
 		}
 		labels[it.Label] = true
 	}
-	if len(problems) > 0 {
-		return nil, problems
-	}
-	type field struct{ name, expr string }
-	type block struct {
-		label, head string
-		fields      []field
-		heads       map[string]bool // the identifiers its references start with
-	}
-	var blocks []block
-	lets := map[string]bool{}
-	for _, it := range d.Items {
-		bl := block{label: it.Label, heads: map[string]bool{}}
-		var order []string // the fields that the form shows, in its order
-		known := map[string]BoardField{}
-		switch {
-		case it.Template != "":
-			t := s.boardTemplate(m, it.Template)
-			if t == nil {
-				bad(it.Label, "", "No template of the specification is named "+strconv.Quote(clip(it.Template, 60))+".")
-				continue
-			}
-			bl.head = t.Definition
-			for _, f := range boardTemplateForm(t).Fields {
-				order = append(order, f.Name)
-				known[f.Name] = f
-			}
-		default:
-			p := s.boardProvider(m, it.Provider, it.Type)
-			if p == nil {
-				bad(it.Label, "", "No provider of the specification has the type "+strconv.Quote(clip(it.Type, 80))+".")
-				continue
-			}
-			sch := p.sch.Type("managed", it.Type)
-			if sch == nil || sch.Block == nil {
-				bad(it.Label, "", "The schema of "+it.Type+" is not cached.")
-				continue
-			}
-			bl.head = p.Label + ".#Resource." + it.Type
-			for _, f := range s.boardForm(m, p, it.Type, sch.Block).Fields {
-				order = append(order, f.Name)
-				known[f.Name] = f
-			}
+	return labels
+}
+
+// boardBlockOf is the struct of one thing drawn: what it unifies with, and its fields in the order of its form. A field
+// that needs a value and has none goes to code.missing.
+func (s *Server) boardBlockOf(m *model, it BoardItem, labels map[string]bool, code *boardCode, problems *drawProblems) (boardBlock, bool) {
+	bl := boardBlock{label: it.Label, heads: map[string]bool{}}
+	var form []BoardField
+	switch {
+	case it.Template != "":
+		t := s.boardTemplate(m, it.Template)
+		if t == nil {
+			problems.add(it.Label, "", "No template of the specification is named "+strconv.Quote(clip(it.Template, 60))+".")
+			return bl, false
 		}
-		for name := range it.Values {
-			if _, ok := known[name]; !ok {
-				bad(it.Label, name, "There is no field "+strconv.Quote(clip(name, 60))+" to set.")
-			}
+		if it.Adopt != nil {
+			problems.add(it.Label, "@adopt", "A template does not adopt an object: draw a resource of its type.")
+			return bl, false
 		}
-		for _, name := range order {
-			f := known[name]
-			v, set := it.Values[name]
-			if !set {
-				if f.Required {
-					code.missing = append(code.missing, BoardProblem{Item: it.Label, Field: name, Message: "needs a value"})
-				}
-				continue
-			}
-			expr, heads, msg := boardExpr(v, f, it.Label, labels, m)
+		bl.head = t.Definition
+		form = boardTemplateForm(t).Fields
+	default:
+		p := s.boardProvider(m, it.Provider, it.Type)
+		if p == nil {
+			problems.add(it.Label, "", "No provider of the specification has the type "+strconv.Quote(clip(it.Type, 80))+".")
+			return bl, false
+		}
+		sch := p.sch.Type("managed", it.Type)
+		if sch == nil || sch.Block == nil {
+			problems.add(it.Label, "", "The schema of "+it.Type+" is not cached.")
+			return bl, false
+		}
+		bl.head = p.Label + ".#Resource." + it.Type
+		if it.Adopt != nil {
+			imp, msg := boardImport(m, it, p.Label)
 			if msg != "" {
-				bad(it.Label, name, msg)
-				continue
+				problems.add(it.Label, "@adopt", msg)
+				return bl, false
 			}
-			for h := range heads {
-				bl.heads[h] = true
-			}
-			bl.fields = append(bl.fields, field{name, expr})
+			bl.fields = append(bl.fields, boardField{"$import", imp})
 		}
-		// A reference that starts with the name of a field of its own struct would read that field: it reads an alias
-		// of the file instead.
-		for i, f := range bl.fields {
-			for h := range bl.heads {
-				for _, g := range bl.fields {
-					if g.name == h {
-						bl.fields[i].expr = replaceHead(f.expr, h, "ref_"+h)
-						lets[h] = true
-					}
-				}
-			}
+		form = s.boardForm(m, p, it.Type, sch.Block).Fields
+	}
+	known := map[string]bool{}
+	for _, f := range form {
+		known[f.Name] = true
+	}
+	ok := true
+	for name := range it.Values {
+		if !known[name] {
+			problems.add(it.Label, name, "There is no field "+strconv.Quote(clip(name, 60))+" to set.")
+			ok = false
 		}
-		blocks = append(blocks, bl)
 	}
-	if len(problems) > 0 {
-		return nil, problems
+	for _, f := range form {
+		v, set := it.Values[f.Name]
+		if !set {
+			if f.Required {
+				code.missing = append(code.missing, BoardProblem{Item: it.Label, Field: f.Name, Message: "needs a value"})
+			}
+			continue
+		}
+		expr, heads, msg := boardExpr(v, f, it.Label, labels, m)
+		if msg != "" {
+			problems.add(it.Label, f.Name, msg)
+			ok = false
+			continue
+		}
+		for h := range heads {
+			bl.heads[h] = true
+		}
+		bl.fields = append(bl.fields, boardField{f.Name, expr})
 	}
+	return bl, ok
+}
+
+// boardWrite writes the file of the drawing into code: the aliases it needs, then a struct for each thing drawn,
+// formatted, with the lines of each.
+func boardWrite(bm *boardModel, code *boardCode, blocks []boardBlock, lets, labels map[string]bool, problems *drawProblems) bool {
 	var b strings.Builder
 	b.WriteString("package " + bm.pkg + "\n\n// Drawn on the drawing board of pravo serve.\n\n")
 	var names []string
@@ -522,8 +571,8 @@ func (s *Server) boardGenerate(m *model, d *BoardDraft) (*boardCode, []BoardProb
 	sort.Strings(names)
 	for _, h := range names {
 		if bm.top["ref_"+h] || labels["ref_"+h] {
-			bad("", "", "ref_"+h+" is taken, and the drawing needs it to read "+h+".")
-			return nil, problems
+			problems.add("", "", "ref_"+h+" is taken, and the drawing needs it to read "+h+".")
+			return false
 		}
 		b.WriteString("let ref_" + h + " = " + h + "\n")
 	}
@@ -533,7 +582,11 @@ func (s *Server) boardGenerate(m *model, d *BoardDraft) (*boardCode, []BoardProb
 	for _, bl := range blocks {
 		b.WriteString(bl.label + ": " + bl.head + " & {")
 		for _, f := range bl.fields {
-			b.WriteString("\n\t" + cueLabel(f.name) + ": " + f.expr)
+			label := cueLabel(f.name)
+			if f.name == "$import" {
+				label = f.name // as Pravo's own fields are written
+			}
+			b.WriteString("\n\t" + label + ": " + f.expr)
 		}
 		if len(bl.fields) > 0 {
 			b.WriteString("\n")
@@ -542,8 +595,8 @@ func (s *Server) boardGenerate(m *model, d *BoardDraft) (*boardCode, []BoardProb
 	}
 	src, err := format.Source([]byte(b.String()))
 	if err != nil {
-		bad("", "", "The drawing does not make CUE: "+clip(err.Error(), 300))
-		return nil, problems
+		problems.add("", "", "The drawing does not make CUE: "+clip(err.Error(), 300))
+		return false
 	}
 	code.text = string(src)
 	if f, err := parser.ParseFile(code.file, src); err == nil {
@@ -557,7 +610,67 @@ func (s *Server) boardGenerate(m *model, d *BoardDraft) (*boardCode, []BoardProb
 			}
 		}
 	}
-	return code, nil
+	return true
+}
+
+// boardRoute answers the paths of the drawing board: three that read, and three that take a drawing by POST.
+func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, m *model) {
+	switch r.URL.Path {
+	case "/api/board":
+		s.boardConfigHandler(w, m)
+		return
+	case "/api/board/types":
+		s.boardTypesHandler(w, r, m)
+		return
+	case "/api/board/type":
+		s.boardTypeHandler(w, r, m)
+		return
+	}
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	switch r.URL.Path {
+	case "/api/board/check":
+		s.boardCheckHandler(w, r, m)
+	case "/api/board/save":
+		s.boardSaveHandler(w, r, m)
+	default:
+		s.boardPlanHandler(w, r, m)
+	}
+}
+
+// boardImport is the $import of a thing drawn that adopts an object a discovery found: the identity the provider listed
+// it by, as the Discovery section writes it, and never a text that the page sent.
+func boardImport(m *model, it BoardItem, provider string) (string, string) {
+	root := m.spec.root
+	switch {
+	case root == nil:
+		return "", "The specification does not load."
+	case root.Environment != "":
+		return "", "In a specification of environments the object is adopted in its environment alone: copy the resource from the Discovery section."
+	}
+	v, item := m.discovered(it.Adopt.Discovery, it.Adopt.Key)
+	switch {
+	case item == nil:
+		return "", "The last run of the discovery has no such object, or a resource manages it."
+	case item.Status == engine.Adopting:
+		return "", item.By + " adopts this object already."
+	case v.Type != it.Type:
+		return "", "The object is a " + v.Type + ", not a " + it.Type + "."
+	}
+	if p, ok := root.ProviderPath(v.ProviderKey); !ok || p.String() != provider {
+		return "", "The object belongs to another provider."
+	}
+	if len(item.Listed.Identity) == 0 {
+		return "", "The provider listed this object with no identity to import it by."
+	}
+	imp := engine.ImportValue(item.Listed.Identity)
+	if m.scrubTags(imp) != imp {
+		return "", "The identity of the object holds the value of a tag that the viewer hides: adopt it with pravo discover adopt."
+	}
+	return imp, ""
 }
 
 // boardExpr is the CUE of one value, and the identifiers its references start with; msg says why there is none.

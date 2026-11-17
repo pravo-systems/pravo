@@ -84,7 +84,7 @@ export class Board {
     this.on = on;
     this.el.hidden = !on;
     document.documentElement.classList.toggle('board-on', on);
-    if (on && !this.items.length) this.restore();
+    if (on && !this.items.length) this.restoring = this.restore();
     this.render();
     this.cb.redraw({ fit: true });
     if (on) { this.input.focus(); this.cb.announce('Drawing. Type what to add.'); if (this.items.length) this.recheck(); }
@@ -114,7 +114,7 @@ export class Board {
       const missing = this.missing(it);
       nodes.push({
         addr: it.label, mode: 'managed', type: it.kind === 'template' ? (it.form ? it.form.title : it.template) : it.type, name: it.label, namespace: '',
-        provider: this.providerKey(it), presence: 'spec', draft: true, template: it.kind === 'template', incomplete: missing.length,
+        provider: this.providerKey(it), presence: 'spec', draft: true, template: it.kind === 'template', adopts: !!it.adopt, incomplete: missing.length,
         sockets: this.sockets(it), boardAction: acts ? acts.get(it.label) || '' : '',
       });
     }
@@ -204,9 +204,14 @@ export class Board {
 
   // add puts a new thing on the drawing and selects it. o.wire wires a socket of another thing to it.
   async add(hit, o = {}) {
+    await this.restoring; // a drawing that the tab kept comes back first, so that a name is not taken twice
     let form;
     try { form = await this.form(hit.kind, hit.type, hit.provider); } catch (err) { this.cb.toast(`Could not read the form of ${hit.title || hit.type}: ${err.message}`, 'error'); return null; }
-    const it = { label: this.freeLabel(form.label), kind: hit.kind, type: hit.kind === 'resource' ? hit.type : '', template: hit.kind === 'template' ? hit.type : '', provider: hit.provider || '', values: {}, form, shown: new Set(), cue: new Set() };
+    const it = { label: this.freeLabel(labelOf(o.name) || form.label), kind: hit.kind, type: hit.kind === 'resource' ? hit.type : '', template: hit.kind === 'template' ? hit.type : '', provider: hit.provider || '', values: {}, form, shown: new Set(), cue: new Set(), adopt: o.adopt || null };
+    for (const x of o.identity || []) {
+      const f = (form.fields || []).find((ff) => ff.name === x.name);
+      if (f && f.kind === 'text' && !f.sensitive && typeof x.value === 'string' && !x.value.includes('•')) it.values[f.name] = { text: x.value };
+    }
     this.items.push(it);
     if (o.wire) {
       const from = this.item(o.wire.label);
@@ -216,6 +221,15 @@ export class Board {
     this.changed({ graph: true });
     if (!o.quiet) { this.cb.select(it.label); this.cb.announce(`${it.label} drawn, a ${form.title}`); }
     return it;
+  }
+
+  // addFound draws an object that a discovery found: a resource of its type that names it in $import, so that the plan
+  // imports it. a is what /api/adopt says of it, x its row in /api/discovery. Drawn twice, it is selected again.
+  async addFound(a, x) {
+    await this.restoring;
+    const same = this.items.find((it) => it.adopt && it.adopt.discovery === a.discovery && it.adopt.key === a.key);
+    if (same) { this.cb.select(same.label); return same; }
+    return this.add({ kind: 'resource', type: a.type, provider: a.provider, title: a.type }, { adopt: { discovery: a.discovery, key: a.key, name: x.name || x.id }, name: x.name || x.id, identity: x.identity });
   }
 
   remove(label) {
@@ -274,7 +288,7 @@ export class Board {
 
   // draft is the drawing as the server reads it
   draft() {
-    return { file: this.cfg.file, items: this.items.map((it) => ({ label: it.label, type: it.type || undefined, provider: it.provider || undefined, template: it.template || undefined, values: it.values })) };
+    return { file: this.cfg.file, items: this.items.map((it) => ({ label: it.label, type: it.type || undefined, provider: it.provider || undefined, template: it.template || undefined, values: it.values, adopt: it.adopt ? { discovery: it.adopt.discovery, key: it.adopt.key } : undefined })) };
   }
 
   sig() { return JSON.stringify(this.draft().items); }
@@ -511,7 +525,7 @@ export class Board {
     nameIn.addEventListener('change', () => { const msg = this.rename(it, nameIn.value.trim()); nameErr.textContent = msg; if (msg) nameIn.value = it.label; });
     nameIn.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') nameIn.blur(); });
     const head = {
-      kick: it.kind === 'template' ? 'Drawing · template' : 'Drawing · resource',
+      kick: it.kind === 'template' ? 'Drawing · template' : it.adopt ? 'Drawing · resource that adopts' : 'Drawing · resource',
       title: nameIn,
       path: h('div', { class: 'ih-path bd-what' }, h('b', null, f.title), h('code', null, it.kind === 'template' ? it.template : it.type), it.provider ? h('span', { class: 'b' }, it.provider) : null),
       tags: [h('span', { class: 'b bd-draft' }, 'draft')],
@@ -520,6 +534,11 @@ export class Board {
     this.formEl = body;
     this.formItem = it;
     if (f.doc) body.append(h('p', { class: 'bd-doc' }, f.doc));
+    if (it.adopt) {
+      body.append(h('div', { class: 'bd-adopt' },
+        h('p', null, 'Adopts ', h('code', { title: it.adopt.key }, it.adopt.name || it.adopt.key), ', which the discovery ', h('b', null, it.adopt.discovery), ' found. The plan imports it and shows how it differs from what you write here.'),
+        h('button', { type: 'button', class: 'linkbtn', on: { click: () => { it.adopt = null; this.changed({ graph: true }); this.cb.redrawInspector(); } } }, 'Draw a new one instead')));
+    }
     body.append(nameErr, h('div', { class: 'bd-probs', role: 'status' }));
     const tools = h('div', { class: 'bd-tools' },
       h('button', { type: 'button', class: 'bd-b', 'data-act': 'complete', 'data-tip': 'Wire every socket it needs: to what fits, or to a new resource' }, icon('plus'), h('span', { class: 'lbl' }, 'Complete it')),
@@ -756,7 +775,7 @@ export class Board {
     try {
       const key = KEEP + ((this.cb.project() || {}).dir || '');
       if (!this.items.length) { sessionStorage.removeItem(key); return; }
-      sessionStorage.setItem(key, JSON.stringify(this.items.map((it) => ({ label: it.label, kind: it.kind, type: it.type, template: it.template, provider: it.provider, values: it.values, shown: [...it.shown], cue: [...it.cue], saved: !!it.saved }))));
+      sessionStorage.setItem(key, JSON.stringify(this.items.map((it) => ({ label: it.label, kind: it.kind, type: it.type, template: it.template, provider: it.provider, values: it.values, shown: [...it.shown], cue: [...it.cue], saved: !!it.saved, adopt: it.adopt || undefined }))));
     } catch { /* a private window */ }
   }
 
@@ -767,7 +786,9 @@ export class Board {
     for (const x of list.slice(0, 64)) {
       try {
         const form = await this.form(x.kind, x.kind === 'template' ? x.template : x.type, x.provider);
-        this.items.push({ label: x.label, kind: x.kind, type: x.type || '', template: x.template || '', provider: x.provider || '', values: x.values || {}, shown: new Set(x.shown || []), cue: new Set(x.cue || []), saved: !!x.saved, form });
+        if (this.item(x.label)) continue; // drawn again while the drawing came back
+        const adopt = x.adopt && typeof x.adopt.discovery === 'string' && typeof x.adopt.key === 'string' ? { discovery: x.adopt.discovery, key: x.adopt.key, name: String(x.adopt.name || '') } : null;
+        this.items.push({ label: x.label, kind: x.kind, type: x.type || '', template: x.template || '', provider: x.provider || '', values: x.values || {}, shown: new Set(x.shown || []), cue: new Set(x.cue || []), saved: !!x.saved, adopt, form });
       } catch { /* a type that the providers do not have any more */ }
     }
     if (this.items.length) this.changed({ graph: true });
@@ -789,6 +810,11 @@ function lamp(name) {
       if (tip) el.setAttribute('data-tip', tip); else el.removeAttribute('data-tip');
     },
   };
+}
+
+// labelOf is a name for the drawing made from the name of an object: small letters, digits and underscores.
+function labelOf(name) {
+  return String(name || '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^[^a-z]+/, '').slice(0, 40).replace(/_+$/, '');
 }
 
 export function wiresOf(v) {
