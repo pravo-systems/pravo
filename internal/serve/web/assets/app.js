@@ -2190,9 +2190,12 @@ async function boot() {
   chatView.init().then((on) => { $('ask-btn').hidden = !on; });
   board.load().then((cfg) => {
     $('btn-draw').hidden = !cfg;
-    if (cfg && cfg.edit) {
+    if (cfg && cfg.apply) {
+      $('st-note').textContent = 'apply on · localhost only';
+      $('st-note').dataset.tip = 'The drawing board can save a drawing, plan it, and apply a plan of the saved files that it showed.\nIt is served on the loopback interface only.';
+    } else if (cfg && cfg.edit) {
       $('st-note').textContent = 'edit on · localhost only';
-      $('st-note').dataset.tip = 'The drawing board can save a drawing as a new file and plan it. It applies nothing.\nIt is served on the loopback interface only.';
+      $('st-note').dataset.tip = 'The drawing board can save a drawing and plan it. It applies nothing.\nIt is served on the loopback interface only.';
     }
     // the fragment as the page opened: it is written again once the first view is drawn, before the board is on
     if (cfg && frag.draw) toggleBoard(true);

@@ -106,9 +106,13 @@ export async function boardPost(path, draft) {
 }
 // boardPlan runs a plan of the specification with the drawing in it (with --edit). The server streams lines of JSON: steps, then
 // the result or an error; onLine sees each, and the last is returned.
-export async function boardPlan(draft, onLine) {
+export const boardPlan = (draft, onLine) => boardRun('/api/board/plan', draft, onLine);
+// boardApply applies the plan of the board that a ticket names (with --apply): steps, then the result, as a plan streams.
+export const boardApply = (ticket, onLine) => boardRun('/api/board/apply', { ticket }, onLine);
+
+async function boardRun(path, body, onLine) {
   let r;
-  try { r = await fetch('/api/board/plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft), credentials: 'same-origin' }); } catch { throw new Unreachable(); }
+  try { r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' }); } catch { throw new Unreachable(); }
   if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
   if (!r.ok) {
     let j = null;
@@ -133,7 +137,7 @@ export async function boardPlan(draft, onLine) {
     }
     if (done) break;
   }
-  if (!last || !(last.done || last.error)) throw new Error('the plan ended without a result');
+  if (!last || !(last.done || last.error)) throw new Error('the run ended without a result');
   return last;
 }
 // traces lists the runs that pravo recorded in the project; a server that does not know them has none.

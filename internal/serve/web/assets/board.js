@@ -56,6 +56,7 @@ export class Board {
       code: h('button', { type: 'button', class: 'bd-b sq', 'aria-pressed': 'false', 'data-tip': 'Show the code of the drawing' }, icon('code'), h('span', { class: 'lbl' }, 'Code')),
       save: h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Write the drawing as a new file of the specification' }, icon('file'), h('span', { class: 'lbl' }, 'Save')),
       plan: h('button', { type: 'button', class: 'bd-b go', 'data-tip': 'Plan the specification with the drawing in it, as pravo plan does' }, h('span', { class: 'bd-play', 'aria-hidden': 'true' }), h('span', { class: 'lbl' }, 'Plan')),
+      apply: h('button', { type: 'button', class: 'bd-b apply', hidden: true }, icon('check'), h('span', { class: 'lbl' }, 'Apply')),
     };
     this.hint = h('p', { class: 'bd-hint' });
     this.tb = h('div', { class: 'bd-tb', role: 'group', 'aria-label': 'Title block of the drawing' });
@@ -64,7 +65,7 @@ export class Board {
     const bar = h('div', { class: 'bd-bar' }, h('span', { class: 'bd-plus', 'aria-hidden': 'true' }, icon('plus')), this.input, this.hitsEl);
     this.strip = h('div', { class: 'bd-strip' }, bar,
       h('div', { class: 'bd-lamps', role: 'group', 'aria-label': 'Checks' }, this.lampEls.spec.el, this.lampEls.policy.el, this.lampEls.plan.el),
-      h('div', { class: 'bd-acts' }, this.btn.review, this.btn.code, this.btn.save, this.btn.plan));
+      h('div', { class: 'bd-acts' }, this.btn.review, this.btn.code, this.btn.save, this.btn.plan, this.btn.apply));
     this.guideEl = h('section', { class: 'bd-guide', 'aria-label': 'The guide', 'aria-live': 'polite', hidden: true });
     this.el = h('div', { class: 'overlay board', id: 'board', hidden: true }, this.sweep, this.guideEl, this.code, this.tb, this.hint, this.strip);
     canvas.append(this.el);
@@ -78,6 +79,9 @@ export class Board {
     this.btn.review.addEventListener('click', () => this.ask('review'));
     this.btn.save.addEventListener('click', () => this.save());
     this.btn.plan.addEventListener('click', () => this.runPlan());
+    this.btn.apply.addEventListener('click', () => this.confirmApply());
+    // the toasts of the page rise above the strip while the board is on, so that they never cover its buttons
+    new ResizeObserver(() => { if (this.strip.offsetHeight) document.documentElement.style.setProperty('--bd-strip', this.strip.offsetHeight + 'px'); }).observe(this.strip);
     this.el.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && ev.target === this.input) { ev.stopPropagation(); this.closeHits(); this.input.blur(); this.cb.focusCanvas(); } });
   }
 
@@ -101,6 +105,8 @@ export class Board {
   // each wire that offers itself, and the actions of the last plan of the board.
   decorate(g) {
     if (!this.on || !g) return g;
+    // another revision: the title block names it (an apply checks its plan against the state itself)
+    if (g.revision !== this.rev) { this.rev = g.revision; queueMicrotask(() => this.render()); }
     const have = new Set((g.nodes || []).map((n) => n.addr));
     // a thing that was saved and that the graph now shows is the real node: the drawing lets go of it
     const before = this.items.length;
@@ -318,7 +324,7 @@ export class Board {
   }
 
   // count is what the drawing sends: the things drawn and the resources it changes
-  count() { return this.items.filter((it) => it.kind !== 'change' || this.editOf(it)).length; }
+  count() { return this.items.filter((it) => (it.kind !== 'change' && !it.saved) || (it.kind === 'change' && this.editOf(it))).length; }
 
   // nodeTool is what the inspector of a resource of the specification shows while the board is on: change it, or remove it
   nodeTool(n) {
@@ -385,7 +391,8 @@ export class Board {
   // draft is the drawing as the server reads it
   draft() {
     const edits = this.items.filter((it) => it.kind === 'change').map((it) => this.editOf(it)).filter(Boolean);
-    return { file: this.cfg.file, edits: edits.length ? edits : undefined, items: this.items.filter((it) => it.kind !== 'change').map((it) => ({ label: it.label, type: it.type || undefined, provider: it.provider || undefined, template: it.template || undefined, values: it.values, adopt: it.adopt ? { discovery: it.adopt.discovery, key: it.adopt.key } : undefined })) };
+    // a thing that was saved is in the files: the drawing lets go of it once the graph shows it
+    return { file: this.cfg.file, edits: edits.length ? edits : undefined, items: this.items.filter((it) => it.kind !== 'change' && !it.saved).map((it) => ({ label: it.label, type: it.type || undefined, provider: it.provider || undefined, template: it.template || undefined, values: it.values, adopt: it.adopt ? { discovery: it.adopt.discovery, key: it.adopt.key } : undefined })) };
   }
 
   sig() { const d = this.draft(); return JSON.stringify([d.items, d.edits || []]); }
@@ -645,9 +652,12 @@ export class Board {
     this.btn.save.dataset.tip = pending ? 'Keep or drop what the guide drew first' : chk && chk.files && chk.files.length ? `Write the drawing: ${[chk.code ? chk.file : '', ...chk.files.map((f) => f.file)].filter(Boolean).join(', ')}` : 'Write the drawing as a new file of the specification';
     this.btn.plan.disabled = !!(p && p.state === 'running') || (n > 0 && !(chk && chk.state === 'valid'));
     this.btn.code.setAttribute('aria-pressed', this.codeOpen ? 'true' : 'false');
+    this.renderApply();
     this.hint.hidden = this.items.length > 0;
     this.hint.textContent = this.cfg.problem || (this.edit
-      ? 'Draw into the specification, or select a resource to change it. Nothing is written until you save, and nothing is applied: that stays a command.'
+      ? (this.cfg.apply
+        ? 'Draw into the specification, or select a resource to change it. Nothing is written until you save, and nothing is applied until you plan the saved files and press Apply.'
+        : 'Draw into the specification, or select a resource to change it. Nothing is written until you save, and nothing is applied: that stays a command.')
       : 'Draw into the specification, or select a resource to change it. Nothing is written: copy the code, or start pravo serve --edit to save and plan from here.');
     this.renderTitle();
     if (this.codeOpen) this.renderCode();
@@ -666,9 +676,9 @@ export class Board {
     const pol = this.check && this.check.policy;
     const checked = !pol ? '·' : pol.state === 'holds' ? plural(pol.policies.length, 'policy', 'policies') : pol.state === 'refused' ? 'refused' : pol.state === 'none' ? 'no policy' : 'not yet';
     const planned = p && p.state === 'done' ? `${clockOf(p.at)} · ${planWords(p.result)}` : p && p.state === 'running' ? 'planning' : '·';
-    const rows = [['Project', proj.package || baseOf(proj.dir)], ['Revision', String(this.cb.revision() || '·').slice(0, 10)], ['Drawn by', this.count() ? this.cfg.actor || 'you' : '·'], ['Checked by', checked], ['Planned', planned], ['Applied by', '·']];
+    const rows = [['Project', proj.package || baseOf(proj.dir)], ['Revision', String(this.cb.revision() || '·').slice(0, 10)], ['Drawn by', this.count() ? this.cfg.actor || 'you' : '·'], ['Checked by', checked], ['Planned', planned], ['Applied by', this.applied ? `${this.cfg.actor || 'you'} · ${clockOf(this.applied.at)}` : '·']];
     clear(this.tb);
-    for (const [k, v] of rows) this.tb.append(h('div', { class: 'bd-tc' + (k === 'Applied by' ? ' ap' : '') }, h('span', null, k), h('b', { title: k === 'Applied by' ? 'Apply is a command, run from a terminal: pravo apply' : v }, v)));
+    for (const [k, v] of rows) this.tb.append(h('div', { class: 'bd-tc' + (k === 'Applied by' ? ' ap' : '') }, h('span', null, k), h('b', { title: k === 'Applied by' && !this.applied ? (this.cfg.apply ? 'Apply a plan of the files as they are from the board, or run pravo apply' : 'Apply is a command, run from a terminal: pravo apply') : v }, v)));
   }
 
   toggleCode(on = !this.codeOpen) {
@@ -695,7 +705,7 @@ export class Board {
       h('button', { type: 'button', class: 'iconbtn', 'aria-label': 'Close the code', on: { click: () => this.toggleCode(false) } }, icon('x')));
     this.code.append(head);
     if (this.saved && (!chk || !this.items.length)) {
-      this.code.append(h('div', { class: 'bd-next' }, h('p', null, `Wrote ${this.saved.file}. Apply it from a terminal, where your keys are:`),
+      this.code.append(h('div', { class: 'bd-next' }, h('p', null, this.cfg.apply ? `Wrote ${this.saved.file}. Plan it and press Apply, or run it from a terminal:` : `Wrote ${this.saved.file}. Apply it from a terminal, where your keys are:`),
         ...this.saved.commands.map((c) => h('div', { class: 'cmdline' }, h('span', { class: 'ps' }, '$'), h('code', null, c), h('button', { class: 'cpbtn', type: 'button', 'aria-label': 'Copy the command', on: { click: () => copyText(c) } }, icon('copy'))))));
     }
     if (!chk || (!chk.code && !files.length)) {
@@ -740,7 +750,7 @@ export class Board {
     for (const it of this.items) it.saved = true;
     const files = [out.file, ...(out.changed || [])].filter(Boolean).join(', ');
     this.saved = { file: files, commands: out.commands, at: Date.now() };
-    this.cb.toast(`Saved ${files}`, 'info', 6000, 'The graph shows it once the specification is read again. Apply it from a terminal: ' + out.commands[out.commands.length - 1]);
+    this.cb.toast(`Saved ${files}`, 'info', 6000, this.cfg.apply ? 'The graph shows it once the specification is read again. Plan it, then press Apply.' : 'The graph shows it once the specification is read again. Apply it from a terminal: ' + out.commands[out.commands.length - 1]);
     this.cb.announce(`Saved ${files}`);
     this.cb.redraw({});
     await this.load();
@@ -773,6 +783,78 @@ export class Board {
     this.sweepRun(false);
     this.render();
     this.cb.redraw({ stamp: true });
+  }
+
+  // ---- apply (pravo serve --apply) ----
+
+  // renderApply says whether the last plan can be applied from here: one of the files as they are (nothing on the
+  // board unsaved), that nothing refuses, and that the drawing has not changed since
+  renderApply() {
+    const b = this.btn.apply;
+    b.hidden = !this.cfg.apply;
+    if (b.hidden) return;
+    const p = this.plan;
+    let tip = '';
+    if (this.applying) tip = 'Applying';
+    else if (this.count()) tip = 'Save the drawing, then plan it: the board applies what the files say';
+    else if (!p || p.state !== 'done') tip = 'Plan first: the board applies a plan that it showed you';
+    else if (p.sig !== this.sig()) tip = 'The drawing changed since the plan: plan it again';
+    else if (p.result.held) tip = p.result.held;
+    else if (!p.result.ticket) tip = p.result.refused ? 'A policy refuses the plan' : 'The plan changes nothing';
+    b.disabled = !!tip;
+    b.dataset.tip = tip || `Apply the plan you see: ${planWords(p.result)}`;
+  }
+
+  // confirmApply asks once, beside the button, as pravo apply asks for yes: what the plan does, and that it is real
+  confirmApply() {
+    const p = this.plan;
+    if (this.btn.apply.disabled || !p || !p.result || !p.result.ticket) return;
+    this.closeMenu();
+    const go = h('button', { type: 'button', class: 'bd-b sm apply' }, icon('check'), h('span', { class: 'lbl' }, 'Apply now'));
+    const no = h('button', { type: 'button', class: 'bd-b sm' }, h('span', { class: 'lbl' }, 'Cancel'));
+    const menu = h('div', { class: 'bd-menu bd-confirm', role: 'alertdialog', 'aria-label': 'Apply the plan' },
+      h('p', { class: 'bd-mh' }, h('b', null, 'Apply the plan: '), planWords(p.result)),
+      h('p', { class: 'bd-cw-note' }, 'This changes real infrastructure with your keys, as pravo apply does. Every change is checked against the plan you see.'),
+      h('div', { class: 'bd-foot' }, no, go));
+    document.body.append(menu);
+    const r = this.btn.apply.getBoundingClientRect();
+    const mw = Math.min(340, window.innerWidth - 16);
+    menu.style.left = Math.max(8, Math.min(r.right - mw, window.innerWidth - mw - 8)) + 'px';
+    menu.style.top = Math.max(8, r.top - 8 - menu.offsetHeight) + 'px';
+    this.menu = menu;
+    this.menuOff = (ev) => { if (!menu.contains(ev.target)) this.closeMenu(); };
+    this.menuKey = (ev) => { if (ev.key === 'Escape') { ev.stopPropagation(); this.closeMenu(); this.btn.apply.focus(); } };
+    setTimeout(() => { document.addEventListener('pointerdown', this.menuOff, true); document.addEventListener('keydown', this.menuKey, true); }, 0);
+    no.addEventListener('click', () => { this.closeMenu(); this.btn.apply.focus(); });
+    go.addEventListener('click', () => { this.closeMenu(); this.runApply(p.result.ticket); });
+    no.focus();
+  }
+
+  async runApply(ticket) {
+    if (this.applying) return;
+    this.applying = true;
+    this.render();
+    this.sweepRun(true);
+    const seen = new Set();
+    try {
+      const out = await api.boardApply(ticket, (line) => {
+        if (line.step && line.step.addr && !seen.has(line.step.addr)) { seen.add(line.step.addr); this.cb.pulse(line.step.addr); }
+      });
+      if (out.error) throw new Error(out.error);
+      const d = out.done;
+      this.applied = { at: Date.now(), result: d };
+      const words = `${d.added} added, ${d.changed} changed, ${d.destroyed} destroyed`;
+      this.cb.toast(`Applied: ${words}`, 'info', 9000, `txn ${d.txn}${d.deferred ? `. ${plural(d.deferred, 'change')} waited for what the apply made: plan again.` : ''}`);
+      this.cb.announce(`Applied: ${words}`);
+      this.plan = null; // the plan is used: the next is made of the state as the apply left it
+    } catch (err) {
+      this.cb.toast('The apply failed', 'error', 12000, clipText(err.message, 400));
+      this.plan = null;
+    }
+    this.applying = false;
+    this.sweepRun(false);
+    this.render();
+    this.cb.redraw({});
   }
 
   // sweepRun moves the line of the sweep across the drawing while the plan runs, and once more, in step with the stamps, when it ends

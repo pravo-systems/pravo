@@ -267,3 +267,16 @@
 
 /* on a canvas that the inspector narrows, Review and Code say what they are in their tips, and the lamps keep their words */
 @container board (max-width: 76rem) { .bd-acts .bd-b.sq .lbl { display: none; } }
+
+/* ---- apply (pravo serve --apply) ---- */
+
+.bd-b.apply { background: var(--conflict); border-color: var(--conflict); color: var(--on-accent); }
+.bd-b.apply:hover:not(:disabled) { background: color-mix(in srgb, var(--conflict) 86%, #000); }
+.bd-b.apply:disabled { background: var(--surface); border-color: var(--line); color: var(--text-3); }
+.bd-confirm { z-index: 95; display: grid; gap: .5rem; padding: .7rem; border-top: 2px solid var(--conflict); }
+.bd-confirm .bd-mh { margin: 0; }
+.bd-cw-note { margin: 0; font: 400 var(--fs-2)/1.45 var(--font-ui); color: var(--text-2); }
+.bd-confirm .bd-foot { justify-content: flex-end; }
+
+/* the toasts of the page rise above the strip of the board */
+body:has(.app[data-board="1"]) .toasts { bottom: calc(2.7rem + var(--bd-strip, 3.2rem) + .4rem); }

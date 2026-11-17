@@ -32,7 +32,7 @@ func serveCmd(rt *runContext) *cobra.Command {
 	var noOpen bool
 	var planFile string
 	var chatProvider, chatModel, chatEndpoint string
-	var edit bool
+	var edit, apply bool
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Show the specification, the state and a saved plan in a browser, read-only",
@@ -67,8 +67,10 @@ Without --edit the server writes nothing: no state, no lock, no lock file, no ge
 				return err
 			}
 			opts.Chat = co
-			if edit {
-				opts.Board = boardOptions(rt)
+			if edit || apply {
+				var closeBoard func()
+				opts.Board, closeBoard = boardOptions(rt, apply)
+				defer closeBoard()
 			}
 			_, end := telemetry.Span(cmd.Context(), "setup read the specification and the state")
 			srv, err := serve.New(opts)
@@ -86,8 +88,11 @@ Without --edit the server writes nothing: no state, no lock, no lock file, no ge
 			if opts.Chat != nil {
 				rt.out.Printf("pravo serve: chat on: %s %s via %s (reads only, sends the viewer's redacted views)\n", opts.Chat.Name, opts.Chat.Model, opts.Chat.Host)
 			}
-			if opts.Board != nil {
-				rt.out.Println("pravo serve: edit on: the drawing board can save a drawing as a new file and plan it; it applies nothing")
+			switch {
+			case opts.Board != nil && opts.Board.Apply != nil:
+				rt.out.Println("pravo serve: apply on: the drawing board can save, plan, and apply a plan of the files as they are that it showed")
+			case opts.Board != nil:
+				rt.out.Println("pravo serve: edit on: the drawing board can save the drawing and plan it; it applies nothing")
 			}
 			if d := srv.StateDescription(); d != "" {
 				rt.out.Printf("pravo serve: reading state from %s\n", d)
@@ -109,7 +114,8 @@ Without --edit the server writes nothing: no state, no lock, no lock file, no ge
 	}
 	cmd.Flags().IntVar(&port, "port", 0, "the port to listen on (0 picks a free one)")
 	cmd.Flags().BoolVar(&noOpen, "no-open", false, "do not open a browser")
-	cmd.Flags().BoolVar(&edit, "edit", false, "let the drawing board save a drawing as a new file of the specification, and plan it (it never applies)")
+	cmd.Flags().BoolVar(&edit, "edit", false, "let the drawing board write the drawing into the specification (a new file, and the changes of the resources it changes), and plan it; it never applies")
+	cmd.Flags().BoolVar(&apply, "apply", false, "what --edit allows, and let the drawing board apply a plan of the files as they are, once it has shown it")
 	cmd.Flags().StringVar(&planFile, "plan", "", "a saved plan to show on top of the graph: a file, or the id of a plan stored in the state (plan-2f9c1a4e)")
 	cmd.Flags().StringVar(&chatProvider, "chat", "", "turn on the read-only assistant: anthropic or openai-compatible, or off ($PRAVO_CHAT, also provider:model)")
 	cmd.Flags().StringVar(&chatModel, "chat-model", "", "the model the assistant asks ($PRAVO_CHAT_MODEL)")
