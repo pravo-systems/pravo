@@ -127,6 +127,8 @@ A plan that expired, or was applied, can be laid over the graph too, to see what
 
 **Draw** in the toolbar, or the key `b`, lays the drawing board over the graph: a strip at the bottom with a bar to type what to add, the lamps Spec, Policy and Plan, and the buttons Code, Save and Plan. A resource or a template instance that you draw is a node with a dashed border and a `draft` tag, placed by the layout, with its form in the inspector and its sockets on its left edge. Save and Plan are there when the viewer was started with `--edit`, and the board applies nothing. [The drawing board](serve.md#the-drawing-board) says what each part does.
 
+*Figure: The drawing board over the platform: a file of reports and its password drawn, planned, and the code of the file.*
+
 ## The Plans section
 
 The state may hold plans that someone stored with [`pravo plan --store`](plan.md#store-a-plan). The Plans section lists them, newest first. [Stored plans and approvals](../concepts/stored-plans-and-approvals.md) explains what a stored plan is and how it moves from pending to applied.
