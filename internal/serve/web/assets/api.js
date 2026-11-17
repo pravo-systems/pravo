@@ -1,4 +1,4 @@
-// The client of the JSON contract in internal/serve/api.go. The page sends GET requests, the POSTs of the drawing board (README rule 14: a check writes nothing; a save and a plan exist with --edit only), and three more POSTs: a plan file dropped on the studio, which the server judges and writes nowhere, a question to the chat, which only reads (README rule 12), and the environment to read, which changes what the server loads and writes nothing.
+// The client of the JSON contract in internal/serve/api.go. The page sends GET requests, the POSTs of the drawing board (README rule 14: a check and a question to its guide write nothing; a save and a plan exist with --edit only), and three more POSTs: a plan file dropped on the studio, which the server judges and writes nowhere, a question to the chat, which only reads (README rule 12), and the environment to read, which changes what the server loads and writes nothing.
 
 export class Unauthorized extends Error {
   constructor() { super('unauthorized'); this.name = 'Unauthorized'; }
@@ -170,9 +170,16 @@ export function events(onChange, onState) {
 export const chatConfig = () => get('/api/chat/config').catch((err) => { if (err && err.status === 404) return { enabled: false }; throw err; });
 
 // askChat sends the conversation and calls onEvent for each event of the answer: read, text, done or error. It resolves when the stream ends.
-export async function askChat(messages, context, onEvent, signal) {
+export const askChat = (messages, context, onEvent, signal) => postEvents('/api/chat', { messages, context }, onEvent, signal);
+
+// askGuide asks the guide of the drawing board to draw (from a wish), review or explain, and calls onEvent for each event:
+// read, proposal, text, done or error. It resolves when the stream ends. The guide writes nothing.
+export const askGuide = (req, onEvent, signal) => postEvents('/api/board/guide', req, onEvent, signal);
+
+// postEvents sends a POST whose answer is a stream of server-sent events.
+async function postEvents(path, body, onEvent, signal) {
   let r;
-  try { r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', credentials: 'same-origin', body: JSON.stringify({ messages, context }), signal }); } catch (err) { if (err && err.name === 'AbortError') throw err; throw new Unreachable(); }
+  try { r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', credentials: 'same-origin', body: JSON.stringify(body), signal }); } catch (err) { if (err && err.name === 'AbortError') throw err; throw new Unreachable(); }
   if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
   if (!r.ok) {
     let msg = r.statusText || `status ${r.status}`;

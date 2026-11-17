@@ -93,6 +93,9 @@ type BoardConfig struct {
 	// Problem says why nothing can be drawn: the specification does not load, or declares no provider whose schema is
 	// cached.
 	Problem string `json:"problem,omitempty"`
+	// Guide names the model of the guide, when pravo serve was started with --chat: it draws from a wish, reviews the
+	// drawing and explains a thing on it, and writes nothing.
+	Guide string `json:"guide,omitempty"`
 }
 
 // BoardProvider is a provider the board draws with.
@@ -362,6 +365,9 @@ func (s *Server) boardFile() string {
 // boardConfigHandler answers GET /api/board.
 func (s *Server) boardConfigHandler(w http.ResponseWriter, m *model) {
 	out := &BoardConfig{Version: APIVersion, Edit: s.opts.Board != nil, Providers: []BoardProvider{}, File: s.boardFile()}
+	if c := s.opts.Chat; c != nil {
+		out.Guide = strings.TrimSpace(c.Name + " " + c.Model)
+	}
 	if s.opts.Board != nil {
 		out.Actor = clip(stripControl(s.opts.Board.Actor), 64)
 	}
@@ -647,6 +653,8 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, m *model) {
 		s.boardCheckHandler(w, r, m)
 	case "/api/board/save":
 		s.boardSaveHandler(w, r, m)
+	case "/api/board/guide":
+		s.boardGuideHandler(w, r, m)
 	default:
 		s.boardPlanHandler(w, r, m)
 	}

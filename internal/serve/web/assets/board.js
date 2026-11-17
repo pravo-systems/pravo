@@ -52,7 +52,8 @@ export class Board {
     this.hitsEl = h('div', { class: 'bd-hits', id: 'bd-hits', role: 'listbox', 'aria-label': 'Resource types', hidden: true });
     this.lampEls = { spec: lamp('Spec'), policy: lamp('Policy'), plan: lamp('Plan') };
     this.btn = {
-      code: h('button', { type: 'button', class: 'bd-b', 'aria-pressed': 'false', 'data-tip': 'Show the code of the drawing' }, icon('code'), h('span', { class: 'lbl' }, 'Code')),
+      review: h('button', { type: 'button', class: 'bd-b sq', hidden: true, 'data-tip': 'Ask the guide what the drawing does and what could go wrong' }, icon('ask'), h('span', { class: 'lbl' }, 'Review')),
+      code: h('button', { type: 'button', class: 'bd-b sq', 'aria-pressed': 'false', 'data-tip': 'Show the code of the drawing' }, icon('code'), h('span', { class: 'lbl' }, 'Code')),
       save: h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Write the drawing as a new file of the specification' }, icon('file'), h('span', { class: 'lbl' }, 'Save')),
       plan: h('button', { type: 'button', class: 'bd-b go', 'data-tip': 'Plan the specification with the drawing in it, as pravo plan does' }, h('span', { class: 'bd-play', 'aria-hidden': 'true' }), h('span', { class: 'lbl' }, 'Plan')),
     };
@@ -63,16 +64,18 @@ export class Board {
     const bar = h('div', { class: 'bd-bar' }, h('span', { class: 'bd-plus', 'aria-hidden': 'true' }, icon('plus')), this.input, this.hitsEl);
     this.strip = h('div', { class: 'bd-strip' }, bar,
       h('div', { class: 'bd-lamps', role: 'group', 'aria-label': 'Checks' }, this.lampEls.spec.el, this.lampEls.policy.el, this.lampEls.plan.el),
-      h('div', { class: 'bd-acts' }, this.btn.code, this.btn.save, this.btn.plan));
-    this.el = h('div', { class: 'overlay board', id: 'board', hidden: true }, this.sweep, this.code, this.tb, this.hint, this.strip);
+      h('div', { class: 'bd-acts' }, this.btn.review, this.btn.code, this.btn.save, this.btn.plan));
+    this.guideEl = h('section', { class: 'bd-guide', 'aria-label': 'The guide', 'aria-live': 'polite', hidden: true });
+    this.el = h('div', { class: 'overlay board', id: 'board', hidden: true }, this.sweep, this.guideEl, this.code, this.tb, this.hint, this.strip);
     canvas.append(this.el);
     this.input.addEventListener('input', () => this.findTypes(this.input.value));
     this.input.addEventListener('keydown', (ev) => this.onBarKey(ev));
     this.input.addEventListener('focus', () => { if (this.input.value) this.findTypes(this.input.value); else this.searchTypes(''); });
     this.input.addEventListener('blur', () => setTimeout(() => { if (!this.hitsEl.contains(document.activeElement)) this.closeHits(); }, 120));
     this.hitsEl.addEventListener('mousedown', (ev) => ev.preventDefault());
-    this.hitsEl.addEventListener('click', (ev) => { const b = ev.target.closest('[data-i]'); if (b) this.pick(this.hits[+b.dataset.i]); });
+    this.hitsEl.addEventListener('click', (ev) => { const b = ev.target.closest('[data-i]'); if (b) { if (b.dataset.ask) this.askFromBar(); else this.pick(this.hits[+b.dataset.i]); } });
     this.btn.code.addEventListener('click', () => this.toggleCode());
+    this.btn.review.addEventListener('click', () => this.ask('review'));
     this.btn.save.addEventListener('click', () => this.save());
     this.btn.plan.addEventListener('click', () => this.runPlan());
     this.el.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && ev.target === this.input) { ev.stopPropagation(); this.closeHits(); this.input.blur(); this.cb.focusCanvas(); } });
@@ -117,7 +120,7 @@ export class Board {
       const missing = this.missing(it);
       nodes.push({
         addr: it.label, mode: 'managed', type: it.kind === 'template' ? (it.form ? it.form.title : it.template) : it.type, name: it.label, namespace: '',
-        provider: this.providerKey(it), presence: 'spec', draft: true, template: it.kind === 'template', adopts: !!it.adopt, incomplete: missing.length,
+        provider: this.providerKey(it), presence: 'spec', draft: true, template: it.kind === 'template', adopts: !!it.adopt, guided: !!it.guide, incomplete: missing.length,
         sockets: this.sockets(it), boardAction: acts ? acts.get(it.label) || '' : '',
       });
     }
@@ -151,7 +154,7 @@ export class Board {
   // changedNode is a node of the graph that the drawing changes: it says so, and carries the sockets of its form
   changedNode(n, c) {
     if (!c) return n;
-    return Object.assign({}, n, { boardEdit: c.remove ? 'remove' : this.editOf(c) ? 'change' : 'open', sockets: c.remove ? [] : this.sockets(c), incomplete: c.remove ? 0 : this.missing(c).length });
+    return Object.assign({}, n, { boardEdit: c.remove ? 'remove' : this.editOf(c) ? 'change' : 'open', guided: !!c.guide, sockets: c.remove ? [] : this.sockets(c), incomplete: c.remove ? 0 : this.missing(c).length });
   }
 
   // changedEdges are the edges of the graph with those of a changed resource as its new code has them: a wire taken off
@@ -292,11 +295,7 @@ export class Board {
   changeItem(e, remove) {
     const it = { kind: 'change', label: e.addr, addr: e.addr, type: e.type, template: '', provider: e.provider || '', form: e.form, base: e.base, file: e.file, line: e.line,
       orig: e.values || {}, values: JSON.parse(JSON.stringify(e.values || {})), withheld: new Set(e.withheld || []), kept: e.kept || [], remove, shown: new Set(), cue: new Set() };
-    // a text written as CUE, an interpolation say, is shown as CUE
-    for (const f of this.fields(it)) {
-      const v = it.values[f.name];
-      if (v && v.expr !== undefined && (f.kind === 'text' || (f.kind === 'number' && !/^-?\d+(\.\d+)?$/.test(v.expr.trim())))) it.cue.add(f.name);
-    }
+    cueFields(this, it); // a text written as CUE, an interpolation say, is shown as CUE
     return it;
   }
 
@@ -417,13 +416,18 @@ export class Board {
     try { out = await api.boardTypes(q); } catch { return; }
     if (seq !== this.typeSeq || document.activeElement !== this.input) return;
     this.hits = out.hits || [];
-    this.hit = 0;
+    // a wish of several words that names no type goes to the guide first
+    this.hit = !this.hits.length || (this.cfg.guide && q.trim().split(/\s+/).length > 3 && this.hits.length < 2) ? Math.min(this.hits.length, this.options() - 1) : 0;
     this.drawHits(q);
   }
 
+  // options are the hits, and the guide when there is one and something is typed
+  options() { return this.hits.length + (this.cfg.guide && this.input.value.trim() ? 1 : 0); }
+
   drawHits(q) {
     clear(this.hitsEl);
-    if (!this.hits.length) {
+    const ask = !!(this.cfg.guide && q.trim());
+    if (!this.hits.length && !ask) {
       this.hitsEl.append(h('p', { class: 'bd-none' }, q ? `No resource type of ${this.providerNames()} is called “${q}”.` : 'Type what to add.'));
     }
     this.hits.forEach((x, i) => {
@@ -431,6 +435,11 @@ export class Board {
         h('b', null, x.title), h('code', null, x.kind === 'template' ? 'template ' + x.type : x.type), x.provider ? h('span', { class: 'bd-pv' }, x.provider) : h('span', { class: 'bd-pv t' }, 'template'),
         x.blurb ? h('span', { class: 'bd-blurb' }, x.blurb) : null));
     });
+    if (ask) {
+      const on = this.hit === this.hits.length;
+      this.hitsEl.append(h('button', { type: 'button', class: 'bd-hit bd-ask' + (on ? ' on' : ''), role: 'option', 'aria-selected': on ? 'true' : 'false', data: { i: this.hits.length, ask: '1' } },
+        h('b', null, icon('ask'), 'Ask the guide to draw it'), h('code', null, '\u21e7\u21b5'), h('span', { class: 'bd-pv t' }, this.cfg.guide), h('span', { class: 'bd-blurb' }, `\u201c${clipText(q.trim(), 140)}\u201d`)));
+    }
     this.hitsEl.hidden = false;
     this.input.setAttribute('aria-expanded', 'true');
   }
@@ -443,17 +452,27 @@ export class Board {
   closeHits() { this.hitsEl.hidden = true; this.input.setAttribute('aria-expanded', 'false'); }
 
   onBarKey(ev) {
+    const n = this.options();
     if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
       ev.preventDefault();
-      if (!this.hits.length) return;
-      this.hit = (this.hit + (ev.key === 'ArrowDown' ? 1 : this.hits.length - 1)) % this.hits.length;
+      if (!n) return;
+      this.hit = (this.hit + (ev.key === 'ArrowDown' ? 1 : n - 1)) % n;
       this.drawHits(this.input.value);
       const on = this.hitsEl.querySelector('.on');
       if (on) on.scrollIntoView({ block: 'nearest' });
     } else if (ev.key === 'Enter') {
       ev.preventDefault();
-      if (this.hits[this.hit]) this.pick(this.hits[this.hit]);
+      if (ev.shiftKey || (this.hit === this.hits.length && n > this.hits.length)) this.askFromBar();
+      else if (this.hits[this.hit]) this.pick(this.hits[this.hit]);
     }
+  }
+
+  askFromBar() {
+    const wish = this.input.value.trim();
+    if (!wish || !this.cfg.guide) return;
+    this.closeHits();
+    this.input.value = '';
+    this.ask('draw', { wish });
   }
 
   async pick(hit) {
@@ -461,6 +480,130 @@ export class Board {
     this.input.value = '';
     const it = await this.add(hit);
     if (it) this.input.focus();
+  }
+
+  // ---- the guide ----
+
+  // ask puts a question to the guide: draw (o.wish), review the drawing, or explain (o.addr). Its answer is a card on the
+  // board; a drawing it proposes is on the board, marked, until the person keeps it or drops it.
+  async ask(mode, o = {}) {
+    if (!this.cfg.guide) return;
+    if (this.guide && this.guide.state === 'running') this.guide.ctl.abort();
+    if (this.guide && this.guide.state !== 'running' && this.items.some((it) => it.guide)) this.dropGuide(true);
+    const g = { mode, wish: o.wish || '', addr: o.addr || '', state: 'running', reads: [], text: '', sent: null, made: [], ctl: new AbortController() };
+    this.guide = g;
+    this.renderGuide();
+    this.cb.announce(mode === 'draw' ? 'Asked the guide to draw it' : mode === 'review' ? 'Asked the guide to review the drawing' : `Asked the guide about ${o.addr}`);
+    const req = { mode, wish: g.wish || undefined, addr: g.addr || undefined, draft: this.draft() };
+    try {
+      await api.askGuide(req, (ev) => {
+        if (this.guide !== g) return;
+        if (ev.type === 'read') { g.reads.push(ev.tool); this.renderGuide(); }
+        else if (ev.type === 'proposal') g.proposal = ev.proposal;
+        else if (ev.type === 'text') g.text = ev.text;
+        else if (ev.type === 'done') g.sent = ev.sent || [];
+        else if (ev.type === 'error') { g.state = 'failed'; g.text = ev.text; }
+      }, g.ctl.signal);
+      if (this.guide !== g) return;
+      if (g.state !== 'failed') {
+        g.state = 'done';
+        if (g.proposal) g.made = await this.applyProposal(g.proposal);
+      }
+    } catch (err) {
+      if (this.guide !== g) return;
+      g.state = err && err.name === 'AbortError' ? 'stopped' : 'failed';
+      if (g.state === 'failed') g.text = err.message;
+    }
+    this.renderGuide();
+    if (g.state === 'done') this.cb.announce(g.made.length ? `The guide drew ${plural(g.made.length, 'thing')}. Keep it or drop it.` : 'The guide answered');
+  }
+
+  // applyProposal lays what the guide drew on the board, marked as the guide's: new things, and changes of resources
+  applyProposal(p) {
+    return (async () => {
+      const made = [];
+      for (const x of p.items || []) {
+        const kind = x.template ? 'template' : 'resource';
+        if (this.item(x.label)) continue;
+        let form;
+        try { form = await this.form(kind, x.template || x.type, x.provider); } catch { continue; }
+        const it = { label: x.label, kind, type: x.type || '', template: x.template || '', provider: x.provider || '', values: x.values || {}, form, shown: new Set(Object.keys(x.values || {})), cue: new Set(), adopt: null, guide: true };
+        cueFields(this, it);
+        this.items.push(it);
+        made.push(it.label);
+      }
+      for (const e of p.edits || []) {
+        if (this.changeOf(e.addr)) continue;
+        let r;
+        try { r = await api.boardEdit(e.addr); } catch { continue; }
+        if (r.reason) continue;
+        const it = this.changeItem(r, !!e.remove);
+        for (const [k, v] of Object.entries(e.set || {})) { it.values[k] = v; it.shown.add(k); }
+        for (const k of e.unset || []) delete it.values[k];
+        cueFields(this, it);
+        it.guide = true;
+        this.items.push(it);
+        made.push(it.addr);
+      }
+      if (made.length) { this.changed({ graph: true }); this.cb.select(made[0]); }
+      return made;
+    })();
+  }
+
+  keepGuide() {
+    for (const it of this.items) delete it.guide;
+    if (this.guide) this.guide.kept = true;
+    this.changed({ graph: true });
+    this.renderGuide();
+    this.cb.redrawInspector();
+    this.cb.announce('Kept what the guide drew');
+  }
+
+  dropGuide(quiet) {
+    this.items = this.items.filter((it) => !it.guide);
+    if (this.guide) this.guide.dropped = true;
+    this.changed({ graph: true });
+    if (quiet) return;
+    this.renderGuide();
+    this.cb.select(null);
+    this.cb.announce('Dropped what the guide drew');
+  }
+
+  closeGuide() {
+    if (this.guide && this.guide.state === 'running') this.guide.ctl.abort();
+    if (this.items.some((it) => it.guide)) { this.dropGuide(true); }
+    this.guide = null;
+    this.renderGuide();
+  }
+
+  // renderGuide is the card of the guide: what was asked, what it read, its answer, and Keep and Drop for what it drew
+  renderGuide() {
+    const g = this.guide, el = this.guideEl;
+    clear(el);
+    el.hidden = !g;
+    if (!g) return;
+    const what = g.mode === 'draw' ? `\u201c${clipText(g.wish, 160)}\u201d` : g.mode === 'review' ? 'Review the drawing' : `Explain ${g.addr}`;
+    el.append(h('div', { class: 'bd-gh' }, h('span', { class: 'bd-gk' }, icon('ask'), 'Guide'), h('span', { class: 'bd-gm' }, this.cfg.guide), h('span', { class: 'grow' }),
+      h('button', { type: 'button', class: 'iconbtn', 'aria-label': g.state === 'running' ? 'Stop the guide' : 'Close the guide', on: { click: () => this.closeGuide() } }, icon('x'))));
+    el.append(h('p', { class: 'bd-gq' }, what));
+    if (g.reads.length) el.append(h('p', { class: 'bd-gr' }, h('span', null, 'read'), ...g.reads.slice(-8).map((t) => h('code', null, t)), g.reads.length > 8 ? h('span', null, `+${g.reads.length - 8}`) : null));
+    if (g.state === 'running') { el.append(h('p', { class: 'bd-gw' }, h('span', { class: 'bd-dot' }), g.reads.length ? `Reading ${g.reads[g.reads.length - 1]}\u2026` : 'Asking\u2026')); return; }
+    if (g.state === 'stopped') { el.append(h('p', { class: 'bd-gw' }, 'Stopped.')); return; }
+    if (g.text) el.append(h('div', { class: 'bd-gt' + (g.state === 'failed' ? ' bad' : '') }, ...guideText(g.text)));
+    const pending = this.items.filter((it) => it.guide);
+    if (pending.length) {
+      const adds = pending.filter((it) => it.kind !== 'change').length, chg = pending.length - adds;
+      const said = [adds ? `draws ${plural(adds, 'thing')}` : '', chg ? `changes ${plural(chg, 'resource')}` : ''].filter(Boolean).join(' and ');
+      el.append(h('div', { class: 'bd-gp' }, h('span', null, `It ${said}, marked guide on the board.`),
+        h('span', { class: 'grow' }),
+        h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Take it off the board', on: { click: () => this.dropGuide() } }, icon('x'), h('span', { class: 'lbl' }, 'Drop')),
+        h('button', { type: 'button', class: 'bd-b sm go', 'data-tip': 'Make it part of your drawing', on: { click: () => this.keepGuide() } }, icon('check'), h('span', { class: 'lbl' }, 'Keep'))));
+    } else if (g.kept) el.append(h('p', { class: 'bd-gw' }, 'Kept: it is part of your drawing.'));
+    else if (g.dropped) el.append(h('p', { class: 'bd-gw' }, 'Dropped.'));
+    if (g.sent && g.sent.length) {
+      el.append(h('details', { class: 'bd-gs' }, h('summary', null, `What was sent to ${this.cfg.guide}: ${plural(g.sent.length, 'read')}`),
+        ...g.sent.map((x) => h('p', null, h('code', null, x.tool), ' ', clipText(typeof x.args === 'string' ? x.args : JSON.stringify(x.args || {}), 160), x.error ? h('span', { class: 'bad' }, ' \u2014 ' + x.error) : ` \u2014 ${x.bytes} bytes`))));
+    }
   }
 
   // ---- the chrome ----
@@ -496,8 +639,10 @@ export class Board {
     // the actions
     this.btn.save.hidden = !this.edit;
     this.btn.plan.hidden = !this.edit;
-    this.btn.save.disabled = !(n && chk && chk.state === 'valid');
-    this.btn.save.dataset.tip = chk && chk.files && chk.files.length ? `Write the drawing: ${[chk.code ? chk.file : '', ...chk.files.map((f) => f.file)].filter(Boolean).join(', ')}` : 'Write the drawing as a new file of the specification';
+    this.btn.review.hidden = !this.cfg.guide || !n;
+    const pending = this.items.some((it) => it.guide);
+    this.btn.save.disabled = !(n && chk && chk.state === 'valid') || pending;
+    this.btn.save.dataset.tip = pending ? 'Keep or drop what the guide drew first' : chk && chk.files && chk.files.length ? `Write the drawing: ${[chk.code ? chk.file : '', ...chk.files.map((f) => f.file)].filter(Boolean).join(', ')}` : 'Write the drawing as a new file of the specification';
     this.btn.plan.disabled = !!(p && p.state === 'running') || (n > 0 && !(chk && chk.state === 'valid'));
     this.btn.code.setAttribute('aria-pressed', this.codeOpen ? 'true' : 'false');
     this.hint.hidden = this.items.length > 0;
@@ -557,17 +702,23 @@ export class Board {
       if (!this.saved) this.code.append(h('p', { class: 'bd-empty' }, this.count() ? 'Writing the code…' : 'The code appears here as you draw.'));
       return;
     }
+    // one window, or each with the name of its file over it
+    const box = h('div', { class: 'bd-files' + (chk.code && files.length ? ' many' : files.length > 1 ? ' many' : '') });
+    this.code.append(box);
     if (chk.code) {
+      if (files.length) box.append(h('p', { class: 'bd-fn' }, h('b', null, chk.file), ' new'));
       const rng = chk.lines && chk.lines[sel];
       const lines = chk.code.replace(/\n$/, '').split('\n').map((text, i) => ({ no: i + 1, text, mark: rng && i + 1 >= rng[0] && i + 1 <= rng[1] ? 'focus' : '' }));
-      this.code.append(codeWindow({ file: chk.file, start_line: 1, end_line: lines.length, lines, kind: 'file' }, { title: `The code of the drawing, ${chk.file}`, cls: 'bd-cw' }));
+      box.append(codeWindow({ file: chk.file, start_line: 1, end_line: lines.length, lines, kind: 'file' }, { title: `The code of the drawing, ${chk.file}`, cls: 'bd-cw' }));
     }
     for (const fc of files) {
       const rng = fc.lines && fc.lines[sel];
       const lines = fc.diff.map((d) => (d.op === '\u2026' ? { no: '', text: '\u2026', dim: true }
         : { no: d.op === '-' ? '\u2212' : d.line, text: d.text || '', mark: d.op === '+' ? 'add' : d.op === '-' ? 'del' : rng && d.line >= rng[0] && d.line <= rng[1] ? 'focus' : '' }));
       const nums = fc.diff.filter((d) => d.op !== '-' && d.line).map((d) => d.line);
-      this.code.append(codeWindow({ file: fc.file, start_line: nums[0] || 1, end_line: nums[nums.length - 1] || 1, lines, kind: 'file' }, { title: `The change of ${fc.file}`, cls: 'bd-cw bd-diff' }));
+      const rm = Object.values(fc.lines || {}).filter((r) => !r[0]).length;
+      if (box.classList.contains('many')) box.append(h('p', { class: 'bd-fn' }, h('b', null, fc.file), rm ? ' changed, removes ' + plural(rm, 'resource') : ' changed'));
+      box.append(codeWindow({ file: fc.file, start_line: nums[0] || 1, end_line: nums[nums.length - 1] || 1, lines, kind: 'file' }, { title: `The change of ${fc.file}`, cls: 'bd-cw bd-diff' }));
     }
     const focus = this.code.querySelector('.m-focus, .m-add, .m-del');
     if (focus) focus.scrollIntoView({ block: 'nearest' });
@@ -648,7 +799,7 @@ export class Board {
     nameIn.addEventListener('change', () => { const msg = this.rename(it, nameIn.value.trim()); nameErr.textContent = msg; if (msg) nameIn.value = it.label; });
     nameIn.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') nameIn.blur(); });
     const head = {
-      kick: it.kind === 'template' ? 'Drawing · template' : it.adopt ? 'Drawing · resource that adopts' : 'Drawing · resource',
+      kick: it.guide ? 'Drawn by the guide · keep it or drop it' : it.kind === 'template' ? 'Drawing · template' : it.adopt ? 'Drawing · resource that adopts' : 'Drawing · resource',
       title: nameIn,
       path: h('div', { class: 'ih-path bd-what' }, h('b', null, f.title), h('code', null, it.kind === 'template' ? it.template : it.type), it.provider ? h('span', { class: 'b' }, it.provider) : null),
       tags: [h('span', { class: 'b bd-draft' }, 'draft')],
@@ -665,13 +816,15 @@ export class Board {
     body.append(nameErr, h('div', { class: 'bd-probs', role: 'status' }));
     const tools = h('div', { class: 'bd-tools' },
       h('button', { type: 'button', class: 'bd-b', 'data-act': 'complete', 'data-tip': 'Wire every socket it needs: to what fits, or to a new resource' }, icon('plus'), h('span', { class: 'lbl' }, 'Complete it')),
-      h('button', { type: 'button', class: 'bd-b', 'data-act': 'code', 'data-tip': 'Show its lines in the code' }, icon('code'), h('span', { class: 'lbl' }, 'Its code')));
+      h('button', { type: 'button', class: 'bd-b', 'data-act': 'code', 'data-tip': 'Show its lines in the code' }, icon('code'), h('span', { class: 'lbl' }, 'Its code')),
+      this.cfg.guide ? h('button', { type: 'button', class: 'bd-b', 'data-act': 'explain', 'data-tip': 'Ask the guide what it is and what its fields do' }, icon('ask'), h('span', { class: 'lbl' }, 'Explain')) : null);
     body.append(tools);
     tools.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-act]');
       if (!b) return;
       if (b.dataset.act === 'complete') this.complete(it.label).then((n) => { if (!n) this.cb.announce('Nothing to wire: every socket it needs has a wire, or several things fit'); this.cb.redrawInspector(); });
       if (b.dataset.act === 'code') this.toggleCode(true);
+      if (b.dataset.act === 'explain') this.ask('explain', { addr: it.label });
     });
     this.formFields(it, body);
     body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b danger', on: { click: () => this.remove(it.label) } }, icon('x'), h('span', { class: 'lbl' }, 'Remove from the drawing'))));
@@ -746,7 +899,8 @@ export class Board {
     if (it.kept.length) body.append(h('p', { class: 'bd-kept' }, 'Also written, and left as it is: ', ...it.kept.flatMap((k, i) => [i ? ', ' : '', h('code', null, k)])));
     const tools = h('div', { class: 'bd-tools' },
       h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Wire every socket it needs: to what fits, or to a new resource', on: { click: () => this.complete(it.label).then((n) => { if (!n) this.cb.announce('Nothing to wire: every socket it needs has a wire, or several things fit'); this.cb.redrawInspector(); }) } }, icon('plus'), h('span', { class: 'lbl' }, 'Complete it')),
-      h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Show the change of its file', on: { click: () => this.toggleCode(true) } }, icon('code'), h('span', { class: 'lbl' }, 'The change')));
+      h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Show the change of its file', on: { click: () => this.toggleCode(true) } }, icon('code'), h('span', { class: 'lbl' }, 'The change')),
+      this.cfg.guide ? h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Ask the guide what it is and what its fields do', on: { click: () => this.ask('explain', { addr: it.addr }) } }, icon('ask'), h('span', { class: 'lbl' }, 'Explain')) : null);
     body.append(tools);
     this.formFields(it, body);
     body.append(h('div', { class: 'bd-foot' },
@@ -942,8 +1096,9 @@ export class Board {
   keep() {
     try {
       const key = KEEP + ((this.cb.project() || {}).dir || '');
-      if (!this.items.length) { sessionStorage.removeItem(key); return; }
-      sessionStorage.setItem(key, JSON.stringify(this.items.map((it) => (it.kind === 'change' ? { kind: 'change', label: it.label, addr: it.addr, base: it.base, values: it.values, remove: it.remove, shown: [...it.shown], cue: [...it.cue] } : { label: it.label, kind: it.kind, type: it.type, template: it.template, provider: it.provider, values: it.values, shown: [...it.shown], cue: [...it.cue], saved: !!it.saved, adopt: it.adopt || undefined }))));
+      const mine = this.items.filter((it) => !it.guide);
+      if (!mine.length) { sessionStorage.removeItem(key); return; }
+      sessionStorage.setItem(key, JSON.stringify(mine.map((it) => (it.kind === 'change' ? { kind: 'change', label: it.label, addr: it.addr, base: it.base, values: it.values, remove: it.remove, shown: [...it.shown], cue: [...it.cue] } : { label: it.label, kind: it.kind, type: it.type, template: it.template, provider: it.provider, values: it.values, shown: [...it.shown], cue: [...it.cue], saved: !!it.saved, adopt: it.adopt || undefined }))));
     } catch { /* a private window */ }
   }
 
@@ -971,7 +1126,7 @@ export class Board {
       } catch { /* a type that the providers do not have any more */ }
     }
     if (gone) this.cb.toast(`${plural(gone, 'change')} let go`, 'info', 8000, 'Its file changed since it was read. Change it again on the board.');
-    if (this.items.length) this.changed({ graph: true });
+    if (this.items.length) { this.changed({ graph: true }); this.cb.redrawInspector(); }
   }
 }
 
@@ -995,6 +1150,28 @@ function lamp(name) {
 // labelOf is a name for the drawing made from the name of an object: small letters, digits and underscores.
 function labelOf(name) {
   return String(name || '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^[^a-z]+/, '').slice(0, 40).replace(/_+$/, '');
+}
+
+// cueFields shows as CUE the fields of a text or a number whose value is CUE: an interpolation, a reference
+function cueFields(board, it) {
+  for (const f of board.fields(it)) {
+    const v = it.values[f.name];
+    if (v && v.expr !== undefined && (f.kind === 'text' || (f.kind === 'number' && !/^-?\d+(\.\d+)?$/.test(v.expr.trim())))) it.cue.add(f.name);
+  }
+}
+
+// guideText is the answer of the guide as the card shows it: lines, the ones that start with a dash as a list, and what
+// is in backticks as code. It is text, never markup.
+function guideText(text) {
+  const out = [];
+  let list = null;
+  for (const line of String(text).split('\n')) {
+    const t = line.trim();
+    if (!t) { list = null; continue; }
+    const bits = t.replace(/^[-*]\s+/, '').split('`').map((x, i) => (i % 2 ? h('code', null, x) : x));
+    if (/^[-*]\s+/.test(t)) { if (!list) { list = h('ul'); out.push(list); } list.append(h('li', null, ...bits)); } else { list = null; out.push(h('p', null, ...bits)); }
+  }
+  return out;
 }
 
 const changeWord = (it, edit) => (it.remove ? 'draft · remove' : edit ? 'draft · change' : 'not changed yet');
