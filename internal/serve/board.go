@@ -74,6 +74,8 @@ type BoardPlanResult struct {
 	Add     int           `json:"add"`
 	Change  int           `json:"change"`
 	Destroy int           `json:"destroy"`
+	// Move counts the records the plan moves to a new address: a fold moves, and changes nothing that was made.
+	Move int `json:"move,omitempty"`
 	// Refused is what a policy in force said against the plan, empty when they all hold.
 	Refused string `json:"refused,omitempty"`
 	// Ticket names the plan, kept to be applied from the board, when it was asked to be kept and can be applied.
@@ -87,6 +89,7 @@ type BoardApplyResult struct {
 	Added     int    `json:"added"`
 	Changed   int    `json:"changed"`
 	Destroyed int    `json:"destroyed"`
+	Moved     int    `json:"moved,omitempty"`
 	Txn       string `json:"txn"`
 	// Deferred are the changes that waited for a value the apply made: the next plan makes them.
 	Deferred int `json:"deferred,omitempty"`
@@ -96,6 +99,8 @@ type BoardApplyResult struct {
 type BoardChange struct {
 	Addr   string `json:"addr"`
 	Action string `json:"action"`
+	// From is the address a record moves from, on a move.
+	From string `json:"from,omitempty"`
 }
 
 // BoardConfig is the answer of GET /api/board.
@@ -138,6 +143,10 @@ type BoardDraft struct {
 	Items []BoardItem `json:"items"`
 	// Edits change resources that the specification has, in the files where they are written.
 	Edits []BoardEdit `json:"edits,omitempty"`
+	// Fold folds resources of the specification into a template.
+	Fold *BoardFold `json:"fold,omitempty"`
+	// Seen are the digests of the files whose change the page showed, by name: a save writes a file only as it was shown.
+	Seen map[string]string `json:"seen,omitempty"`
 }
 
 // BoardItem is one thing drawn: a resource or an instance of a template.
@@ -194,6 +203,8 @@ type BoardCheck struct {
 	Files []BoardFileChange `json:"files,omitempty"`
 	// Removes are the resources that the edits take out of the specification.
 	Removes []string `json:"removes,omitempty"`
+	// Fold is what a fold of the drawing makes: a template and an instance that takes the records of what it folds.
+	Fold *BoardFolded `json:"fold,omitempty"`
 	// Policy is the lamp of the policies, judged on an approximate plan that creates them.
 	Policy *TemplatePolicy `json:"policy,omitempty"`
 	Took   int64           `json:"took_ms"`
@@ -883,7 +894,7 @@ func (s *Server) boardCheckHandler(w http.ResponseWriter, r *http.Request, m *mo
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, s.boardCheck(m, d))
+	writeJSON(w, http.StatusOK, s.boardShown(m, s.boardCheck(m, d)))
 }
 
 // boardCheck judges a drawing: the code, what CUE and the schemas say of it, and what the policies say.
@@ -894,7 +905,7 @@ func (s *Server) boardCheck(m *model, d *BoardDraft) *BoardCheck {
 	if out.File == "" {
 		out.File = s.boardFile()
 	}
-	if len(d.Items) == 0 && len(d.Edits) == 0 {
+	if len(d.Items) == 0 && len(d.Edits) == 0 && d.Fold == nil {
 		out.State = "empty"
 		return out
 	}
@@ -921,7 +932,13 @@ func (s *Server) boardCheck(m *model, d *BoardDraft) *BoardCheck {
 		extra[code.file] = code.text
 	}
 	var problems drawProblems
-	out.Files = s.boardEdits(m, d, named, &problems)
+	out.Files, out.Fold = s.boardEdits(m, d, named, &problems)
+	if d.Fold != nil {
+		named["@fold"] = true
+		for _, a := range d.Fold.Addrs {
+			named[a] = true
+		}
+	}
 	for _, e := range d.Edits {
 		named[e.Addr] = true
 		if e.Remove {
@@ -1010,10 +1027,18 @@ func boardChanges(m *model, root *config.Root, d *BoardDraft, out *BoardCheck) [
 	for _, e := range d.Edits {
 		edited[e.Addr] = true
 	}
+	moved := map[string]bool{}
+	if out.Fold != nil {
+		for _, to := range out.Fold.Moves {
+			moved[to] = true
+		}
+	}
 	for _, res := range root.Resources {
 		addr := res.Address()
 		_, had := m.spec.byPath[addr]
 		switch {
+		case moved[addr]:
+			// a fold moves the record: the object stays as it is
 		case !had:
 			out.Creates = append(out.Creates, TemplateCreate{Address: addr, Type: res.Type})
 			if res.Mode == "managed" {
@@ -1119,19 +1144,39 @@ func (s *Server) boardSaveHandler(w http.ResponseWriter, r *http.Request, m *mod
 	}
 	chk := s.boardCheck(m, d)
 	if chk.State != "valid" {
-		writeJSON(w, http.StatusConflict, chk)
+		writeJSON(w, http.StatusConflict, s.boardShown(m, chk))
 		return
 	}
 	s.boardMu.Lock()
 	defer s.boardMu.Unlock()
-	// Every file a change is made in is read again: one that changed since the check is not written over.
+	// Every file a change is made in is read again: one that changed since the check, or since the page showed its
+	// change, is not written over. A fold has no base of its own: what the page showed of it is its base.
 	for _, fc := range chk.Files {
+		if seen, ok := d.Seen[fc.File]; (ok && seen != fc.Base) || (!ok && d.Fold != nil) {
+			writeError(w, http.StatusConflict, fc.File+" is not as the board showed it: look at the change again")
+			return
+		}
+		if fc.New {
+			continue
+		}
 		if cur, err := penRead(filepath.Join(s.opts.Dir, fc.File)); err != nil || penDigest(cur) != fc.Base {
 			writeError(w, http.StatusConflict, fc.File+" changed since it was read: read it again")
 			return
 		}
 	}
 	out := &BoardSaved{Version: APIVersion, Changed: []string{}}
+	// a new file of a fold first: the resources leave their files only once the template that holds them is written
+	for _, fc := range chk.Files {
+		if !fc.New {
+			continue
+		}
+		if err := boardCreate(filepath.Join(s.opts.Dir, fc.File), fc.Text); err != nil {
+			writeError(w, http.StatusConflict, fc.File+" could not be written: it is there already, or the directory cannot be written")
+			return
+		}
+		out.Changed = append(out.Changed, fc.File)
+		out.Bytes += len(fc.Text)
+	}
 	if chk.Code != "" {
 		if err := boardCreate(filepath.Join(s.opts.Dir, chk.File), chk.Code); err != nil {
 			writeError(w, http.StatusConflict, chk.File+" could not be written: it is there already, or the directory cannot be written")
@@ -1140,6 +1185,9 @@ func (s *Server) boardSaveHandler(w http.ResponseWriter, r *http.Request, m *mod
 		out.File, out.Bytes = chk.File, len(chk.Code)
 	}
 	for _, fc := range chk.Files {
+		if fc.New {
+			continue
+		}
 		if err := penReplace(filepath.Join(s.opts.Dir, fc.File), fc.Text); err != nil {
 			writeError(w, http.StatusInternalServerError, fc.File+" could not be written; the files before it in the list were: "+strings.Join(out.Changed, ", "))
 			return
@@ -1199,10 +1247,10 @@ func (s *Server) boardPlanHandler(w http.ResponseWriter, r *http.Request, m *mod
 	req := BoardPlanRequest{}
 	lo := s.loadOptions()
 	req.Tags, req.SysTags = lo.Tags, lo.SysTags
-	if len(d.Items) > 0 || len(d.Edits) > 0 {
+	if len(d.Items) > 0 || len(d.Edits) > 0 || d.Fold != nil {
 		chk := s.boardCheck(m, d)
 		if chk.State != "valid" {
-			writeJSON(w, http.StatusConflict, chk)
+			writeJSON(w, http.StatusConflict, s.boardShown(m, chk))
 			return
 		}
 		req.Extra = map[string]string{}

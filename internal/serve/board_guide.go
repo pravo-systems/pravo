@@ -143,7 +143,7 @@ func (g *guideRun) draw(args json.RawMessage) (string, error) {
 	d.Edits = append(append([]BoardEdit{}, g.base.Edits...), p.Edits...)
 	chk := g.s.boardCheck(g.m, &d)
 	g.mu.Lock()
-	g.drawn = &BoardProposal{Items: p.Items, Edits: p.Edits, Check: chk}
+	g.drawn = &BoardProposal{Items: p.Items, Edits: p.Edits, Check: g.s.boardShown(g.m, chk)}
 	g.mu.Unlock()
 	out := map[string]any{"state": chk.State, "problems": chk.Problems}
 	if chk.Code != "" {

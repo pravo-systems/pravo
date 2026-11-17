@@ -62,12 +62,16 @@ type BoardEdit struct {
 // BoardFileChange is one file of the project as a change makes it: its new text and the lines it differs in.
 type BoardFileChange struct {
 	File string `json:"file"`
+	// Base is the digest of the file as the change was made from it; empty for a file the change writes new.
 	Base string `json:"base"`
+	New  bool   `json:"new,omitempty"`
 	Text string `json:"text"`
 	// Lines are, for each resource changed in it, the first and last line of the resource in the new text (0 when removed).
 	Lines map[string][2]int `json:"lines"`
 	// Diff is the change as lines, with three lines of context around each change.
 	Diff []BoardDiffLine `json:"diff"`
+	// old is the text the change was made from, which boardShown masks again to show the change.
+	old string
 }
 
 // BoardDiffLine is a line of a change: Op is " " kept, "-" taken out, "+" put in, or "…" for lines that are left out.
@@ -373,27 +377,40 @@ func penWire(m *model, x ast.Expr, scope map[string]bool) (BoardRef, bool) {
 	return BoardRef{To: to, Read: read}, true
 }
 
+// errOverlap is two changes of one file that touch the same bytes.
+var errOverlap = errors.New("two changes touch the same lines")
+
 // penSplice is one change to the bytes of a file: what is between Start and End becomes Text.
 type penSplice struct {
 	start, end int
 	text       string
 }
 
-// boardEdits makes the changes of a drawing to the files of the project: the new text of each file it changes. A
-// problem is about the change of one resource, by its address.
-func (s *Server) boardEdits(m *model, d *BoardDraft, labels map[string]bool, problems *drawProblems) []BoardFileChange {
+// boardEdits makes the changes of a drawing to the files of the project: the new text of each file it changes, and the
+// new file of a fold, last, with what the fold makes. A problem is about the change of one resource, by its address.
+func (s *Server) boardEdits(m *model, d *BoardDraft, labels map[string]bool, problems *drawProblems) ([]BoardFileChange, *BoardFolded) {
 	if len(d.Edits) > maxBoardEdits {
 		problems.add("", "", "A drawing changes at most "+strconv.Itoa(maxBoardEdits)+" resources.")
-		return nil
+		return nil, nil
 	}
 	type fileWork struct {
-		t       *penTarget
+		name    string
+		src     []byte
 		splices []penSplice
 		addrs   []string
 		paths   map[string][]string
 		removed map[string]bool
 	}
 	work := map[string]*fileWork{}
+	var fold *foldWork
+	if d.Fold != nil {
+		if fold = s.boardFold(m, d, labels, problems); fold == nil {
+			return nil, nil
+		}
+		for abs, sp := range fold.splices {
+			work[abs] = &fileWork{name: filepath.Base(abs), src: fold.srcs[abs], splices: sp, removed: map[string]bool{}, paths: map[string][]string{}}
+		}
+	}
 	seen := map[string]bool{}
 	for _, e := range d.Edits {
 		if seen[e.Addr] {
@@ -416,10 +433,14 @@ func (s *Server) boardEdits(m *model, d *BoardDraft, labels map[string]bool, pro
 		}
 		fw := work[t.abs]
 		if fw == nil {
-			fw = &fileWork{t: t, removed: map[string]bool{}, paths: map[string][]string{}}
+			fw = &fileWork{name: t.name, src: t.src, removed: map[string]bool{}, paths: map[string][]string{}}
 			work[t.abs] = fw
 		} else {
-			t.src = fw.t.src
+			if penDigest(fw.src) != penDigest(t.src) {
+				problems.add(e.Addr, "@base", t.name+" changed while it was read: read it again.")
+				continue
+			}
+			t.src = fw.src
 		}
 		sp, ok := s.penSplices(m, t, e, labels, problems)
 		if !ok {
@@ -432,13 +453,17 @@ func (s *Server) boardEdits(m *model, d *BoardDraft, labels map[string]bool, pro
 	}
 	var out []BoardFileChange
 	for _, fw := range work {
-		text, err := penApply(fw.t.src, fw.splices)
+		text, err := penApply(fw.src, fw.splices)
 		if err != nil {
-			problems.add(fw.addrs[0], "", "The change of "+fw.t.name+" does not make CUE: "+clip(err.Error(), 200))
+			about := "@fold"
+			if len(fw.addrs) > 0 {
+				about = fw.addrs[0]
+			}
+			problems.add(about, "", "The change of "+fw.name+" does not make CUE: "+clip(err.Error(), 200))
 			continue
 		}
-		fc := BoardFileChange{File: fw.t.name, Base: penDigest(fw.t.src), Text: text, Lines: map[string][2]int{}, Diff: penDiff(string(fw.t.src), text)}
-		if f, err := parser.ParseFile(fw.t.name, text); err == nil {
+		fc := BoardFileChange{File: fw.name, Base: penDigest(fw.src), Text: text, Lines: map[string][2]int{}, Diff: penDiff(string(fw.src), text), old: string(fw.src)}
+		if f, err := parser.ParseFile(fw.name, text); err == nil {
 			for _, a := range fw.addrs {
 				if fw.removed[a] {
 					fc.Lines[a] = [2]int{}
@@ -452,7 +477,10 @@ func (s *Server) boardEdits(m *model, d *BoardDraft, labels map[string]bool, pro
 		out = append(out, fc)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].File < out[j].File })
-	return out
+	if fold == nil {
+		return out, nil
+	}
+	return append(out, fold.file), fold.folded
 }
 
 // penSplices are the changes to the bytes of one file that one edit makes.
@@ -697,7 +725,7 @@ func penApply(src []byte, splices []penSplice) (string, error) {
 	last := len(src) + 1
 	for _, sp := range splices {
 		if sp.end > last || sp.start > sp.end {
-			return "", errors.New("two changes touch the same lines")
+			return "", errOverlap
 		}
 		out = append(out[:sp.start], append([]byte(sp.text), out[sp.end:]...)...)
 		last = sp.start
@@ -855,4 +883,144 @@ func penReplace(path, text string) error {
 		_ = os.Remove(tmp.Name())
 	}
 	return werr
+}
+
+// boardShown is a check as the page may see it: the files it changes with every value that a sensitive attribute is
+// given as a literal masked, as the source of a node is, and every sensitive value of the state. The check that saves and
+// plans keeps the text as it is.
+func (s *Server) boardShown(m *model, chk *BoardCheck) *BoardCheck {
+	if len(chk.Files) == 0 {
+		return chk
+	}
+	out := *chk
+	out.Files = make([]BoardFileChange, len(chk.Files))
+	for i, fc := range chk.Files {
+		old := s.penMasked(m, fc.old)
+		fc.Text = s.penMasked(m, fc.Text)
+		fc.Diff = penDiff(old, fc.Text)
+		out.Files[i] = fc
+	}
+	return &out
+}
+
+// penMasked is the text of a file with the string literals that a sensitive attribute of a resource is given masked, and
+// their repeats in the file, and every sensitive value of the state. A resource is known by its type, $P.#Resource.T, so
+// one in a definition is masked as one at the top.
+func (s *Server) penMasked(m *model, text string) string {
+	if text == "" {
+		return text
+	}
+	f, err := parser.ParseFile("shown.cue", text, parser.ParseComments)
+	if err != nil {
+		return m.scrubText(text)
+	}
+	type span struct{ from, to int }
+	var spans []span
+	repeats := map[string]bool{}
+	strs := func(x ast.Node, keep bool) {
+		ast.Walk(x, func(c ast.Node) bool {
+			switch l := c.(type) {
+			case *ast.BasicLit:
+				if l.Kind == token.STRING {
+					spans = append(spans, span{l.Pos().Offset(), l.End().Offset()})
+					if v, err := literal.Unquote(l.Value); err == nil && keep && len(v) >= 4 {
+						repeats[v] = true
+					}
+				}
+				return false
+			case *ast.Interpolation:
+				spans = append(spans, span{l.Pos().Offset(), l.End().Offset()})
+				return false
+			}
+			return true
+		}, nil)
+	}
+	ast.Walk(f, func(n ast.Node) bool {
+		g, ok := n.(*ast.Field)
+		if !ok {
+			return true
+		}
+		label, typ := penResourceType(g.Value)
+		if typ == "" {
+			return true
+		}
+		sens := map[string]bool{}
+		if p := s.boardProvider(m, label, typ); p != nil {
+			if sch := p.sch.Type("managed", typ); sch != nil && sch.Block != nil {
+				for _, at := range sch.Block.Attributes {
+					sens[at.Name] = at.Sensitive || at.WriteOnly
+				}
+			}
+		}
+		for _, body := range penBodies(g.Value) {
+			for _, el := range body.Elts {
+				if h, ok := el.(*ast.Field); ok {
+					if name, _, err := ast.LabelName(h.Label); err == nil && (sens[name] || guarded(name)) {
+						strs(h.Value, true)
+					}
+				}
+			}
+		}
+		return true
+	}, nil)
+	if len(repeats) > 0 {
+		ast.Walk(f, func(n ast.Node) bool {
+			if l, ok := n.(*ast.BasicLit); ok && l.Kind == token.STRING {
+				if v, err := literal.Unquote(l.Value); err == nil {
+					for r := range repeats {
+						if strings.Contains(v, r) {
+							spans = append(spans, span{l.Pos().Offset(), l.End().Offset()})
+						}
+					}
+				}
+			}
+			return true
+		}, nil)
+	}
+	sort.Slice(spans, func(i, j int) bool { return spans[i].from < spans[j].from })
+	var b strings.Builder
+	pos := 0
+	for _, sp := range spans {
+		if sp.from < pos || sp.to > len(text) || sp.from < 0 {
+			continue
+		}
+		b.WriteString(text[pos:sp.from] + `"` + mask + `"`)
+		// a literal on several lines keeps its lines, so that the lines of the change keep their numbers
+		b.WriteString(strings.Repeat("\n"+mask, strings.Count(text[sp.from:sp.to], "\n")))
+		pos = sp.to
+	}
+	b.WriteString(text[pos:])
+	return m.scrubText(b.String())
+}
+
+// penResourceType reads the provider label and the type of a resource from the code of its value: an operand
+// $P.#Resource.T of a chain of &.
+func penResourceType(x ast.Expr) (label, typ string) {
+	for {
+		b, ok := x.(*ast.BinaryExpr)
+		if !ok || b.Op != token.AND {
+			break
+		}
+		if l, t := penResourceType(b.Y); t != "" {
+			return l, t
+		}
+		x = b.X
+	}
+	sel, ok := x.(*ast.SelectorExpr)
+	if !ok {
+		return "", ""
+	}
+	typ, _, _ = ast.LabelName(sel.Sel)
+	mid, ok := sel.X.(*ast.SelectorExpr)
+	if !ok {
+		return "", ""
+	}
+	if kind, _, _ := ast.LabelName(mid.Sel); kind != "#Resource" {
+		return "", ""
+	}
+	id, ok := mid.X.(*ast.Ident)
+	if !ok {
+		return "", ""
+	}
+	return id.Name, typ
 }
