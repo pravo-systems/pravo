@@ -559,6 +559,13 @@ function toggleBoard(on) {
   syncFragment();
 }
 
+// drawFound opens the board on the graph and draws an object that a discovery found, to adopt it
+async function drawFound(a, it) {
+  if (!board || !board.cfg) return;
+  toggleBoard(true);
+  await board.addFound(a, it);
+}
+
 // boardPad is the height of what the board shows above its strip (the code drawer), which the fit leaves free
 let boardPad = 0;
 function padBoard(px) {
@@ -1917,7 +1924,7 @@ function wire() {
     onChange: (id, addr) => selectPlan(id).then(() => { setView(S.lastResources || 'graph'); selectNode(addr, { center: true }); }),
   });
   accessView = new AccessView($('access-pane'));
-  discoveryView = new DiscoveryView($('discovery-pane'), { onQuery: (dq) => { S.dq = dq; syncFragment(); } });
+  discoveryView = new DiscoveryView($('discovery-pane'), { onQuery: (dq) => { S.dq = dq; syncFragment(); }, canDraw: () => !!(board && board.cfg), onDraw: drawFound });
   policiesView = new PoliciesView($('policies-pane'), { onRoute: () => syncFragment() });
   secretsView = new SecretsView($('secrets-pane'), {
     // a node that reads a secret: the resources open on it

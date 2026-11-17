@@ -261,3 +261,58 @@ func TestBoardEditWritesOneNewFileAndNeverAnother(t *testing.T) {
 		t.Errorf("the next file: %q", cfg2.File)
 	}
 }
+
+// An object that a discovery found is drawn as a resource of its type that names it in $import: the identity comes from
+// the run of the discovery, never from the page.
+func TestBoardAdoptsAnObjectADiscoveryFound(t *testing.T) {
+	dir := t.TempDir()
+	writeSpec(t, dir, specCUE)
+	disc := "package demo\n\n$fake: #Discovery: fake_db: {\n\t$kind:   \"discovery\"\n\t$type:   \"fake_db\"\n\t$source: \"example.test/x/fake\"\n\tregion?: string\n}\n\nvms: $fake.#Discovery.fake_db & {region: \"eu\"}\n"
+	if err := os.WriteFile(filepath.Join(dir, "disc.cue"), []byte(disc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed(t, st)
+	p := start(t, dir, st, Options{})
+	p.putRun(scopeDigest(t, dir, "vms"), listedItems())
+	d := p.waitDiscovery("the run", func(d Discovery) bool { v := find(d, "vms"); return v != nil && v.Run != nil })
+	key := ""
+	for _, it := range find(d, "vms").Items {
+		if it.Name == "stray-1" {
+			key = it.Key
+		}
+	}
+	resp, body := p.do("GET", "/api/adopt?discovery=vms&key="+queryEscape(key), nil)
+	var a Adopt
+	if err := json.Unmarshal(body, &a); err != nil || resp.StatusCode != http.StatusOK || a.Type != "fake_db" || a.Provider != "$fake" {
+		t.Fatalf("adopt: %d %+v", resp.StatusCode, a)
+	}
+
+	item := BoardItem{Label: "stray", Type: a.Type, Provider: a.Provider, Adopt: &BoardAdopt{Discovery: "vms", Key: key},
+		Values: map[string]BoardValue{"name": {Text: strp("stray-1")}}}
+	chk := boardCheckOf(t, p, BoardDraft{Items: []BoardItem{item}})
+	if chk.State != "valid" {
+		t.Fatalf("%s %+v\n%s", chk.State, chk.Problems, chk.Code)
+	}
+	for _, want := range []string{"stray: $fake.#Resource.fake_db & {\n\t$import: {\n\t\tname:   \"stray-1\"\n\t\tregion: \"eu\"\n\t}\n\tname: \"stray-1\"\n}"} {
+		if !strings.Contains(chk.Code, want) {
+			t.Errorf("no %q in\n%s", want, chk.Code)
+		}
+	}
+
+	// what the run does not have, what a resource adopts already and a template are refused, on the thing drawn
+	for name, it := range map[string]BoardItem{
+		"no such object": {Label: "x", Type: "fake_db", Adopt: &BoardAdopt{Discovery: "vms", Key: "name=nope,region=eu"}},
+		"no discovery":   {Label: "x", Type: "fake_db", Adopt: &BoardAdopt{Discovery: "nope", Key: key}},
+		"another type":   {Label: "x", Type: "fake_file", Adopt: &BoardAdopt{Discovery: "vms", Key: key}},
+		"a template":     {Label: "x", Template: "service", Adopt: &BoardAdopt{Discovery: "vms", Key: key}},
+	} {
+		chk := boardCheckOf(t, p, BoardDraft{Items: []BoardItem{it}})
+		if chk.State != "invalid" || len(chk.Problems) == 0 || chk.Problems[0].Item != "x" || chk.Problems[0].Field != "@adopt" && name != "a template" {
+			t.Errorf("%s: %s %+v", name, chk.State, chk.Problems)
+		}
+	}
+}

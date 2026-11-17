@@ -82,7 +82,7 @@ function declGlyph(x, y, part, words) {
 // what an item shows: when it changes the element is built again
 function itemSig(x, ctx) {
   if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, pvClass(providerOf(x.n.type, x.n.provider)), ctx.hasPlan, x.look, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0,
-    x.n.draft ? 'd' + x.n.incomplete + (x.n.sockets || []).map((k) => k.name + (k.required ? '!' : '') + (k.wired ? '+' : '')).join(',') : '', x.n.boardAction || ''].join('|');
+    x.n.draft ? 'd' + x.n.incomplete + (x.n.adopts ? 'a' : '') + (x.n.sockets || []).map((k) => k.name + (k.required ? '!' : '') + (k.wired ? '+' : '')).join(',') : '', x.n.boardAction || ''].join('|');
   if (x.kind === 'ctl') return [x.shown, x.total].join('|');
   const a = x.agg;
   const pi = plansIn(x, ctx);
@@ -688,7 +688,7 @@ export class GraphView {
   // draftMarks are what a thing on the drawing board carries: the word draft on its top edge, and its sockets on its left
   // edge, a square for each field that takes a wire: amber when it needs one and has none, filled when it is wired
   draftMarks(n, inn, W, H) {
-    const word = n.template ? 'draft · template' : 'draft';
+    const word = n.template ? 'draft · template' : n.adopts ? 'draft · adopts' : 'draft';
     const w = 12 + word.length * 5.8;
     // on the top edge at the left: the stamp of a plan hangs at the right of the bottom edge of the node above
     const t = s('g', { class: 'dt', transform: 'translate(15 0)' });

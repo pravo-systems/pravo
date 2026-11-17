@@ -487,6 +487,12 @@ func AdoptSnippet(root *config.Root, d *DiscoveryView, l state.Listed, body stri
 	return b.String()
 }
 
+// ImportValue is the value of $import for a listed object: the struct of its
+// identity, as AdoptSnippet writes it.
+func ImportValue(identity map[string]any) string {
+	return strings.TrimSuffix(strings.TrimPrefix(importIdentity(identity, ""), "$import: "), "\n")
+}
+
 // importIdentity writes $import as the identity of a listed object, a struct of
 // its attributes, one to a line. An attribute that is null is left out: the
 // provider fills it in.

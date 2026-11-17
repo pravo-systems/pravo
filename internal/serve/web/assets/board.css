@@ -198,3 +198,8 @@
   .bd-hint, .bd-code { bottom: calc(6.2rem + .5rem); left: .5rem; right: .5rem; width: auto; }
   .bd-sweep { bottom: 6.2rem; }
 }
+
+/* a thing drawn that adopts an object a discovery found */
+.bd-adopt { display: grid; gap: .3rem; padding: .45rem .6rem; border-left: 2px solid var(--key); background: var(--surface-2); }
+.bd-adopt p { margin: 0; font: 400 var(--fs-3)/1.45 var(--font-ui); color: var(--text-2); overflow-wrap: anywhere; }
+.bd-adopt .linkbtn { justify-self: start; }
