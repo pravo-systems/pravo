@@ -42,6 +42,7 @@ A fragment looks like `#/?sel=api.services.billing.config&tab=source&collapse=ne
 | `palette` | `1` | The command palette open. |
 | `pq` | Text | The text typed into the palette. |
 | `help` | `1` | The sheet of shortcuts open. |
+| `draw` | `1` | [The drawing board](serve.md#the-drawing-board) open over the graph. The link opens the board and carries no drawing: a drawing stays in the tab that made it. |
 
 A view of the Inventory with a resource selected is the usual link to share: `#/?sel=api.services.billing.config&tab=history`. A view of another section needs `view`: `#/?view=plans&plq=by:ben`, `#/?view=policies&pol=approve_deletes`, `#/?view=traces&trace=ID&span=ID`.
 
@@ -78,6 +79,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `e` | Switch between the Inventory and the Secrets sections. |
 | `m` | Switch between the Inventory and the Templates sections. |
 | `v` | Switch between the Inventory and the Environments section, for a specification that declares `$environments`. |
+| `b` | Open or close [the drawing board](serve.md#the-drawing-board) over the graph. |
 | `c` | Open or close the Ask panel, when the viewer was started with [the assistant](serve.md#the-assistant). |
 | Esc | Close the palette, the sheet, a drawer or the Ask panel. In a text field, leave it. Otherwise clear the reach, then go back to where a search began while its result is selected, then close the group that a click opened, then clear the selection. |
 

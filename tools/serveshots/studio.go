@@ -198,3 +198,57 @@ await until(() => {
 if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
 return true;
 `
+
+// boardScript is the script of the shot of the drawing board, which the
+// fragment opens: it draws a file and a password from the bar, names them,
+// fills them in as a person does (the content of the file is CUE that reads
+// the release and the name of the network), plans the drawing, selects the
+// file and opens its code. No fragment carries a drawing.
+func boardScript() string { return scriptPrelude + boardJS }
+
+// boardJS types with the setter of the element, so that the page sees the
+// events that the keyboard makes, and waits for each answer of the server
+// before the next step.
+const boardJS = `
+const type = (el, text) => {
+  const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, text);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+};
+const rename = (to) => {
+  const el = document.querySelector('.bd-name');
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, to);
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+};
+const field = (name) => until(() => document.querySelector('.bd-row[data-f="' + name + '"] input, .bd-row[data-f="' + name + '"] textarea'), 'the field ' + name);
+const lamp = (i, cls) => until(() => { const l = all('.bd-lamp')[i]; return l && l.classList.contains(cls) ? l : null; }, 'the lamp ' + i + ' ' + cls);
+const draw = async (words, typ, label) => {
+  const bar = await until(() => document.querySelector('.bd-in'), 'the bar of the board');
+  const form = () => document.querySelector('.bd-form');
+  const before = form() ? form().dataset.label : '';
+  bar.focus();
+  type(bar, words);
+  const hit = await until(() => all('.bd-hit').find((b) => { const c = b.querySelector('code'); return c && c.textContent === typ; }), 'the type ' + typ);
+  hit.click();
+  // the form of the thing just drawn, and not the one that was open
+  await until(() => { const f = form(), c = document.querySelector('.bd-what code'); return f && f.dataset.label !== before && c && c.textContent === typ ? f : null; }, 'the form of ' + typ);
+  rename(label);
+  await until(() => { const n = document.querySelector('.bd-form'); return n && n.dataset.label === label ? n : null; }, 'the form of ' + label);
+};
+await draw('password', 'random_password', 'reports_key');
+type(await field('length'), '32');
+await draw('file', 'local_file', 'reports');
+type(await field('filename'), 'out/reports.json');
+const q = await until(() => document.querySelector('.bd-q'), 'the search of the fields');
+type(q, 'content');
+(await until(() => document.querySelector('.bd-mf[data-f="content"]'), 'the field content in the search')).click();
+(await until(() => document.querySelector('.bd-row[data-f="content"] .bd-mode'), 'the switch to CUE')).click();
+type(await until(() => document.querySelector('.bd-row[data-f="content"] textarea'), 'the CUE of content'), '"release \\(release.hex) on \\(network.name.id)\\n"');
+await lamp(0, 'ok');
+(await until(() => all('.bd-acts .bd-b.go').find((b) => !b.disabled), 'the button Plan')).click();
+await lamp(2, 'ok');
+(await until(() => all('.bd-acts .bd-b')[0], 'the button Code')).click();
+await until(() => document.querySelector('.bd-code .m-focus'), 'the lines of reports in the code');
+if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+return true;
+`

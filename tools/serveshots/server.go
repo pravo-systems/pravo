@@ -43,10 +43,15 @@ func (v *viewer) open(fragment string) string {
 // startViewer starts pravo serve in dir and waits for its first line of
 // output. A plan, when not empty, is passed as --plan, and env is added to
 // the environment of the command.
-func startViewer(ctx context.Context, bin, dir, plan string, env []string, log io.Writer) (*viewer, error) {
+func startViewer(ctx context.Context, bin, dir, plan string, edit bool, env []string, log io.Writer) (*viewer, error) {
 	args := append([]string(nil), serveArgs...)
 	if plan != "" {
 		args = append(args, "--plan", plan)
+	}
+	if edit {
+		// the title block of the board names who draws: a person of the
+		// documentation, not the account the pictures were made on
+		args = append(args, "--edit", "--actor", "ada")
 	}
 	cctx, cancel := context.WithCancel(ctx)
 	cmd := exec.CommandContext(cctx, bin, args...)

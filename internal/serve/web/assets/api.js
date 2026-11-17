@@ -1,4 +1,4 @@
-// The client of the JSON contract in internal/serve/api.go. The page sends GET requests, and three POSTs: a plan file dropped on the studio, which the server judges and writes nowhere, a question to the chat, which only reads (README rule 12), and the environment to read, which changes what the server loads and writes nothing.
+// The client of the JSON contract in internal/serve/api.go. The page sends GET requests, the POSTs of the drawing board (README rule 14: a check writes nothing; a save and a plan exist with --edit only), and three more POSTs: a plan file dropped on the studio, which the server judges and writes nowhere, a question to the chat, which only reads (README rule 12), and the environment to read, which changes what the server loads and writes nothing.
 
 export class Unauthorized extends Error {
   constructor() { super('unauthorized'); this.name = 'Unauthorized'; }
@@ -84,6 +84,54 @@ export async function switchEnvironment(name) {
   try { j = await r.json(); } catch { /* not JSON */ }
   if (!r.ok) throw Object.assign(new Error((j && j.error) || r.statusText || `status ${r.status}`), { status: r.status });
   return j;
+}
+// board is what the drawing board draws with: the providers and templates, the file it suggests, and whether it can save and plan (--edit).
+export const board = () => get('/api/board');
+// boardTypes finds the resource types and templates that answer the words of the bar.
+export const boardTypes = (q, signal) => get('/api/board/types?q=' + encodeURIComponent(q || ''), signal);
+// boardType is the form of a resource type, or of a template.
+export const boardType = (kind, type, provider) => get('/api/board/type?' + (kind === 'template' ? 'template=' + encodeURIComponent(type) : 'type=' + encodeURIComponent(type) + '&provider=' + encodeURIComponent(provider || '')));
+// boardPost sends the drawing to be checked, or saved (with --edit). A refusal that carries a check says why in err.check.
+export async function boardPost(path, draft) {
+  let r;
+  try { r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(draft), credentials: 'same-origin' }); } catch { throw new Unreachable(); }
+  if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
+  let j = null;
+  try { j = await r.json(); } catch { /* not JSON */ }
+  if (!r.ok) throw Object.assign(new Error((j && j.error) || (j && j.problems && j.problems.length && j.problems[0].message) || r.statusText || `status ${r.status}`), { status: r.status, check: j && j.state ? j : null });
+  return j;
+}
+// boardPlan runs a plan of the specification with the drawing in it (with --edit). The server streams lines of JSON: steps, then
+// the result or an error; onLine sees each, and the last is returned.
+export async function boardPlan(draft, onLine) {
+  let r;
+  try { r = await fetch('/api/board/plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft), credentials: 'same-origin' }); } catch { throw new Unreachable(); }
+  if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
+  if (!r.ok) {
+    let j = null;
+    try { j = await r.json(); } catch { /* not JSON */ }
+    throw Object.assign(new Error((j && j.error) || (j && j.problems && j.problems.length && j.problems[0].message) || r.statusText || `status ${r.status}`), { status: r.status });
+  }
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', last = null;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (value) buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).trim();
+      buf = buf.slice(i + 1);
+      if (!line) continue;
+      let j;
+      try { j = JSON.parse(line); } catch { continue; }
+      last = j;
+      if (onLine) onLine(j);
+    }
+    if (done) break;
+  }
+  if (!last || !(last.done || last.error)) throw new Error('the plan ended without a result');
+  return last;
 }
 // traces lists the runs that pravo recorded in the project; a server that does not know them has none.
 export const traces = () => get('/api/traces').catch((err) => { if (err && err.status === 404) return { version: 1, dir: '.pravo/traces', traces: [] }; throw err; });

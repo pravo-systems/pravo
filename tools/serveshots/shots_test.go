@@ -21,6 +21,7 @@ func TestFragmentString(t *testing.T) {
 		{"escapes a quote and a plus", Fragment{Sel: `x["a+b"]`}, "/?sel=x%5B%22a%2Bb%22%5D"},
 		{"keeps dots, dashes and underscores", Fragment{Sel: "eu.prod-1.n_04"}, "/?sel=eu.prod-1.n_04"},
 		{"palette", Fragment{Palette: true, PQ: "api key", Help: true}, "/?palette=1&pq=api%20key&help=1"},
+		{"board", Fragment{Help: true, Draw: true}, "/?help=1&draw=1"},
 		{"a cluster", Fragment{Expand: []string{"c:eu.prod.nodes|managed|null_resource"}}, "/?expand=c%3Aeu.prod.nodes%7Cmanaged%7Cnull_resource"},
 		{"a stored plan", Fragment{Sel: "a", Plan: "plan-2f9c1a4e", Motion: "off"}, "/?sel=a&plan=plan-2f9c1a4e&motion=off"},
 		{"the plan of an actor", Fragment{Plan: "@ana"}, "/?plan=%40ana"},
@@ -80,6 +81,7 @@ var wantViews = []string{
 	"c05-studio-shape", "c05-studio-template", "c05-studio-resources", "c05-studio-typo", "c06-waits", "c06-approved",
 	"templates-catalog", "templates-form", "templates-refused", "templates-instance",
 	"ask-notice", "ask-answer", "ask-sent",
+	"board",
 }
 
 func TestShotListIsConsistent(t *testing.T) {
@@ -343,7 +345,7 @@ func TestTeamShotsNameStepsOfTheTeam(t *testing.T) {
 func TestStudioShotsTypeTheRulesOfTheScenario(t *testing.T) {
 	n := 0
 	for _, s := range allShots() {
-		if s.Script == "" || s.Chat || strings.Contains(s.Script, "const reason =") || strings.Contains(s.Script, "tpf-label") {
+		if s.Script == "" || s.Chat || s.Edit || strings.Contains(s.Script, "const reason =") || strings.Contains(s.Script, "tpf-label") {
 			continue
 		}
 		n++

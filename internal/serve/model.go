@@ -94,6 +94,10 @@ type model struct {
 	tplOnce sync.Once
 	tpl     *Templates
 
+	// board is what the drawing board works out for this revision, the first time it is asked for.
+	boardOnce sync.Once
+	board     *boardModel
+
 	txOnce sync.Once
 	txns   []state.Transaction
 

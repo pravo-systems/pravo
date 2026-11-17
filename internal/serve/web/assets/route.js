@@ -59,5 +59,6 @@ export function writeFragment(v) {
   put('palette', v.palette ? '1' : '');
   put('pq', v.pq);
   put('help', v.help ? '1' : '');
+  put('draw', v.draw ? '1' : '');
   return '#/?' + parts.join('&');
 }
