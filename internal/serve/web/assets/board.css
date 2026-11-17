@@ -64,6 +64,20 @@
 .bd-hint { position: absolute; left: .75rem; bottom: calc(3.4rem + .7rem); max-width: min(34rem, calc(100% - 1.5rem)); margin: 0; padding: .45rem .7rem; font: 400 var(--fs-3)/1.4 var(--font-ui); color: var(--text-2); background: var(--glass); border: 1px dashed var(--line-strong); backdrop-filter: blur(6px); }
 
 /* the title block, in the corner as on an engineering drawing */
+/* the start of a board whose state holds nothing: draw, or bring a Terraform state. Folded, one button in the corner. */
+.bd-start { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -58%); width: min(31rem, calc(100% - 2rem)); display: grid; gap: .6rem; padding: .9rem 1rem 1rem; border: 1px solid var(--text-2); background: var(--surface); box-shadow: var(--shadow-1); }
+.bd-start[hidden] { display: none; }
+.bd-start.folded { top: .75rem; left: .75rem; transform: none; width: auto; padding: 0; border: 0; background: none; box-shadow: none; }
+.bd-start .bd-sk { display: flex; align-items: center; justify-content: space-between; font: 600 var(--fs-1)/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--key); padding-bottom: .45rem; border-bottom: 1px solid var(--line); }
+.bd-start h2 { margin: 0; font: 500 1.5rem/1.1 var(--font-display); letter-spacing: -.01em; color: var(--text); }
+.bd-sp { margin: 0; font: 400 var(--fs-3)/1.45 var(--font-ui); color: var(--text-2); }
+.bd-srow { display: flex; gap: .4rem; align-items: center; min-width: 0; }
+.bd-srow .bd-tin { flex: 1 1 auto; min-width: 0; }
+.bd-srow .bd-tin.chosen { color: var(--key); }
+.bd-sst { margin: 0; font: 400 var(--fs-2)/1.4 var(--font-ui); color: var(--text-2); overflow-wrap: anywhere; }
+.bd-sst:empty { display: none; }
+.bd-start.busy .bd-sst { color: var(--key); }
+
 .bd-tb { position: absolute; right: .75rem; bottom: calc(3.4rem + .7rem); display: grid; grid-template-columns: repeat(2, minmax(7.5rem, max-content)); border: 1px solid var(--text-2); background: var(--surface); box-shadow: var(--shadow-1); }
 .bd-tc { display: grid; gap: .2rem; padding: .32rem .55rem .38rem; border-right: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); min-width: 0; }
 .bd-tc:nth-child(2n) { border-right: 0; }

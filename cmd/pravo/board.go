@@ -41,6 +41,12 @@ func boardOptions(rt *runContext, apply bool) (opts *serve.BoardOptions, closeFn
 			return boardPlan(ctx, rt, req, step, kept)
 		},
 	}
+	opts.Start = func(ctx context.Context, req serve.BoardStartRequest) (*serve.BoardStartResult, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		kept.drop()
+		return boardStart(ctx, rt, req)
+	}
 	if apply {
 		opts.Apply = func(ctx context.Context, ticket string, step func(serve.BoardStep)) (*serve.BoardApplyResult, error) {
 			mu.Lock()

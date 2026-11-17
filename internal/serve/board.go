@@ -48,6 +48,10 @@ type BoardOptions struct {
 	// Apply applies the plan of the board that a ticket names, as "pravo apply <planfile>" applies a plan file: every
 	// change is checked against the planned one. Nil is off (--edit without --apply): the board applies nothing.
 	Apply func(ctx context.Context, ticket string, step func(BoardStep)) (*BoardApplyResult, error)
+	// Start brings a Terraform state onto the board as "pravo shadow" does: a new file of the specification and the
+	// records of the objects, which Terraform keeps until "pravo shadow take-over". It applies nothing. The server
+	// calls it only while the state of the project holds nothing.
+	Start func(ctx context.Context, req BoardStartRequest) (*BoardStartResult, error)
 }
 
 // BoardPlanRequest is what a plan of the board is made of.
@@ -124,6 +128,8 @@ type BoardConfig struct {
 	// Guide names the model of the guide, when pravo serve was started with --chat: it draws from a wish, reviews the
 	// drawing and explains a thing on it, and writes nothing.
 	Guide string `json:"guide,omitempty"`
+	// Start is set when the board can start from a Terraform state: --edit, and a state that holds nothing yet.
+	Start bool `json:"start,omitempty"`
 }
 
 // BoardProvider is a provider the board draws with.
@@ -399,6 +405,7 @@ func (s *Server) boardFile() string {
 // boardConfigHandler answers GET /api/board.
 func (s *Server) boardConfigHandler(w http.ResponseWriter, m *model) {
 	out := &BoardConfig{Version: APIVersion, Edit: s.opts.Board != nil, Apply: s.opts.Board != nil && s.opts.Board.Apply != nil, Providers: []BoardProvider{}, File: s.boardFile()}
+	out.Start = s.opts.Board != nil && s.opts.Board.Start != nil && m.recorded() == 0
 	if c := s.opts.Chat; c != nil {
 		out.Guide = strings.TrimSpace(c.Name + " " + c.Model)
 	}
@@ -691,6 +698,8 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, m *model) {
 		s.boardGuideHandler(w, r, m)
 	case "/api/board/apply":
 		s.boardApplyHandler(w, r, m)
+	case "/api/board/start":
+		s.boardStartHandler(w, r, m)
 	default:
 		s.boardPlanHandler(w, r, m)
 	}
