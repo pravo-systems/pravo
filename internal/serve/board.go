@@ -110,6 +110,8 @@ type BoardDraft struct {
 	// File is the name of the new file; empty for the one the board suggests.
 	File  string      `json:"file,omitempty"`
 	Items []BoardItem `json:"items"`
+	// Edits change resources that the specification has, in the files where they are written.
+	Edits []BoardEdit `json:"edits,omitempty"`
 }
 
 // BoardItem is one thing drawn: a resource or an instance of a template.
@@ -162,6 +164,10 @@ type BoardCheck struct {
 	// Reads are, for each thing drawn, the nodes of the specification and the other things drawn that its code reads, as
 	// the engine reads its references: a wire, and a reference in an expression that was typed.
 	Reads map[string][]string `json:"reads,omitempty"`
+	// Files are the files of the project that the edits change, as they would be.
+	Files []BoardFileChange `json:"files,omitempty"`
+	// Removes are the resources that the edits take out of the specification.
+	Removes []string `json:"removes,omitempty"`
 	// Policy is the lamp of the policies, judged on an approximate plan that creates them.
 	Policy *TemplatePolicy `json:"policy,omitempty"`
 	Took   int64           `json:"took_ms"`
@@ -179,6 +185,8 @@ type BoardSaved struct {
 	Version int    `json:"version"`
 	File    string `json:"file"`
 	Bytes   int    `json:"bytes"`
+	// Changed are the files of the project that the edits wrote.
+	Changed []string `json:"changed,omitempty"`
 	// Commands are what a person runs next, to copy: the plan and the apply. The board applies nothing.
 	Commands []string `json:"commands"`
 }
@@ -625,6 +633,9 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, m *model) {
 	case "/api/board/type":
 		s.boardTypeHandler(w, r, m)
 		return
+	case "/api/board/edit":
+		s.boardEditHandler(w, r, m)
+		return
 	}
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
@@ -847,72 +858,116 @@ func (s *Server) boardCheck(m *model, d *BoardDraft) *BoardCheck {
 	began := time.Now()
 	out := &BoardCheck{Version: APIVersion, File: d.File, State: "valid", Lines: map[string][2]int{}, Problems: []BoardProblem{}, Creates: []TemplateCreate{}}
 	defer func() { out.Took = time.Since(began).Milliseconds() }()
-	if len(d.Items) == 0 {
+	if out.File == "" {
+		out.File = s.boardFile()
+	}
+	if len(d.Items) == 0 && len(d.Edits) == 0 {
 		out.State = "empty"
-		if out.File == "" {
-			out.File = s.boardFile()
-		}
 		return out
 	}
-	code, problems := s.boardGenerate(m, d)
-	if code == nil {
+	// named are the things the problems can be about: the labels of the things drawn, the addresses of the changed
+	named := map[string]bool{}
+	for _, it := range d.Items {
+		named[it.Label] = true
+	}
+	extra := map[string]string{}
+	code := &boardCode{lines: map[string][2]int{}}
+	if len(d.Items) > 0 {
+		c, problems := s.boardGenerate(m, d)
+		if c == nil {
+			out.State, out.Problems = "invalid", problems
+			return out
+		}
+		code = c
+		out.File, out.Code, out.Lines = code.file, code.text, code.lines
+		if _, err := os.Lstat(filepath.Join(s.opts.Dir, code.file)); err == nil {
+			out.State = "exists"
+			out.Problems = append(out.Problems, BoardProblem{Field: "@file", Message: code.file + " is there already: the board writes a new file, and never one that exists."})
+			return out
+		}
+		extra[code.file] = code.text
+	}
+	var problems drawProblems
+	out.Files = s.boardEdits(m, d, named, &problems)
+	for _, e := range d.Edits {
+		named[e.Addr] = true
+		if e.Remove {
+			out.Removes = append(out.Removes, e.Addr)
+		}
+	}
+	if len(problems) > 0 {
 		out.State, out.Problems = "invalid", problems
 		return out
 	}
-	out.File, out.Code, out.Lines = code.file, code.text, code.lines
-	if _, err := os.Lstat(filepath.Join(s.opts.Dir, code.file)); err == nil {
-		out.State = "exists"
-		out.Problems = append(out.Problems, BoardProblem{Field: "@file", Message: code.file + " is there already: the board writes a new file, and never one that exists."})
-		return out
-	}
-	labels := map[string]bool{}
-	for _, it := range d.Items {
-		labels[it.Label] = true
+	for _, f := range out.Files {
+		extra[f.File] = f.Text
 	}
 	lo := s.loadOptions()
 	s.tplMu.Lock()
-	root, err := config.Load(s.opts.Dir, config.LoadOptions{Tags: lo.Tags, SysTags: lo.SysTags, Env: lo.Env, Extra: map[string]string{code.file: code.text}})
+	root, err := config.Load(s.opts.Dir, config.LoadOptions{Tags: lo.Tags, SysTags: lo.SysTags, Env: lo.Env, Extra: extra})
 	s.tplMu.Unlock()
 	if err == nil {
 		err = s.previewCheck(m, root)
 	}
 	if err != nil {
-		out.State = "invalid"
-		out.Problems = boardProblems(m.scrubText(errorText(err)), labels)
-		// a field that needs a value is said once, by the board
-		if len(code.missing) > 0 {
-			only := true
-			for _, p := range out.Problems {
-				if !strings.Contains(p.Message, "is required and has no value") && !strings.Contains(p.Message, "incomplete value") {
-					only = false
-				}
-			}
-			if only {
-				out.State, out.Problems = "incomplete", code.missing
-			} else {
-				out.Problems = append(code.missing, out.Problems...)
-			}
-		}
+		boardLoadProblems(out, m.scrubText(errorText(err)), named, code.missing)
 		return out
 	}
 	if len(code.missing) > 0 {
 		out.State, out.Problems = "incomplete", code.missing
 	}
-	var changes []engine.ChangeView
-	marked := engine.TemplateCache{}
-	for _, res := range root.Resources {
-		if _, had := m.spec.byPath[res.Address()]; had {
-			continue
-		}
-		out.Creates = append(out.Creates, TemplateCreate{Address: res.Address(), Type: res.Type})
-		if res.Mode == "managed" {
-			changes = append(changes, engine.ChangeView{Addr: res.Address(), Mode: "managed", Type: res.Type, Name: res.Name, Action: engine.ActionCreate,
-				Provider: res.ProviderKey, After: configured(root.Value.LookupPath(res.Path)), Template: engine.TemplateOf(root.Value, res.Path, marked)})
+	out.Reads = boardReads(root, named)
+	out.Policy = s.previewPolicies(m, boardChanges(m, root, d, out))
+	return out
+}
+
+// boardLoadProblems says what is wrong when the specification does not load with the drawing: a field that needs a value
+// is said once, by the board.
+func boardLoadProblems(out *BoardCheck, text string, named map[string]bool, missing []BoardProblem) {
+	out.State = "invalid"
+	out.Problems = boardProblems(text, named)
+	if len(missing) == 0 {
+		return
+	}
+	for _, p := range out.Problems {
+		if !strings.Contains(p.Message, "is required and has no value") && !strings.Contains(p.Message, "incomplete value") {
+			out.Problems = append(missing, out.Problems...)
+			return
 		}
 	}
-	out.Reads = boardReads(root, labels)
-	out.Policy = s.previewPolicies(m, changes)
-	return out
+	out.State, out.Problems = "incomplete", missing
+}
+
+// boardChanges are the changes of an approximate plan of the drawing, which the policies judge: what it adds is created,
+// what it changes is updated, and what it removes is deleted. It fills in what the check says it creates.
+func boardChanges(m *model, root *config.Root, d *BoardDraft, out *BoardCheck) []engine.ChangeView {
+	var changes []engine.ChangeView
+	marked := engine.TemplateCache{}
+	edited := map[string]bool{}
+	for _, e := range d.Edits {
+		edited[e.Addr] = true
+	}
+	for _, res := range root.Resources {
+		addr := res.Address()
+		_, had := m.spec.byPath[addr]
+		switch {
+		case !had:
+			out.Creates = append(out.Creates, TemplateCreate{Address: addr, Type: res.Type})
+			if res.Mode == "managed" {
+				changes = append(changes, engine.ChangeView{Addr: addr, Mode: "managed", Type: res.Type, Name: res.Name, Action: engine.ActionCreate,
+					Provider: res.ProviderKey, After: configured(root.Value.LookupPath(res.Path)), Template: engine.TemplateOf(root.Value, res.Path, marked)})
+			}
+		case edited[addr]:
+			changes = append(changes, engine.ChangeView{Addr: addr, Mode: "managed", Type: res.Type, Name: res.Name, Action: engine.ActionUpdate,
+				Provider: res.ProviderKey, After: configured(root.Value.LookupPath(res.Path))})
+		}
+	}
+	for _, a := range out.Removes {
+		if res := m.spec.byPath[a]; res != nil {
+			changes = append(changes, engine.ChangeView{Addr: a, Mode: "managed", Type: res.Type, Name: res.Name, Action: engine.ActionDelete, Provider: res.ProviderKey})
+		}
+	}
+	return changes
 }
 
 // boardReads finds what each thing drawn reads, by the reference analysis of the engine, so that the graph draws the edges
@@ -923,6 +978,9 @@ func boardReads(root *config.Root, labels map[string]bool) map[string][]string {
 	for _, r := range root.Resources {
 		addr := r.Address()
 		item, _, _ := strings.Cut(addr, ".")
+		if labels[addr] {
+			item = addr
+		}
 		if !labels[item] || (r.Mode != "managed" && r.Mode != "data") {
 			continue
 		}
@@ -933,9 +991,9 @@ func boardReads(root *config.Root, labels map[string]bool) map[string][]string {
 				continue
 			}
 			da := d.Address()
-			if dItem, _, _ := strings.Cut(da, "."); dItem == item {
+			if dItem, _, _ := strings.Cut(da, "."); da == item || dItem == item {
 				continue
-			} else if labels[dItem] {
+			} else if labels[dItem] && !labels[da] {
 				da = dItem
 			}
 			if sets[item] == nil {
@@ -965,10 +1023,15 @@ func boardProblems(text string, labels map[string]bool) []BoardProblem {
 		bp := BoardProblem{Message: p.Message}
 		if mm := problemHead.FindStringSubmatch(p.Message + " "); mm != nil {
 			path := strings.TrimSuffix(mm[1], ":")
-			head, rest, _ := strings.Cut(path, ".")
-			if labels[head] {
+			head := ""
+			for l := range labels {
+				if (path == l || strings.HasPrefix(path, l+".")) && len(l) > len(head) {
+					head = l
+				}
+			}
+			if head != "" {
 				bp.Item = head
-				bp.Field, _, _ = strings.Cut(rest, ".")
+				bp.Field, _, _ = strings.Cut(strings.TrimPrefix(strings.TrimPrefix(path, head), "."), ".")
 				bp.Message = strings.TrimSpace(strings.TrimPrefix(p.Message, path+":"))
 			}
 		}
@@ -998,27 +1061,51 @@ func (s *Server) boardSaveHandler(w http.ResponseWriter, r *http.Request, m *mod
 	}
 	s.boardMu.Lock()
 	defer s.boardMu.Unlock()
-	path := filepath.Join(s.opts.Dir, chk.File)
-	// O_EXCL: a file that appeared since the check is not written over.
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-	if err != nil {
-		writeError(w, http.StatusConflict, chk.File+" could not be written: it is there already, or the directory cannot be written")
-		return
+	// Every file a change is made in is read again: one that changed since the check is not written over.
+	for _, fc := range chk.Files {
+		if cur, err := penRead(filepath.Join(s.opts.Dir, fc.File)); err != nil || penDigest(cur) != fc.Base {
+			writeError(w, http.StatusConflict, fc.File+" changed since it was read: read it again")
+			return
+		}
 	}
-	_, werr := f.WriteString(chk.Code)
-	if cerr := f.Close(); werr == nil {
-		werr = cerr
+	out := &BoardSaved{Version: APIVersion, Changed: []string{}}
+	if chk.Code != "" {
+		if err := boardCreate(filepath.Join(s.opts.Dir, chk.File), chk.Code); err != nil {
+			writeError(w, http.StatusConflict, chk.File+" could not be written: it is there already, or the directory cannot be written")
+			return
+		}
+		out.File, out.Bytes = chk.File, len(chk.Code)
 	}
-	if werr != nil {
-		_ = os.Remove(path)
-		writeError(w, http.StatusInternalServerError, chk.File+" could not be written")
-		return
+	for _, fc := range chk.Files {
+		if err := penReplace(filepath.Join(s.opts.Dir, fc.File), fc.Text); err != nil {
+			writeError(w, http.StatusInternalServerError, fc.File+" could not be written; the files before it in the list were: "+strings.Join(out.Changed, ", "))
+			return
+		}
+		out.Changed = append(out.Changed, fc.File)
+		out.Bytes += len(fc.Text)
 	}
 	cmds := []string{"pravo plan", "pravo apply"}
 	if tags := boardTagArgs(s.loadOptions().Tags); tags != "" {
 		cmds = []string{"pravo plan" + tags, "pravo apply" + tags}
 	}
-	writeJSON(w, http.StatusOK, &BoardSaved{Version: APIVersion, File: chk.File, Bytes: len(chk.Code), Commands: cmds})
+	out.Commands = cmds
+	writeJSON(w, http.StatusOK, out)
+}
+
+// boardCreate writes a new file, and never one that is there: O_EXCL, so a file that appeared since the check stays.
+func boardCreate(path, text string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return err
+	}
+	_, werr := f.WriteString(text)
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		_ = os.Remove(path)
+	}
+	return werr
 }
 
 // boardTagArgs are the -t arguments of the tags the page reads with, quoted for a shell; a tag named like a secret is
@@ -1049,13 +1136,19 @@ func (s *Server) boardPlanHandler(w http.ResponseWriter, r *http.Request, m *mod
 	req := BoardPlanRequest{}
 	lo := s.loadOptions()
 	req.Tags, req.SysTags = lo.Tags, lo.SysTags
-	if len(d.Items) > 0 {
+	if len(d.Items) > 0 || len(d.Edits) > 0 {
 		chk := s.boardCheck(m, d)
 		if chk.State != "valid" {
 			writeJSON(w, http.StatusConflict, chk)
 			return
 		}
-		req.Extra = map[string]string{chk.File: chk.Code}
+		req.Extra = map[string]string{}
+		if len(d.Items) > 0 {
+			req.Extra[chk.File] = chk.Code
+		}
+		for _, f := range chk.Files {
+			req.Extra[f.File] = f.Text
+		}
 	}
 	if !s.boardPlanning.CompareAndSwap(false, true) {
 		writeError(w, http.StatusConflict, "a plan of the board is running already")
