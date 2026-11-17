@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -73,5 +74,30 @@ func TestBoardStartsFromATerraformState(t *testing.T) {
 	}
 	if len(got) != 3 {
 		t.Errorf("a refused start reached the command: %+v", got)
+	}
+}
+
+// An agent draws in process through the paths of the pen alone: the board answers it as it answers the page, and the
+// apply, the start from a Terraform state and the guide are not served that way, whatever the options.
+func TestBoardDrawsInProcessThroughThePenOnly(t *testing.T) {
+	p := boardProject(t, &BoardOptions{
+		Plan: func(context.Context, BoardPlanRequest, func(BoardStep)) (*BoardPlanResult, error) {
+			return &BoardPlanResult{}, nil
+		},
+		Apply: func(context.Context, string, func(BoardStep)) (*BoardApplyResult, error) {
+			return &BoardApplyResult{}, nil
+		},
+		Start: func(context.Context, BoardStartRequest) (*BoardStartResult, error) { return &BoardStartResult{}, nil },
+	})
+	if status, body := p.srv.Draw("/api/board/check", nil, ordersDraft()); status != http.StatusOK || !strings.Contains(string(body), `"state":"valid"`) {
+		t.Errorf("check in process: %d %s", status, body)
+	}
+	if status, body := p.srv.Draw("/api/board/types", url.Values{"q": {"db"}}, nil); status != http.StatusOK || !strings.Contains(string(body), "fake_db") {
+		t.Errorf("types in process: %d %s", status, body)
+	}
+	for _, path := range []string{"/api/board/apply", "/api/board/start", "/api/board/guide", "/api/graph", "/api/board/../board/apply"} {
+		if status, _ := p.srv.Draw(path, nil, map[string]string{"ticket": "bp-1"}); status != http.StatusNotFound {
+			t.Errorf("%s in process: %d", path, status)
+		}
 	}
 }
