@@ -430,7 +430,7 @@ func (s *Server) boardForm(m *model, p *boardProv, typ string, b *schema.Block) 
 		if h := ix.wireOf(typ, a); h != nil {
 			f.Wire = &BoardWire{Many: h.Many}
 			for _, t := range h.To {
-				f.Wire.To = append(f.Wire.To, BoardTarget{Type: t.Type, Read: t.Read})
+				f.Wire.To = append(f.Wire.To, BoardTarget(t))
 			}
 		}
 		if f.Required {

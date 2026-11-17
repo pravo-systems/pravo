@@ -663,10 +663,10 @@ func boardImport(m *model, it BoardItem, provider string) (string, string) {
 	if p, ok := root.ProviderPath(v.ProviderKey); !ok || p.String() != provider {
 		return "", "The object belongs to another provider."
 	}
-	if len(item.Listed.Identity) == 0 {
+	if len(item.Identity) == 0 {
 		return "", "The provider listed this object with no identity to import it by."
 	}
-	imp := engine.ImportValue(item.Listed.Identity)
+	imp := engine.ImportValue(item.Identity)
 	if m.scrubTags(imp) != imp {
 		return "", "The identity of the object holds the value of a tag that the viewer hides: adopt it with pravo discover adopt."
 	}
