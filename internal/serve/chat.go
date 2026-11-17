@@ -105,9 +105,12 @@ func chatToolNames() []string {
 // serverTools is the chat.Tools of a server.
 type serverTools struct{ s *Server }
 
-func (serverTools) Defs() []chat.ToolDef {
+func (serverTools) Defs() []chat.ToolDef { return specDefs(chatTools) }
+
+// specDefs describes tools that are GETs of the page to a model.
+func specDefs(specs []chatToolSpec) []chat.ToolDef {
 	var defs []chat.ToolDef
-	for _, t := range chatTools {
+	for _, t := range specs {
 		props := map[string]any{}
 		var req []string
 		for _, p := range t.params {
@@ -126,7 +129,13 @@ func (serverTools) Defs() []chat.ToolDef {
 }
 
 func (t serverTools) Call(ctx context.Context, name string, args json.RawMessage) (string, error) {
-	for _, spec := range chatTools {
+	return t.s.callSpec(ctx, chatTools, name, args)
+}
+
+// callSpec runs a tool that is a GET of the page: its arguments become the query, and the answer is what the page would
+// get, cut to a size a model can take.
+func (s *Server) callSpec(ctx context.Context, specs []chatToolSpec, name string, args json.RawMessage) (string, error) {
+	for _, spec := range specs {
 		if spec.name != name {
 			continue
 		}
@@ -158,7 +167,7 @@ func (t serverTools) Call(ctx context.Context, name string, args json.RawMessage
 				return "", fmt.Errorf("%s needs %q", name, p[0])
 			}
 		}
-		body, status, err := t.s.readAPI(ctx, spec.path, q)
+		body, status, err := s.readAPI(ctx, spec.path, q)
 		if err != nil {
 			return "", err
 		}

@@ -376,9 +376,10 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// The studio takes a plan file that a person drops on it, the chat a question, and the page the environment to read:
 	// the requests that are not a GET. None of them writes anything.
-	// The board sends a drawing to check, and with --edit to save or to plan (rule 14).
+	// The board sends a drawing to check, and with --edit to save or to plan (rule 14), and a wish to its guide, which
+	// reads and draws a proposal and writes nothing.
 	if r.Method == http.MethodPost && (r.URL.Path == "/api/studio/plan" || r.URL.Path == "/api/chat" || r.URL.Path == "/api/environment" ||
-		r.URL.Path == "/api/board/check" || r.URL.Path == "/api/board/save" || r.URL.Path == "/api/board/plan") {
+		r.URL.Path == "/api/board/check" || r.URL.Path == "/api/board/save" || r.URL.Path == "/api/board/plan" || r.URL.Path == "/api/board/guide") {
 		s.api(w, r)
 		return
 	}
@@ -479,7 +480,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/trace":
 		s.trace(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/secrets", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan", "/api/templates", "/api/templates/try", "/api/templates/refs", "/api/templates/choices", "/api/templates/entities", "/api/environments", "/api/environment", "/api/timelapse", "/api/board", "/api/board/types", "/api/board/type", "/api/board/edit", "/api/board/check", "/api/board/save", "/api/board/plan":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/secrets", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan", "/api/templates", "/api/templates/try", "/api/templates/refs", "/api/templates/choices", "/api/templates/entities", "/api/environments", "/api/environment", "/api/timelapse", "/api/board", "/api/board/types", "/api/board/type", "/api/board/edit", "/api/board/check", "/api/board/save", "/api/board/plan", "/api/board/guide":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -532,7 +533,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		s.templateChoicesHandler(w, r, m)
 	case "/api/templates/entities":
 		s.templateEntitiesHandler(w, r, m)
-	case "/api/board", "/api/board/types", "/api/board/type", "/api/board/edit", "/api/board/check", "/api/board/save", "/api/board/plan":
+	case "/api/board", "/api/board/types", "/api/board/type", "/api/board/edit", "/api/board/check", "/api/board/save", "/api/board/plan", "/api/board/guide":
 		s.boardRoute(w, r, m)
 	case "/api/adopt":
 		s.adopt(w, r, m)

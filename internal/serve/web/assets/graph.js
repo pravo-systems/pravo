@@ -82,7 +82,7 @@ function declGlyph(x, y, part, words) {
 // what an item shows: when it changes the element is built again
 function itemSig(x, ctx) {
   if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, pvClass(providerOf(x.n.type, x.n.provider)), ctx.hasPlan, x.look, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0,
-    x.n.draft || x.n.boardEdit ? 'd' + x.n.incomplete + (x.n.adopts ? 'a' : '') + (x.n.boardEdit || '') + (x.n.sockets || []).map((k) => k.name + (k.required ? '!' : '') + (k.wired ? '+' : '')).join(',') : '', x.n.boardAction || ''].join('|');
+    x.n.draft || x.n.boardEdit ? 'd' + x.n.incomplete + (x.n.adopts ? 'a' : '') + (x.n.guided ? 'g' : '') + (x.n.boardEdit || '') + (x.n.sockets || []).map((k) => k.name + (k.required ? '!' : '') + (k.wired ? '+' : '')).join(',') : '', x.n.boardAction || ''].join('|');
   if (x.kind === 'ctl') return [x.shown, x.total].join('|');
   const a = x.agg;
   const pi = plansIn(x, ctx);
@@ -109,6 +109,7 @@ export function nodeClasses(n, ctx) {
   if (isSecret(n)) c += ' m-secret';
   if (n.overlap) c += ' overlap';
   if (n.draft) c += ' draft' + (n.incomplete ? ' incomplete' : '');
+  if (n.guided) c += ' guided';
   if (n.boardEdit) c += ' bedit b-' + n.boardEdit + (n.incomplete ? ' incomplete' : '');
   if (n.boardAction && !ctx.hasPlan) c += ' stamped';
   return c;
@@ -691,7 +692,7 @@ export class GraphView {
   // edge, a square for each field that takes a wire: amber when it needs one and has none, filled when it is wired
   draftMarks(n, inn, W, H) {
     // a resource of the specification that the drawing has not changed yet carries its sockets and no word
-    const word = n.boardEdit ? { change: 'draft · change', remove: 'draft · remove' }[n.boardEdit] : n.template ? 'draft · template' : n.adopts ? 'draft · adopts' : 'draft';
+    const word = n.guided ? (n.boardEdit === 'remove' ? 'guide · remove' : n.boardEdit ? 'guide · change' : 'guide') : n.boardEdit ? { change: 'draft · change', remove: 'draft · remove' }[n.boardEdit] : n.template ? 'draft · template' : n.adopts ? 'draft · adopts' : 'draft';
     if (word) {
       const w = 12 + word.length * 5.8;
       // on the top edge at the left: the stamp of a plan hangs at the right of the bottom edge of the node above
