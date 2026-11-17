@@ -32,6 +32,10 @@ jobs:
           go-version-file: go.mod
       - name: Build pravo
         run: go build -o bin/pravo ./cmd/pravo
+      # The pictures of the viewer are made here, in parallel, and not stored in
+      # git (tools/ci/pictures.sh). A shot that fails stops the publish.
+      - name: Pictures of the viewer
+        run: sh tools/ci/pictures.sh
       - name: Data of the newest release
         env:
           GH_TOKEN: ${{ github.token }}

@@ -11,6 +11,9 @@
 #   docs    the pages of the documentation changed
 #   site    the site or its demos changed
 #   web     the viewer assets or the web linters changed
+#   viewer  the viewer or the pictures of it changed: the shots are taken for real in
+#           headless Chrome (tools/ci/pictures.sh), since a change that breaks a page
+#           or blanks a view shows only there
 #   hcl     the OpenTofu listings or their checker changed
 #   platform  something that behaves differently by system changed: files for one
 #           system, and the packages that work with files, locks and processes
@@ -28,7 +31,7 @@
 # The PR is the merge commit of GitHub, so its first parent is the base.
 set -eu
 out=${GITHUB_OUTPUT:-/dev/stdout}
-all=false code=false binary=false docs=false site=false web=false hcl=false platform=false slow=false waits=false
+all=false code=false binary=false docs=false site=false web=false viewer=false hcl=false platform=false slow=false waits=false
 
 if [ "${CI_EVENT:-}" != pull_request ]; then
 	all=true
@@ -40,13 +43,15 @@ else
 		.github/*|tools/ci/*|go.mod|go.sum|.golangci.yml) all=true ;;
 		docs/*) docs=true; hcl=true ;;
 		site/demos/scale/*) site=true; hcl=true; slow=true ;;
+		site/demos/views/*) site=true; hcl=true; viewer=true ;;
 		site/demos/*) site=true; hcl=true ;;
 		site/*) site=true; web=true ;;
 		skills/*) code=true; binary=true; docs=true ;;
 		tools/_weblint/*) web=true ;;
 		tools/hclcheck/*) code=true; hcl=true ;;
+		tools/serveshots/*|tools/ci/pictures.sh) code=true; viewer=true ;;
 		tools/*|actions/*) code=true ;;
-		internal/serve/web/*) code=true; binary=true; web=true ;;
+		internal/serve/*) code=true; binary=true; viewer=true; case $f in internal/serve/web/*) web=true ;; esac ;;
 		design/*|*.md|LICENSE) ;;
 		*_test.go|*/testdata/*) code=true ;;
 		*) code=true; binary=true ;;
@@ -70,15 +75,15 @@ else
 		esac
 	done
 fi
-if [ $all = true ]; then code=true binary=true docs=true site=true web=true hcl=true platform=true slow=true waits=true; fi
+if [ $all = true ]; then code=true binary=true docs=true site=true web=true viewer=true hcl=true platform=true slow=true waits=true; fi
 
 limit=3
 if [ "${CI_EVENT:-}" != pull_request ]; then limit=20
 elif [ $all = true ] || [ $platform = true ]; then limit=8
-elif [ $slow = true ] || [ $waits = true ]; then limit=5
+elif [ $slow = true ] || [ $waits = true ] || [ $viewer = true ]; then limit=8
 fi
 
-for n in all code binary docs site web hcl platform slow waits limit; do
+for n in all code binary docs site web viewer hcl platform slow waits limit; do
 	eval "v=\$$n"
 	echo "$n=$v" >> "$out"
 done

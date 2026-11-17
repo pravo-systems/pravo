@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -77,27 +76,6 @@ func TestDocumentationLinksExactlyTheShots(t *testing.T) {
 		if !shots[name] {
 			t.Errorf("a page links img/serve/%s.png, which is not a shot", name)
 		}
-	}
-}
-
-// docs/img/serve holds one PNG for each shot and nothing else.
-func TestImageDirectoryHoldsTheShots(t *testing.T) {
-	dir := filepath.Join(repoRoot(t), "docs", "img", "serve")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var have, want []string
-	for _, e := range entries {
-		have = append(have, e.Name())
-	}
-	for _, s := range allShots() {
-		want = append(want, s.File())
-	}
-	sort.Strings(have)
-	sort.Strings(want)
-	if strings.Join(have, " ") != strings.Join(want, " ") {
-		t.Errorf("docs/img/serve holds\n  %s\nwant\n  %s", strings.Join(have, " "), strings.Join(want, " "))
 	}
 }
 
@@ -227,7 +205,8 @@ func TestClusterThresholdAgreesWithTheInterface(t *testing.T) {
 // the classes shot-dark and shot-light, which the style sheet of the site uses
 // to show the picture that matches the theme of the page. README.md, which
 // GitHub shows without that style sheet, gives the pair in a picture element
-// whose dark source follows the colour scheme of the reader.
+// whose dark source follows the colour scheme of the reader, and names the
+// picture on the published site, since the pictures are not in git.
 func TestPairedShotsAreLinkedWithTheThemeClasses(t *testing.T) {
 	root := repoRoot(t)
 	var text strings.Builder
@@ -250,8 +229,8 @@ func TestPairedShotsAreLinkedWithTheThemeClasses(t *testing.T) {
 			continue
 		}
 		pairs++
-		if strings.Contains(all, `<source media="(prefers-color-scheme: dark)" srcset="docs/img/serve/`+base+`-dark.png">`) &&
-			strings.Contains(all, `<img src="docs/img/serve/`+base+`-light.png"`) {
+		if strings.Contains(all, `<source media="(prefers-color-scheme: dark)" srcset="https://pravo.systems/img/serve/`+base+`-dark.png">`) &&
+			strings.Contains(all, `<img src="https://pravo.systems/img/serve/`+base+`-light.png"`) {
 			continue
 		}
 		for _, theme := range []string{"dark", "light"} {

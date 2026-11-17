@@ -1,6 +1,6 @@
 # serveshots
 
-Makes the screenshots of the documentation of `pravo serve`. It applies the estates with the real binary, starts the viewer on a free loopback port and opens the address of each shot in headless Chrome at a device scale factor of 2. The PNGs go to `docs/img/serve/`, where the pages link them.
+Makes the screenshots of the documentation of `pravo serve`. It applies the estates with the real binary, starts the viewer on a free loopback port and opens the address of each shot in headless Chrome at a device scale factor of 2. The PNGs go to `docs/img/serve/`, where the pages link them. They are not in git: the site is published with the pictures that `sh tools/ci/pictures.sh` makes (`.github/workflows/pages.yml`), and the `pictures` job of CI takes them for real when the viewer or this tool changed.
 
 ```sh
 go build -o bin/pravo ./cmd/pravo
@@ -25,6 +25,9 @@ It needs Chrome or Chromium, the providers `random`, `local` and `null` (from `~
 | `-work DIR` | a temporary directory | Where the workspaces and the browser profile go, as `DIR/clean/NAME`, `DIR/changed/NAME`, `DIR/stored/NAME` and `DIR/team/NAME`. A temporary directory is removed afterwards. |
 | `-keep` | off | Keep the workspaces and print where they are. |
 | `-wait D` | `20s` | The longest that a page gets to settle before the screenshot. A page has settled when what it shows is the same for a second. |
+| `-jobs N` | one for each processor, up to 4 | How many browsers and workspaces run at once. A job takes whole viewers (a scenario in a situation, prepared once), the shots of the assistant go to one job, and the viewers are dealt out largest first. Every job but a lone one serves the bucket of the team on a free port and the picture shows `127.0.0.1:9000`. All 106 shots take about 3 minutes with 4 jobs on 4 processors. |
+| `-stamp` | off | Record the digest of the viewer in `site/demos/views/viewer.stamp` and exit. |
+| `-check-stamp` | off | Print a GitHub warning when the viewer is not the one in the stamp, and exit 0. |
 | `-placeholders` | off | Write a flat panel with the name of each shot and run nothing else. |
 | `-list` | off | Print the shots and exit. |
 | `-v` | off | Print every command that runs. |
@@ -41,7 +44,7 @@ A long `$TMPDIR` makes every provider fail to start with "Failed to read any lin
 
 ## Keeping the pictures current
 
-A full run (no `-only`) records a digest of the files that the viewer embeds (`internal/serve/web/index.html` and `assets/`) in `viewer.stamp`. `sh site/demos/views/build.sh` makes the pictures of the landing page from the shots (the tour, `environments` and `self-service`) and copies the stamp to `site/demos/views/viewer.stamp`. The tests `TestDocumentationPicturesAgreeWithTheViewer` and `TestLandingPicturesAgreeWithTheViewer` fail, in the `tools` job of CI, when the viewer's files differ from the stamps, so a change to the interface cannot merge while the pictures show the old one. When one fails, make the shots and run the script (the message lists the commands), then move the numbered callouts of `site/landing/12-views.html` if the places they point at moved. A change that does not alter what the viewer shows still needs the run: the stamp cannot tell.
+The pictures are made on every publish of the site, so they always show the viewer of the commit; a run of the tool changes every file a little (clocks, revisions), which is why they are not stored. `sh tools/ci/pictures.sh` takes every shot and then makes the pictures of the landing page (`site/demos/views/build.sh`: the tour, `environments` and `self-service`, cut from the shots); `sh tools/ci/pictures.sh placeholders` writes flat stand-ins with no Chrome, which is what the `site` job of CI builds with. What can go stale is hand work: the callouts of `site/landing/12-views.html` and the cuts of `build.sh` sit at places in the pictures. `site/demos/views/viewer.stamp` records the digest of the files that the viewer embeds (`internal/serve/web/index.html` and `assets/`) as they were when that work was checked, and CI warns (an annotation, not a failure) when they differ. Look at the landing page, move what moved, and run `go run ./tools/serveshots -stamp`.
 
 ## Scenarios
 

@@ -38,6 +38,7 @@ jobs:
       docs: ${{ steps.c.outputs.docs }}
       site: ${{ steps.c.outputs.site }}
       web: ${{ steps.c.outputs.web }}
+      viewer: ${{ steps.c.outputs.viewer }}
       hcl: ${{ steps.c.outputs.hcl }}
       platform: ${{ steps.c.outputs.platform }}
       slow: ${{ steps.c.outputs.slow }}
@@ -480,6 +481,10 @@ jobs:
         with:
           key: site
       - run: go build -o bin/pravo ./cmd/pravo
+      # The pictures of the viewer are not in git: flat stand-ins of the right
+      # size let the site build and its links resolve. The `pictures` job takes
+      # the real ones.
+      - run: sh tools/ci/pictures.sh placeholders
       - run: go run ./tools/sitegen -pravo-bin bin/pravo
       - run: go run site/demos/facts/facts.go -check
       - if: ${{ always() }}
@@ -487,10 +492,33 @@ jobs:
         with:
           key: site
 
+  # Every shot of the documentation and of the landing page is taken in headless
+  # Chrome against the real binary, in parallel (tools/serveshots -jobs). The
+  # pictures are not stored: the site is published with the ones made when it is
+  # published (pages.yml). A change to the viewer that breaks a page, blanks a view
+  # or logs an error fails here. It also warns when the callouts of the landing
+  # page were checked against another viewer.
+  pictures:
+    needs: changes
+    if: needs.changes.outputs.viewer == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(needs.changes.outputs.limit) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/go
+        with:
+          key: pictures
+      - run: go build -o bin/pravo ./cmd/pravo
+      - run: sh tools/ci/pictures.sh
+      - if: ${{ always() }}
+        uses: ./.github/actions/go-save
+        with:
+          key: pictures
+
   # One check to require in the branch protection settings.
   ci:
     if: always()
-    needs: [changes, static, vulns, lint, lint-web, test, warm, windows, macos, tools, docs, demos, scale, opentofu, site]
+    needs: [changes, static, vulns, lint, lint-web, test, warm, windows, macos, tools, docs, demos, scale, opentofu, site, pictures]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed

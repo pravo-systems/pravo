@@ -129,7 +129,7 @@ func TestScenariosWithPravo(t *testing.T) {
 			}
 		}
 	})
-	s, err := startStore()
+	s, err := startStore(storeAddr)
 	if err != nil {
 		t.Fatal(err)
 	}

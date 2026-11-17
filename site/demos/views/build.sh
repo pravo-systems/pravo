@@ -1,19 +1,16 @@
 #!/bin/sh
 # Makes the pictures of the viewer on the landing page, the tour and the bands
-# of environments and self-service, from the shots of tools/serveshots, and
-# records the viewer that they show in site/demos/views/viewer.stamp. A test
-# fails when the interface of the viewer changed since.
-#
-# Make the shots first, from the root of the module:
-#   go build -o bin/pravo ./cmd/pravo
-#   go run ./tools/serveshots -bin bin/pravo -out docs/img/serve
-#   sh site/demos/views/build.sh
-# then look at the callouts of site/landing/12-views.html, which are placed by
-# hand on what they name, and at the cuts below, which follow the layout of the
-# page. The conversion needs python3 with Pillow ($PYTHON names another one).
+# of environments and self-service, from the shots of tools/serveshots. They are
+# made when the site is published and are not stored (tools/ci/pictures.sh runs
+# this after the shots). The callouts of site/landing/12-views.html are placed
+# by hand on what they name, and the cuts below follow the layout of the page:
+# site/demos/views/viewer.stamp records the viewer they were checked against,
+# and `go run ./tools/serveshots -check-stamp` warns when it changed.
+# The conversion needs python3 with Pillow ($PYTHON names another one).
 set -eu
 cd "$(dirname "$0")/../../.."
 py=${PYTHON:-python3}
+mkdir -p site/assets/shots
 shot() { # shot theme left top right bottom width height name
 	"$py" -c 'import sys; from PIL import Image
 a = sys.argv
@@ -36,4 +33,3 @@ for theme in dark light; do
 	# Cut to the wizard, below the head of the section.
 	shot templates-form "$theme" 150 525 2730 1735 2160 1013 self-service
 done
-cp tools/serveshots/viewer.stamp site/demos/views/viewer.stamp
