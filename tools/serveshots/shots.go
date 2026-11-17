@@ -540,6 +540,10 @@ func allShots() []Shot {
 	// reports that reads the release and the name of the network, drawn with a
 	// password beside it, planned, and the file selected with its code open.
 	s = append(s, editing(scripted(boardScript(), both("board", "platform", situationClean, Fragment{Draw: true})))...)
+	// The same board folding manifest and the release it reads into a
+	// template: the plan only moves the two records, and the change shows the
+	// new file of the template.
+	s = append(s, editing(scripted(foldScript(), both("board-fold", "platform", situationClean, Fragment{Draw: true, Sel: "manifest"})))...)
 	return s
 }
 

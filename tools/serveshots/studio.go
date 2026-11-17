@@ -247,8 +247,53 @@ type(await until(() => document.querySelector('.bd-row[data-f="content"] textare
 await lamp(0, 'ok');
 (await until(() => all('.bd-acts .bd-b.go').find((b) => !b.disabled), 'the button Plan')).click();
 await lamp(2, 'ok');
-(await until(() => all('.bd-acts .bd-b')[0], 'the button Code')).click();
+(await until(() => all('.bd-acts .bd-b').find((b) => b.textContent.trim() === 'Code'), 'the button Code')).click();
 await until(() => document.querySelector('.bd-code .m-focus'), 'the lines of reports in the code');
+if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+return true;
+`
+
+// foldScript is the script of the shot of a fold on the drawing board: it
+// folds manifest and the release that it reads into a template, names it
+// release_notes, asks for the filename of manifest, plans the fold, which only
+// moves the records, and opens the change with the new file of the template at
+// the top.
+func foldScript() string { return scriptPrelude + foldJS }
+
+// foldJS selects the release through the fragment, as a link does, since the
+// graph selects on the pointer and not on a click.
+const foldJS = `
+const tool = (word) => until(() => all('.itool button').find((b) => b.textContent.trim().startsWith(word)), 'the tool ' + word);
+const lamp = (i, cls) => until(() => { const l = all('.bd-lamp')[i]; return l && l.classList.contains(cls) ? l : null; }, 'the lamp ' + i + ' ' + cls);
+(await tool('Fold it')).click();
+await until(() => document.querySelector('.bd-fold'), 'the fold');
+// the page writes its own fragment as it draws, which can take the place of
+// this one before the page reads it: then it is written again
+const add = await (async () => {
+  for (let i = 0; i < 10; i++) {
+    const h = location.hash;
+    location.hash = /sel=[^&]*/.test(h) ? h.replace(/sel=[^&]*/, 'sel=release') : h + '&sel=release';
+    for (let j = 0; j < 20; j++) {
+      const b = all('.itool button').find((x) => x.textContent.trim().startsWith('Add to'));
+      if (b) return b;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+  throw new Error('the page did not select release');
+})();
+add.click();
+await until(() => all('.bd-flist li').length === 2, 'the two resources of the fold');
+const name = await until(() => document.querySelector('.bd-fold .bd-row[data-f="@name"] input'), 'the name of the fold');
+Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(name, 'release_notes');
+name.dispatchEvent(new Event('change', { bubbles: true }));
+(await until(() => document.querySelector('.bd-askf input[data-k="manifest.filename"]'), 'the filename to ask for')).click();
+await until(() => all('.bd-inp code').some((c) => c.textContent.includes('filename')), 'the input of the filename');
+await lamp(0, 'ok');
+(await until(() => all('.bd-acts .bd-b.go').find((b) => !b.disabled), 'the button Plan')).click();
+await lamp(2, 'ok');
+(await until(() => all('.bd-acts .bd-b').find((b) => b.textContent.trim() === 'Code'), 'the button Code')).click();
+const file = await until(() => all('.bd-fn').find((p) => p.textContent.startsWith('release_notes.cue')), 'the file of the template');
+file.closest('.bd-files').scrollTop = file.offsetTop - file.closest('.bd-files').offsetTop;
 if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
 return true;
 `

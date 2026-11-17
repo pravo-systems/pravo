@@ -129,6 +129,8 @@ A plan that expired, or was applied, can be laid over the graph too, to see what
 
 *Figure: The drawing board over the platform: a file of reports and its password drawn, planned, and the code of the file.*
 
+*Figure: Folding manifest and the release it reads into a template: the plan only moves their records, and the change is a new file of the template.*
+
 ## The Plans section
 
 The state may hold plans that someone stored with [`pravo plan --store`](plan.md#store-a-plan). The Plans section lists them, newest first. [Stored plans and approvals](../concepts/stored-plans-and-approvals.md) explains what a stored plan is and how it moves from pending to applied.

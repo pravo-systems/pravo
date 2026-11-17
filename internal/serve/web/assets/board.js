@@ -749,7 +749,7 @@ export class Board {
         : { no: d.op === '-' ? '\u2212' : d.line, text: d.text || '', mark: d.op === '+' ? 'add' : d.op === '-' ? 'del' : rng && d.line >= rng[0] && d.line <= rng[1] ? 'focus' : '' }));
       const nums = fc.diff.filter((d) => d.op !== '-' && d.line).map((d) => d.line);
       const rm = Object.values(fc.lines || {}).filter((r) => !r[0]).length;
-      if (box.classList.contains('many')) box.append(h('p', { class: 'bd-fn' }, h('b', null, fc.file), rm ? ' changed, removes ' + plural(rm, 'resource') : ' changed'));
+      if (box.classList.contains('many')) box.append(h('p', { class: 'bd-fn' }, h('b', null, fc.file), fc.new ? ' new' : rm ? ' changed, removes ' + plural(rm, 'resource') : ' changed'));
       box.append(codeWindow({ file: fc.file, start_line: nums[0] || 1, end_line: nums[nums.length - 1] || 1, lines, kind: 'file' }, { title: `The change of ${fc.file}`, cls: 'bd-cw bd-diff' }));
     }
     const focus = this.code.querySelector('.m-focus, .m-add, .m-del');
