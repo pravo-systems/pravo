@@ -81,7 +81,7 @@ var wantViews = []string{
 	"c05-studio-shape", "c05-studio-template", "c05-studio-resources", "c05-studio-typo", "c06-waits", "c06-approved",
 	"templates-catalog", "templates-form", "templates-refused", "templates-instance",
 	"ask-notice", "ask-answer", "ask-sent",
-	"board",
+	"board", "board-fold",
 }
 
 func TestShotListIsConsistent(t *testing.T) {
