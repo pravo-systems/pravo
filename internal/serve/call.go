@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,7 +15,7 @@ func (s *Server) Call(path string, q url.Values) (int, []byte) {
 	if !strings.HasPrefix(path, "/api/templates") {
 		return http.StatusNotFound, []byte(`{"error":"not found"}`)
 	}
-	r := httptest.NewRequest(http.MethodGet, path+"?"+q.Encode(), nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, path+"?"+q.Encode(), nil)
 	r.Header.Set("Authorization", "Bearer "+s.token)
 	w := httptest.NewRecorder()
 	s.api(w, r)
