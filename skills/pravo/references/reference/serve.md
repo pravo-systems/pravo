@@ -243,7 +243,9 @@ It also lists the runs that pravo recorded (.pravo/traces, or $PRAVO_TRACE_DIR) 
 
 With --chat PROVIDER, or PRAVO_CHAT=PROVIDER in the environment, the viewer gets a read-only assistant (anthropic, or openai-compatible with --chat-endpoint, which can be a model on this machine). It is off otherwise, and a key alone turns nothing on. The model comes from --chat-model or PRAVO_CHAT_MODEL, the endpoint from --chat-endpoint or PRAVO_CHAT_ENDPOINT, and the key from PRAVO_CHAT_API_KEY or, for anthropic, ANTHROPIC_API_KEY, in the environment of this command and nowhere else. The assistant can only call the viewer's own read paths, so it sees values as the page shows them, with sensitive ones withheld; it cannot apply, approve or change anything, and each answer lists exactly what was sent to the provider.
 
-The server writes nothing: no state, no lock, no lock file, no generated package. It starts no provider and downloads nothing: it reads the provider schemas that are cached already. It listens on 127.0.0.1 only, and every request needs the token in the address that is printed.
+The Inventory has a drawing board (press b): draw new resources of the providers the specification declares, or instances of its templates, wire them to what is there, and the board writes the CUE of one new file and says what CUE, the schemas and the policies say of it. Without --edit it writes nothing and shows the code to copy. With --edit it can save the drawing as a new file of the specification, under a name that no file has, and run a plan of the specification with the drawing in it, as "pravo plan" would; it never writes over a file, and it never applies: the apply is a command to copy.
+
+Without --edit the server writes nothing: no state, no lock, no lock file, no generated package. It starts no provider and downloads nothing: it reads the provider schemas that are cached already. It listens on 127.0.0.1 only, and every request needs the token in the address that is printed.
 
 Usage:
   pravo serve [flags]
@@ -253,6 +255,7 @@ Flags:
       --chat string            turn on the read-only assistant: anthropic or openai-compatible, or off ($PRAVO_CHAT, also provider:model)
       --chat-endpoint string   the base URL of an openai-compatible provider, such as http://localhost:11434/v1 ($PRAVO_CHAT_ENDPOINT)
       --chat-model string      the model the assistant asks ($PRAVO_CHAT_MODEL)
+      --edit                   let the drawing board save a drawing as a new file of the specification, and plan it (it never applies)
       --env NAME               work on the environment NAME of $environments; --env prod is -t env=prod
   -h, --help                   help for serve
   -T, --inject-vars            inject system tag variables (os, arch, cwd, ...)
