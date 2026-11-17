@@ -556,6 +556,8 @@ function toggleBoard(on) {
   board.toggle(want);
   $('btn-draw').setAttribute('aria-pressed', board.on ? 'true' : 'false');
   $('app').dataset.board = board.on ? '1' : '';
+  // the inspector of a selected resource offers to change it while the board is on
+  if (S.sel && S.model && S.model.nodes.has(S.sel)) showInspector();
   syncFragment();
 }
 
@@ -705,12 +707,15 @@ function applyMatch() {
 
 function itemOf(addr) { return S.vis && S.vis.rep.get(addr); }
 
+// onBoard says whether a node is on the drawing board: drawn there, or a resource that the drawing changes
+const onBoard = (n) => !!(n && (n.draft || (board && board.changeOf(n.addr))));
+
 function selectNode(addr, o = {}) {
   const n = S.model.nodes.get(addr);
   if (!n) return;
   // a thing on the drawing board shows every wire it could take while it is selected
   const was = S.sel && S.model.nodes.get(S.sel);
-  if (board && board.on && S.sel !== addr && (n.draft || (was && was.draft))) { S.sel = addr; redrawBoard(); if (!S.model.nodes.has(addr)) return; }
+  if (board && board.on && S.sel !== addr && (onBoard(n) || onBoard(was))) { S.sel = addr; redrawBoard(); if (!S.model.nodes.has(addr)) return; }
   const changed = reveal(S.model, addr, S.collapsed, S.clusters);
   if (S.sel !== addr) S.reach = false;
   S.sel = addr;
@@ -773,7 +778,7 @@ function setGrouped(on) {
 function clearSelection() {
   if (!S.sel && !S.reach) return;
   const was = S.sel && S.model.nodes.get(S.sel);
-  if (board && board.on && was && was.draft) { S.sel = null; redrawBoard(); }
+  if (board && board.on && onBoard(was)) { S.sel = null; redrawBoard(); }
   S.sel = null;
   S.reach = false;
   S.tab = null;
@@ -813,7 +818,7 @@ function showInspector() {
   if (!S.sel) { insp.showProject(m); return; }
   if (m.nodes.has(S.sel)) {
     const n = m.nodes.get(S.sel);
-    if (n.draft && board) { board.showForm(n.addr, insp); return; }
+    if (board && board.on && onBoard(n)) { board.showForm(n.addr, insp); return; }
     insp.showNode(n, m, effectiveTab(n), S.graph);
   } else if (m.namespaces.has(S.sel)) insp.showNamespace(m.namespaces.get(S.sel), m, S.collapsed);
   else insp.showProject(m);
@@ -1894,7 +1899,7 @@ function wire() {
     toast, announce,
     revision: () => S.raw && S.raw.revision,
     project: () => S.raw && S.raw.project,
-    redrawInspector: () => { const n = S.sel && S.model.nodes.get(S.sel); if (n && n.draft) showInspector(); },
+    redrawInspector: () => { const n = S.sel && S.model.nodes.get(S.sel); if (n) showInspector(); },
     focusCanvas: () => $('canvas').focus(),
     pulse: (addr) => { const id = itemOf(addr); if (id) gv.flash(new Set([id])); },
     columns: maxRank,
@@ -1963,6 +1968,7 @@ function wire() {
     onToggleNamespace: toggleNamespace,
     onFit: (p) => { const lane = S.lay.lanes.find((l) => l.path === p); if (lane) gv.centerOnBox(lane); else { const id = S.vis.items.get('ns:' + p) ? 'ns:' + p : null; if (id) gv.centerOn(id, 0.9); } if (S.view !== 'graph') setView('graph'); },
     onError: (m) => toast(m, 'error', 6000),
+    nodeTool: (n) => (board && board.on ? board.nodeTool(n) : null),
     announce,
   });
   palette = new Palette($('palette'), {

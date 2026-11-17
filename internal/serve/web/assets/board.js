@@ -1,6 +1,7 @@
-// The drawing board (README rule 14): new resources drawn into the Inventory graph. The page holds the drawing; the
-// server writes its CUE, says what CUE, the schemas and the policies say of it, and, when pravo serve runs with --edit,
-// saves it as one new file and plans it. Nothing here stores a position: the layout engine places what is drawn, as it
+// The drawing board (README rule 14): new resources drawn into the Inventory graph, and changes to the ones that the
+// specification has. The page holds the drawing; the server writes its CUE, says what CUE, the schemas and the policies
+// say of it, and, when pravo serve runs with --edit, saves it (one new file, and the files a change is written in) and
+// plans it. Nothing here stores a position: the layout engine places what is drawn, as it
 // places everything else, and the code is the only thing that is kept.
 
 import { h, clear, icon, debounce, plural, copyText } from './util.js';
@@ -106,11 +107,13 @@ export class Board {
       // the chrome follows once the graph is drawn: what is left is checked again, or the code drawer says what was saved
       queueMicrotask(() => { if (this.items.length) this.recheck(); else { this.check = null; this.plan = null; } this.render(); });
     }
-    const nodes = (g.nodes || []).slice(), edges = (g.edges || []).slice();
+    const changes = new Map(this.items.filter((it) => it.kind === 'change').map((it) => [it.addr, it]));
+    const nodes = (g.nodes || []).map((n) => this.changedNode(n, changes.get(n.addr)));
+    let edges = (g.edges || []).slice();
     const sel = this.cb.selected();
     const acts = this.planActions();
     for (const it of this.items) {
-      if (have.has(it.label)) continue;
+      if (it.kind === 'change' || have.has(it.label)) continue;
       const missing = this.missing(it);
       nodes.push({
         addr: it.label, mode: 'managed', type: it.kind === 'template' ? (it.form ? it.form.title : it.template) : it.type, name: it.label, namespace: '',
@@ -119,23 +122,51 @@ export class Board {
       });
     }
     const shown = new Set(nodes.map((n) => n.addr));
+    for (const c of changes.values()) edges = this.changedEdges(c, edges, shown, sel);
     for (const it of this.items) {
-      if (have.has(it.label)) continue;
+      if (it.kind === 'change' || have.has(it.label)) continue;
       // its edges are its wires, and what the last check found its code to read: a reference typed into an expression too
       const reads = new Set();
       for (const v of Object.values(it.values)) for (const w of wiresOf(v)) reads.add(w.to);
       for (const a of (this.check && this.check.reads && this.check.reads[it.label]) || []) reads.add(a);
       for (const a of reads) if (shown.has(a)) edges.push({ dependency: a, dependent: it.label, draft: true });
-      for (const f of this.fields(it)) {
-        if (!f.wire || it.values[f.name]) continue;
-        const cands = this.candidates(it, f);
-        // the selected thing shows every wire it could take; another shows the one that fits a socket it needs, when one alone does
-        if (sel === it.label) for (const c of cands.slice(0, 4)) edges.push({ dependency: c.addr, dependent: it.label, offer: true });
-        else if (f.required && cands.length === 1) edges.push({ dependency: cands[0].addr, dependent: it.label, offer: true });
-      }
+      this.offers(it, edges, sel);
     }
     const out = Object.assign({}, g, { nodes, edges });
     if (acts) out.nodes = nodes.map((n) => (n.draft || !acts.has(n.addr) ? n : Object.assign({}, n, { boardAction: acts.get(n.addr) })));
+    return out;
+  }
+
+  // offers are the dotted edges of the wires a thing could take: the selected thing shows every wire it could take; another
+  // shows the one that fits a socket it needs, when one alone does
+  offers(it, edges, sel) {
+    for (const f of this.fields(it)) {
+      if (!f.wire || it.values[f.name]) continue;
+      const cands = this.candidates(it, f);
+      if (sel === it.label) for (const c of cands.slice(0, 4)) edges.push({ dependency: c.addr, dependent: it.label, offer: true });
+      else if (f.required && cands.length === 1) edges.push({ dependency: cands[0].addr, dependent: it.label, offer: true });
+    }
+  }
+
+  // changedNode is a node of the graph that the drawing changes: it says so, and carries the sockets of its form
+  changedNode(n, c) {
+    if (!c) return n;
+    return Object.assign({}, n, { boardEdit: c.remove ? 'remove' : this.editOf(c) ? 'change' : 'open', sockets: c.remove ? [] : this.sockets(c), incomplete: c.remove ? 0 : this.missing(c).length });
+  }
+
+  // changedEdges are the edges of the graph with those of a changed resource as its new code has them: a wire taken off
+  // goes once the check says the code does not read it, and a wire put on is drawn at once
+  changedEdges(c, edges, shown, sel) {
+    if (c.remove) return edges;
+    const wires = new Set();
+    for (const v of Object.values(c.values)) for (const w of wiresOf(v)) wires.add(w.to);
+    const chk = this.check;
+    const reads = chk && chk.reads && chk.state !== 'invalid' ? new Set((chk.reads[c.addr] || [])) : null;
+    let out = edges;
+    if (reads) out = edges.filter((e) => e.dependent !== c.addr || e.offer || reads.has(e.dependency) || wires.has(e.dependency));
+    const has = new Set(out.filter((e) => e.dependent === c.addr).map((e) => e.dependency));
+    for (const a of new Set([...wires, ...(reads || [])])) if (shown.has(a) && !has.has(a)) out.push({ dependency: a, dependent: c.addr, draft: true });
+    this.offers(c, out, sel);
     return out;
   }
 
@@ -171,7 +202,7 @@ export class Board {
     const seen = new Set();
     (f.wire.to || []).forEach((t, rank) => {
       for (const n of (raw && raw.nodes) || []) {
-        if (n.type === t.type && n.mode === 'managed' && n.presence !== 'state' && !seen.has(n.addr)) { seen.add(n.addr); out.push({ addr: n.addr, type: n.type, read: t.read, rank }); }
+        if (n.type === t.type && n.mode === 'managed' && n.presence !== 'state' && n.addr !== it.label && !seen.has(n.addr)) { seen.add(n.addr); out.push({ addr: n.addr, type: n.type, read: t.read, rank }); }
       }
       for (const d of this.items) {
         if (d !== it && d.kind === 'resource' && d.type === t.type && !seen.has(d.label)) { seen.add(d.label); out.push({ addr: d.label, type: d.type, read: t.read, rank, draft: true }); }
@@ -232,6 +263,72 @@ export class Board {
     return this.add({ kind: 'resource', type: a.type, provider: a.provider, title: a.type }, { adopt: { discovery: a.discovery, key: a.key, name: x.name || x.id }, name: x.name || x.id, identity: x.identity });
   }
 
+  // ---- changing what the specification has ----
+
+  changeOf(addr) { return this.items.find((x) => x.kind === 'change' && x.addr === addr) || null; }
+
+  // change puts a resource of the specification on the drawing to be changed, or removed (o.remove), and selects it. The
+  // server reads it as the pen can change it; one that a template, a loop or a condition makes is changed where that is written.
+  async change(addr, o = {}) {
+    await this.restoring;
+    const had = this.changeOf(addr);
+    if (had) {
+      if (o.remove && !had.remove) { had.remove = true; this.changed({ graph: true }); }
+      this.cb.select(addr);
+      return had;
+    }
+    let e;
+    try { e = await api.boardEdit(addr); } catch (err) { this.cb.toast(`Could not read ${addr}: ${err.message}`, 'error'); return null; }
+    if (e.reason) { this.cb.toast(`${addr} is not changed on the board`, 'info', 9000, e.reason); return null; }
+    const it = this.changeItem(e, !!o.remove);
+    this.items.push(it);
+    this.changed({ graph: true });
+    this.cb.select(addr);
+    this.cb.announce(o.remove ? `${addr} is to be removed. Nothing is written until you save.` : `Changing ${addr}. Nothing is written until you save.`);
+    return it;
+  }
+
+  // changeItem is a resource as the drawing changes it: what was read (orig) and what it is now (values)
+  changeItem(e, remove) {
+    const it = { kind: 'change', label: e.addr, addr: e.addr, type: e.type, template: '', provider: e.provider || '', form: e.form, base: e.base, file: e.file, line: e.line,
+      orig: e.values || {}, values: JSON.parse(JSON.stringify(e.values || {})), withheld: new Set(e.withheld || []), kept: e.kept || [], remove, shown: new Set(), cue: new Set() };
+    // a text written as CUE, an interpolation say, is shown as CUE
+    for (const f of this.fields(it)) {
+      const v = it.values[f.name];
+      if (v && v.expr !== undefined && (f.kind === 'text' || (f.kind === 'number' && !/^-?\d+(\.\d+)?$/.test(v.expr.trim())))) it.cue.add(f.name);
+    }
+    return it;
+  }
+
+  // editOf is the change as the server reads it: the fields set and unset since it was read, or the resource removed. A
+  // resource on the drawing that nothing has changed yet sends nothing.
+  editOf(it) {
+    if (it.remove) return { addr: it.addr, base: it.base, remove: true };
+    const set = {}, unset = [];
+    for (const [k, v] of Object.entries(it.values)) if (!sameValue(v, it.orig[k])) set[k] = v;
+    for (const k of Object.keys(it.orig)) if (!it.values[k]) unset.push(k);
+    if (!Object.keys(set).length && !unset.length) return null;
+    return { addr: it.addr, base: it.base, set, unset: unset.length ? unset : undefined };
+  }
+
+  // stopChange takes a resource off the drawing: the change of it is dropped, and the resource stays as it is written
+  stopChange(addr) {
+    this.items = this.items.filter((x) => !(x.kind === 'change' && x.addr === addr));
+    this.changed({ graph: true });
+    this.cb.select(addr);
+  }
+
+  // count is what the drawing sends: the things drawn and the resources it changes
+  count() { return this.items.filter((it) => it.kind !== 'change' || this.editOf(it)).length; }
+
+  // nodeTool is what the inspector of a resource of the specification shows while the board is on: change it, or remove it
+  nodeTool(n) {
+    if (!this.on || !n || n.draft || n.mode !== 'managed' || n.presence === 'state' || this.changeOf(n.addr)) return null;
+    return h('div', { class: 'bd-nt' }, h('span', { class: 'cl' }, 'Board'),
+      h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Change its fields on the board, written where it is written', on: { click: () => this.change(n.addr) } }, icon('pen'), h('span', { class: 'lbl' }, 'Change it')),
+      h('button', { type: 'button', class: 'bd-b sm danger', 'data-tip': 'Take it out of the specification on the board: the plan destroys it', on: { click: () => this.change(n.addr, { remove: true }) } }, icon('x'), h('span', { class: 'lbl' }, 'Remove it')));
+  }
+
   remove(label) {
     this.items = this.items.filter((x) => x.label !== label);
     for (const it of this.items) for (const [k, v] of Object.entries(it.values)) {
@@ -283,18 +380,19 @@ export class Board {
     this.keep();
     if (o.graph) this.cb.redraw({});
     this.render();
-    if (this.items.length) this.recheck(); else { this.check = null; this.render(); }
+    if (this.count()) this.recheck(); else { this.check = null; this.render(); }
   }
 
   // draft is the drawing as the server reads it
   draft() {
-    return { file: this.cfg.file, items: this.items.map((it) => ({ label: it.label, type: it.type || undefined, provider: it.provider || undefined, template: it.template || undefined, values: it.values, adopt: it.adopt ? { discovery: it.adopt.discovery, key: it.adopt.key } : undefined })) };
+    const edits = this.items.filter((it) => it.kind === 'change').map((it) => this.editOf(it)).filter(Boolean);
+    return { file: this.cfg.file, edits: edits.length ? edits : undefined, items: this.items.filter((it) => it.kind !== 'change').map((it) => ({ label: it.label, type: it.type || undefined, provider: it.provider || undefined, template: it.template || undefined, values: it.values, adopt: it.adopt ? { discovery: it.adopt.discovery, key: it.adopt.key } : undefined })) };
   }
 
-  sig() { return JSON.stringify(this.draft().items); }
+  sig() { const d = this.draft(); return JSON.stringify([d.items, d.edits || []]); }
 
   async runCheck() {
-    if (!this.items.length) return;
+    if (!this.count()) return;
     const seq = ++this.seq;
     let out;
     try { out = await api.boardPost('/api/board/check', this.draft()); } catch (err) {
@@ -370,7 +468,7 @@ export class Board {
   render() {
     if (!this.el || !this.cfg) return;
     const chk = this.check;
-    const n = this.items.length;
+    const n = this.count();
     // the lamps say a word or two; what they mean in full is their tip and their name to a screen reader
     const st = !n ? 'empty' : chk ? chk.state : 'checking';
     const probs = (chk && chk.problems) || [];
@@ -399,14 +497,22 @@ export class Board {
     this.btn.save.hidden = !this.edit;
     this.btn.plan.hidden = !this.edit;
     this.btn.save.disabled = !(n && chk && chk.state === 'valid');
+    this.btn.save.dataset.tip = chk && chk.files && chk.files.length ? `Write the drawing: ${[chk.code ? chk.file : '', ...chk.files.map((f) => f.file)].filter(Boolean).join(', ')}` : 'Write the drawing as a new file of the specification';
     this.btn.plan.disabled = !!(p && p.state === 'running') || (n > 0 && !(chk && chk.state === 'valid'));
     this.btn.code.setAttribute('aria-pressed', this.codeOpen ? 'true' : 'false');
-    this.hint.hidden = n > 0;
+    this.hint.hidden = this.items.length > 0;
     this.hint.textContent = this.cfg.problem || (this.edit
-      ? 'Draw into the specification. Nothing is written until you save, and nothing is applied: that stays a command.'
-      : 'Draw into the specification. Nothing is written: copy the code, or start pravo serve --edit to save and plan from here.');
+      ? 'Draw into the specification, or select a resource to change it. Nothing is written until you save, and nothing is applied: that stays a command.'
+      : 'Draw into the specification, or select a resource to change it. Nothing is written: copy the code, or start pravo serve --edit to save and plan from here.');
     this.renderTitle();
     if (this.codeOpen) this.renderCode();
+    // the form of a change says whether there is one yet, without being drawn again under the cursor
+    const it = this.formItem;
+    if (it && it.kind === 'change' && this.formEl && this.formEl.isConnected) {
+      const edit = this.editOf(it);
+      if (this.changeTag) this.changeTag.textContent = changeWord(it, edit);
+      if (this.dropLbl) this.dropLbl.textContent = edit ? 'Drop the change' : 'Leave it as it is';
+    }
   }
 
   renderTitle() {
@@ -415,7 +521,7 @@ export class Board {
     const pol = this.check && this.check.policy;
     const checked = !pol ? '·' : pol.state === 'holds' ? plural(pol.policies.length, 'policy', 'policies') : pol.state === 'refused' ? 'refused' : pol.state === 'none' ? 'no policy' : 'not yet';
     const planned = p && p.state === 'done' ? `${clockOf(p.at)} · ${planWords(p.result)}` : p && p.state === 'running' ? 'planning' : '·';
-    const rows = [['Project', proj.package || baseOf(proj.dir)], ['Revision', String(this.cb.revision() || '·').slice(0, 10)], ['Drawn by', this.items.length ? this.cfg.actor || 'you' : '·'], ['Checked by', checked], ['Planned', planned], ['Applied by', '·']];
+    const rows = [['Project', proj.package || baseOf(proj.dir)], ['Revision', String(this.cb.revision() || '·').slice(0, 10)], ['Drawn by', this.count() ? this.cfg.actor || 'you' : '·'], ['Checked by', checked], ['Planned', planned], ['Applied by', '·']];
     clear(this.tb);
     for (const [k, v] of rows) this.tb.append(h('div', { class: 'bd-tc' + (k === 'Applied by' ? ' ap' : '') }, h('span', null, k), h('b', { title: k === 'Applied by' ? 'Apply is a command, run from a terminal: pravo apply' : v }, v)));
   }
@@ -430,28 +536,40 @@ export class Board {
     this.cb.pad(on ? this.code.offsetHeight + 24 : 0);
   }
 
-  // renderCode shows the new file, with the lines of the selected thing lit
+  // renderCode shows the new file, with the lines of the selected thing lit, and each file a change is written in, as
+  // the lines it takes out and puts in
   renderCode() {
     clear(this.code);
     const chk = this.check;
     const sel = this.cb.selected();
-    const head = h('div', { class: 'bd-ch' }, h('b', null, this.saved && !this.items.length ? this.saved.file : (chk && chk.file) || this.cfg.file),
+    const files = (chk && chk.files) || [];
+    const name = this.saved && !this.items.length ? this.saved.file : chk && chk.code ? chk.file : files.length ? plural(files.length, 'file') + ' changed' : (chk && chk.file) || this.cfg.file;
+    const head = h('div', { class: 'bd-ch' }, h('b', null, name),
       h('span', { class: 'grow' }),
       chk && chk.code ? h('button', { type: 'button', class: 'bd-b sm', on: { click: () => copyText(chk.code).then((ok) => this.cb.announce(ok ? 'Copied the code' : 'Could not copy')) } }, icon('copy'), h('span', { class: 'lbl' }, 'Copy the code')) : null,
       h('button', { type: 'button', class: 'iconbtn', 'aria-label': 'Close the code', on: { click: () => this.toggleCode(false) } }, icon('x')));
     this.code.append(head);
     if (this.saved && (!chk || !this.items.length)) {
-      this.code.append(h('div', { class: 'bd-next' }, h('p', null, `Saved as ${this.saved.file}. Apply it from a terminal, where your keys are:`),
+      this.code.append(h('div', { class: 'bd-next' }, h('p', null, `Wrote ${this.saved.file}. Apply it from a terminal, where your keys are:`),
         ...this.saved.commands.map((c) => h('div', { class: 'cmdline' }, h('span', { class: 'ps' }, '$'), h('code', null, c), h('button', { class: 'cpbtn', type: 'button', 'aria-label': 'Copy the command', on: { click: () => copyText(c) } }, icon('copy'))))));
     }
-    if (!chk || !chk.code) {
-      if (!this.saved) this.code.append(h('p', { class: 'bd-empty' }, this.items.length ? 'Writing the code…' : 'The code appears here as you draw.'));
+    if (!chk || (!chk.code && !files.length)) {
+      if (!this.saved) this.code.append(h('p', { class: 'bd-empty' }, this.count() ? 'Writing the code…' : 'The code appears here as you draw.'));
       return;
     }
-    const rng = chk.lines && chk.lines[sel];
-    const lines = chk.code.replace(/\n$/, '').split('\n').map((text, i) => ({ no: i + 1, text, mark: rng && i + 1 >= rng[0] && i + 1 <= rng[1] ? 'focus' : '' }));
-    this.code.append(codeWindow({ file: chk.file, start_line: 1, end_line: lines.length, lines, kind: 'file' }, { title: `The code of the drawing, ${chk.file}`, cls: 'bd-cw' }));
-    const focus = this.code.querySelector('.m-focus');
+    if (chk.code) {
+      const rng = chk.lines && chk.lines[sel];
+      const lines = chk.code.replace(/\n$/, '').split('\n').map((text, i) => ({ no: i + 1, text, mark: rng && i + 1 >= rng[0] && i + 1 <= rng[1] ? 'focus' : '' }));
+      this.code.append(codeWindow({ file: chk.file, start_line: 1, end_line: lines.length, lines, kind: 'file' }, { title: `The code of the drawing, ${chk.file}`, cls: 'bd-cw' }));
+    }
+    for (const fc of files) {
+      const rng = fc.lines && fc.lines[sel];
+      const lines = fc.diff.map((d) => (d.op === '\u2026' ? { no: '', text: '\u2026', dim: true }
+        : { no: d.op === '-' ? '\u2212' : d.line, text: d.text || '', mark: d.op === '+' ? 'add' : d.op === '-' ? 'del' : rng && d.line >= rng[0] && d.line <= rng[1] ? 'focus' : '' }));
+      const nums = fc.diff.filter((d) => d.op !== '-' && d.line).map((d) => d.line);
+      this.code.append(codeWindow({ file: fc.file, start_line: nums[0] || 1, end_line: nums[nums.length - 1] || 1, lines, kind: 'file' }, { title: `The change of ${fc.file}`, cls: 'bd-cw bd-diff' }));
+    }
+    const focus = this.code.querySelector('.m-focus, .m-add, .m-del');
     if (focus) focus.scrollIntoView({ block: 'nearest' });
   }
 
@@ -466,10 +584,14 @@ export class Board {
       this.render();
       return;
     }
+    // what was changed is written: the drawing lets go of it at once; a thing drawn goes once the graph shows it
+    this.items = this.items.filter((it) => it.kind !== 'change');
     for (const it of this.items) it.saved = true;
-    this.saved = { file: out.file, commands: out.commands, at: Date.now() };
-    this.cb.toast(`Saved ${out.file}`, 'info', 6000, 'The graph shows it once the specification is read again. Apply it from a terminal: ' + out.commands[out.commands.length - 1]);
-    this.cb.announce(`Saved ${out.file}`);
+    const files = [out.file, ...(out.changed || [])].filter(Boolean).join(', ');
+    this.saved = { file: files, commands: out.commands, at: Date.now() };
+    this.cb.toast(`Saved ${files}`, 'info', 6000, 'The graph shows it once the specification is read again. Apply it from a terminal: ' + out.commands[out.commands.length - 1]);
+    this.cb.announce(`Saved ${files}`);
+    this.cb.redraw({});
     await this.load();
     this.keep();
     this.toggleCode(true);
@@ -519,6 +641,7 @@ export class Board {
   showForm(label, insp) {
     const it = this.item(label);
     if (!it) return;
+    if (it.kind === 'change') { this.showChange(it, insp); return; }
     const f = it.form || { fields: [], title: it.type };
     const nameIn = h('input', { type: 'text', class: 'bd-name', value: it.label, spellcheck: 'false', 'aria-label': 'Name' });
     const nameErr = h('p', { class: 'bd-err', role: 'alert' });
@@ -550,8 +673,18 @@ export class Board {
       if (b.dataset.act === 'complete') this.complete(it.label).then((n) => { if (!n) this.cb.announce('Nothing to wire: every socket it needs has a wire, or several things fit'); this.cb.redrawInspector(); });
       if (b.dataset.act === 'code') this.toggleCode(true);
     });
+    this.formFields(it, body);
+    body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b danger', on: { click: () => this.remove(it.label) } }, icon('x'), h('span', { class: 'lbl' }, 'Remove from the drawing'))));
+    insp.showDraft(head, body);
+    this.paintProblems();
+  }
+
+  // formFields are the fields of a form: what it needs, what is set, and a search over the rest
+  formFields(it, body) {
+    const f = it.form || { fields: [] };
     const req = f.fields.filter((x) => x.required);
-    const set = f.fields.filter((x) => !x.required && (it.values[x.name] || it.shown.has(x.name)));
+    const has = (x) => it.values[x.name] || it.shown.has(x.name) || (it.withheld && it.withheld.has(x.name));
+    const set = f.fields.filter((x) => !x.required && has(x));
     if (req.length) body.append(h('h3', { class: 'bd-sh' }, 'It needs'), ...req.map((x) => this.fieldRow(it, x)));
     const setBox = h('div', { class: 'bd-set' }, ...set.map((x) => this.fieldRow(it, x)));
     body.append(h('h3', { class: 'bd-sh' }, set.length ? 'Also set' : 'Set more'), setBox);
@@ -563,7 +696,7 @@ export class Board {
       const draw = () => {
         clear(list);
         const w = q.value.trim().toLowerCase();
-        const pick = rest.filter((x) => !it.values[x.name] && !it.shown.has(x.name) && (!w || x.name.includes(w) || (x.doc || '').toLowerCase().includes(w)));
+        const pick = rest.filter((x) => !has(x) && (!w || x.name.includes(w) || (x.doc || '').toLowerCase().includes(w)));
         const show = w ? pick.slice(0, 12) : pick.filter((x) => x.wire).slice(0, 6);
         for (const x of show) list.append(h('button', { type: 'button', class: 'bd-mf', data: { f: x.name } }, h('code', null, x.name), x.wire ? h('span', { class: 'bd-sockm', title: 'takes a wire' }) : null, h('span', null, x.doc || x.type)));
         if (!show.length && w) list.append(h('p', { class: 'bd-none' }, 'No field is called that.'));
@@ -584,7 +717,41 @@ export class Board {
       draw();
       body.append(q, list);
     }
-    body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b danger', on: { click: () => this.remove(it.label) } }, icon('x'), h('span', { class: 'lbl' }, 'Remove from the drawing'))));
+  }
+
+  // showChange draws the form of a resource of the specification that the drawing changes: its fields as written, and
+  // what changing them makes of its file
+  showChange(it, insp) {
+    const f = it.form || { fields: [], title: it.type };
+    const edit = this.editOf(it);
+    const head = {
+      kick: it.remove ? 'Drawing · removes a resource' : 'Drawing · changes a resource',
+      title: it.addr,
+      long: it.addr.length > 22,
+      path: h('div', { class: 'ih-path bd-what' }, h('b', null, f.title || it.type), h('code', null, it.type), it.provider ? h('span', { class: 'b' }, it.provider) : null),
+      copy: it.addr,
+      tags: [this.changeTag = h('span', { class: 'b bd-draft' }, changeWord(it, edit))],
+    };
+    const body = h('div', { class: 'bd-form', data: { label: it.label } });
+    this.formEl = body;
+    this.formItem = it;
+    body.append(h('p', { class: 'bd-where' }, 'Written in ', h('code', null, `${it.file}:${it.line}`), it.remove ? '. Saving takes it out of the file, with the comments above it; the plan destroys what it made.' : '. Saving writes the fields you change into that file, and leaves the rest of it as it is.'));
+    body.append(h('div', { class: 'bd-probs', role: 'status' }));
+    if (it.remove) {
+      body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b', on: { click: () => { it.remove = false; this.changed({ graph: true }); this.cb.redrawInspector(); } } }, icon('back'), h('span', { class: 'lbl' }, 'Keep it'))));
+      insp.showDraft(head, body);
+      this.paintProblems();
+      return;
+    }
+    if (it.kept.length) body.append(h('p', { class: 'bd-kept' }, 'Also written, and left as it is: ', ...it.kept.flatMap((k, i) => [i ? ', ' : '', h('code', null, k)])));
+    const tools = h('div', { class: 'bd-tools' },
+      h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Wire every socket it needs: to what fits, or to a new resource', on: { click: () => this.complete(it.label).then((n) => { if (!n) this.cb.announce('Nothing to wire: every socket it needs has a wire, or several things fit'); this.cb.redrawInspector(); }) } }, icon('plus'), h('span', { class: 'lbl' }, 'Complete it')),
+      h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Show the change of its file', on: { click: () => this.toggleCode(true) } }, icon('code'), h('span', { class: 'lbl' }, 'The change')));
+    body.append(tools);
+    this.formFields(it, body);
+    body.append(h('div', { class: 'bd-foot' },
+      h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Drop the change and take it off the drawing', on: { click: () => this.stopChange(it.addr) } }, icon('back'), this.dropLbl = h('span', { class: 'lbl' }, edit ? 'Drop the change' : 'Leave it as it is')),
+      h('button', { type: 'button', class: 'bd-b danger', 'data-tip': 'Take it out of the specification: the plan destroys it', on: { click: () => { it.remove = true; this.changed({ graph: true }); this.cb.redrawInspector(); } } }, icon('x'), h('span', { class: 'lbl' }, 'Remove it'))));
     insp.showDraft(head, body);
     this.paintProblems();
   }
@@ -634,7 +801,8 @@ export class Board {
       }
       if (f.wire) ctl.append(h('button', { type: 'button', class: 'bd-b sm', on: { click: (ev) => this.socketMenu(it.label, f.name, ev.currentTarget) } }, h('span', { class: 'bd-sockm' }), h('span', { class: 'lbl' }, 'Wire it')));
       if (f.sensitive || f.write_only) {
-        ctl.append(h('p', { class: 'bd-sens' }, icon('lock'), 'Sensitive: wire it, or write CUE that reads a secret. The board writes no secret into the code.'));
+        const typed = it.withheld && it.withheld.has(f.name) && !v;
+        ctl.append(h('p', { class: 'bd-sens' }, icon('lock'), typed ? 'A value is typed into the code here, and the board does not show it. It stays as it is, unless you wire the field or write CUE that reads a secret.' : 'Sensitive: wire it, or write CUE that reads a secret. The board writes no secret into the code.'));
         ctl.append(this.valueInput(it, f, 'expr', draw));
         return;
       }
@@ -775,7 +943,7 @@ export class Board {
     try {
       const key = KEEP + ((this.cb.project() || {}).dir || '');
       if (!this.items.length) { sessionStorage.removeItem(key); return; }
-      sessionStorage.setItem(key, JSON.stringify(this.items.map((it) => ({ label: it.label, kind: it.kind, type: it.type, template: it.template, provider: it.provider, values: it.values, shown: [...it.shown], cue: [...it.cue], saved: !!it.saved, adopt: it.adopt || undefined }))));
+      sessionStorage.setItem(key, JSON.stringify(this.items.map((it) => (it.kind === 'change' ? { kind: 'change', label: it.label, addr: it.addr, base: it.base, values: it.values, remove: it.remove, shown: [...it.shown], cue: [...it.cue] } : { label: it.label, kind: it.kind, type: it.type, template: it.template, provider: it.provider, values: it.values, shown: [...it.shown], cue: [...it.cue], saved: !!it.saved, adopt: it.adopt || undefined }))));
     } catch { /* a private window */ }
   }
 
@@ -783,14 +951,26 @@ export class Board {
     let list;
     try { list = JSON.parse(sessionStorage.getItem(KEEP + ((this.cb.project() || {}).dir || '')) || '[]'); } catch { list = []; }
     if (!Array.isArray(list) || !list.length) return;
-    for (const x of list.slice(0, 64)) {
+    let gone = 0;
+    for (const x of list.slice(0, 96)) {
       try {
+        if (x.kind === 'change') {
+          // a change is made against the file as it was read: one whose file changed since is let go
+          const e = await api.boardEdit(x.addr);
+          if (this.item(x.addr)) continue;
+          if (e.reason || e.base !== x.base) { gone++; continue; }
+          const it = this.changeItem(e, !!x.remove);
+          Object.assign(it, { values: x.values || {}, shown: new Set(x.shown || []), cue: new Set(x.cue || []) });
+          this.items.push(it);
+          continue;
+        }
         const form = await this.form(x.kind, x.kind === 'template' ? x.template : x.type, x.provider);
         if (this.item(x.label)) continue; // drawn again while the drawing came back
         const adopt = x.adopt && typeof x.adopt.discovery === 'string' && typeof x.adopt.key === 'string' ? { discovery: x.adopt.discovery, key: x.adopt.key, name: String(x.adopt.name || '') } : null;
         this.items.push({ label: x.label, kind: x.kind, type: x.type || '', template: x.template || '', provider: x.provider || '', values: x.values || {}, shown: new Set(x.shown || []), cue: new Set(x.cue || []), saved: !!x.saved, adopt, form });
       } catch { /* a type that the providers do not have any more */ }
     }
+    if (gone) this.cb.toast(`${plural(gone, 'change')} let go`, 'info', 8000, 'Its file changed since it was read. Change it again on the board.');
     if (this.items.length) this.changed({ graph: true });
   }
 }
@@ -815,6 +995,17 @@ function lamp(name) {
 // labelOf is a name for the drawing made from the name of an object: small letters, digits and underscores.
 function labelOf(name) {
   return String(name || '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^[^a-z]+/, '').slice(0, 40).replace(/_+$/, '');
+}
+
+const changeWord = (it, edit) => (it.remove ? 'draft · remove' : edit ? 'draft · change' : 'not changed yet');
+
+// sameValue says whether two values of a field are the same: the same text, the same CUE, or the same wires
+function sameValue(a, b) {
+  if (!a || !b) return !a === !b;
+  if (a.text !== undefined || b.text !== undefined) return a.text === b.text;
+  if (a.expr !== undefined || b.expr !== undefined) return (a.expr || '').trim() === (b.expr || '').trim();
+  const x = wiresOf(a), y = wiresOf(b);
+  return x.length === y.length && x.every((w, i) => w.to === y[i].to && w.read === y[i].read) && !!a.wires === !!b.wires;
 }
 
 export function wiresOf(v) {

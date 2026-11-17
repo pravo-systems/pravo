@@ -66,8 +66,16 @@ type BoardFileChange struct {
 	Text string `json:"text"`
 	// Lines are, for each resource changed in it, the first and last line of the resource in the new text (0 when removed).
 	Lines map[string][2]int `json:"lines"`
-	// Diff is the change as lines: " " kept, "-" taken out, "+" put in, with three lines of context around each change.
-	Diff []string `json:"diff"`
+	// Diff is the change as lines, with three lines of context around each change.
+	Diff []BoardDiffLine `json:"diff"`
+}
+
+// BoardDiffLine is a line of a change: Op is " " kept, "-" taken out, "+" put in, or "…" for lines that are left out.
+// Line is its number in the new text, or in the old one for a line taken out.
+type BoardDiffLine struct {
+	Op   string `json:"op"`
+	Line int    `json:"line,omitempty"`
+	Text string `json:"text,omitempty"`
 }
 
 const maxBoardEdits = 32
@@ -707,9 +715,8 @@ func penApply(src []byte, splices []penSplice) (string, error) {
 
 // penDiff is the change from one text to another as lines, with three lines of context around each change. It compares
 // line by line after the common head and tail, which is what a change of the pen makes: one run of changed lines a struct.
-func penDiff(a, b string) []string {
-	al, bl := strings.Split(a, "\n"), strings.Split(b, "\n")
-	ops := lcsDiff(al, bl)
+func penDiff(a, b string) []BoardDiffLine {
+	ops := lcsDiff(strings.Split(a, "\n"), strings.Split(b, "\n"))
 	keep := make([]bool, len(ops))
 	for i, op := range ops {
 		if op[0] != ' ' {
@@ -718,21 +725,35 @@ func penDiff(a, b string) []string {
 			}
 		}
 	}
-	var out []string
+	var out []BoardDiffLine
 	gap := false
+	was, now := 0, 0
 	for i, op := range ops {
+		l := BoardDiffLine{Op: op[:1], Text: op[1:]}
+		switch l.Op {
+		case "-":
+			was++
+			l.Line = was
+		case "+":
+			now++
+			l.Line = now
+		default:
+			was++
+			now++
+			l.Line = now
+		}
 		if !keep[i] {
 			gap = true
 			continue
 		}
 		if gap && len(out) > 0 {
-			out = append(out, "…")
+			out = append(out, BoardDiffLine{Op: "…"})
 		}
 		gap = false
-		out = append(out, op)
+		out = append(out, l)
 	}
 	if len(out) > 400 {
-		out = append(out[:400], "…")
+		out = append(out[:400], BoardDiffLine{Op: "…"})
 	}
 	return out
 }
@@ -782,12 +803,12 @@ func lcsDiff(a, b []string) []string {
 				out = append(out, " "+ma[i])
 				i++
 				j++
-			case j < k && (i == n || dp[i][j+1] >= dp[i+1][j]):
-				out = append(out, "+"+mb[j])
-				j++
-			default:
+			case i < n && (j == k || dp[i+1][j] >= dp[i][j+1]):
 				out = append(out, "-"+ma[i])
 				i++
+			default:
+				out = append(out, "+"+mb[j])
+				j++
 			}
 		}
 	}
