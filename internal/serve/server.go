@@ -479,7 +479,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/trace":
 		s.trace(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/secrets", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan", "/api/templates", "/api/templates/try", "/api/templates/refs", "/api/templates/choices", "/api/templates/entities", "/api/environments", "/api/environment", "/api/timelapse", "/api/board", "/api/board/types", "/api/board/type", "/api/board/check", "/api/board/save", "/api/board/plan":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/secrets", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan", "/api/templates", "/api/templates/try", "/api/templates/refs", "/api/templates/choices", "/api/templates/entities", "/api/environments", "/api/environment", "/api/timelapse", "/api/board", "/api/board/types", "/api/board/type", "/api/board/edit", "/api/board/check", "/api/board/save", "/api/board/plan":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -532,7 +532,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		s.templateChoicesHandler(w, r, m)
 	case "/api/templates/entities":
 		s.templateEntitiesHandler(w, r, m)
-	case "/api/board", "/api/board/types", "/api/board/type", "/api/board/check", "/api/board/save", "/api/board/plan":
+	case "/api/board", "/api/board/types", "/api/board/type", "/api/board/edit", "/api/board/check", "/api/board/save", "/api/board/plan":
 		s.boardRoute(w, r, m)
 	case "/api/adopt":
 		s.adopt(w, r, m)
