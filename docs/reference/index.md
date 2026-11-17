@@ -35,6 +35,7 @@ Every page opens with the synopsis, the flags with their defaults, and the exit 
 | `pravo import` | Brings an existing object under management. | [import](import.md) |
 | `pravo discover` | Lists the objects that exist in a scope, shows the ones that nothing manages, shows the ones that are meant to stay apart, and writes the resource that adopts one. | [discover](discover.md) |
 | `pravo shadow` | Writes a specification from an OpenTofu or Terraform state, with no HCL, that plans clean. Keeps the objects with OpenTofu until the hand-over, and writes them back on request. | [shadow](shadow.md) |
+| `pravo template` | Lists the templates of the specification, and makes the CUE of a new instance from values, checked against the specification and the policies, as the viewer's wizard does. Writes nothing. | [template](template.md) |
 | `pravo why`, `drift` | Explains a change. Reports what changed outside pravo. | [why and drift](why-and-drift.md) |
 | `pravo providers` | Lists providers, pins hashes, copies a provider to a registry. | [providers](providers.md) |
 | `pravo validate`, `eval`, `fmt`, `gen` | Checks the specification, prints its value, formats the files, regenerates the packages. | [validate, eval, fmt and gen](validate-eval-fmt-gen.md) |

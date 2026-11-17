@@ -364,3 +364,21 @@ func TestTemplateTryRefusesWhatValidateRefuses(t *testing.T) {
 		t.Fatalf("name: string was called valid: %+v", got)
 	}
 }
+
+// Call serves the template paths in process, as the viewer does, and no other path.
+func TestCallServesOnlyTheTemplatePaths(t *testing.T) {
+	p := templateProject(t)
+	status, body := p.srv.Call("/api/templates", nil)
+	if status != http.StatusOK || !strings.Contains(string(body), `"name":"box"`) {
+		t.Fatalf("templates: %d %s", status, body)
+	}
+	status, body = p.srv.Call("/api/templates/try", url.Values{"template": {"box"}, "name": {"three"}, "v.name": {`"three"`}})
+	if status != http.StatusOK || !strings.Contains(string(body), `"state":"valid"`) {
+		t.Fatalf("try: %d %s", status, body)
+	}
+	for _, path := range []string{"/api/graph", "/api/secrets", "/api/chat", "/api/templatesx"} {
+		if status, _ := p.srv.Call(path, nil); status != http.StatusNotFound {
+			t.Errorf("%s: status %d, want 404", path, status)
+		}
+	}
+}

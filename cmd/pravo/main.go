@@ -381,7 +381,7 @@ func newRootCmd(rt *runContext) *cobra.Command {
 		initCmd(rt), planCmd(rt), applyCmd(rt), destroyCmd(rt), showCmd(rt), outputCmd(rt), stateCmd(rt), importCmd(rt), discoverCmd(rt),
 		providersCmd(rt), genCmd(rt), validateCmd(rt), evalCmd(rt), fmtCmd(), versionCmd(),
 		schemaCmd(rt), whyCmd(rt), driftCmd(rt), mcpCmd(rt), modCmd(rt), serveCmd(rt), skillCmd(rt), idCmd(rt), protectCmd(rt), policyCmd(rt), secretCmd(rt),
-		promoteCmd(rt), environmentsCmd(rt), shadowCmd(rt),
+		promoteCmd(rt), environmentsCmd(rt), shadowCmd(rt), templateCmd(rt),
 	)
 	cmd.SetFlagErrorFunc(flagError)
 	return cmd
