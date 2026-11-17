@@ -237,7 +237,7 @@ func (ix *wireIndex) find(srcType string, a *schema.Attribute, many bool) *wireH
 func (ix *wireIndex) typesFor(srcType, prefix, stem string, reads []string, bare bool) []wireTarget {
 	words := strings.Split(stem, "_")
 	family := familyOf(srcType)
-	for k := 0; k < len(words); k++ {
+	for k := range words {
 		end := strings.Join(words[k:], "_")
 		// The alias of the last word is for a name of two words when the name is bare: the authorized_network of an
 		// instance, and not the ca_certificates_bundle_s3_key of a store.
