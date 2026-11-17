@@ -45,6 +45,9 @@ type BoardOptions struct {
 	Plan func(ctx context.Context, req BoardPlanRequest, step func(BoardStep)) (*BoardPlanResult, error)
 	// Actor is who draws, for the title block: the actor of the command, else the user of the operating system.
 	Actor string
+	// Apply applies the plan of the board that a ticket names, as "pravo apply <planfile>" applies a plan file: every
+	// change is checked against the planned one. Nil is off (--edit without --apply): the board applies nothing.
+	Apply func(ctx context.Context, ticket string, step func(BoardStep)) (*BoardApplyResult, error)
 }
 
 // BoardPlanRequest is what a plan of the board is made of.
@@ -53,6 +56,9 @@ type BoardPlanRequest struct {
 	SysTags bool
 	// Extra holds the drawing, by the name of its file, when it is not saved yet.
 	Extra map[string]string
+	// Keep asks for the plan to be kept to apply, with a ticket: the board can apply, and nothing on it is unsaved, so
+	// the plan is of the files as they are.
+	Keep bool
 }
 
 // BoardStep is one step of a plan as it runs: a resource that is being planned, or a stage of the run.
@@ -70,6 +76,20 @@ type BoardPlanResult struct {
 	Destroy int           `json:"destroy"`
 	// Refused is what a policy in force said against the plan, empty when they all hold.
 	Refused string `json:"refused,omitempty"`
+	// Ticket names the plan, kept to be applied from the board, when it was asked to be kept and can be applied.
+	Ticket string `json:"ticket,omitempty"`
+	// Held says why a plan that was asked to be kept cannot be applied from the board.
+	Held string `json:"held,omitempty"`
+}
+
+// BoardApplyResult is what an apply from the board did.
+type BoardApplyResult struct {
+	Added     int    `json:"added"`
+	Changed   int    `json:"changed"`
+	Destroyed int    `json:"destroyed"`
+	Txn       string `json:"txn"`
+	// Deferred are the changes that waited for a value the apply made: the next plan makes them.
+	Deferred int `json:"deferred,omitempty"`
 }
 
 // BoardChange is the action of a plan for one node.
@@ -83,6 +103,9 @@ type BoardConfig struct {
 	Version int `json:"version"`
 	// Edit is set when the server was started with --edit: the board can save and plan.
 	Edit bool `json:"edit"`
+	// Apply is set when the server was started with --apply: the board can apply a plan that it made of the files as
+	// they are, which it showed.
+	Apply bool `json:"apply,omitempty"`
 	// Actor is who draws, for the title block.
 	Actor   string `json:"actor,omitempty"`
 	Package string `json:"package,omitempty"`
@@ -364,7 +387,7 @@ func (s *Server) boardFile() string {
 
 // boardConfigHandler answers GET /api/board.
 func (s *Server) boardConfigHandler(w http.ResponseWriter, m *model) {
-	out := &BoardConfig{Version: APIVersion, Edit: s.opts.Board != nil, Providers: []BoardProvider{}, File: s.boardFile()}
+	out := &BoardConfig{Version: APIVersion, Edit: s.opts.Board != nil, Apply: s.opts.Board != nil && s.opts.Board.Apply != nil, Providers: []BoardProvider{}, File: s.boardFile()}
 	if c := s.opts.Chat; c != nil {
 		out.Guide = strings.TrimSpace(c.Name + " " + c.Model)
 	}
@@ -655,6 +678,8 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, m *model) {
 		s.boardSaveHandler(w, r, m)
 	case "/api/board/guide":
 		s.boardGuideHandler(w, r, m)
+	case "/api/board/apply":
+		s.boardApplyHandler(w, r, m)
 	default:
 		s.boardPlanHandler(w, r, m)
 	}
@@ -1188,27 +1213,13 @@ func (s *Server) boardPlanHandler(w http.ResponseWriter, r *http.Request, m *mod
 			req.Extra[f.File] = f.Text
 		}
 	}
+	req.Keep = s.opts.Board.Apply != nil && req.Extra == nil
 	if !s.boardPlanning.CompareAndSwap(false, true) {
 		writeError(w, http.StatusConflict, "a plan of the board is running already")
 		return
 	}
 	defer s.boardPlanning.Store(false)
-	flusher, _ := w.(http.Flusher)
-	w.Header().Set("Content-Type", "application/x-ndjson; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	var mu sync.Mutex
-	send := func(v any) {
-		b, err := json.Marshal(v)
-		if err != nil {
-			return
-		}
-		mu.Lock()
-		defer mu.Unlock()
-		_, _ = w.Write(append(b, '\n'))
-		if flusher != nil {
-			flusher.Flush()
-		}
-	}
+	send := ndjsonWriter(w)
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Minute)
 	defer cancel()
 	began := time.Now()
@@ -1222,8 +1233,70 @@ func (s *Server) boardPlanHandler(w http.ResponseWriter, r *http.Request, m *mod
 		send(map[string]any{"error": s.boardText(m, err.Error()), "took_ms": time.Since(began).Milliseconds()})
 		return
 	}
-	res.Refused = s.boardText(m, res.Refused)
+	res.Refused, res.Held = s.boardText(m, res.Refused), s.boardText(m, res.Held)
 	send(map[string]any{"done": res, "took_ms": time.Since(began).Milliseconds()})
+}
+
+// boardApplyHandler answers POST /api/board/apply: it applies the plan of the board that the ticket names, and streams its
+// steps as lines of JSON, then the result. Only with --apply; one run of the board at a time.
+func (s *Server) boardApplyHandler(w http.ResponseWriter, r *http.Request, m *model) {
+	if s.opts.Board == nil || s.opts.Board.Apply == nil {
+		writeError(w, http.StatusForbidden, "the board applies nothing unless pravo serve was started with --apply")
+		return
+	}
+	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" {
+		writeError(w, http.StatusUnsupportedMediaType, "the ticket is sent as application/json")
+		return
+	}
+	var req struct {
+		Ticket string `json:"ticket"`
+	}
+	dec := json.NewDecoder(io.LimitReader(r.Body, 4<<10))
+	if err := dec.Decode(&req); err != nil || req.Ticket == "" || len(req.Ticket) > 64 {
+		writeError(w, http.StatusBadRequest, "send the ticket of the plan to apply")
+		return
+	}
+	if !s.boardPlanning.CompareAndSwap(false, true) {
+		writeError(w, http.StatusConflict, "a run of the board is running already")
+		return
+	}
+	defer s.boardPlanning.Store(false)
+	send := ndjsonWriter(w)
+	// an apply that started is not stopped by a page that goes away: it records what it did
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 2*time.Hour)
+	defer cancel()
+	began := time.Now()
+	res, err := s.opts.Board.Apply(ctx, req.Ticket, func(st BoardStep) {
+		if len(st.Addr) > 512 {
+			st.Addr = st.Addr[:512]
+		}
+		send(map[string]any{"step": st})
+	})
+	if err != nil {
+		send(map[string]any{"error": s.boardText(m, err.Error()), "took_ms": time.Since(began).Milliseconds()})
+		return
+	}
+	send(map[string]any{"done": res, "took_ms": time.Since(began).Milliseconds()})
+}
+
+// ndjsonWriter starts an answer of lines of JSON, and sends one line for each value, as it is written.
+func ndjsonWriter(w http.ResponseWriter) func(any) {
+	flusher, _ := w.(http.Flusher)
+	w.Header().Set("Content-Type", "application/x-ndjson; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	var mu sync.Mutex
+	return func(v any) {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		_, _ = w.Write(append(b, '\n'))
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
 }
 
 // boardText is a sentence of a plan of the board as the page may show it: scrubbed of secrets, with the paths of the
