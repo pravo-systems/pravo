@@ -895,6 +895,7 @@ func (s *Server) boardCheck(m *model, d *BoardDraft) *BoardCheck {
 			out.Removes = append(out.Removes, e.Addr)
 		}
 	}
+	boardRemovedReads(m, out.Removes, &problems)
 	if len(problems) > 0 {
 		out.State, out.Problems = "invalid", problems
 		return out
@@ -919,6 +920,35 @@ func (s *Server) boardCheck(m *model, d *BoardDraft) *BoardCheck {
 	out.Reads = boardReads(root, named)
 	out.Policy = s.previewPolicies(m, boardChanges(m, root, d, out))
 	return out
+}
+
+// boardRemovedReads says which resources and outputs read a resource that the drawing removes, and are not removed too:
+// the specification would not load without it.
+func boardRemovedReads(m *model, removes []string, problems *drawProblems) {
+	gone := map[string]bool{}
+	for _, a := range removes {
+		gone[a] = true
+	}
+	for _, a := range removes {
+		var readers []string
+		for _, r := range m.used[a] {
+			if !gone[r] {
+				readers = append(readers, r)
+			}
+		}
+		if len(readers) == 0 {
+			continue
+		}
+		sort.Strings(readers)
+		verb, them := " reads ", "it"
+		if len(readers) > 1 {
+			verb, them = " read ", "them"
+		}
+		if len(readers) > 4 {
+			readers = append(readers[:4], "and "+strconv.Itoa(len(readers)-4)+" more")
+		}
+		problems.add(a, "", strings.Join(readers, ", ")+verb+a+": remove "+them+" too, or change "+them+" to read something else.")
+	}
 }
 
 // boardLoadProblems says what is wrong when the specification does not load with the drawing: a field that needs a value

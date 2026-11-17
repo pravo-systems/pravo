@@ -97,6 +97,14 @@
 .node.draft .box { stroke: var(--key); stroke-dasharray: 5 3; fill: color-mix(in srgb, var(--key) 5%, var(--surface)); }
 .node.draft.incomplete .box { stroke: var(--change); }
 .node.draft .bar { fill: var(--key); }
+/* a resource of the specification that the drawing changes keeps its solid edge and takes the word on top; one it removes fades */
+.node.bedit.b-change .box { stroke: var(--key); }
+.node.bedit.b-change.incomplete .box, .node.bedit.b-change.incomplete .dt .dtr { stroke: var(--change); }
+.node.bedit.b-change.incomplete .dt .dtr { fill: var(--change); }
+.node.bedit.b-remove .box { stroke: var(--conflict); stroke-dasharray: 2 3; }
+.node.bedit.b-remove .nm { text-decoration: line-through; }
+.node.bedit.b-remove .dt .dtr { fill: var(--conflict); }
+.node.bedit.b-remove > g > :not(.dt) { opacity: .6; }
 .node .dt { pointer-events: none; }
 .node .dt .dtr { fill: var(--key); }
 .node.draft.incomplete .dt .dtr { fill: var(--change); }
@@ -169,7 +177,7 @@
 .bd-mf code { font: 500 var(--fs-2) var(--font-mono); color: var(--text); }
 .bd-mf span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bd-mf:hover { background: var(--key-wash); }
-.bd-foot { padding-top: .6rem; border-top: 1px solid var(--line); }
+.bd-foot { display: flex; flex-wrap: wrap; gap: .4rem; padding-top: .6rem; border-top: 1px solid var(--line); }
 
 /* the menu of a socket */
 .bd-menu { position: fixed; z-index: 70; width: min(340px, calc(100vw - 16px)); max-height: 320px; overflow-y: auto; padding: .25rem; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow-2); }
@@ -203,3 +211,19 @@
 .bd-adopt { display: grid; gap: .3rem; padding: .45rem .6rem; border-left: 2px solid var(--key); background: var(--surface-2); }
 .bd-adopt p { margin: 0; font: 400 var(--fs-3)/1.45 var(--font-ui); color: var(--text-2); overflow-wrap: anywhere; }
 .bd-adopt .linkbtn { justify-self: start; }
+
+/* ---- a change of a resource of the specification ---- */
+
+.itool { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .5rem; padding: .45rem .8rem; border-bottom: 1px solid var(--line); background: var(--surface); }
+.itool[hidden] { display: none; }
+.bd-nt { display: contents; }
+.bd-nt .cl { flex: none; margin-right: .2rem; font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.bd-where, .bd-kept { margin: 0; font: 400 var(--fs-3)/1.45 var(--font-ui); color: var(--text-2); overflow-wrap: anywhere; }
+.bd-where code, .bd-kept code { font: 400 var(--fs-2) var(--font-mono); color: var(--text); }
+.bd-where { padding: .45rem .6rem; border-left: 2px solid var(--key); background: var(--surface-2); }
+.bd-diff .cw-ln.m-add { background: color-mix(in srgb, var(--code-add) 12%, transparent); }
+.bd-diff .cw-ln.m-add .cw-no { color: var(--code-add); opacity: 1; box-shadow: inset 3px 0 0 var(--code-add); }
+.bd-diff .cw-ln.m-del { background: color-mix(in srgb, var(--code-del) 12%, transparent); }
+.bd-diff .cw-ln.m-del .cw-no { color: var(--code-del); opacity: 1; box-shadow: inset 3px 0 0 var(--code-del); }
+.bd-diff .cw-ln.m-del .cw-code { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--code-del) 60%, transparent); }
+.bd-code .cw + .cw { margin-top: .6rem; }

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -129,8 +130,8 @@ func TestBoardChangesAResourceWhereItIsWritten(t *testing.T) {
 	if fc.File != "cache.cue" || fc.Base != base || fc.Lines["cache"] != [2]int{4, 11} {
 		t.Errorf("file change: %s %s %v", fc.File, fc.Base, fc.Lines)
 	}
-	if !strings.Contains(strings.Join(fc.Diff, "\n"), `-	port: 6379`) {
-		t.Errorf("diff: %q", fc.Diff)
+	if !slices.Contains(fc.Diff, BoardDiffLine{Op: "-", Line: 6, Text: "\tport: 6379"}) || !slices.Contains(fc.Diff, BoardDiffLine{Op: "+", Line: 10, Text: "\tapi_token: shared.name"}) {
+		t.Errorf("diff: %+v", fc.Diff)
 	}
 
 	// a check writes nothing; a save writes the file, keeping its mode
@@ -175,7 +176,7 @@ func TestBoardChangesAStructOnOneLineAndRemovesAResource(t *testing.T) {
 	cacheBase := editableOf(t, p, "cache").Base
 	// log reads cache, so cache cannot go alone
 	only := boardCheckOf(t, p, BoardDraft{Edits: []BoardEdit{{Addr: "cache", Base: cacheBase, Remove: true}}})
-	if only.State != "invalid" {
+	if only.State != "invalid" || len(only.Problems) != 1 || only.Problems[0].Item != "cache" || only.Problems[0].Message != "log reads cache: remove it too, or change it to read something else." {
 		t.Errorf("removing what log reads: %+v", only)
 	}
 	d := BoardDraft{Edits: []BoardEdit{

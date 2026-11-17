@@ -91,6 +91,9 @@ export const board = () => get('/api/board');
 export const boardTypes = (q, signal) => get('/api/board/types?q=' + encodeURIComponent(q || ''), signal);
 // boardType is the form of a resource type, or of a template.
 export const boardType = (kind, type, provider) => get('/api/board/type?' + (kind === 'template' ? 'template=' + encodeURIComponent(type) : 'type=' + encodeURIComponent(type) + '&provider=' + encodeURIComponent(provider || '')));
+// boardEdit reads a resource of the specification as the pen of the board can change it: its fields as written, the
+// form of its type, and the digest of its file. reason says why it cannot be changed on the board, when it cannot.
+export const boardEdit = (addr) => get('/api/board/edit?addr=' + encodeURIComponent(addr));
 // boardPost sends the drawing to be checked, or saved (with --edit). A refusal that carries a check says why in err.check.
 export async function boardPost(path, draft) {
   let r;

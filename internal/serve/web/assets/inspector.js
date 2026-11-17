@@ -34,6 +34,9 @@ export class Inspector {
     this.head = root.querySelector('.ih');
     this.strip = root.querySelector('.istrip');
     this.plansRow = root.querySelector('.iplans');
+    // a row under the plans for what another part of the page does with the node: the drawing board's change and remove
+    this.toolRow = h('div', { class: 'itool', hidden: true });
+    this.plansRow.after(this.toolRow);
     this.tabs = root.querySelector('.itabs');
     this.body = root.querySelector('.ibody');
     this.cache = new Map();
@@ -158,6 +161,8 @@ export class Inspector {
     clear(this.strip);
     this.plansRow.hidden = true;
     clear(this.plansRow);
+    this.toolRow.hidden = true;
+    clear(this.toolRow);
     this.ink.style.opacity = '0';
   }
 
@@ -285,6 +290,8 @@ export class Inspector {
     const go = (what) => () => this.cb.onAsOf && this.cb.onAsOf(what);
     clear(this.plansRow);
     this.plansRow.hidden = true;
+    clear(this.toolRow);
+    this.toolRow.hidden = true;
     clear(this.strip);
     this.strip.append(h('div', { class: 'asof' },
       h('p', { class: 'asof-k' }, a.label, a.here === 'gone' ? h('span', { class: 'b bad' }, 'removed') : a.here === 'not-yet' ? h('span', { class: 'b' }, 'not there yet') : null),
@@ -298,6 +305,8 @@ export class Inspector {
   }
 
   nodeStrip(n, detail) {
+    clear(this.toolRow);
+    this.toolRow.hidden = true;
     const cell = (label, value, cls, tip) => h('div', { class: 'cell' + (cls ? ' ' + cls : ''), 'data-tip': tip || null }, h('span', { class: 'cl' }, label), h('span', { class: 'cv' }, value));
     const model = this.model;
     const cells = [];
@@ -353,6 +362,10 @@ export class Inspector {
     clear(this.strip);
     this.strip.append(...cells);
     this.strip.hidden = false;
+    const tool = this.cb.nodeTool ? this.cb.nodeTool(n) : null;
+    clear(this.toolRow);
+    if (tool) this.toolRow.append(tool);
+    this.toolRow.hidden = !tool;
   }
 
   ensureTabs() {

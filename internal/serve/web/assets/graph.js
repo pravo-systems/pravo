@@ -82,7 +82,7 @@ function declGlyph(x, y, part, words) {
 // what an item shows: when it changes the element is built again
 function itemSig(x, ctx) {
   if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, pvClass(providerOf(x.n.type, x.n.provider)), ctx.hasPlan, x.look, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0,
-    x.n.draft ? 'd' + x.n.incomplete + (x.n.adopts ? 'a' : '') + (x.n.sockets || []).map((k) => k.name + (k.required ? '!' : '') + (k.wired ? '+' : '')).join(',') : '', x.n.boardAction || ''].join('|');
+    x.n.draft || x.n.boardEdit ? 'd' + x.n.incomplete + (x.n.adopts ? 'a' : '') + (x.n.boardEdit || '') + (x.n.sockets || []).map((k) => k.name + (k.required ? '!' : '') + (k.wired ? '+' : '')).join(',') : '', x.n.boardAction || ''].join('|');
   if (x.kind === 'ctl') return [x.shown, x.total].join('|');
   const a = x.agg;
   const pi = plansIn(x, ctx);
@@ -109,6 +109,7 @@ export function nodeClasses(n, ctx) {
   if (isSecret(n)) c += ' m-secret';
   if (n.overlap) c += ' overlap';
   if (n.draft) c += ' draft' + (n.incomplete ? ' incomplete' : '');
+  if (n.boardEdit) c += ' bedit b-' + n.boardEdit + (n.incomplete ? ' incomplete' : '');
   if (n.boardAction && !ctx.hasPlan) c += ' stamped';
   return c;
 }
@@ -138,6 +139,7 @@ export function plansIn(it, ctx) {
 export function describeNode(n, ctx) {
   const bits = [isOut(n) ? `${n.name}, output` : `${n.name}, ${n.type}`];
   if (n.draft) bits.push(n.incomplete ? `drawn, ${n.incomplete} to fill` : 'drawn');
+  if (n.boardEdit === 'change' || n.boardEdit === 'remove') bits.push(n.boardEdit === 'remove' ? 'the drawing removes it' : 'the drawing changes it');
   if (n.boardAction && !(ctx && ctx.hasPlan)) bits.push('the plan of the board: ' + n.boardAction);
   if (n.action) bits.push(n.action === 'no-op' ? 'no change planned' : 'plan: ' + n.action);
   if ((n.plans || []).length) bits.push(`${n.overlap ? 'overlap: ' : ''}changed by ${authorsOf(n, ctx || {}).map((p) => `${p.id} of ${p.author}`).join(', ')}`);
@@ -678,7 +680,7 @@ export class GraphView {
     // the stamp of a plan of the drawing board: the action in a word, put down as the sweep passes the column of the node
     const stamp = !this.ctx.hasPlan && actionOf(n.boardAction);
     if (stamp && n.boardAction !== 'no-op') { const aw = this.actionWord(stamp, W, H); aw.classList.add('stamp'); inn.append(aw); }
-    if (n.draft) this.draftMarks(n, inn, W, H);
+    if (n.draft || n.boardEdit) this.draftMarks(n, inn, W, H);
     const aus = this.authorBadges(authorsOf(n, this.ctx), W);
     if (aus) inn.append(aus);
     g.append(inn);
@@ -688,12 +690,15 @@ export class GraphView {
   // draftMarks are what a thing on the drawing board carries: the word draft on its top edge, and its sockets on its left
   // edge, a square for each field that takes a wire: amber when it needs one and has none, filled when it is wired
   draftMarks(n, inn, W, H) {
-    const word = n.template ? 'draft · template' : n.adopts ? 'draft · adopts' : 'draft';
-    const w = 12 + word.length * 5.8;
-    // on the top edge at the left: the stamp of a plan hangs at the right of the bottom edge of the node above
-    const t = s('g', { class: 'dt', transform: 'translate(15 0)' });
-    t.append(s('rect', { class: 'dtr', x: 0, y: -7, width: w, height: 14, rx: 0 }), s('text', { class: 'dtt', x: w / 2, y: 3.4 }, word));
-    inn.append(t);
+    // a resource of the specification that the drawing has not changed yet carries its sockets and no word
+    const word = n.boardEdit ? { change: 'draft · change', remove: 'draft · remove' }[n.boardEdit] : n.template ? 'draft · template' : n.adopts ? 'draft · adopts' : 'draft';
+    if (word) {
+      const w = 12 + word.length * 5.8;
+      // on the top edge at the left: the stamp of a plan hangs at the right of the bottom edge of the node above
+      const t = s('g', { class: 'dt', transform: 'translate(15 0)' });
+      t.append(s('rect', { class: 'dtr', x: 0, y: -7, width: w, height: 14, rx: 0 }), s('text', { class: 'dtt', x: w / 2, y: 3.4 }, word));
+      inn.append(t);
+    }
     const socks = n.sockets || [];
     const step = H / (socks.length + 1);
     socks.forEach((k, i) => {
