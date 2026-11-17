@@ -10,6 +10,7 @@
 set -eu
 cd "$(dirname "$0")/../../.."
 py=${PYTHON:-python3}
+mkdir -p site/assets/shots
 shot() { # shot theme left top right bottom width height name
 	"$py" -c 'import sys; from PIL import Image
 a = sys.argv
