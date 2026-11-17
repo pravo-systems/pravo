@@ -113,3 +113,35 @@ func TestBoardTicketIsGoodForAWhile(t *testing.T) {
 		t.Error("close left the directory")
 	}
 }
+
+// A plan of the board that only moves a record, as a fold does, says what it moves and from where, is kept to be
+// applied, and the apply says how many records it moved.
+func TestBoardAppliesAMove(t *testing.T) {
+	rt := &runContext{}
+	dir := localRoot(t, rt, "hello: $local.#Resource.local_file & {filename: \"hello.txt\", content: \"hello\\n\"}\n")
+	if text, code := runPravo(t, rt, dir, "apply", "-auto-approve"); code != 0 {
+		t.Fatalf("the first apply: %s", text)
+	}
+	rt.out = ui.NewPrinter(io.Discard, false)
+	t.Chdir(dir)
+	main := filepath.Join(dir, "main.cue")
+	spec, _ := os.ReadFile(main)
+	if err := os.WriteFile(main, []byte(strings.Replace(string(spec), "hello: $local.#Resource.local_file & {", "greeting: $local.#Resource.local_file & {$from: \"hello\", ", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opts, closeBoard := boardOptions(rt, true)
+	defer closeBoard()
+	ctx := context.Background()
+	step := func(serve.BoardStep) {}
+	res, err := opts.Plan(ctx, serve.BoardPlanRequest{Keep: true}, step)
+	if err != nil || res.Move != 1 || res.Add+res.Change+res.Destroy != 0 || res.Ticket == "" {
+		t.Fatalf("the plan of a move: %+v %v", res, err)
+	}
+	if len(res.Changes) != 1 || res.Changes[0] != (serve.BoardChange{Addr: "greeting", Action: "move", From: "hello"}) {
+		t.Errorf("the changes of a move: %+v", res.Changes)
+	}
+	got, err := opts.Apply(ctx, res.Ticket, step)
+	if err != nil || got.Moved != 1 || got.Added+got.Changed+got.Destroyed != 0 {
+		t.Fatalf("the apply of a move: %+v %v", got, err)
+	}
+}

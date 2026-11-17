@@ -25,6 +25,7 @@ export class Board {
     this.seq = 0;
     this.plan = null;
     this.saved = null;
+    this.moved = null;
     this.codeOpen = false;
     this.el = null;
     this.hits = [];
@@ -117,7 +118,8 @@ export class Board {
       queueMicrotask(() => { if (this.items.length) this.recheck(); else { this.check = null; this.plan = null; } this.render(); });
     }
     const changes = new Map(this.items.filter((it) => it.kind === 'change').map((it) => [it.addr, it]));
-    const nodes = (g.nodes || []).map((n) => this.changedNode(n, changes.get(n.addr)));
+    const into = this.fold ? foldWord(this.fold) : '';
+    const nodes = (g.nodes || []).map((n) => (this.inFold(n.addr) ? Object.assign({}, n, { boardEdit: 'fold', foldInto: into }) : this.changedNode(n, changes.get(n.addr))));
     let edges = (g.edges || []).slice();
     const sel = this.cb.selected();
     const acts = this.planActions();
@@ -182,7 +184,8 @@ export class Board {
   planActions() {
     const p = this.plan;
     if (!p || p.state !== 'done' || p.sig !== this.sig()) return null;
-    return new Map(p.result.changes.map((c) => [c.addr, c.action]));
+    // a move is stamped on the record where it stands, as well as where it goes
+    return new Map(p.result.changes.flatMap((c) => (c.from ? [[c.addr, c.action], [c.from, c.action]] : [[c.addr, c.action]])));
   }
 
   // ---- the things drawn ----
@@ -324,13 +327,16 @@ export class Board {
   }
 
   // count is what the drawing sends: the things drawn and the resources it changes
-  count() { return this.items.filter((it) => (it.kind !== 'change' && !it.saved) || (it.kind === 'change' && this.editOf(it))).length; }
+  count() { return this.items.filter((it) => (it.kind !== 'change' && !it.saved) || (it.kind === 'change' && this.editOf(it))).length + (this.fold && this.fold.addrs.length ? 1 : 0); }
 
   // nodeTool is what the inspector of a resource of the specification shows while the board is on: change it, or remove it
   nodeTool(n) {
-    if (!this.on || !n || n.draft || n.mode !== 'managed' || n.presence === 'state' || this.changeOf(n.addr)) return null;
+    if (!this.on || !n || n.draft || n.mode !== 'managed' || n.presence === 'state' || this.changeOf(n.addr) || this.inFold(n.addr)) return null;
+    const into = this.fold ? foldWord(this.fold) : '';
     return h('div', { class: 'bd-nt' }, h('span', { class: 'cl' }, 'Board'),
       h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Change its fields on the board, written where it is written', on: { click: () => this.change(n.addr) } }, icon('pen'), h('span', { class: 'lbl' }, 'Change it')),
+      // a fold takes what is written at the top of a file: a resource inside a struct or an instance is folded in the code
+      n.addr.includes('.') ? null : h('button', { type: 'button', class: 'bd-b sm', 'data-tip': this.fold ? `Fold it into ${into} with the others` : 'Fold it, and what you add to it, into a template: the records stay, the code becomes a definition and an instance', on: { click: () => this.startFold(n.addr) } }, icon('template'), h('span', { class: 'lbl' }, this.fold ? `Add to ${into}` : 'Fold it')),
       h('button', { type: 'button', class: 'bd-b sm danger', 'data-tip': 'Take it out of the specification on the board: the plan destroys it', on: { click: () => this.change(n.addr, { remove: true }) } }, icon('x'), h('span', { class: 'lbl' }, 'Remove it')));
   }
 
@@ -392,10 +398,12 @@ export class Board {
   draft() {
     const edits = this.items.filter((it) => it.kind === 'change').map((it) => this.editOf(it)).filter(Boolean);
     // a thing that was saved is in the files: the drawing lets go of it once the graph shows it
-    return { file: this.cfg.file, edits: edits.length ? edits : undefined, items: this.items.filter((it) => it.kind !== 'change' && !it.saved).map((it) => ({ label: it.label, type: it.type || undefined, provider: it.provider || undefined, template: it.template || undefined, values: it.values, adopt: it.adopt ? { discovery: it.adopt.discovery, key: it.adopt.key } : undefined })) };
+    const f = this.fold && this.fold.addrs.length ? this.fold : null;
+    const fold = f ? { name: f.name, title: f.title || undefined, label: f.label || undefined, addrs: f.addrs, ask: f.ask.length ? f.ask : undefined } : undefined;
+    return { file: this.cfg.file, edits: edits.length ? edits : undefined, fold, items: this.items.filter((it) => it.kind !== 'change' && !it.saved).map((it) => ({ label: it.label, type: it.type || undefined, provider: it.provider || undefined, template: it.template || undefined, values: it.values, adopt: it.adopt ? { discovery: it.adopt.discovery, key: it.adopt.key } : undefined })) };
   }
 
-  sig() { const d = this.draft(); return JSON.stringify([d.items, d.edits || []]); }
+  sig() { const d = this.draft(); return JSON.stringify([d.items, d.edits || [], d.fold || null]); }
 
   async runCheck() {
     if (!this.count()) return;
@@ -409,10 +417,13 @@ export class Board {
     }
     if (seq !== this.seq) return;
     const before = JSON.stringify((this.check && this.check.reads) || {});
+    const fold = JSON.stringify((this.check && this.check.fold) || null);
     this.check = out;
     this.render();
     this.paintProblems();
     if (JSON.stringify(out.reads || {}) !== before) this.cb.redraw({});
+    // the fold shows what the server made of it: its inputs, and the values it can ask for
+    if (this.formItem && this.formItem.fold && JSON.stringify(out.fold || null) !== fold) this.cb.redrawInspector();
   }
 
   // ---- the bar ----
@@ -740,7 +751,9 @@ export class Board {
     if (!this.edit || !this.check || this.check.state !== 'valid') return;
     this.btn.save.disabled = true;
     let out;
-    try { out = await api.boardPost('/api/board/save', this.draft()); } catch (err) {
+    // the files are written as the board showed their change, and no other way
+    const seen = Object.fromEntries((this.check.files || []).map((f) => [f.file, f.base]));
+    try { out = await api.boardPost('/api/board/save', Object.assign(this.draft(), { seen })); } catch (err) {
       this.cb.toast(`Could not save: ${err.message}`, 'error', 9000, err.check ? (err.check.problems || []).map(problemText).join(' · ') : '');
       this.render();
       return;
@@ -748,6 +761,7 @@ export class Board {
     // what was changed is written: the drawing lets go of it at once; a thing drawn goes once the graph shows it
     this.items = this.items.filter((it) => it.kind !== 'change');
     for (const it of this.items) it.saved = true;
+    this.fold = null;
     const files = [out.file, ...(out.changed || [])].filter(Boolean).join(', ');
     this.saved = { file: files, commands: out.commands, at: Date.now() };
     this.cb.toast(`Saved ${files}`, 'info', 6000, this.cfg.apply ? 'The graph shows it once the specification is read again. Plan it, then press Apply.' : 'The graph shows it once the specification is read again. Apply it from a terminal: ' + out.commands[out.commands.length - 1]);
@@ -814,7 +828,7 @@ export class Board {
     const no = h('button', { type: 'button', class: 'bd-b sm' }, h('span', { class: 'lbl' }, 'Cancel'));
     const menu = h('div', { class: 'bd-menu bd-confirm', role: 'alertdialog', 'aria-label': 'Apply the plan' },
       h('p', { class: 'bd-mh' }, h('b', null, 'Apply the plan: '), planWords(p.result)),
-      h('p', { class: 'bd-cw-note' }, 'This changes real infrastructure with your keys, as pravo apply does. Every change is checked against the plan you see.'),
+      h('p', { class: 'bd-cw-note' }, onlyMoves(p.result) ? 'This moves records of the state to their new addresses, as pravo apply does: nothing that they made changes.' : 'This changes real infrastructure with your keys, as pravo apply does. Every change is checked against the plan you see.'),
       h('div', { class: 'bd-foot' }, no, go));
     document.body.append(menu);
     const r = this.btn.apply.getBoundingClientRect();
@@ -843,9 +857,12 @@ export class Board {
       if (out.error) throw new Error(out.error);
       const d = out.done;
       this.applied = { at: Date.now(), result: d };
-      const words = `${d.added} added, ${d.changed} changed, ${d.destroyed} destroyed`;
+      const words = `${d.added} added, ${d.changed} changed, ${d.destroyed} destroyed${d.moved ? `, ${d.moved} moved` : ''}`;
       this.cb.toast(`Applied: ${words}`, 'info', 9000, `txn ${d.txn}${d.deferred ? `. ${plural(d.deferred, 'change')} waited for what the apply made: plan again.` : ''}`);
       this.cb.announce(`Applied: ${words}`);
+      // a record that moved is found at its new address when the graph is read again
+      if (d.moved) this.moved = new Map(this.plan.result.changes.filter((c) => c.from).map((c) => [c.from, c.addr]));
+      this.saved = null; // what was written is applied: the commands to apply it are done with
       this.plan = null; // the plan is used: the next is made of the state as the apply left it
     } catch (err) {
       this.cb.toast('The apply failed', 'error', 12000, clipText(err.message, 400));
@@ -872,6 +889,7 @@ export class Board {
 
   // showForm draws the form of a thing drawn in the inspector
   showForm(label, insp) {
+    if (this.inFold(label)) { this.showFold(label, insp); return; }
     const it = this.item(label);
     if (!it) return;
     if (it.kind === 'change') { this.showChange(it, insp); return; }
@@ -997,14 +1015,14 @@ export class Board {
     const body = this.formEl, it = this.formItem;
     if (!body || !it || !body.isConnected) return;
     const chk = this.check;
-    const mine = ((chk && chk.problems) || []).filter((p) => p.item === it.label || (!p.item && chk.state !== 'incomplete'));
+    const mine = ((chk && chk.problems) || []).filter((p) => p.item === it.label || (it.fold && this.inFold(p.item)) || (!p.item && chk.state !== 'incomplete'));
     const pl = this.plan;
     if (pl && pl.state === 'failed' && pl.sig === this.sig()) mine.push(...pl.problems.filter((p) => p.item === it.label));
     const box = body.querySelector('.bd-probs');
     clear(box);
     const rows = new Set([...body.querySelectorAll('.bd-row')].map((r) => r.dataset.f));
     const said = new Set();
-    for (const p of mine.filter((x) => !x.field || x.field.startsWith('@') || !rows.has(x.field))) {
+    for (const p of mine.filter((x) => !x.field || !rows.has(x.field))) {
       if (said.has(p.message)) continue; // a provider says the same of each field of a set
       said.add(p.message);
       box.append(h('p', { class: 'bd-err' }, p.message));
@@ -1013,7 +1031,8 @@ export class Board {
       const p = mine.find((x) => x.field === row.dataset.f);
       const err = row.querySelector('.bd-fe');
       err.textContent = p && p.message !== 'needs a value' ? p.message : '';
-      row.classList.toggle('need', !it.values[row.dataset.f] && row.classList.contains('req'));
+      const has = it.fold ? !!(this.fold && this.fold[row.dataset.f.slice(1)]) : !!it.values[row.dataset.f];
+      row.classList.toggle('need', !has && row.classList.contains('req'));
     }
   }
 
@@ -1121,6 +1140,100 @@ export class Board {
     return inp;
   }
 
+  // ---- folding into a template ----
+
+  inFold(addr) { return !!(this.fold && this.fold.addrs.includes(addr)); }
+
+  // movedTo is where the last apply moved a record to, once: a fold moves them under its instance
+  movedTo(addr) {
+    const to = this.moved && this.moved.get(addr);
+    if (to) this.moved.delete(addr);
+    return to || '';
+  }
+
+  // startFold begins a fold with a resource of the specification, or adds one to the fold that is open. A fold is one
+  // change of the drawing: the server writes the template and its instance, and points what reads them at the instance.
+  startFold(addr) {
+    if (!this.fold) this.fold = { name: '', title: '', label: '', addrs: [], ask: [] };
+    if (!this.fold.addrs.includes(addr)) this.fold.addrs.push(addr);
+    this.changed({ graph: true });
+    this.cb.select(addr);
+    this.cb.redrawInspector();
+    this.cb.announce(this.fold.addrs.length > 1 ? `${addr} is in the fold, with ${plural(this.fold.addrs.length - 1, 'other resource')}` : `Folding ${addr}. Select another resource and add it, then name the template.`);
+  }
+
+  // unfold takes a resource out of the fold; the last one out ends the fold
+  unfold(addr) {
+    if (!this.fold) return;
+    this.fold.addrs = this.fold.addrs.filter((a) => a !== addr);
+    this.fold.ask = this.fold.ask.filter((q) => !q.startsWith(addr + '.'));
+    if (!this.fold.addrs.length) this.fold = null;
+    this.changed({ graph: true });
+    this.cb.select(addr);
+  }
+
+  dropFold() {
+    const at = this.fold && this.fold.addrs[0];
+    this.fold = null;
+    this.changed({ graph: true });
+    if (at) this.cb.select(at);
+    this.cb.announce('The fold is dropped. Nothing was written.');
+  }
+
+  // showFold draws the fold in the inspector: its name, what it folds, the inputs the template gets, and the values it
+  // can ask for
+  showFold(addr, insp) {
+    const f = this.fold;
+    // drawn again when the check comes back: the control that had the focus keeps it
+    const had = document.activeElement && document.activeElement.closest('.bd-fold') ? document.activeElement.dataset.k : '';
+    const out = this.check && this.check.fold;
+    const head = {
+      kick: 'Drawing · folds into a template',
+      title: out ? out.def : f.name ? foldWord(f) : 'A new template',
+      path: h('div', { class: 'ih-path bd-what' }, h('b', null, plural(f.addrs.length, 'resource')), h('code', null, out ? `${out.file} · ${out.label}` : 'pravo.#Template')),
+      tags: [h('span', { class: 'b bd-draft' }, 'fold')],
+    };
+    const body = h('div', { class: 'bd-form bd-fold', data: { label: '@fold' } });
+    this.formEl = body;
+    this.formItem = { label: '@fold', values: {}, fold: true };
+    body.append(h('p', { class: 'bd-where' }, 'Saving writes a template that holds these resources into a new file, with one instance of it that keeps their records ($from). The plan moves the records and changes nothing they made.'));
+    body.append(h('div', { class: 'bd-probs', role: 'status' }));
+    const text = (key, label, ph, tip) => {
+      const inp = h('input', { type: 'text', class: 'bd-tin', value: f[key] || '', placeholder: ph, spellcheck: 'false', autocomplete: 'off', 'aria-label': label, data: { k: '@' + key } });
+      inp.addEventListener('change', () => { f[key] = inp.value.trim(); this.changed({ graph: true }); });
+      inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') inp.blur(); });
+      return h('div', { class: 'bd-row' + (key === 'name' ? ' req' : ''), data: { f: '@' + key } }, h('label', { class: 'bd-fl' }, h('code', null, label)), h('p', { class: 'bd-fd' }, tip), h('div', { class: 'bd-ctl' }, inp), h('p', { class: 'bd-fe', role: 'alert' }));
+    };
+    body.append(h('h3', { class: 'bd-sh' }, 'It needs'), text('name', 'name', 'web_app', 'The name of the template, in small letters, digits and underscores. The definition and the file take it.'));
+    body.append(h('h3', { class: 'bd-sh' }, 'Also set'),
+      text('title', 'title', f.name ? foldTitle(f.name) : 'Web app', 'What the catalog of templates calls it.'),
+      text('label', 'instance', f.name || 'web_app', `The address of the instance. The resources move under it: ${f.label || f.name || 'web_app'}.${f.addrs[0]}.`));
+    body.append(h('h3', { class: 'bd-sh' }, 'It folds'), h('ul', { class: 'bd-flist' }, ...f.addrs.map((a) => h('li', { class: a === addr ? 'on' : '' },
+      h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.cb.select(a) } }, h('code', null, a)),
+      out && out.moves[a] ? h('span', { class: 'bd-ty' }, 'to ' + out.moves[a]) : null,
+      h('button', { type: 'button', class: 'iconbtn sm', 'aria-label': `Take ${a} out of the fold`, 'data-tip': 'Take it out of the fold', on: { click: () => this.unfold(a) } }, icon('x'))))),
+    h('p', { class: 'bd-fd' }, 'To fold another resource, select it and press Add.'));
+    if (out) {
+      const reads = out.inputs.filter((x) => !x.asked);
+      body.append(h('h3', { class: 'bd-sh' }, 'Inputs'));
+      if (!reads.length && !out.inputs.length) body.append(h('p', { class: 'bd-fd' }, 'It reads nothing of other resources, so it asks for nothing yet. Tick a value below to ask for it.'));
+      for (const x of out.inputs) body.append(h('p', { class: 'bd-inp' }, h('code', null, x.name), h('span', { class: 'bd-ty' }, x.asked ? `asks for ${x.from}, as written by default` : `reads ${x.from}`)));
+      const can = Object.entries(out.fields || {}).flatMap(([a, fs]) => fs.map((k) => `${a}.${k}`));
+      if (can.length) {
+        body.append(h('h3', { class: 'bd-sh' }, 'Ask for'), h('div', { class: 'bd-asks' }, ...can.map((q) => {
+          const box = h('input', { type: 'checkbox', checked: f.ask.includes(q), data: { k: q } });
+          box.addEventListener('change', () => { f.ask = box.checked ? [...f.ask, q] : f.ask.filter((x) => x !== q); this.changed({ graph: true }); });
+          return h('label', { class: 'bd-askf' }, box, h('code', null, q));
+        })));
+      }
+    }
+    body.append(h('div', { class: 'bd-tools' }, h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Show the template and the changes of the files', on: { click: () => this.toggleCode(true) } }, icon('code'), h('span', { class: 'lbl' }, 'The change'))));
+    body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Drop the fold: the resources stay as they are written', on: { click: () => this.dropFold() } }, icon('back'), h('span', { class: 'lbl' }, 'Drop the fold'))));
+    insp.showDraft(head, body);
+    this.paintProblems();
+    if (had) { const el = [...body.querySelectorAll('[data-k]')].find((x) => x.dataset.k === had); if (el) el.focus(); }
+  }
+
   // ---- sockets ----
 
   // socketMenu offers what a socket can be wired to: what fits on the drawing, and a new resource of each type it reads
@@ -1179,8 +1292,9 @@ export class Board {
     try {
       const key = KEEP + ((this.cb.project() || {}).dir || '');
       const mine = this.items.filter((it) => !it.guide);
-      if (!mine.length) { sessionStorage.removeItem(key); return; }
-      sessionStorage.setItem(key, JSON.stringify(mine.map((it) => (it.kind === 'change' ? { kind: 'change', label: it.label, addr: it.addr, base: it.base, values: it.values, remove: it.remove, shown: [...it.shown], cue: [...it.cue] } : { label: it.label, kind: it.kind, type: it.type, template: it.template, provider: it.provider, values: it.values, shown: [...it.shown], cue: [...it.cue], saved: !!it.saved, adopt: it.adopt || undefined }))));
+      if (!mine.length && !this.fold) { sessionStorage.removeItem(key); return; }
+      const fold = this.fold ? [{ kind: 'fold', fold: this.fold }] : [];
+      sessionStorage.setItem(key, JSON.stringify(fold.concat(mine.map((it) => (it.kind === 'change' ? { kind: 'change', label: it.label, addr: it.addr, base: it.base, values: it.values, remove: it.remove, shown: [...it.shown], cue: [...it.cue] } : { label: it.label, kind: it.kind, type: it.type, template: it.template, provider: it.provider, values: it.values, shown: [...it.shown], cue: [...it.cue], saved: !!it.saved, adopt: it.adopt || undefined })))));
     } catch { /* a private window */ }
   }
 
@@ -1191,6 +1305,13 @@ export class Board {
     let gone = 0;
     for (const x of list.slice(0, 96)) {
       try {
+        if (x.kind === 'fold') {
+          const f = x.fold || {};
+          const str = (v) => (typeof v === 'string' ? v.slice(0, 80) : '');
+          const list = (v) => (Array.isArray(v) ? v.filter((a) => typeof a === 'string').slice(0, 24) : []);
+          if (list(f.addrs).length) this.fold = { name: str(f.name), title: str(f.title), label: str(f.label), addrs: list(f.addrs), ask: list(f.ask) };
+          continue;
+        }
         if (x.kind === 'change') {
           // a change is made against the file as it was read: one whose file changed since is let go
           const e = await api.boardEdit(x.addr);
@@ -1208,11 +1329,17 @@ export class Board {
       } catch { /* a type that the providers do not have any more */ }
     }
     if (gone) this.cb.toast(`${plural(gone, 'change')} let go`, 'info', 8000, 'Its file changed since it was read. Change it again on the board.');
-    if (this.items.length) { this.changed({ graph: true }); this.cb.redrawInspector(); }
+    if (this.items.length || this.fold) { this.changed({ graph: true }); this.cb.redrawInspector(); }
   }
 }
 
 // ---- helpers ----
+
+// foldWord is the name of a fold as the graph and the buttons say it: the instance, else the template
+function foldWord(f) { return f.label || f.name || 'a template'; }
+
+// foldTitle is a title from a name: web_app is Web app
+function foldTitle(name) { return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' '); }
 
 function lamp(name) {
   const dot = h('i', { class: 'bd-dot', 'aria-hidden': 'true' });
@@ -1334,16 +1461,19 @@ function planProblems(text, labels) {
 
 const clipText = (t, n) => (t.length > n ? t.slice(0, n - 1) + '\u2026' : t);
 
-// planMarks is a plan in the marks of pravo plan: +2 ~1 -1
+// planMarks is a plan in the marks of pravo plan: +2 ~1 -1, and a move as an arrow: \u21922
 function planMarks(r) {
-  if (!r.add && !r.change && !r.destroy) return 'No changes';
-  return [r.add ? `+${r.add}` : '', r.change ? `~${r.change}` : '', r.destroy ? `\u2212${r.destroy}` : ''].filter(Boolean).join(' ');
+  if (!r.add && !r.change && !r.destroy && !r.move) return 'No changes';
+  return [r.add ? `+${r.add}` : '', r.change ? `~${r.change}` : '', r.destroy ? `\u2212${r.destroy}` : '', r.move ? `\u2192${r.move}` : ''].filter(Boolean).join(' ');
 }
+
+// onlyMoves says that a plan only moves records: a fold, or a $from written by hand
+const onlyMoves = (r) => !!(r && r.move && !r.add && !r.change && !r.destroy);
 
 function planWords(r) {
   if (!r) return '';
-  if (!r.add && !r.change && !r.destroy) return 'No changes';
-  return [r.add ? `${r.add} to add` : '', r.change ? `${r.change} to change` : '', r.destroy ? `${r.destroy} to destroy` : ''].filter(Boolean).join(', ');
+  if (!r.add && !r.change && !r.destroy && !r.move) return 'No changes';
+  return [r.add ? `${r.add} to add` : '', r.change ? `${r.change} to change` : '', r.destroy ? `${r.destroy} to destroy` : '', r.move ? `${r.move} to move` : ''].filter(Boolean).join(', ');
 }
 
 const pad = (n) => String(n).padStart(2, '0');

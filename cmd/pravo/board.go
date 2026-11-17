@@ -151,8 +151,15 @@ func boardPlan(ctx context.Context, rt *runContext, req serve.BoardPlanRequest, 
 	}
 	view := eng.NewView(plan, engine.ViewOptions{Redact: true})
 	out := &serve.BoardPlanResult{Changes: []serve.BoardChange{}, Add: view.Summary.Add, Change: view.Summary.Change, Destroy: view.Summary.Destroy}
+	from := map[string]string{}
+	for _, c := range plan.Changes {
+		if c.Action == engine.ActionMove && !c.Applied {
+			out.Move++
+			from[c.Addr] = c.MovedFrom
+		}
+	}
 	for _, c := range view.Changes {
-		out.Changes = append(out.Changes, serve.BoardChange{Addr: c.Addr, Action: string(c.Action)})
+		out.Changes = append(out.Changes, serve.BoardChange{Addr: c.Addr, Action: string(c.Action), From: from[c.Addr]})
 	}
 	sort.Slice(out.Changes, func(i, j int) bool { return out.Changes[i].Addr < out.Changes[j].Addr })
 	if perr := eng.JudgePlan(ctx, plan); perr != nil {
@@ -216,6 +223,12 @@ func boardApply(ctx context.Context, rt *runContext, t *boardTicket, step func(s
 		},
 	})
 	eng.SetPlan("", pf.Digest)
+	moves := 0
+	for _, c := range pf.Changes {
+		if c.Action == engine.ActionMove && !c.Applied {
+			moves++
+		}
+	}
 	sa, err := pravo.ApplySavedPlan(ctx, eng, pf, pravo.SavedApplyOptions{Name: "the plan of the board", Again: "pravo plan", Sink: fileSink{path: t.path, pf: pf}})
 	var stale *engine.ErrStalePlan
 	if errors.As(err, &stale) {
@@ -230,6 +243,8 @@ func boardApply(ctx context.Context, rt *runContext, t *boardTicket, step func(s
 	out := &serve.BoardApplyResult{}
 	if sa.Result != nil {
 		out.Added, out.Changed, out.Destroyed, out.Txn, out.Deferred = sa.Result.Added, sa.Result.Changed, sa.Result.Destroyed, sa.Result.Txn, sa.Result.Deferred
+		// an apply that returns no error made every change of the plan, the moves first
+		out.Moved = moves
 	}
 	return out, nil
 }

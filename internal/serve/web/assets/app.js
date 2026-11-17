@@ -708,7 +708,7 @@ function applyMatch() {
 function itemOf(addr) { return S.vis && S.vis.rep.get(addr); }
 
 // onBoard says whether a node is on the drawing board: drawn there, or a resource that the drawing changes
-const onBoard = (n) => !!(n && (n.draft || (board && board.changeOf(n.addr))));
+const onBoard = (n) => !!(n && (n.draft || (board && (board.changeOf(n.addr) || board.inFold(n.addr)))));
 
 function selectNode(addr, o = {}) {
   const n = S.model.nodes.get(addr);
@@ -1533,6 +1533,8 @@ async function refresh() {
   nm.planText = planText();
   const d = diffModels(old, nm);
   // what the person was looking at may be gone: the page says so, and shows the project
+  const moved = S.sel && !nm.nodes.has(S.sel) && board ? board.movedTo(S.sel) : '';
+  if (moved && nm.nodes.has(moved)) S.sel = moved;
   const lost = S.sel && !(nm.nodes.has(S.sel) || nm.namespaces.has(S.sel)) ? S.sel : null;
   if (lost) { S.sel = null; S.reach = false; S.tab = null; }
   S.graph = g;

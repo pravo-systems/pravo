@@ -116,13 +116,20 @@ func TestBoardChangesAResourceWhereItIsWritten(t *testing.T) {
 		t.Fatalf("check: %+v", chk)
 	}
 	fc := chk.Files[0]
-	for _, want := range []string{"// The cache of the shop.", `name: "cache-2" // what the shop calls it`, "api_token: shared.name", "// the zones it runs in", `blob: "s3cret"`, "content: cache.name"} {
+	for _, want := range []string{"// The cache of the shop.", `name: "cache-2" // what the shop calls it`, "api_token: shared.name", "// the zones it runs in", `blob: "••••••••"`, "content: cache.name"} {
 		if !strings.Contains(fc.Text, want) {
 			t.Errorf("the new cache.cue has no %q:\n%s", want, fc.Text)
 		}
 	}
 	if f, err := format.Source([]byte(fc.Text)); err != nil || string(f) != fc.Text {
 		t.Errorf("a formatted file is formatted after the change: %v", err)
+	}
+	// the page sees the change with the secret typed into the code masked, in the text and in the lines of the change
+	if raw, _ := json.Marshal(chk); strings.Contains(string(raw), "s3cret") {
+		t.Errorf("the check sent a secret typed into the code: %s", raw)
+	}
+	if !slices.Contains(fc.Diff, BoardDiffLine{Op: " ", Line: 6, Text: "\tblob: \"••••••••\""}) {
+		t.Errorf("the lines of the change: %+v", fc.Diff)
 	}
 	if strings.Contains(fc.Text, "6379") {
 		t.Errorf("port was not unset:\n%s", fc.Text)
@@ -147,7 +154,7 @@ func TestBoardChangesAResourceWhereItIsWritten(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(filepath.Join(p.dir, "cache.cue"))
-	if err != nil || string(got) != fc.Text || saved.File != "" || len(saved.Changed) != 1 || saved.Changed[0] != "cache.cue" {
+	if err != nil || string(got) != strings.Replace(fc.Text, `"••••••••"`, `"s3cret"`, 1) || saved.File != "" || len(saved.Changed) != 1 || saved.Changed[0] != "cache.cue" {
 		t.Fatalf("saved %+v: %v\n%s", saved, err, got)
 	}
 	if fi, _ := os.Stat(filepath.Join(p.dir, "cache.cue")); fi.Mode().Perm() != 0o640 {
@@ -192,7 +199,7 @@ func TestBoardChangesAStructOnOneLineAndRemovesAResource(t *testing.T) {
 	if strings.Contains(cache.Text, "cache:") || strings.Contains(cache.Text, "log:") || !strings.HasPrefix(cache.Text, "package demo") || cache.Lines["cache"] != [2]int{} {
 		t.Errorf("cache.cue after removing both:\n%s", cache.Text)
 	}
-	if !strings.Contains(main.Text, `shared: $fake.#Resource.fake_db & {name: "shared", port: services.a.db.port, api_token: "t-1"}`) || !strings.Contains(main.Text, "// A reusable unit.") {
+	if !strings.Contains(main.Text, `shared: $fake.#Resource.fake_db & {name: "shared", port: services.a.db.port, api_token: "••••••••"}`) || !strings.Contains(main.Text, "// A reusable unit.") {
 		t.Errorf("main.cue:\n%s", main.Text)
 	}
 	if len(chk.Creates) != 0 {
