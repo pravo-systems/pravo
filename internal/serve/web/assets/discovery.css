@@ -170,3 +170,8 @@ button.facet.b:hover { border-color: var(--key); text-decoration: none; }
   .dv-acts { margin-left: 0; }
   .dv-ack { justify-content: flex-start; text-align: left; margin-left: 0; }
 }
+
+/* the button that draws the object on the drawing board */
+.dv-draw { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.dv-draw .btn { display: inline-flex; align-items: center; gap: .4rem; }
+.dv-draw .dv-note { margin: 0; }

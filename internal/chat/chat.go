@@ -134,6 +134,12 @@ Write short plain answers. Name resources by their exact address in backticks.`
 // It returns the messages it added to history and what it sent. A model that asks
 // for a tool that is not offered is told so and nothing runs.
 func Run(ctx context.Context, p Provider, tools Tools, history []Message, lim Limits, emit func(Event)) ([]Message, []Sent, error) {
+	return RunWith(ctx, p, System, tools, history, lim, emit)
+}
+
+// RunWith is Run with another instruction for the model than System, for a caller
+// whose tools do another job. The loop and its limits are the same.
+func RunWith(ctx context.Context, p Provider, system string, tools Tools, history []Message, lim Limits, emit func(Event)) ([]Message, []Sent, error) {
 	lim = lim.withDefaults()
 	defs := tools.Defs()
 	known := map[string]bool{}
@@ -144,7 +150,7 @@ func Run(ctx context.Context, p Provider, tools Tools, history []Message, lim Li
 	var ledger []Sent
 	calls, bytes := 0, 0
 	for range lim.Rounds {
-		resp, err := p.Complete(ctx, Request{System: System, Messages: append(append([]Message{}, history...), added...), Tools: defs, MaxTokens: lim.MaxTokens})
+		resp, err := p.Complete(ctx, Request{System: system, Messages: append(append([]Message{}, history...), added...), Tools: defs, MaxTokens: lim.MaxTokens})
 		if err != nil {
 			return added, ledger, err
 		}

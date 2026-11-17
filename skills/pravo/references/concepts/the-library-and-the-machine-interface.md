@@ -9,7 +9,7 @@ People use pravo through the commands. Programs use it three ways, and all three
 | Surface | For | Gives |
 |---|---|---|
 | The commands with `--json` | A script, a pipeline, a job. | One JSON document per command on standard output, events as lines where a command runs long, and an exit code that classifies the outcome. |
-| `pravo mcp` | An agent that works in a checkout. | Fourteen tools over the Model Context Protocol, each of which runs a command, with the plan document and the exit code in the result. |
+| `pravo mcp` | An agent that works in a checkout. | Twenty tools over the Model Context Protocol: fourteen that run a command, with the plan document and the exit code in the result, and six that are the pen of the drawing board. |
 | The Go library, package `pravo` | A program that plans and applies on behalf of its users: a runner, a service, a platform. | A workspace in the process, with the plan, the apply, drift, discovery and the queries as methods, and nothing read from flags, the environment of the process or a prompt. |
 
 ## The commands with --json

@@ -1119,6 +1119,11 @@ type Adopt struct {
 	// Steps follow the snippet: commands to copy, and notes. A step with
 	// Placeholder has a part, in angle brackets, for the person to fill in.
 	Steps []SuggestionStep `json:"steps"`
+	// Type is the resource type of the object, and Provider the struct of the
+	// provider that runs it ($aws), which the drawing board draws it with. No
+	// Provider when the board cannot draw it (a specification of environments).
+	Type     string `json:"type,omitempty"`
+	Provider string `json:"provider,omitempty"`
 }
 
 // TraceList is GET /api/traces: the runs that pravo recorded in the project, newest

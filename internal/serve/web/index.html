@@ -22,6 +22,7 @@
 <link rel="stylesheet" href="assets/environments.css">
 <link rel="stylesheet" href="assets/timelapse.css">
 <link rel="stylesheet" href="assets/chat.css">
+<link rel="stylesheet" href="assets/board.css">
 <script type="module" src="assets/app.js"></script>
 </head>
 <body>
@@ -82,6 +83,7 @@
         <span class="count" id="match-count" aria-hidden="true"></span>
       </div>
       <span class="grow"></span>
+      <button type="button" class="drawbtn graph-only" id="btn-draw" hidden aria-pressed="false" aria-keyshortcuts="b" data-tip="Draw new resources into the specification" data-key="b"><span class="i i-pen" aria-hidden="true"></span><span class="lbl">Draw</span></button>
       <div class="seg zoom graph-only" role="group" aria-label="Zoom">
         <button type="button" id="btn-zout" aria-label="Zoom out" title="Zoom out ( - )"><span class="i i-minus" aria-hidden="true"></span></button>
         <button type="button" id="btn-fit" title="Fit the graph ( f )">Fit</button>

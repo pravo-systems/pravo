@@ -208,7 +208,7 @@ jq -c 'select(.id == 3 or .id == 4) | {id, isError: .result.isError, exit_code: 
 ```
 
 ```text out
-["pravo_validate","pravo_plan","pravo_plan_list","pravo_show_plan","pravo_apply_plan","pravo_schema","pravo_why","pravo_state_query","pravo_state_show","pravo_dependents","pravo_state_log","pravo_locks","pravo_drift","pravo_providers"]
+["pravo_validate","pravo_plan","pravo_plan_list","pravo_show_plan","pravo_apply_plan","pravo_schema","pravo_why","pravo_state_query","pravo_state_show","pravo_dependents","pravo_state_log","pravo_locks","pravo_drift","pravo_providers","pravo_draw_types","pravo_draw_form","pravo_draw_resource","pravo_draw_check","pravo_draw_plan","pravo_draw_save"]
 {"id":3,"isError":true,"exit_code":5}
 {"id":4,"isError":true,"exit_code":null}
 ```
@@ -230,6 +230,8 @@ planfile "-auto-approve" is not a usable value: it is empty or begins with "-"
 No tool argument turns the judging off. The server applies only from saved plan files, and refuses the id of a plan stored in the state. It refuses an `addr`, `addrs`, `types`, `expression` or `planfile` that is empty or begins with `-`. Its instructions to the agent give the order of work and say to treat a refusal as a decision by the operators.
 
 The tools take the options of the commands that a scheduled job uses. `pravo_plan` takes `refresh` (`age`, `expired`, `false` or `all`) and `include_skipped`, which adds the nodes the plan left alone to the document. `pravo_drift` takes `due` and `limit`, the sweep of [CI](ci.md) that reads the oldest records past their refresh age.
+
+An agent can draw too. The six `pravo_draw_` tools are the pen of the [drawing board](../reference/serve.md#the-drawing-board): the agent finds a type, fills its form, checks the drawing and plans it in memory, then writes it as the board writes it, a new file and the fields it changes, each only as it was read. They apply nothing, so the plan that follows is saved and applied with the tools above, and judged the same way. [The drawing tools](../reference/mcp.md#the-drawing-tools) lists what each takes.
 
 ## 5. Ask why
 
