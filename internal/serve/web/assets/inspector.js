@@ -201,6 +201,19 @@ export class Inspector {
     this.root.classList.remove('scrolled');
   }
 
+  // showDraft shows a thing on the drawing board, whose form the board builds: head is what header takes, body the form.
+  showDraft(head, body) {
+    this.mode = 'draft';
+    this.token++;
+    this.addr = null;
+    this.noTabs();
+    this.header(head);
+    this.paint(body);
+    this.root.dataset.mode = 'draft';
+    this.root.dataset.act = '';
+    this.root.classList.remove('scrolled');
+  }
+
   // showNode shows a node; tab is the tab to show.
   // asOf, when given, shows the node as a run of the time lapse left it: {id, label, when, by, hasPrev, hasNext}.
   showNode(node, model, tab, graph, asOf = null) {

@@ -3,6 +3,7 @@ package serve
 import (
 	"encoding/json"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -41,6 +42,9 @@ func (p ProviderSchemas) Type(mode, typ string) *schema.Schema {
 
 // Provider implements Schemas.
 func (p ProviderSchemas) Provider() *schema.Schema { return p.PS.Provider }
+
+// ResourceTypes lists the managed resource types, sorted.
+func (p ProviderSchemas) ResourceTypes() []string { return p.PS.SortedResourceNames() }
 
 // cacheStore reads the schema cache lazily. The cache of a large provider is
 // tens of megabytes of JSON, so a file is split into the schemas of its types
@@ -170,6 +174,16 @@ func (f *cacheFile) Type(mode, typ string) *schema.Schema {
 	}
 	f.decoded[key] = s
 	return s
+}
+
+// ResourceTypes lists the managed resource types, sorted.
+func (f *cacheFile) ResourceTypes() []string {
+	out := make([]string, 0, len(f.types[0]))
+	for t := range f.types[0] {
+		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // Provider implements Schemas.

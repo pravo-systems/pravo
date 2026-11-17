@@ -75,6 +75,8 @@ type Fragment struct {
 	Palette bool
 	PQ      string
 	Help    bool
+	// Draw opens the drawing board over the graph.
+	Draw bool
 }
 
 var (
@@ -85,7 +87,7 @@ var (
 
 // String is the fragment without the leading #, in the order of the deep-link
 // table: sel, tab, collapse, expand, theme, q, dq, plq, plan, view, pol, ps,
-// tpl, tn, trace, span, tv, tq, motion, zoom, and then palette, pq and help.
+// tpl, tn, trace, span, tv, tq, motion, zoom, and then palette, pq, help and draw.
 // Values are URL-encoded, and a list is written comma separated with each
 // element encoded.
 func (f Fragment) String() string {
@@ -135,6 +137,9 @@ func (f Fragment) String() string {
 	add("pq", f.PQ)
 	if f.Help {
 		add("help", "1")
+	}
+	if f.Draw {
+		add("draw", "1")
 	}
 	return "/?" + strings.Join(parts, "&")
 }
@@ -312,6 +317,9 @@ type Shot struct {
 	// Chat starts the viewer with the assistant on, talking to the model that
 	// the program serves.
 	Chat bool
+	// Edit starts the viewer with --edit, so that the drawing board can save
+	// and plan.
+	Edit bool
 }
 
 // scale is the device scale factor of every shot.
@@ -389,6 +397,12 @@ func allShots() []Shot {
 	chatty := func(shots []Shot) []Shot {
 		for i := range shots {
 			shots[i].Chat = true
+		}
+		return shots
+	}
+	editing := func(shots []Shot) []Shot {
+		for i := range shots {
+			shots[i].Edit = true
 		}
 		return shots
 	}
@@ -522,6 +536,10 @@ func allShots() []Shot {
 	s = append(s, chatty(scripted(askScript(false, false), both("ask-notice", "platform", situationStored, Fragment{View: "plans"})))...)
 	s = append(s, chatty(scripted(askScript(true, false), both("ask-answer", "platform", situationStored, Fragment{View: "plans"})))...)
 	s = append(s, chatty(scripted(askScript(true, true), both("ask-sent", "platform", situationStored, Fragment{View: "plans"})))...)
+	// The drawing board over the platform, started with --edit: a file of
+	// reports that reads the release and the name of the network, drawn with a
+	// password beside it, planned, and the file selected with its code open.
+	s = append(s, editing(scripted(boardScript(), both("board", "platform", situationClean, Fragment{Draw: true})))...)
 	return s
 }
 

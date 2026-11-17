@@ -3,7 +3,7 @@
 
 import * as api from './api.js';
 import { buildModel, buildItems, firstView, touchedNamespaces, reveal, diffModels, CLUSTER_CAP, isChange, chain, isOut, isEnv, isSecret, tabsOf } from './model.js';
-import { layout } from './layout.js';
+import { layout, FIT } from './layout.js';
 import { GraphView, Minimap } from './graph.js';
 import { Pills } from './pills.js';
 import { ListView } from './list.js';
@@ -18,6 +18,7 @@ import { EnvironmentsView, menuLine } from './environments.js';
 import { TimeLapseView } from './timelapse.js';
 import { TemplatesView } from './templates.js';
 import { ChatView } from './chat.js';
+import { Board } from './board.js';
 import { Palette, Sheet } from './palette.js';
 import { compileQuery, QueryMenu, quoted, addTerm, removeTerm, removeValues, fieldHits, fieldSpecs, fieldMatcher, LEGACY_FILTERS } from './query.js';
 import { parseFragment, listOf, writeFragment } from './route.js';
@@ -41,7 +42,7 @@ const S = {
   runs: [], // the runs that pravo recorded, read when the palette opens
   live: 'connecting', focus: null, palette: false, help: false, proj: false,
 };
-let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView, discoveryView, tracesView, policiesView, secretsView, templatesView, environmentsView, lapseView, chatView;
+let gv, minimap, pills, list, insp, palette, sheet, conn, backBtn, plansList, accessView, discoveryView, tracesView, policiesView, secretsView, templatesView, environmentsView, lapseView, chatView, board;
 // PAGES are the views that are sections of their own: the keys and the finder of the resources are not theirs.
 const PAGES = new Set(['access', 'plans', 'discovery', 'traces', 'policies', 'secrets', 'templates', 'environments', 'timelapse']);
 let booted = false;
@@ -175,6 +176,8 @@ function readFragment() {
     palette: p.palette === '1',
     pq: p.pq || '',
     help: p.help === '1',
+    // draw=1 opens the drawing board, which the page holds: the link carries no drawing
+    draw: p.draw === '1',
   };
 }
 
@@ -193,7 +196,7 @@ function currentHash() {
   return writeFragment({
     sel: S.sel, tab: S.sel && S.model.nodes.has(S.sel) ? S.tab : null, collapse, expand, plan: planFragment(), q: S.q, dq: S.dq, plq: S.plq,
     view: S.view, graphChosen: onPhone(), ...(S.view === 'traces' && tracesView ? tracesView.route() : {}), ...(S.view === 'timelapse' && lapseView ? lapseView.route() : {}), ...(S.view === 'policies' && policiesView ? policiesView.route() : {}), ...(S.view === 'templates' && templatesView ? templatesView.route() : {}), theme: S.theme && (store.get('pravo.theme') === S.theme || new URLSearchParams(location.hash.replace(/^#\/?\??/, '')).has('theme')) ? S.theme : null,
-    motion: S.motion ? '' : 'off', zoom: S.zoom,
+    motion: S.motion ? '' : 'off', zoom: S.zoom, draw: !!(board && board.on),
   });
 }
 
@@ -281,8 +284,14 @@ function revealSel(frag, sel) {
 // ownPlan is the id of the stored plan that the server laid over the graph itself.
 const ownPlan = (raw) => (raw && raw.plan && raw.plan.id) || null;
 
-// shown is the graph the page draws: what the server sent, with the selected stored plan laid over it.
+// shown is the graph the page draws: what the server sent, with the selected stored plan laid over it, and the drawing of
+// the board when it is on.
 function shown(raw) {
+  const g = overlaid(raw);
+  return board ? board.decorate(g) : g;
+}
+
+function overlaid(raw) {
   const own = ownPlan(raw);
   const o = S.overlay;
   if (S.plan && S.plan !== own && o && o.plan.id === S.plan) {
@@ -520,6 +529,47 @@ function setModel(g, frag) {
   }
 }
 
+// redrawBoard shows the graph again after the drawing changed: the model is made again from what the server sent, and
+// the namespaces and clusters that are open stay open.
+function redrawBoard(o = {}) {
+  if (!S.raw || !S.model) return;
+  S.graph = shown(S.raw);
+  S.model = buildModel(S.graph, S.plans);
+  S.model.planParam = planParam();
+  S.model.planText = planText();
+  if (S.sel && !(S.model.nodes.has(S.sel) || S.model.namespaces.has(S.sel))) { S.sel = null; S.reach = false; S.tab = null; list.setSelected(null); showInspector(); }
+  palette.setModel(S.model);
+  $('empty').hidden = S.model.list.length > 0 || (board && board.on);
+  if (S.view === 'list') renderList();
+  relayout({ animate: true });
+  renderStatus();
+  if (o.fit) gv.fit(true);
+}
+
+// toggleBoard shows the drawing board in the graph of the inventory, or hides it; what is drawn stays in the page.
+function toggleBoard(on) {
+  if (!board || !board.cfg) return;
+  const want = on === undefined ? !board.on : on;
+  if (want && S.view !== 'graph') setView('graph');
+  // the strip of the board covers the bottom of the canvas: the picture is framed above it
+  FIT.padBottom = want ? 150 + boardPad : 60;
+  board.toggle(want);
+  $('btn-draw').setAttribute('aria-pressed', board.on ? 'true' : 'false');
+  $('app').dataset.board = board.on ? '1' : '';
+  syncFragment();
+}
+
+// boardPad is the height of what the board shows above its strip (the code drawer), which the fit leaves free
+let boardPad = 0;
+function padBoard(px) {
+  boardPad = px;
+  if (!board || !board.on) return;
+  FIT.padBottom = 150 + px;
+  gv.fit(true);
+}
+
+const maxRank = () => { let m = 0; if (S.lay) for (const p of S.lay.pos.values()) m = Math.max(m, p.rank || 0); return m; };
+
 // relayout computes the items and the layout, and shows them.
 function relayout(o = {}) {
   const t0 = performance.now();
@@ -651,6 +701,9 @@ function itemOf(addr) { return S.vis && S.vis.rep.get(addr); }
 function selectNode(addr, o = {}) {
   const n = S.model.nodes.get(addr);
   if (!n) return;
+  // a thing on the drawing board shows every wire it could take while it is selected
+  const was = S.sel && S.model.nodes.get(S.sel);
+  if (board && board.on && S.sel !== addr && (n.draft || (was && was.draft))) { S.sel = addr; redrawBoard(); if (!S.model.nodes.has(addr)) return; }
   const changed = reveal(S.model, addr, S.collapsed, S.clusters);
   if (S.sel !== addr) S.reach = false;
   S.sel = addr;
@@ -712,6 +765,8 @@ function setGrouped(on) {
 
 function clearSelection() {
   if (!S.sel && !S.reach) return;
+  const was = S.sel && S.model.nodes.get(S.sel);
+  if (board && board.on && was && was.draft) { S.sel = null; redrawBoard(); }
   S.sel = null;
   S.reach = false;
   S.tab = null;
@@ -751,6 +806,7 @@ function showInspector() {
   if (!S.sel) { insp.showProject(m); return; }
   if (m.nodes.has(S.sel)) {
     const n = m.nodes.get(S.sel);
+    if (n.draft && board) { board.showForm(n.addr, insp); return; }
     insp.showNode(n, m, effectiveTab(n), S.graph);
   } else if (m.namespaces.has(S.sel)) insp.showNamespace(m.namespaces.get(S.sel), m, S.collapsed);
   else insp.showProject(m);
@@ -1774,6 +1830,7 @@ function onKey(ev) {
   if (k === 'o') { setView(S.view === 'policies' ? (S.lastResources || 'graph') : 'policies'); return; }
   if (k === 'e') { setView(S.view === 'secrets' ? (S.lastResources || 'graph') : 'secrets'); return; }
   if (k === 'm') { setView(S.view === 'templates' ? (S.lastResources || 'graph') : 'templates'); return; }
+  if (k === 'b' && board && board.cfg) { ev.preventDefault(); toggleBoard(); return; }
   if (k === 'v' && !$('env-btn').hidden) { ev.preventDefault(); toggleEnvMenu(); return; }
   if (k === 's' && S.view === 'policies') { policiesView.toggleStudio(); return; }
   if (k === 'l') { setView(S.view === 'timelapse' ? (S.lastResources || 'graph') : 'timelapse'); return; }
@@ -1814,6 +1871,7 @@ function wire() {
     onPlan: openPlan,
     onFacet: (...a) => { if (S.view !== 'timelapse') facetFilter(...a); },
     onCluster: clusterAction,
+    onSocket: (addr, field, ev) => { if (board) board.socketMenu(addr, field, null, { x: ev.clientX, y: ev.clientY }); },
     onClear: clearSelection,
     onView: () => minimapDraw(),
     onScene: () => minimapDraw(),
@@ -1821,6 +1879,22 @@ function wire() {
   });
   gv.motion = S.motion; // motion=off in the fragment was read before the graph existed
   minimap = new Minimap($('canvas'), gv);
+  board = new Board({
+    raw: () => S.raw,
+    redraw: (o) => redrawBoard(o),
+    select: (addr) => { if (addr && S.model.nodes.has(addr)) selectNode(addr, { center: true }); else clearSelection(); },
+    selected: () => S.sel,
+    toast, announce,
+    revision: () => S.raw && S.raw.revision,
+    project: () => S.raw && S.raw.project,
+    redrawInspector: () => { const n = S.sel && S.model.nodes.get(S.sel); if (n && n.draft) showInspector(); },
+    focusCanvas: () => $('canvas').focus(),
+    pulse: (addr) => { const id = itemOf(addr); if (id) gv.flash(new Set([id])); },
+    columns: maxRank,
+    pad: padBoard,
+  });
+  board.mount($('canvas'));
+  $('btn-draw').addEventListener('click', () => toggleBoard());
   backBtn = h('button', { type: 'button', class: 'overlay backbtn', hidden: true, on: { click: () => (S.trail.length ? backOut() : findBack()) } },
     svgEl('svg', { class: 'bk-zoom', viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' }, svgEl('circle', { cx: 7, cy: 7, r: 4.6 }), svgEl('path', { d: 'M5 7h4M10.6 10.6L14 14' })),
     svgEl('svg', { class: 'bk-back', viewBox: '0 0 16 16', 'aria-hidden': 'true', focusable: 'false' }, svgEl('path', { d: 'M13 8H3.5M7.5 3.5L3 8l4.5 4.5' })),
@@ -2101,6 +2175,15 @@ async function boot() {
   renderSecretsTab();
   renderEnvButton();
   chatView.init().then((on) => { $('ask-btn').hidden = !on; });
+  board.load().then((cfg) => {
+    $('btn-draw').hidden = !cfg;
+    if (cfg && cfg.edit) {
+      $('st-note').textContent = 'edit on · localhost only';
+      $('st-note').dataset.tip = 'The drawing board can save a drawing as a new file and plan it. It applies nothing.\nIt is served on the loopback interface only.';
+    }
+    // the fragment as the page opened: it is written again once the first view is drawn, before the board is on
+    if (cfg && frag.draw) toggleBoard(true);
+  });
 }
 
 async function load(frag) {

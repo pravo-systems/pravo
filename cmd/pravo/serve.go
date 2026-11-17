@@ -32,6 +32,7 @@ func serveCmd(rt *runContext) *cobra.Command {
 	var noOpen bool
 	var planFile string
 	var chatProvider, chatModel, chatEndpoint string
+	var edit bool
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Show the specification, the state and a saved plan in a browser, read-only",
@@ -45,7 +46,9 @@ It also lists the runs that pravo recorded (.pravo/traces, or $PRAVO_TRACE_DIR) 
 
 With --chat PROVIDER, or PRAVO_CHAT=PROVIDER in the environment, the viewer gets a read-only assistant (anthropic, or openai-compatible with --chat-endpoint, which can be a model on this machine). It is off otherwise, and a key alone turns nothing on. The model comes from --chat-model or PRAVO_CHAT_MODEL, the endpoint from --chat-endpoint or PRAVO_CHAT_ENDPOINT, and the key from PRAVO_CHAT_API_KEY or, for anthropic, ANTHROPIC_API_KEY, in the environment of this command and nowhere else. The assistant can only call the viewer's own read paths, so it sees values as the page shows them, with sensitive ones withheld; it cannot apply, approve or change anything, and each answer lists exactly what was sent to the provider.
 
-The server writes nothing: no state, no lock, no lock file, no generated package. It starts no provider and downloads nothing: it reads the provider schemas that are cached already. It listens on 127.0.0.1 only, and every request needs the token in the address that is printed.`,
+The Inventory has a drawing board (press b): draw new resources of the providers the specification declares, or instances of its templates, wire them to what is there, and the board writes the CUE of one new file and says what CUE, the schemas and the policies say of it. Without --edit it writes nothing and shows the code to copy. With --edit it can save the drawing as a new file of the specification, under a name that no file has, and run a plan of the specification with the drawing in it, as "pravo plan" would; it never writes over a file, and it never applies: the apply is a command to copy.
+
+Without --edit the server writes nothing: no state, no lock, no lock file, no generated package. It starts no provider and downloads nothing: it reads the provider schemas that are cached already. It listens on 127.0.0.1 only, and every request needs the token in the address that is printed.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if port < 0 || port > 65535 {
@@ -64,6 +67,9 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 				return err
 			}
 			opts.Chat = co
+			if edit {
+				opts.Board = boardOptions(rt)
+			}
 			_, end := telemetry.Span(cmd.Context(), "setup read the specification and the state")
 			srv, err := serve.New(opts)
 			end(err)
@@ -79,6 +85,9 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 			url := srv.URL(ln.Addr())
 			if opts.Chat != nil {
 				rt.out.Printf("pravo serve: chat on: %s %s via %s (reads only, sends the viewer's redacted views)\n", opts.Chat.Name, opts.Chat.Model, opts.Chat.Host)
+			}
+			if opts.Board != nil {
+				rt.out.Println("pravo serve: edit on: the drawing board can save a drawing as a new file and plan it; it applies nothing")
 			}
 			if d := srv.StateDescription(); d != "" {
 				rt.out.Printf("pravo serve: reading state from %s\n", d)
@@ -100,6 +109,7 @@ The server writes nothing: no state, no lock, no lock file, no generated package
 	}
 	cmd.Flags().IntVar(&port, "port", 0, "the port to listen on (0 picks a free one)")
 	cmd.Flags().BoolVar(&noOpen, "no-open", false, "do not open a browser")
+	cmd.Flags().BoolVar(&edit, "edit", false, "let the drawing board save a drawing as a new file of the specification, and plan it (it never applies)")
 	cmd.Flags().StringVar(&planFile, "plan", "", "a saved plan to show on top of the graph: a file, or the id of a plan stored in the state (plan-2f9c1a4e)")
 	cmd.Flags().StringVar(&chatProvider, "chat", "", "turn on the read-only assistant: anthropic or openai-compatible, or off ($PRAVO_CHAT, also provider:model)")
 	cmd.Flags().StringVar(&chatModel, "chat-model", "", "the model the assistant asks ($PRAVO_CHAT_MODEL)")
