@@ -125,7 +125,7 @@ A plan that expired, or was applied, can be laid over the graph too, to see what
 
 ### The drawing board
 
-**Draw** in the toolbar, or the key `b`, lays the drawing board over the graph: a strip at the bottom with a bar to type what to add, the lamps Spec, Policy and Plan, and the buttons Code, Save and Plan. A resource or a template instance that you draw is a node with a dashed border and a `draft` tag, placed by the layout, with its form in the inspector and its sockets on its left edge. Save and Plan are there when the viewer was started with `--edit`, and the board applies nothing. [The drawing board](serve.md#the-drawing-board) says what each part does.
+**Draw** in the toolbar, or the key `b`, lays the drawing board over the graph: a strip at the bottom with a bar to type what to add, the lamps Spec, Policy and Plan, and the buttons Code, Save, Plan and, with `--apply`, Apply. A resource or a template instance that you draw is a node with a dashed border and a `draft` tag, placed by the layout, with its form in the inspector and its sockets on its left edge. A resource of the specification that is selected can be changed, removed or folded into a template from the inspector, and a state that holds no record offers to start from a Terraform state. Save, Plan and the start are there when the viewer was started with `--edit`; Apply, when it was started with `--apply`. [The drawing board](serve.md#the-drawing-board) says what each part does.
 
 *Figure: The drawing board over the platform: a file of reports and its password drawn, planned, and the code of the file.*
 
