@@ -27,9 +27,11 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -69,6 +71,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	wait := flags.Duration("wait", 20*time.Second, "the longest that a page gets to settle before the screenshot")
 	placeholders := flags.Bool("placeholders", false, "write flat placeholder images without running anything")
 	list := flags.Bool("list", false, "print the shots and exit")
+	jobs := flags.Int("jobs", defaultJobs(), "how many browsers and workspaces run at once; a job takes the shots of whole viewers")
+	stamp := flags.Bool("stamp", false, "record the digest of the viewer in "+stampFile+" and exit")
+	checkStamp := flags.Bool("check-stamp", false, "warn, as a GitHub annotation, when the viewer is not the one in "+stampFile+" and exit 0")
 	verbose := flags.Bool("v", false, "print every command that runs")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -79,6 +84,22 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if flags.NArg() > 0 {
 		fmt.Fprintf(stderr, "serveshots: unexpected argument %q\n", flags.Arg(0))
 		return 2
+	}
+	if *checkStamp {
+		return checkViewerStamp(stdout, stderr)
+	}
+	if *stamp {
+		d, err := viewerDigest(".")
+		if err != nil {
+			fmt.Fprintf(stderr, "serveshots: %v\n", err)
+			return 2
+		}
+		if err := os.WriteFile(stampFile, []byte(d+"\n"), 0o644); err != nil {
+			fmt.Fprintf(stderr, "serveshots: %v\n", err)
+			return 2
+		}
+		fmt.Fprintf(stdout, "recorded the viewer in %s\n", stampFile)
+		return 0
 	}
 	if err := validateShots(allShots()); err != nil {
 		fmt.Fprintf(stderr, "serveshots: %v\n", err)
@@ -166,39 +187,83 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if *verbose {
 		log = stderr
 	}
-	m := &maker{
-		ctx:      ctx,
-		runner:   &pravoRunner{Bin: binAbs, Log: log},
-		bin:      binAbs,
-		chrome:   chrome,
-		provider: *fakeProvider,
-		out:      outAbs,
-		work:     workDir,
-		opts:     shotOptions{Min: time.Second, Max: *wait},
-		colours:  *colours,
-		log:      log,
-		spaces:   map[string]*workspace{},
-		views:    map[string]*viewer{},
+	if *jobs < 1 {
+		fmt.Fprintf(stderr, "serveshots: -jobs %d: at least one\n", *jobs)
+		return 2
 	}
-	defer m.close()
+	groups := shotGroups(shots, *jobs)
+	// The fake provider is built once, before the jobs start.
+	provider := *fakeProvider
+	if len(groups) > 1 && provider == "" {
+		for _, s := range shots {
+			if sc, ok := findScenario(s.Scenario); ok && (s.Situation == situationTeam || sc.hasCatalog()) {
+				pm := &maker{ctx: ctx, work: workDir, log: log}
+				if provider, err = pm.fakeProvider(); err != nil {
+					fmt.Fprintf(stderr, "serveshots: %v\n", err)
+					return 2
+				}
+				break
+			}
+		}
+	}
 
-	made, failed := 0, 0
-	for _, s := range shots {
-		if ctx.Err() != nil {
-			fmt.Fprintln(stderr, "serveshots: interrupted")
-			return 2
-		}
-		info, notes, err := m.make(s)
-		if err != nil {
-			failed++
-			fmt.Fprintf(stderr, "FAIL %s: %v\n", s.File(), err)
-			continue
-		}
-		made++
-		fmt.Fprintf(stdout, "made %-26s %dx%d, %d KB\n", s.File(), info.Width, info.Height, (info.Bytes+1023)/1024)
-		for _, n := range notes {
-			fmt.Fprintf(stdout, "     console: %s\n", n)
-		}
+	var (
+		mu     sync.Mutex
+		made   int
+		failed int
+		wg     sync.WaitGroup
+	)
+	for i, group := range groups {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			work := workDir
+			if len(groups) > 1 {
+				work = filepath.Join(workDir, fmt.Sprintf("job%d", i))
+			}
+			m := &maker{
+				ctx:      ctx,
+				runner:   &pravoRunner{Bin: binAbs, Log: log},
+				bin:      binAbs,
+				chrome:   chrome,
+				provider: provider,
+				out:      outAbs,
+				work:     work,
+				opts:     shotOptions{Min: time.Second, Max: *wait},
+				colours:  *colours,
+				log:      log,
+				spaces:   map[string]*workspace{},
+				views:    map[string]*viewer{},
+				// Jobs that run side by side cannot share the port that the
+				// pictures show: each serves its bucket on a free one, and the
+				// picture is given the usual port.
+				freeStorePort: len(groups) > 1,
+			}
+			defer m.close()
+			for _, s := range group {
+				if ctx.Err() != nil {
+					return
+				}
+				info, notes, err := m.make(s)
+				mu.Lock()
+				if err != nil {
+					failed++
+					fmt.Fprintf(stderr, "FAIL %s: %v\n", s.File(), err)
+				} else {
+					made++
+					fmt.Fprintf(stdout, "made %-26s %dx%d, %d KB\n", s.File(), info.Width, info.Height, (info.Bytes+1023)/1024)
+					for _, n := range notes {
+						fmt.Fprintf(stdout, "     console: %s\n", n)
+					}
+				}
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	if ctx.Err() != nil {
+		fmt.Fprintln(stderr, "serveshots: interrupted")
+		return 2
 	}
 	fmt.Fprintf(stdout, "%d of %d shots made", made, len(shots))
 	if failed > 0 {
@@ -206,18 +271,71 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprintln(stdout)
-	if *only == "" {
-		// Every shot is made again, so the pictures agree with the interface.
-		// Written beside the tool, from the module root.
-		if d, err := viewerDigest("."); err == nil {
-			if err := os.WriteFile(stampFile, []byte(d+"\n"), 0o644); err != nil {
-				fmt.Fprintf(stderr, "serveshots: not recorded in %s: %v\n", stampFile, err)
-			} else {
-				fmt.Fprintf(stdout, "recorded the viewer in %s\n", stampFile)
+	return 0
+}
+
+// checkViewerStamp prints a warning when the viewer changed since the crops
+// and callouts of the landing page were checked. It never fails the build.
+func checkViewerStamp(stdout, stderr io.Writer) int {
+	want, err := viewerDigest(".")
+	if err != nil {
+		fmt.Fprintf(stderr, "serveshots: %v\n", err)
+		return 2
+	}
+	got, _ := os.ReadFile(stampFile)
+	if strings.TrimSpace(string(got)) == want {
+		fmt.Fprintln(stdout, "the callouts of the landing page were checked against this viewer")
+		return 0
+	}
+	fmt.Fprintf(stdout, "::warning title=Callouts of the landing page::The viewer changed since %s was recorded. The pictures are made again on every publish; check that the callouts of site/landing/12-views.html and the crops of site/demos/views/build.sh still point at what they name, then run: go run ./tools/serveshots -stamp\n", stampFile)
+	return 0
+}
+
+// defaultJobs is the number of jobs when -jobs is not given: one for each
+// processor, up to four (each is a browser).
+func defaultJobs() int {
+	return max(1, min(runtime.NumCPU(), 4))
+}
+
+// shotGroups splits the shots into at most n lists that can be made at the
+// same time. A viewer (a scenario in a situation) is prepared once and answers
+// all of its shots, so the shots of one viewer stay together; the shots of the
+// assistant all go to one list, since the model they talk to has a fixed
+// address. The lists are filled largest viewer first, each into the one that
+// has the fewest shots, and keep the order of the shots within a viewer.
+func shotGroups(shots []Shot, n int) [][]Shot {
+	type unit struct {
+		key   string
+		shots []Shot
+	}
+	var units []*unit
+	byKey := map[string]*unit{}
+	for _, s := range shots {
+		key := s.Scenario + "/" + s.Situation
+		if s.Chat {
+			key = "chat"
+		}
+		u, ok := byKey[key]
+		if !ok {
+			u = &unit{key: key}
+			byKey[key] = u
+			units = append(units, u)
+		}
+		u.shots = append(u.shots, s)
+	}
+	sort.SliceStable(units, func(i, j int) bool { return len(units[i].shots) > len(units[j].shots) })
+	n = min(n, len(units))
+	groups := make([][]Shot, max(n, 0))
+	for _, u := range units {
+		least := 0
+		for i := range groups {
+			if len(groups[i]) < len(groups[least]) {
+				least = i
 			}
 		}
+		groups[least] = append(groups[least], u.shots...)
 	}
-	return 0
+	return groups
 }
 
 // maker prepares the workspaces and the servers that the shots need, once for
@@ -239,6 +357,8 @@ type maker struct {
 	// views by scenario and situation ("platform/plan").
 	spaces map[string]*workspace
 	views  map[string]*viewer
+	// freeStorePort serves the bucket on a free port, not on storeAddr.
+	freeStorePort bool
 	// store serves the bucket of the team situations, started with the first.
 	store *store
 	// model answers the assistant, started with the first shot of it.
@@ -383,7 +503,11 @@ func (m *maker) make(s Shot) (info imageInfo, notes []string, err error) {
 // teamDeps starts the store and builds the fake provider, once.
 func (m *maker) teamDeps() (teamDeps, error) {
 	if m.store == nil {
-		s, err := startStore()
+		addr := storeAddr
+		if m.freeStorePort {
+			addr = "127.0.0.1:0"
+		}
+		s, err := startStore(addr)
 		if err != nil {
 			return teamDeps{}, err
 		}
@@ -453,6 +577,9 @@ func (m *maker) replacements(sc scenario, situation string, v *viewer) [][2]stri
 	sort.SliceStable(pairs, func(i, j int) bool { return len(pairs[i][0]) > len(pairs[j][0]) })
 	if _, hostPort, ok := strings.Cut(v.Base, "://"); ok {
 		pairs = append(pairs, [2]string{hostPort, "127.0.0.1:8700"})
+	}
+	if m.store != nil && m.freeStorePort {
+		pairs = append(pairs, [2]string{strings.TrimPrefix(m.store.Endpoint, "http://"), storeAddr})
 	}
 	return pairs
 }

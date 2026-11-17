@@ -20,8 +20,8 @@
 pravo specifies infrastructure in [CUE](https://cuelang.org) and runs the OpenTofu providers you already use, unchanged. It keeps the plan and apply loop and rebuilds what surrounds it for a team: a state kept per resource, sealed and signed; plans that read only what a change reaches; and a viewer in the browser for the estate, its plans, its policies and its runs.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/serve/readme-dark.png">
-  <img src="docs/img/serve/readme-light.png" alt="The pravo viewer with a saved plan laid over the graph. The groups network, api and edge are joined by arrows from left to right, and the outputs admin_token and endpoint sit at the right. Each group counts the resources that the plan creates, replaces and destroys inside it, and the resources that the plan leaves alone are dimmed." width="1440">
+  <source media="(prefers-color-scheme: dark)" srcset="https://pravo.systems/img/serve/readme-dark.png">
+  <img src="https://pravo.systems/img/serve/readme-light.png" alt="The pravo viewer with a saved plan laid over the graph. The groups network, api and edge are joined by arrows from left to right, and the outputs admin_token and endpoint sit at the right. Each group counts the resources that the plan creates, replaces and destroys inside it, and the resources that the plan leaves alone are dimmed." width="1440">
 </picture>
 
 <p align="center"><sub><code>pravo serve</code> with a saved plan over the graph. Each group counts what the plan creates, replaces and destroys inside it, and what the plan leaves alone is dimmed.</sub></p>
@@ -168,8 +168,10 @@ go run ./tools/capture -check docs/how-to/quick-start.md
 # Build the site into site/public, lint it and check every link
 go run ./tools/sitegen -pravo-bin bin/pravo
 
-# Make the pictures of the viewer, the one above included
-go run ./tools/serveshots -bin bin/pravo -out docs/img/serve
+# Make the pictures of the viewer (needs Chrome). They are made when the site is
+# published and are not in git; `sh tools/ci/pictures.sh placeholders` writes flat
+# stand-ins so that the site builds without Chrome
+sh tools/ci/pictures.sh
 ```
 
 `.github/workflows/ci.yml` runs on every push to `main` and on every pull request: formatting, vet and a build for every platform, the known vulnerabilities that the code reaches (`vulns.yml` asks again each day), the linters, the Go tests, the tools, every page of the documentation, the demos, the OpenTofu listings and the site. The job `ci` passes when all of them do, and is the one check to require.

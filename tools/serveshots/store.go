@@ -29,13 +29,13 @@ type store struct {
 	done     chan struct{}
 }
 
-// startStore serves an empty bucket on storeAddr.
-func startStore() (*store, error) {
-	ln, err := net.Listen("tcp", storeAddr)
+// startStore serves an empty bucket on addr, which is storeAddr or a free port.
+func startStore(addr string) (*store, error) {
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("the team situation serves its bucket on %s, which is in use: %w", storeAddr, err)
+		return nil, fmt.Errorf("the team situation serves its bucket on %s, which is in use: %w", addr, err)
 	}
-	s := &store{Endpoint: "http://" + storeAddr, srv: &http.Server{Handler: fakes3.New()}, done: make(chan struct{})}
+	s := &store{Endpoint: "http://" + ln.Addr().String(), srv: &http.Server{Handler: fakes3.New()}, done: make(chan struct{})}
 	go func() {
 		defer close(s.done)
 		_ = s.srv.Serve(ln)

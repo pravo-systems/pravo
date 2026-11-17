@@ -10,45 +10,45 @@ import (
 
 var landingShotRe = regexp.MustCompile(`src="(assets/shots/[A-Za-z0-9._-]+\.webp)"`)
 
-const remake = `
-
-The interface of the viewer (internal/serve/web) changed after the pictures were made. Make them again:
-	go build -o bin/pravo ./cmd/pravo
-	go run ./tools/serveshots -bin bin/pravo -out docs/img/serve
-	sh site/demos/views/build.sh
-and look at the callouts of site/landing/12-views.html, which point at places in the pictures.`
-
-func checkStamp(t *testing.T, stamp, what string) {
-	t.Helper()
-	root := repoRoot(t)
-	want, err := viewerDigest(root)
+// The digest does not depend on where the checkout is and changes with the
+// files that the viewer serves.
+func TestViewerDigestFollowsTheFiles(t *testing.T) {
+	dir := t.TempDir()
+	web := filepath.Join(dir, viewerDir)
+	if err := os.MkdirAll(filepath.Join(web, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(web, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("index.html", "a")
+	write("assets/app.js", "b")
+	one, err := viewerDigest(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := os.ReadFile(filepath.Join(root, stamp))
-	if err != nil {
-		t.Fatalf("%v%s", err, remake)
+	again, _ := viewerDigest(dir)
+	if one != again {
+		t.Errorf("the digest changed with nothing: %s, %s", one, again)
 	}
-	if got := strings.TrimSpace(string(b)); got != want {
-		t.Errorf("%s is stale: %s records %.12s, the viewer is %.12s.%s", what, stamp, got, want, remake)
+	write("assets/app.js", "c")
+	if two, _ := viewerDigest(dir); two == one {
+		t.Error("the digest did not change with a file of the viewer")
 	}
 }
 
-// The documentation pictures were made from the interface in the checkout.
-func TestDocumentationPicturesAgreeWithTheViewer(t *testing.T) {
-	checkStamp(t, stampFile, "docs/img/serve")
-}
-
-// The pictures of the landing page, and the callouts on them, were made from
-// the same interface: the script that writes them copies the stamp.
-func TestLandingPicturesAgreeWithTheViewer(t *testing.T) {
-	checkStamp(t, landingDir+"/viewer.stamp", "site/assets/shots")
-}
-
-// Every picture that a landing band names exists.
-func TestLandingPicturesExist(t *testing.T) {
+// Every picture that a landing band names is made by build.sh, since the
+// pictures are not stored.
+func TestLandingPicturesAreMade(t *testing.T) {
 	root := repoRoot(t)
 	pages, err := filepath.Glob(filepath.Join(root, "site", "landing", "*.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := os.ReadFile(filepath.Join(root, landingDir, "build.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,8 +58,12 @@ func TestLandingPicturesExist(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, m := range landingShotRe.FindAllStringSubmatch(string(b), -1) {
-			if _, err := os.Stat(filepath.Join(root, "site", m[1])); err != nil {
-				t.Errorf("%s: %v", filepath.Base(page), err)
+			// build.sh names a picture by its name and the theme: "graph" and
+			// "$theme" make graph-dark.webp and graph-light.webp.
+			name := strings.TrimSuffix(strings.TrimPrefix(m[1], "assets/shots/"), ".webp")
+			base := strings.TrimSuffix(strings.TrimSuffix(name, "-dark"), "-light")
+			if !strings.Contains(string(script), " "+base+"\n") {
+				t.Errorf("%s: no picture %s that build.sh makes", filepath.Base(page), m[1])
 			}
 		}
 	}

@@ -9,16 +9,18 @@ import (
 	"sort"
 )
 
-// The pictures show the interface of the viewer, so they go stale when the
-// interface changes. A full run records a digest of the files that the viewer
-// serves (its page, scripts, styles and fonts) in viewer.stamp, and a test
-// compares it with the files of the checkout. A change to the interface then
-// fails the build until the pictures are made again, whether or not the change
-// seemed visible.
+// The pictures are made when the site is published, so they always show the
+// interface of the checkout. What can go stale is the hand work around them: the
+// crops of site/demos/views/build.sh and the callouts of
+// site/landing/12-views.html, which sit at places in the pictures. The stamp
+// records a digest of the files that the viewer serves (its page, scripts,
+// styles and fonts) as they were when that work was checked, and -check-stamp
+// says when they differ. It warns and does not fail: a change that moves
+// nothing that a callout points at needs only -stamp.
 const (
 	viewerDir  = "internal/serve/web"
-	stampFile  = "tools/serveshots/viewer.stamp"
 	landingDir = "site/demos/views"
+	stampFile  = landingDir + "/viewer.stamp"
 )
 
 // viewerDigest is the SHA-256 of the files that the viewer embeds: index.html
