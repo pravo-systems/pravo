@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -65,15 +66,17 @@ func openPlanStore(ctx context.Context, rt *runContext, write bool) (*state.Stor
 
 // storedPlanJSON is how --json describes a stored plan.
 type storedPlanJSON struct {
-	ID           string               `json:"id"`
-	Status       engine.PlanStatus    `json:"status"`
-	Author       string               `json:"author"`
-	Actor        string               `json:"actor,omitempty"`
-	Reason       string               `json:"reason,omitempty"`
-	Command      string               `json:"command,omitempty"`
-	GitRevision  string               `json:"git_revision,omitempty"`
-	Created      time.Time            `json:"created"`
-	Expires      time.Time            `json:"expires"`
+	ID          string            `json:"id"`
+	Status      engine.PlanStatus `json:"status"`
+	Author      string            `json:"author"`
+	Actor       string            `json:"actor,omitempty"`
+	Reason      string            `json:"reason,omitempty"`
+	Command     string            `json:"command,omitempty"`
+	GitRevision string            `json:"git_revision,omitempty"`
+	Created     time.Time         `json:"created"`
+	Expires     time.Time         `json:"expires"`
+	// Kinds say what the plan changes: resources, outputs, moves, imports, policies.
+	Kinds        []string             `json:"kinds"`
 	Summary      engine.PlanCounts    `json:"summary"`
 	Changes      []engine.PlanTouch   `json:"changes"`
 	Policies     []engine.PolicyEntry `json:"policies,omitempty"`
@@ -96,7 +99,7 @@ func storedPlanView(e *engine.PlanEntry) storedPlanJSON {
 	m := e.Meta
 	v := storedPlanJSON{
 		ID: m.ID, Status: e.Status, Author: m.Author, Actor: m.Actor, Reason: m.Reason, Command: m.Command, GitRevision: m.GitRevision,
-		Created: m.Created, Expires: m.Expires, Summary: m.Summary, Changes: m.Changes, Policies: m.Policies, Applied: e.AppliedCount(),
+		Created: m.Created, Expires: m.Expires, Kinds: append([]string{}, m.Kinds...), Summary: m.Summary, Changes: m.Changes, Policies: m.Policies, Applied: e.AppliedCount(),
 		StaleReasons: e.Reasons, Reservation: m.Reservation, BeingCollected: e.Progress.BeingCollected(time.Now()), Size: m.Size, ApplyCommand: m.ApplyCommand(),
 	}
 	if e.Status == engine.PlanPartlyStale {
@@ -113,6 +116,14 @@ func counts(m *engine.PlanMeta) string {
 	c := fmt.Sprintf("+%d ~%d -%d", m.Summary.Add, m.Summary.Change, m.Summary.Destroy)
 	if n := len(m.Policies); n > 0 {
 		c += fmt.Sprintf(", %d %s", n, map[bool]string{true: "policy", false: "policies"}[n == 1])
+	}
+	// A plan that changes no resource says what it changes instead: +0 ~0 -0, outputs.
+	if !slices.Contains(m.Kinds, engine.KindResources) {
+		for _, k := range m.Kinds {
+			if k != engine.KindPolicies {
+				c = fmt.Sprintf("%s, %s", c, k)
+			}
+		}
 	}
 	return c
 }
@@ -602,9 +613,9 @@ func storedInfoOf(sp *storedPlan) *storedInfo {
 	return info
 }
 
-// planWorth says whether a plan is worth storing: it has changes to apply. A plan
-// that only records outputs or data sources is applied directly.
-func planWorth(plan *engine.Plan) bool { return plan.HasWrites() }
+// planWorth says whether a plan is worth storing: applying it would change the state, whether
+// by resources, outputs, moves, imports or policies. A plan that would change nothing is not.
+func planWorth(plan *engine.Plan) bool { return len(plan.Kinds()) > 0 }
 
 // warnOverlaps tells who else has a plan that changes the same resources. It
 // only tells: the plans are not touched.
@@ -635,6 +646,11 @@ func warnOverlaps(rt *runContext, overlaps []engine.Overlap) {
 func printStored(rt *runContext, sp *storedPlan) {
 	rt.out.Println()
 	warnOverlaps(rt, sp.Overlaps)
+	// A plan of resources is the usual one and needs no word. One that changes something else
+	// says what, so that no one reads "No changes" above it as a plan that does nothing.
+	if k := sp.Meta.Kinds; len(k) > 0 && (len(k) != 1 || k[0] != engine.KindResources) {
+		rt.out.Printf("The plan changes: %s.\n", strings.Join(k, ", "))
+	}
 	rt.out.Printf("Stored the plan as %s; unless it is applied it is removed after %s. To apply exactly these actions, run:\n  %s\n",
 		rt.out.C(ui.Bold, sp.Meta.ID), engine.SpanText(sp.Meta.Expires.Sub(sp.Meta.Created)), sp.Meta.ApplyCommand())
 	if n := len(sp.Removed); n > 0 {
@@ -708,6 +724,7 @@ func showStored(rt *runContext, cmd *cobra.Command, ref string) error {
 		rt.out.Printf("  reason:  %s\n", ui.Safe(m.Reason))
 	}
 	rt.out.Printf("  command: %s\n", ui.Safe(m.CommandText()))
+	printKinds(rt, plan)
 	if m.GitRevision != "" {
 		rt.out.Printf("  git:     %s\n", ui.Safe(m.GitRevision))
 	}
@@ -863,4 +880,11 @@ func applyStored(rt *runContext, cmd *cobra.Command, ref, refresh string, full b
 		}
 	}
 	return err
+}
+
+// printKinds says what a stored plan changes, from the plan itself.
+func printKinds(rt *runContext, plan *engine.Plan) {
+	if kinds := plan.Kinds(); len(kinds) > 0 {
+		rt.out.Printf("  changes: %s\n", strings.Join(kinds, ", "))
+	}
 }

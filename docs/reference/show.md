@@ -126,10 +126,9 @@ pravo show $id | head -n 7
 Stored plan plan-<id> by ci, just now (pending)
   reason:  first base
   command: pravo plan --store --actor ci --reason first base
+  changes: resources
   expires in 7 days
   apply:   pravo apply plan-<id>
-
-pravo will perform the following actions:
 ```
 
 | Line | Meaning |
@@ -201,12 +200,11 @@ pravo -C moved show $id | head -n 8
 ```text out
 Stored plan plan-<id> by alice, just now (partly-stale)
   command: pravo -C moved plan --store --replace a,b,c --actor alice
+  changes: resources
   expires in 7 days
   apply:   pravo apply plan-<id> --only b,c
 Warning: 1 of 3 unapplied changes conflict with the state and are left out of the command above:
   - a changed in state (revision 2, plan expected 1)
-
-pravo will perform the following actions:
 ```
 
 The conflicts are in `--json` as well. `stored.conflicts` maps each address that cannot be applied to its reasons, `stored.apply_only` lists the addresses of the live part, and `stored.apply_only_command` is the command that applies it. `stored.stale_reasons` is empty. `stale` is the answer for the plan as a whole, which cannot be applied: its reasons are the conflicts, and any other difference that `show` finds in the checkout.

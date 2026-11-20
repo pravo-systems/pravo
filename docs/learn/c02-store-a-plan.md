@@ -103,10 +103,9 @@ plan-<id>  pending  ada  just now  +1 ~0 -0  expires in 7 days
 Stored plan plan-<id> by ada, just now (pending)
   reason:  Reserve a port for the web server
   command: pravo -C ada --actor ada --reason Reserve a port for the web server plan --store
+  changes: resources
   expires in 7 days
   apply:   pravo apply plan-<id>
-
-pravo will perform the following actions:
 ```
 
 The listing has the id, the status, the author, the age, the counts of resources to add, change and destroy, and a note. `pending` means that the plan can be applied. `plan show` prints the plan itself after a header: the reason, the command that made it, when it expires and the command that applies it. The Plans section of the viewer shows the same list, with the resources that each plan touches drawn on the graph: [See what your team has planned](../how-to/explore-your-estate.md#8-see-what-your-team-has-planned).

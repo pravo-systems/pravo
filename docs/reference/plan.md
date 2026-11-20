@@ -46,7 +46,7 @@ keywords: "-target scoped plan saved plan -out stored plan plan id plan list pla
 | `--full` | off | Plan every resource with its provider instead of skipping resources that did not change. |
 | `--destroy` | off | Plan the destruction of every resource in the state. Refused while a declared resource in the state has [`prevent_destroy`](spec-meta-fields.md#prevent-destroy). |
 | `--replace ADDR` | none | Destroy and create `ADDR` again though the specification did not change. Repeatable, or comma-separated. Refused with `--destroy`. |
-| `--detailed-exitcode` | off | Exit with code 2 when the plan has changes. A new, changed or removed policy counts as a change. |
+| `--detailed-exitcode` | off | Exit with code 2 when the plan has changes. A new, changed or removed policy counts as a change. A plan of outputs, moves or imports alone does not: its `kinds` in `--json` say what it changes. |
 | `--markdown` | off | Print the plan as Markdown for a comment on a pull request: the resources, the actions, the names of the attributes that change, the policy that refuses the plan and, with `--store`, the id and the command that applies it. No value is printed. Not with `--json`. See [Markdown](#markdown). |
 | `--withhold-sensitive` | off | With `--json`, put `{"$sensitive": true}` in place of every sensitive or write-only attribute and every sensitive output. The plan file and the policies still see the values. `pravo mcp` passes it for `pravo_plan`, `pravo_show_plan` and `pravo_apply_plan`. See [The plan document](plan-document.md). |
 | `--include-skipped` | off | With `--json`, list the nodes the plan left alone too, as entries with their address, mode, type and name, the action `no-op` and `skipped`. See [The plan document](plan-document.md). |
@@ -406,6 +406,12 @@ pravo plan --markdown 2>/dev/null
 |---|---|---|---|
 | replace | `base` | `random_integer` | changes `max`; replaced because of `max`; needed by 1 resource |
 | replace | `port` | `random_integer` | replaced because of `min` |
+
+Changes: resources, outputs.
+
+Outputs that change: `url`.
+
+<!-- pravo-kinds: resources,outputs -->
 ```
 
 `pravo show` takes `--markdown` for a plan file or a stored plan. For a stored plan the comment adds the status, the signatures and the approvals.
@@ -414,7 +420,19 @@ pravo plan --markdown 2>/dev/null
 
 `--store` writes the plan and its summary into the state, below `plans/`, and prints the id of the plan. Anyone who can read the state can then list, show and apply it. The plan is printed and judged first, as for any plan. A plan that a policy refuses is not stored. [State format](state-format.md#plans) describes the objects.
 
-A plan has changes when it creates, updates, replaces or destroys a resource. A plan that only reads data sources, moves or imports records or writes outputs has nothing to store. pravo says `Nothing to store: the plan has no changes.` and stores nothing, and `pravo apply` applies the plan directly.
+A plan is stored when applying it would change the state, whatever it changes. It has one or more of these kinds of change:
+
+| Kind | The plan |
+|---|---|
+| `resources` | creates, updates, replaces or destroys a resource, or forgets the record of one. |
+| `outputs` | adds an output, removes one, or gives one another value. An output that is evaluated again and keeps its value is no change. |
+| `moves` | moves a record to another address with `$from`, or renames a provider. |
+| `imports` | brings an object under management with `$import`. |
+| `policies` | adds, changes or removes a policy. |
+
+A plan whose only change is an output, a move or an import is stored and applied by its id like any other: `pravo apply ID` makes the same checks, the configuration, the providers, the lineage and the revision of every record the plan writes or reads, and the plan expires after its time to live. The kinds are in the stored plan: `pravo plan show` prints them as `changes:`, `pravo plan --store` names them when the plan changes more than resources, `pravo plan list` shows them for a plan that changes no resource, and `--json` has `kinds` in the plan and in `stored`, and `changed_outputs` for the outputs. Policies judge as they do for any plan: one that creates, updates, replaces or deletes a resource. A plan of outputs, moves or imports alone is not judged, the same as a plan of policies alone, and `kinds` is a field that a rule can read.
+
+A plan that would change nothing is not stored. A record that is written again with the hash of its configuration, and an output that keeps its value, are not changes. pravo says `Nothing to store: the plan has no changes.` and stores nothing, and `pravo apply` applies the plan directly.
 
 With `--out FILE`, the file is written before the plan is stored, with or without `--json`. A plan that cannot be saved to `FILE` is not stored.
 

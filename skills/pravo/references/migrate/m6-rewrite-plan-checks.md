@@ -114,6 +114,9 @@ Output:
 {
   "format": 1,
   "created": "<time>",
+  "kinds": [
+    "resources"
+  ],
   "summary": {
     "add": 1,
     "change": 0,
@@ -144,9 +147,6 @@ Output:
       "provider": "local",
       "reasons": [
         "not in the state: a new resource"
-      ],
-      "after": {
-        "content": "extra\n",
 ```
 
 The fields that checks read correspond like this.

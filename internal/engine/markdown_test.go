@@ -98,3 +98,22 @@ func TestMDLineCannotMentionLinkOrOpenATag(t *testing.T) {
 		}
 	}
 }
+
+// A plan that changes only outputs is no plan with no changes: its comment says what it changes,
+// by names, and ends with the line a program reads.
+func TestMarkdownOfAPlanThatOnlyChangesOutputs(t *testing.T) {
+	v := &View{Kinds: []string{KindOutputs}, ChangedOutputs: []string{"url", "name"}}
+	got := v.Markdown(MarkdownOptions{ID: "plan-0a1b2c3d"})
+	for _, want := range []string{"### pravo plan: 0 to add, 0 to change, 0 to destroy", "Changes: outputs.", "Outputs that change: `url`, `name`.", "Stored as `plan-0a1b2c3d`", "<!-- pravo-kinds: outputs -->"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the comment lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "no changes") {
+		t.Errorf("the comment says there are no changes:\n%s", got)
+	}
+	none := (&View{}).Markdown(MarkdownOptions{})
+	if !strings.Contains(none, "### pravo plan: no changes") || strings.Contains(none, "pravo-kinds") {
+		t.Errorf("a plan with nothing to do:\n%s", none)
+	}
+}

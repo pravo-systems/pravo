@@ -204,10 +204,13 @@ type PlanMeta struct {
 	SysTags bool     `json:"sys_tags,omitempty"`
 	Lineage string   `json:"lineage"`
 	// Fingerprint digests the configuration the plan was made from.
-	Fingerprint string      `json:"config_fingerprint"`
-	Destroy     bool        `json:"destroy,omitempty"`
-	Summary     PlanCounts  `json:"summary"`
-	Changes     []PlanTouch `json:"changes"`
+	Fingerprint string `json:"config_fingerprint"`
+	Destroy     bool   `json:"destroy,omitempty"`
+	// Kinds says what kinds of change the plan makes: resources, outputs, moves, imports,
+	// policies. A summary that was written before they were kept has none.
+	Kinds   []string    `json:"kinds,omitempty"`
+	Summary PlanCounts  `json:"summary"`
+	Changes []PlanTouch `json:"changes"`
 	// Policies are the changes the plan makes to the policies in force. A plan that
 	// only changes policies has no other change to list.
 	Policies []PolicyEntry       `json:"policies,omitempty"`
@@ -614,7 +617,7 @@ func newPlanMeta(pf *PlanFile, author string, ttl time.Duration, size int) *Plan
 	}
 	m := &PlanMeta{
 		Format: PlanMetaFormat, Created: pf.Created, Expires: pf.Created.Add(ttl), Author: author, Actor: pf.Actor, Reason: pf.Reason,
-		Command: pf.Command, GitRevision: pf.GitRevision, Tags: pf.Tags, SysTags: pf.SysTags, Lineage: pf.Lineage, Fingerprint: pf.ConfigFingerprint, Destroy: pf.Destroy,
+		Command: pf.Command, GitRevision: pf.GitRevision, Tags: pf.Tags, SysTags: pf.SysTags, Lineage: pf.Lineage, Fingerprint: pf.ConfigFingerprint, Destroy: pf.Destroy, Kinds: pf.Kinds,
 		Reservation: pf.Reservation, Size: size, Bases: map[string]PlanBase{}, Changes: []PlanTouch{}, Policies: pf.Policies,
 	}
 	touched := map[string]bool{}

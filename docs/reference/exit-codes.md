@@ -48,7 +48,7 @@ pravo -C infra init > /dev/null
 
 ## 0 and 2: success and changes
 
-Without `--detailed-exitcode`, `plan` exits 0 whether or not it found changes. With the flag, it exits 2 when the plan has changes and 0 when it has none. Reads, ephemeral resources, function calls and moves are not changes.
+Without `--detailed-exitcode`, `plan` exits 0 whether or not it found changes. With the flag, it exits 2 when the plan has changes and 0 when it has none. Reads, ephemeral resources, function calls and moves are not changes, and neither are outputs and imports: the `kinds` of `--json` say everything that a plan changes, and a stored plan has them.
 
 ```sh run
 pravo -C infra plan --detailed-exitcode > /dev/null; echo "plan, one resource to create: $?"

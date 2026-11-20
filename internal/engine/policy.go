@@ -194,11 +194,15 @@ func documentOf(pf *PlanFile, plan *Plan) ([]byte, error) {
 		v.Changes = append(v.Changes, changeViewOf(ch))
 	}
 	addOutputs(v, plan)
+	v.Kinds, v.ChangedOutputs = append([]string{}, plan.Kinds()...), plan.ChangedOutputs()
 	return marshalDoc(v)
 }
 
 // marshalDoc is the JSON of the document of v, without the number that only the state can give.
 func marshalDoc(v *View) ([]byte, error) {
+	if v.Kinds == nil {
+		v.Kinds = []string{} // a list, never null: the schema says so
+	}
 	data, err := json.Marshal(v)
 	if err != nil {
 		return nil, err

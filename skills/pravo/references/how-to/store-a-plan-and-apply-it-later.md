@@ -92,10 +92,9 @@ Output:
 Stored plan plan-<id> by alice, just now (pending)
   reason:  Reserve a port for the web server
   command: pravo -C alice --actor alice --reason Reserve a port for the web server plan --store
+  changes: resources
   expires in 7 days
   apply:   pravo apply plan-<id>
-
-pravo will perform the following actions:
 ```
 
 The header names the author, the age, the status and the reason. It adds the command that made the plan, its expiry and the command that applies it. Six hexadecimal digits are enough to find a plan, as in `plan-2f9c1a`, when no other plan starts with them. `pravo serve` lists the same plans in a browser and shows which resources they share: [Explore an estate in a browser](explore-your-estate.md#8-see-what-your-team-has-planned).

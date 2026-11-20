@@ -48,7 +48,7 @@ func (v *View) Markdown(o MarkdownOptions) string {
 	}
 	s := v.Summary
 	switch {
-	case len(rows) == 0 && len(v.Policies) == 0:
+	case len(rows) == 0 && len(v.Policies) == 0 && len(v.Kinds) == 0:
 		fmt.Fprintf(&b, "### %s: no changes\n", title)
 	default:
 		fmt.Fprintf(&b, "### %s: %d to add, %d to change, %d to destroy\n", title, s.Add, s.Change, s.Destroy)
@@ -73,6 +73,12 @@ func (v *View) Markdown(o MarkdownOptions) string {
 			}
 			b.WriteString(line)
 		}
+	}
+	if len(v.Kinds) > 0 && (len(v.Kinds) != 1 || v.Kinds[0] != KindResources) {
+		fmt.Fprintf(&b, "\nChanges: %s.\n", strings.Join(v.Kinds, ", "))
+	}
+	if len(v.ChangedOutputs) > 0 {
+		fmt.Fprintf(&b, "\nOutputs that change: %s.\n", codes(v.ChangedOutputs, 12))
 	}
 	if s.BlastRadius > len(rows) {
 		fmt.Fprintf(&b, "\nThe changes reach %s.\n", count(s.BlastRadius, "resource"))
@@ -105,6 +111,10 @@ func (v *View) Markdown(o MarkdownOptions) string {
 	}
 	if o.Apply != "" {
 		fmt.Fprintf(&b, "\nTo apply exactly these actions:\n\n```sh\n%s\n```\n", o.Apply)
+	}
+	if len(v.Kinds) > 0 {
+		// For a program that reads the comment: the kinds of change, one line, never shown.
+		fmt.Fprintf(&b, "\n<!-- pravo-kinds: %s -->\n", strings.Join(v.Kinds, ","))
 	}
 	return b.String()
 }

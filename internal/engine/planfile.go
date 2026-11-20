@@ -88,6 +88,9 @@ type PlanFile struct {
 	Reservation *ReservationView `json:"reservation,omitempty"`
 	// Policies are the changes the plan makes to the policies in force.
 	Policies []PolicyEntry `json:"policies,omitempty"`
+	// Kinds says what kinds of change the plan makes (see Plan.Kinds). A reader works them out
+	// from the plan itself; the field is for what lists the file without loading it.
+	Kinds []string `json:"kinds,omitempty"`
 	// ApplyTxn is the transaction of the last apply made from the file.
 	ApplyTxn string `json:"apply_txn,omitempty"`
 }
@@ -167,7 +170,7 @@ func (e *Engine) buildPlanFile(plan *Plan, tags []string, sysTags bool) (*PlanFi
 		Format: PlanFileFormat, Created: time.Now().UTC(), Command: e.commandLine(), Lineage: e.State.Lineage(),
 		Tags: tags, SysTags: sysTags, Providers: map[string]string{}, Destroy: plan.Destroy, NoRefresh: plan.NoRefresh, Stats: plan.Stats,
 		Outputs: map[string]json.RawMessage{}, Actor: e.Opts.Actor, Reason: e.Opts.Reason, GitRevision: e.Opts.GitRevision,
-		Reservation: plan.Reservation, Policies: plan.Policies, Relabels: plan.Relabels,
+		Reservation: plan.Reservation, Policies: plan.Policies, Relabels: plan.Relabels, Kinds: plan.Kinds(),
 	}
 	fp, err := e.Root.Fingerprint()
 	if err != nil {
