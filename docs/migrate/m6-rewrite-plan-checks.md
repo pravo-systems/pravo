@@ -120,6 +120,9 @@ pravo -C trial plan --json 2>/dev/null | head -n 36
 {
   "format": 1,
   "created": "<time>",
+  "kinds": [
+    "resources"
+  ],
   "summary": {
     "add": 1,
     "change": 0,
@@ -150,9 +153,6 @@ pravo -C trial plan --json 2>/dev/null | head -n 36
       "provider": "local",
       "reasons": [
         "not in the state: a new resource"
-      ],
-      "after": {
-        "content": "extra\n",
 ```
 
 The fields that checks read correspond like this.
