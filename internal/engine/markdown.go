@@ -74,7 +74,7 @@ func (v *View) Markdown(o MarkdownOptions) string {
 			b.WriteString(line)
 		}
 	}
-	if len(v.Kinds) > 0 && !(len(v.Kinds) == 1 && v.Kinds[0] == KindResources) {
+	if len(v.Kinds) > 0 && (len(v.Kinds) != 1 || v.Kinds[0] != KindResources) {
 		fmt.Fprintf(&b, "\nChanges: %s.\n", strings.Join(v.Kinds, ", "))
 	}
 	if len(v.ChangedOutputs) > 0 {

@@ -121,7 +121,7 @@ func counts(m *engine.PlanMeta) string {
 	if !slices.Contains(m.Kinds, engine.KindResources) {
 		for _, k := range m.Kinds {
 			if k != engine.KindPolicies {
-				c += ", " + k
+				c = fmt.Sprintf("%s, %s", c, k)
 			}
 		}
 	}
@@ -648,7 +648,7 @@ func printStored(rt *runContext, sp *storedPlan) {
 	warnOverlaps(rt, sp.Overlaps)
 	// A plan of resources is the usual one and needs no word. One that changes something else
 	// says what, so that no one reads "No changes" above it as a plan that does nothing.
-	if k := sp.Meta.Kinds; len(k) > 0 && !(len(k) == 1 && k[0] == engine.KindResources) {
+	if k := sp.Meta.Kinds; len(k) > 0 && (len(k) != 1 || k[0] != engine.KindResources) {
 		rt.out.Printf("The plan changes: %s.\n", strings.Join(k, ", "))
 	}
 	rt.out.Printf("Stored the plan as %s; unless it is applied it is removed after %s. To apply exactly these actions, run:\n  %s\n",
