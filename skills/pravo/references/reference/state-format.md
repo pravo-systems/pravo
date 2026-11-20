@@ -570,6 +570,9 @@ Output:
   "command": "pravo plan --store --actor ci --reason example",
   "lineage": "<lineage>",
   "config_fingerprint": "<fingerprint>",
+  "kinds": [
+    "resources"
+  ],
   "summary": {
     "add": 1,
     "change": 0,
@@ -625,6 +628,7 @@ Output:
 | `tags`, `sys_tags` | The `-t` and `-T` of that command. The commands that show or apply the plan need the same. |
 | `lineage` | The lineage of the state the plan was made against. |
 | `config_fingerprint` | A digest of the files the plan was made from. |
+| `kinds` | What the plan changes: `resources`, `outputs`, `moves`, `imports` or `policies`. A summary that was written without it has none. |
 | `destroy` | `true` for a destroy plan. |
 | `summary` | The counts `add`, `change` and `destroy`, and `read`. A replacement counts under `add` and `destroy`. The reads are counted as `plan --json` counts them. |
 | `changes` | What the plan does, one entry for each resource that it creates, changes, replaces, destroys, imports or moves, and for each read that is left to the apply: `addr`, `mode`, `type` and `action`. Sorted by address. |
@@ -644,7 +648,7 @@ jq -r 'keys | join(" ")' pravo.state/plans/plan-*.plan.json
 Output:
 
 ```text
-actor changes command config_files config_fingerprint created format input_generations inputs lineage outputs providers reason stats
+actor changes command config_files config_fingerprint created format input_generations inputs kinds lineage outputs providers reason stats
 ```
 
 ### Progress
