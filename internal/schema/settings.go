@@ -74,6 +74,11 @@ package pravo
 	git_revision?: string
 	// True for "plan --destroy" and "destroy".
 	destroy?: bool
+	// What applying the plan changes: resources, outputs, moves, imports, policies. Empty for
+	// a plan that changes nothing. A plan that changes no resource is not judged.
+	kinds: [...("resources" | "outputs" | "moves" | "imports" | "policies")]
+	// The outputs that the apply adds, removes or gives another value, by name.
+	changed_outputs?: [...string]
 	// Counts of actions. A replacement counts as an addition and a destruction.
 	summary: {
 		add:     int

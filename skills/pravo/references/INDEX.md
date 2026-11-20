@@ -13,7 +13,7 @@ One page for each command and each part of the specification, tables first.
 | File | Covers | Size |
 |---|---|---|
 | [reference/init.md](reference/init.md) | Install the providers a root needs, write the lock file and generate the CUE packages that a specification imports. | 10 KB |
-| [reference/plan.md](reference/plan.md) | Show the actions that apply takes. A plan changes no infrastructure, and it can be saved, stored in the state, judged by a policy and applied later. | 35 KB |
+| [reference/plan.md](reference/plan.md) | Show the actions that apply takes. A plan changes no infrastructure, and it can be saved, stored in the state, judged by a policy and applied later. | 36 KB |
 | [reference/apply.md](reference/apply.md) | Plan, ask for confirmation and apply, or apply a saved plan or a plan stored in the state exactly as it was reviewed, in whole or in closed parts. | 32 KB |
 | [reference/destroy.md](reference/destroy.md) | Destroy every resource recorded in the state, dependents first, after a plan and a confirmation. | 8 KB |
 | [reference/show.md](reference/show.md) | Print a saved plan or a plan stored in the state, with the time, the command and the actor that made it, and a warning when it cannot be applied. | 10 KB |
@@ -81,7 +81,7 @@ One page for each command and each part of the specification, tables first.
 | File | Covers | Size |
 |---|---|---|
 | [reference/state-format.md](reference/state-format.md) | The files of the state graph: nodes, outputs, transactions, locks, stored plans and the metadata that identifies a store. | 67 KB |
-| [reference/plan-document.md](reference/plan-document.md) | The JSON document that pravo plan --json prints, the form of a saved plan file, and the events that apply and destroy stream. | 22 KB |
+| [reference/plan-document.md](reference/plan-document.md) | The JSON document that pravo plan --json prints, the form of a saved plan file, and the events that apply and destroy stream. | 23 KB |
 | [reference/exit-codes.md](reference/exit-codes.md) | The exit status of every pravo command, what each code means, and how --json reports an error. | 15 KB |
 | [reference/telemetry.md](reference/telemetry.md) | OpenTelemetry traces and metrics for every command, resource and provider call, configured with the standard OTEL variables. | 23 KB |
 | [reference/compatibility.md](reference/compatibility.md) | The versions and formats that pravo reads and writes, the provider protocol it speaks, and what it does with a version it does not know. | 9 KB |
@@ -151,7 +151,7 @@ One task each, for a reader who knows the basics.
 
 | File | Covers | Size |
 |---|---|---|
-| [how-to/ci.md](how-to/ci.md) | Validate without credentials, plan under a policy, apply a saved or a stored plan, wait for an approval, find drift, test offline and keep a trace of each job, with the exit code of every step. | 26 KB |
+| [how-to/ci.md](how-to/ci.md) | Validate without credentials, plan under a policy, apply a saved or a stored plan, wait for an approval, find drift, test offline and keep a trace of each job, with the exit code of every step. | 27 KB |
 | [how-to/policies.md](how-to/policies.md) | Write a policy rule, test it on fixtures with the matching cue version, try it on the plans you have, roll a new rule out as advice, exempt by type, apply under the policies of the state, ask for approvals and retire a policy. | 23 KB |
 | [how-to/agents-and-mcp.md](how-to/agents-and-mcp.md) | Give a program or an AI agent the schema, a plan file, a reservation, a tool server that the policies of the state bind, and an identity with the role of a reader, so that it plans and stores and a person applies, and see what that does and does not protect. | 19 KB |
 | [how-to/embed-pravo-in-your-program.md](how-to/embed-pravo-in-your-program.md) | Build a small runner on the Go library. Open a workspace, plan, judge the plan with the policies of the specification, apply it or store it for later, read the result as data, map an error to an exit code, and open a sealed state with a key the program holds. | 17 KB |

@@ -32,6 +32,8 @@ normalize:
 | `git_revision` | in a git repository | The short revision of `HEAD`, 12 digits, with `-dirty` appended when the working tree has changes. |
 | `trace_id` | when tracing is on | The OpenTelemetry trace of the run. |
 | `destroy` | for a destroy plan | `true`, for `plan --destroy` and `destroy`. |
+| `kinds` | always | What applying the plan changes: a list of `resources`, `outputs`, `moves`, `imports` and `policies`. An empty list, never `null`, for a plan that would change nothing. |
+| `changed_outputs` | when an output changes | The names of the outputs that the apply adds, removes or gives another value. |
 | `summary` | always | Counts of actions and the blast radius. |
 | `stats` | always | How much of the graph the plan walked. |
 | `changes` | always | One entry for each node the plan ran: a resource or data source it changes, reads, deletes, moves or imports, an ephemeral resource it opens and a function it calls. `--include-skipped` adds an entry for each node it left alone. An empty list, never `null`. A consumer that needs the whole estate reads the counts in `stats`, passes `--include-skipped`, or queries the state with `pravo state query`. |
@@ -90,6 +92,13 @@ pravo plan --json 2>/dev/null | jq 'del(.changes)'
 {
   "format": 1,
   "created":"2026-01-01T00:00:00Z",
+  "kinds": [
+    "resources",
+    "outputs"
+  ],
+  "changed_outputs": [
+    "name"
+  ],
   "summary": {
     "add": 2,
     "change": 0,

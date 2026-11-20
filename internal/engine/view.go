@@ -17,20 +17,25 @@ const ViewFormat = 1
 
 // View is the machine-readable form of a plan.
 type View struct {
-	Format      int               `json:"format"`
-	Created     time.Time         `json:"created"`
-	Actor       string            `json:"actor,omitempty"`
-	Reason      string            `json:"reason,omitempty"`
-	GitRevision string            `json:"git_revision,omitempty"`
-	TraceID     string            `json:"trace_id,omitempty"`
-	Destroy     bool              `json:"destroy,omitempty"`
-	Summary     Summary           `json:"summary"`
-	Stats       Stats             `json:"stats"`
-	Changes     []ChangeView      `json:"changes"`
-	Outputs     map[string]any    `json:"outputs"`
-	Reservation *ReservationView  `json:"reservation,omitempty"`
-	Hints       []string          `json:"hints,omitempty"`
-	Providers   map[string]string `json:"providers,omitempty"`
+	Format      int       `json:"format"`
+	Created     time.Time `json:"created"`
+	Actor       string    `json:"actor,omitempty"`
+	Reason      string    `json:"reason,omitempty"`
+	GitRevision string    `json:"git_revision,omitempty"`
+	TraceID     string    `json:"trace_id,omitempty"`
+	Destroy     bool      `json:"destroy,omitempty"`
+	// Kinds says what kinds of change the plan makes: resources, outputs, moves, imports,
+	// policies. It is empty for a plan that changes nothing.
+	Kinds []string `json:"kinds"`
+	// ChangedOutputs names the outputs that the apply adds, removes or gives another value.
+	ChangedOutputs []string          `json:"changed_outputs,omitempty"`
+	Summary        Summary           `json:"summary"`
+	Stats          Stats             `json:"stats"`
+	Changes        []ChangeView      `json:"changes"`
+	Outputs        map[string]any    `json:"outputs"`
+	Reservation    *ReservationView  `json:"reservation,omitempty"`
+	Hints          []string          `json:"hints,omitempty"`
+	Providers      map[string]string `json:"providers,omitempty"`
 	// Policies are the changes the plan makes to the policies in force.
 	Policies []PolicyEntry `json:"policies,omitempty"`
 
@@ -155,12 +160,13 @@ func ToData(v tftypes.Value) any {
 // nodes give the blast radius.
 func (e *Engine) NewView(plan *Plan, opts ViewOptions) *View {
 	v := &View{Format: ViewFormat, Created: time.Now().UTC(), Actor: e.Opts.Actor, Reason: e.Opts.Reason,
-		GitRevision: e.Opts.GitRevision, TraceID: e.traceID, Destroy: plan.Destroy, Stats: plan.Stats, Outputs: map[string]any{},
+		GitRevision: e.Opts.GitRevision, TraceID: e.traceID, Destroy: plan.Destroy, Kinds: append([]string{}, plan.Kinds()...), Stats: plan.Stats, Outputs: map[string]any{},
 		Providers: map[string]string{}, Hints: plan.Hints, Policies: plan.Policies, skipped: opts.Skipped}
 	for local, rp := range e.Providers.Resolved {
 		v.Providers[local] = rp.Version
 	}
 	v.Changes = []ChangeView{}
+	v.ChangedOutputs = plan.ChangedOutputs()
 	v.Summary.Add, v.Summary.Change, v.Summary.Destroy, v.Summary.Read = plan.Counts()
 	v.Summary.Deferred = plan.DeferredCount()
 	touched := map[string]bool{}

@@ -62,7 +62,8 @@ Workspaces on different directories run in one process at the same time: each ha
 |---|---|
 | `ws.Plan(ctx, PlanOptions)` | Computes the plan. `PlanOptions` has `Refresh` (`RefreshAge`, the default, `RefreshExpired`, `RefreshNone` or `RefreshAll`, as `-refresh` names them), `Destroy`, `Full`, `Replace`, `Reserve` and `Skipped`. It returns a `*Planned`. |
 | `p.View()` | The document of the plan, the one `pravo plan --json` prints. [The plan document](plan-document.md) lists its fields. |
-| `p.HasChanges()` | Whether applying the plan would change anything. |
+| `p.HasChanges()` | Whether applying the plan would change anything that is kept: a resource, an output, a move, an import or a policy. |
+| `p.Kinds()` | What the plan changes: `resources`, `outputs`, `moves`, `imports`, `policies`. Empty when `HasChanges` is false. |
 | `p.CheckPolicy(ctx)` | Judges the plan with the policies the specification declares. The error says which rule refused it and carries the exit code the command would give. |
 | `p.Overlaps(ctx)` | The stored plans that change the same resources. |
 | `p.Store(ctx, StorePlanOptions)` | Stores the plan in the state, with a `TTL`, and returns the plan's `Meta`, its `Overlaps` and the plans that the small collection `Removed`. |

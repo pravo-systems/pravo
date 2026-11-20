@@ -500,9 +500,9 @@ func TestAPlanThatCannotBeSavedToItsFileIsNotStored(t *testing.T) {
 	}
 }
 
-// A plan that changes no resource, and only writes outputs or records, has no
-// changes: it is not stored, and the output says so.
-func TestAPlanThatOnlyWritesOutputsIsNotStored(t *testing.T) {
+// A plan that changes no resource and only writes an output is stored, and says so. One that
+// writes nothing is not (TestAPlanThatHasNoChangesIsNotStored).
+func TestAPlanThatOnlyWritesOutputsIsStored(t *testing.T) {
 	rt := &runContext{}
 
 	dir := specDir(t, map[string]string{"main.cue": "package infra\n\nimport \"pravo.dev/pravo\"\n\ngreeting: pravo.#Output & {value: \"hi\"}\n"})
@@ -510,10 +510,10 @@ func TestAPlanThatOnlyWritesOutputsIsNotStored(t *testing.T) {
 		t.Skipf("pravo init exited %d: %s", code, text)
 	}
 	text, code := runPravo(t, rt, dir, "plan", "--store")
-	if code != 0 || !strings.Contains(text, "No changes.") || !strings.Contains(text, "Nothing to store: the plan has no changes.") || strings.Contains(text, "Stored the plan") {
+	if code != 0 || !strings.Contains(text, "No changes.") || !strings.Contains(text, "Stored the plan as") || !strings.Contains(text, "The plan changes: outputs.") || strings.Contains(text, "Nothing to store") {
 		t.Errorf("exit %d:\n%s", code, text)
 	}
-	if got := planObjects(t, dir); len(got) != 0 {
+	if got := planObjects(t, dir); len(got) != 2 {
 		t.Errorf("stored %v", got)
 	}
 }

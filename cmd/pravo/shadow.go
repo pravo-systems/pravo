@@ -552,8 +552,9 @@ func verifyShadow(cmd *cobra.Command, rt *runContext, rep *engine.ShadowReport, 
 	if err != nil {
 		return fmt.Errorf("the specification was written, but planning it failed: %w", err)
 	}
-	if !planWorth(plan) {
-		// An apply of nothing writes the records again with the hash of the configuration
+	if !plan.HasWrites() {
+		// Outputs do not count here: the outputs that a Terraform state holds are not in the
+		// specification that was written. An apply of nothing writes the records again with the hash of the configuration
 		// that the provider has seen, and that is what scopes the plans after it.
 		if _, err := eng.Apply(cmd.Context(), plan); err != nil {
 			return fmt.Errorf("the specification was written and plans clean, but recording the hashes failed: %w", err)

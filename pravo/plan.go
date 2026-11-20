@@ -68,8 +68,13 @@ func (p *Planned) Plan() *Plan { return p.plan }
 // Engine is the engine that computed the plan.
 func (p *Planned) Engine() *Engine { return p.eng }
 
-// HasChanges reports whether applying the plan would change anything.
-func (p *Planned) HasChanges() bool { return p.plan.HasWrites() }
+// HasChanges reports whether applying the plan would change anything that is kept: a
+// resource, an output, a move, an import or a policy.
+func (p *Planned) HasChanges() bool { return len(p.plan.Kinds()) > 0 }
+
+// Kinds says what the plan changes: "resources", "outputs", "moves", "imports", "policies".
+// It is empty when HasChanges is false.
+func (p *Planned) Kinds() []string { return p.plan.Kinds() }
 
 // View is the document of the plan, the one "pravo plan --json" prints.
 func (p *Planned) View() *View {

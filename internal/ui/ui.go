@@ -2,12 +2,10 @@
 package ui
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
 	"os"
-	"reflect"
 	"slices"
 	"sort"
 	"strconv"
@@ -468,24 +466,21 @@ func (p *Printer) outputChange(plan *engine.Plan, n string) (string, bool) {
 		old = JSONToCUE(oldJSON, "  ")
 	}
 	var now string
-	var nowJSON []byte
 	switch v, ok := plan.Outputs[n]; {
 	case ok && convert.IsConcrete(v):
 		now = FormatCUE(convert.Default(v), "  ")
-		nowJSON, _ = convert.Default(v).MarshalJSON()
 	case ok:
 		now = p.C(Dim, "(known after apply)")
 	default:
 		if raw, saved := plan.SavedOutputs[n]; saved {
 			now = JSONToCUE(raw, "  ")
-			nowJSON = raw
 		} else if slices.Contains(plan.UnknownOutputs, n) {
 			now = p.C(Dim, "(known after apply)")
 		} else {
 			now = p.C(Dim, "(removed)")
 		}
 	}
-	if oldKnown && nowJSON != nil && sameJSON(oldJSON, nowJSON) {
+	if !plan.OutputChanged(n) {
 		return "", false
 	}
 	if plan.SensitiveOutputs[n] || oldSensitive {
@@ -495,16 +490,6 @@ func (p *Printer) outputChange(plan *engine.Plan, n string) (string, bool) {
 		return now, true
 	}
 	return old + " → " + now, true
-}
-
-// sameJSON reports whether two JSON documents hold the same value, whatever
-// their layout.
-func sameJSON(a, b []byte) bool {
-	var x, y any
-	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
-		return false
-	}
-	return reflect.DeepEqual(x, y)
 }
 
 // pad right-aligns the symbol in a 3-character column.

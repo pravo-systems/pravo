@@ -45,7 +45,7 @@ Stored the plan as plan-<id>; unless it is applied it is removed after 7 days. T
   pravo apply plan-<id>
 ```
 
-The plan prints as usual, then pravo says where it went. Nothing is applied, and a plan with no changes is not stored. The listing shows who made it and where it stands:
+The plan prints as usual, then pravo says where it went. Nothing is applied. A plan that would change nothing is not stored, and one that only changes outputs, moves or imports is. The listing shows who made it and where it stands:
 
 ```sh
 pravo -C store plan list

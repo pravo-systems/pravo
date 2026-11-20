@@ -120,7 +120,7 @@ jobs:
           due-limit: "500"
 ```
 
-`plan` stores the plan, keeps one comment on the pull request up to date and sets the outputs `plan-id`, `has-changes`, `exit-code` and `report`. A plan that a policy refuses is commented and fails the job. `apply` takes `plan-id` and turns the exit codes 3, 4 and 5 into a line that says what to do. `drift` and `discover` keep one open issue up to date with what they find and close it when nothing is left. They pass unless `fail-on-findings` is true. The credentials of the providers and the state are the workflow's: set them in `env`, or log in to the cloud in an earlier step.
+`plan` stores the plan, keeps one comment on the pull request up to date and sets the outputs `plan-id`, `has-changes`, `change-kinds`, `exit-code` and `report`. `has-changes` is true for a plan that would change the state in any way, and such a plan is stored and has a `plan-id`: one that only changes an output, moves a record or imports an object counts as much as one that changes a resource. `change-kinds` lists what changes, from `resources`, `outputs`, `moves`, `imports` and `policies`, for a workflow that wants to tell them apart. A plan that a policy refuses is commented and fails the job. `apply` takes `plan-id` and turns the exit codes 3, 4 and 5 into a line that says what to do. `drift` and `discover` keep one open issue up to date with what they find and close it when nothing is left. They pass unless `fail-on-findings` is true. The credentials of the providers and the state are the workflow's: set them in `env`, or log in to the cloud in an earlier step.
 
 | Input | Of | What it does |
 |---|---|---|
@@ -350,7 +350,7 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <id>]
 
 The apply judged the file under the locks, and the signed start of its transaction lists the policy versions that judged it. A plain `pravo apply` judges the plan it builds. [Write and roll out policies](policies.md) covers the policy.
 
-A plan file travels between jobs as an artifact. When the jobs share a state in a bucket, the plan job can store the plan in the state, and the apply job can name it by its id. With `--json`, the id is `stored.id` in the one document that the plan job prints. A plan with no changes is not stored and has no `stored` field.
+A plan file travels between jobs as an artifact. When the jobs share a state in a bucket, the plan job can store the plan in the state, and the apply job can name it by its id. With `--json`, the id is `stored.id` in the one document that the plan job prints. A plan that would change nothing is not stored and has no `stored` field. A plan that only changes an output, moves a record or imports an object is stored: `kinds` in the document, and in `stored`, says which.
 
 ```text
 plan job       pravo plan --store --json --reason "$REV" > plan.json
