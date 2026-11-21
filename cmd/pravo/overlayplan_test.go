@@ -40,6 +40,17 @@ func TestStoredPlanOfARefreshThatWasNotWrittenIsNotStale(t *testing.T) {
 // that had drifted, which the reader could not write, and a resource that the change leaves
 // alone is read by one that it creates, through json.Marshal.
 func TestAWriterAppliesWhatAReaderStoredAfterARefreshAndAJSONRead(t *testing.T) {
+	// The dependencies are read from the evaluator, and from the syntax alone, which a
+	// graph falls back to when the evaluator's edges make a cycle.
+	for _, mode := range []string{"evaluator", "syntax"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Setenv("PRAVO_DEPENDENCIES", mode)
+			writerAppliesWhatAReaderStored(t)
+		})
+	}
+}
+
+func writerAppliesWhatAReaderStored(t *testing.T) {
 	rt := &runContext{}
 
 	requireSealing(t)
@@ -54,20 +65,61 @@ func TestAWriterAppliesWhatAReaderStoredAfterARefreshAndAJSONRead(t *testing.T) 
 		t.Fatal(err)
 	}
 	spec := func(body string) string {
-		head := strings.Replace(string(settings), "package t\n", "package t\n\nimport (\n\t\"encoding/json\"\n\tdemo \"pravo.dev/providers/demo/demo\"\n)\n", 1)
-		return head + "\n$demo: demo.#Provider & {$path: " + fmt.Sprintf("%q", demoBinary) + "}\n_unused: json.Marshal({})\n" + body
+		head := strings.Replace(string(settings), "package t\n", "package t\n\nimport (\n\t\"encoding/json\"\n\t\"pravo.dev/pravo\"\n\tdemo \"pravo.dev/providers/demo/demo\"\n)\n", 1)
+		return head + "\n$demo: demo.#Provider & {$path: " + fmt.Sprintf("%q", demoBinary) + "}\n_unused: json.Marshal({})\nnameServers: pravo.#Output & {value: {apps: dns.apps.id, other: dns.other.id}}\n_unusedHex: hex.Encode(sha256.Sum256(\"\"))\n" + body
 	}
 	base := "net: $demo.#Resource.demo_server & {name: \"net\"}\ndns: {for k in [\"apps\", \"other\"] {(k): $demo.#Resource.demo_server & {name: k, size: net.id}}}\ndb: $demo.#Resource.demo_server & {name: \"db\"}\n"
-	mustWrite(t, e.dir, "main.cue", spec(base))
+	// The shape of the control plane of a real estate: a task definition that encodes, with
+	// json.Marshal, an environment read through a let from a zone that the change leaves
+	// alone and from resources that the change creates, one through a function.
+	cp := func(events bool) string {
+		env := `{ZONE: dns.apps.id, NET: net.id`
+		out := `
+cp: {
+	let environment = [for k, v in ` + env
+		if events {
+			env = `, BUS: events.busArnValue, SHA: events.keySha256`
+			out += env
+		}
+		out += `} {name: k, value: v}]
+	#Service: {
+		role: string
+		def: $demo.#Resource.demo_server & {
+			name: "def-\(role)"
+			size: json.Marshal([{name: role, "environment": list.Concat([environment, [{name: "ID", value: role}]])}])
+		}
+		let _def = def
+		service: $demo.#Resource.demo_server & {name: "svc-\(role)", size: _def.id}
+	}
+	worker: #Service & {role: "worker"}
+}
+`
+		if events {
+			out += `
+events: {
+	bus: $demo.#Resource.demo_server & {name: "bus"}
+	let _bus = bus
+	key: $demo.#Resource.demo_server & {name: "key"}
+	let _key = key
+	busArnValue: _bus.id
+	keySha256:   hex.Encode(sha256.Sum256(_key.id))
+}
+`
+		}
+		return out
+	}
+	imports := func(text string) string {
+		return strings.Replace(text, "\"encoding/json\"", "\"encoding/json\"\n\t\"encoding/hex\"\n\t\"crypto/sha256\"\n\t\"list\"", 1)
+	}
+	mustWrite(t, e.dir, "main.cue", imports(spec(base+cp(false))))
 	for _, args := range [][]string{{"init"}, {"protect", "init", "--encrypt", "--yes"}, {"--identity", "ada", "apply", "--auto-approve"}} {
 		if text, code := runPravo(t, rt, e.dir, args...); code != 0 {
 			t.Fatalf("%v exited %d:\n%s", args, code, text)
 		}
 	}
-
-	// The database drifts, and the change adds a task that encodes the zone as JSON.
+	// The database drifts, and the change adds the events and tells the control plane of them.
 	prov.remove("srv-db")
-	mustWrite(t, e.dir, "main.cue", spec(base+"cp: worker: def: $demo.#Resource.demo_server & {name: \"def\", size: json.Marshal([{z: dns.apps.id, n: net.id}])}\nfor i in [1, 2, 3] {\"extra\\(i)\": $demo.#Resource.demo_server & {name: \"extra\\(i)\", size: cp.worker.def.id}}\n"))
+	mustWrite(t, e.dir, "main.cue", imports(spec(base+cp(true))))
 	before := map[string]string{}
 	for k, v := range e.f.Objects {
 		before[k] = string(v)
@@ -86,7 +138,7 @@ func TestAWriterAppliesWhatAReaderStoredAfterARefreshAndAJSONRead(t *testing.T) 
 	if code != 0 || !strings.Contains(text, "Apply complete!") {
 		t.Fatalf("a writer's apply of %s exited %d:\n%s", id, code, text)
 	}
-	if !prov.has("srv-db") || !prov.has("srv-def") {
+	if !prov.has("srv-db") || !prov.has("srv-def-worker") {
 		t.Fatalf("the apply did not create the database and the worker: %v\n%s", prov.catalog(), text)
 	}
 }

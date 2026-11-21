@@ -171,6 +171,26 @@ type analysis struct {
 	// used, and one that is used twice is read once.
 	letSeen  map[*ast.LetClause]bool
 	loopSeen map[*ast.ForClause]bool
+	// loc is the plain field being followed, nil while the body of the task is
+	// read. Names in the syntax of a let that the field uses are looked up from
+	// where the field is: the let sits in the struct around it, not around the task.
+	loc *cue.Path
+}
+
+// followWalk reads target, the value of the plain field at p.
+func (a *analysis) followWalk(p cue.Path, target cue.Value, depth int) {
+	prev := a.loc
+	a.loc = &p
+	a.walk(target, depth+1, false)
+	a.loc = prev
+}
+
+// scope is the path that names in the syntax being read are looked up from.
+func (a *analysis) scope() *cue.Path {
+	if a.loc != nil {
+		return a.loc
+	}
+	return a.self
 }
 
 func (a *analysis) addTask(task, alias cue.Path) {
@@ -199,7 +219,7 @@ func (a *analysis) follow(p cue.Path, depth int) bool {
 	if key := "follow " + p.String(); !a.seen[key] {
 		a.seen[key] = true
 		if !IsConcrete(target) {
-			a.walk(target, depth+1, false)
+			a.followWalk(p, target, depth)
 		}
 	}
 	return true
@@ -208,8 +228,8 @@ func (a *analysis) follow(p cue.Path, depth int) bool {
 // scanSyntax reads the tasks that the syntax at node names.
 func (a *analysis) scanSyntax(node ast.Node) {
 	var anc []cue.Selector
-	if a.self != nil {
-		anc = a.self.Selectors()
+	if sc := a.scope(); sc != nil {
+		anc = sc.Selectors()
 	}
 	sc := &refScan{resolve: a.resolve, anc: anc, add: a.addTask, follow: func(p cue.Path) bool { return a.follow(p, 0) }, local: map[string]bool{}, let: a.scanLet, loop: a.loopVariable}
 	ast.Walk(node, sc.visit, nil)
@@ -291,7 +311,7 @@ func (a *analysis) walk(v cue.Value, depth int, nav bool) {
 	if op == cue.NoOp {
 		// The expression tree stops at a comprehension: what its clauses
 		// and its body refer to is found in the syntax.
-		scanComprehensions(v.Source(), a.resolve, a.self, a.scanned, a.addTask, func(p cue.Path) bool { return a.follow(p, depth) }, a.scanLet, a.loopVariable)
+		scanComprehensions(v.Source(), a.resolve, a.scope(), a.scanned, a.addTask, func(p cue.Path) bool { return a.follow(p, depth) }, a.scanLet, a.loopVariable)
 		switch {
 		case v.IncompleteKind() == cue.ListKind:
 			if it, err := v.List(); err == nil {
@@ -383,7 +403,7 @@ func (a *analysis) plainField(p cue.Path, target cue.Value, depth int, alone boo
 		if a.deep || d.Validate(cue.Concrete(true)) != nil {
 			followed = true
 			touchedBefore, incBefore := a.touched, a.info.Incomplete
-			a.walk(target, depth+1, false)
+			a.followWalk(p, target, depth)
 			if memoKey != "" && a.touched == touchedBefore && incBefore == nil && len(a.info.TaskRefs) == before {
 				a.inert[memoKey] = InertField{Followed: true, Incomplete: a.info.Incomplete}
 			}
@@ -788,6 +808,10 @@ func letOf(id *ast.Ident) *ast.LetClause {
 // called for every node of the syntax that is scanned, so it allocates nothing.
 func letReference(n ast.Node) *ast.LetClause {
 	var e ast.Expr
+	if f, ok := n.(*ast.Field); ok {
+		// The value of a field that is a reference reports the field as its source.
+		n = f.Value
+	}
 	switch x := n.(type) {
 	case *ast.Ident:
 		return letOf(x)

@@ -45,12 +45,56 @@ hello: {key: _p}`, "prefix"},
 		{"a let of a plain value", `
 let _n = "x"
 hello: {key: _n}`, ""},
+		{"a plain field built from a let in its struct", `
+events: {
+	let _main = bucket
+	arn: _main.id
+}
+hello: {key: events.arn}`, "bucket"},
+		{"a plain field built from a let, read through a comprehension", `
+events: {
+	let _main = bucket
+	arn: _main.id
+	sha: "x"
+}
+hello: {names: [for k, v in {A: events.arn, B: events.sha} {name: k, value: v}]}`, "bucket"},
+		{"a plain field built from a let, read by a let's comprehension", `
+events: {
+	let _main = bucket
+	arn: _main.id
+}
+hello: {
+	let env = [for k, v in {A: events.arn} {name: k, value: v}]
+	names: env
+}`, "bucket"},
 		{"a let in a comprehension", `
 hello: {names: [for k in ["a"] let b = bucket {b.id}]}`, "bucket"},
 	}
 	for _, c := range cases {
 		if got := depsOf(t, head+c.src, "hello", "pet", "prefix", "bucket", "hello"); got != c.want {
 			t.Errorf("%s: dependencies = %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// A task inside a struct, named by a let of that struct and read through a field
+// that the let builds, is a dependency of whatever reads the field.
+func TestFieldBuiltFromALetOfASiblingTask(t *testing.T) {
+	const src = `
+events: {
+	bus: {result: string | null}
+	let _bus = bus
+	arn: _bus.result
+}
+hello: {
+	let env = [for k, v in {A: events.arn} {name: k, value: v}]
+	names: env
+}
+plain: {key: events.arn}
+`
+	for _, self := range []string{"hello", "plain"} {
+		if got := depsOf(t, src, self, "events.bus", "hello", "plain"); got != "events.bus" {
+			t.Errorf("%s: dependencies = %q, want events.bus", self, got)
 		}
 	}
 }
