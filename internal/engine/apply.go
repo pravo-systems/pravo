@@ -537,6 +537,12 @@ func (e *Engine) ApplySaved(ctx context.Context, plan *Plan) (*ApplyResult, erro
 			if ch.Mode == "data" && ch.Action == ActionRead && !ch.Deferred && ch.Planned.Type() != nil {
 				e.rememberData(ch.Addr, ch.ConfigHash, ch.Planned)
 			}
+			if ch.Mode == "managed" && ch.Refreshed && !ch.Skipped && ch.Prior.Type() != nil {
+				// The plan read the object, and a plan made by a reader could not write what it
+				// found: the record in the state may be the one from before. The apply starts
+				// from what the plan saw, and writes it with the change.
+				e.rememberRead(ch.Addr, &readResult{state: ch.Prior, private: ch.PriorPrivate, drifted: ch.Drifted})
+			}
 		}
 	}
 	e.Opts.Destroy = plan.Destroy

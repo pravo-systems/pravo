@@ -195,3 +195,12 @@ func (b *overlayBackend) ListVersions(ctx context.Context, prefix string) ([]Obj
 // ReadOnlyView says that nothing written through the overlay reaches the backend, so that no
 // snapshot is kept through it.
 func (b *overlayBackend) ReadOnlyView() {}
+
+// inOverlay reports whether what is written through b stays in memory, under any wrapper.
+func inOverlay(b Backend) bool {
+	if t, ok := b.(*tracedBackend); ok {
+		b = t.Backend
+	}
+	_, ok := b.(*overlayBackend)
+	return ok
+}

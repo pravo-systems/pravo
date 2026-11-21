@@ -146,6 +146,18 @@ func (e *Engine) readRecord(ctx context.Context, prov plugin.Provider, sr *state
 	return newState, newPrivate, nil
 }
 
+// holdToRecord takes the lock of a node to write what a read of it found. It is not
+// taken when another process holds it, which is left alone, or when the lock cannot
+// be written, which is said: what the read found is then in no record.
+func (e *Engine) holdToRecord(addr string) (release func(), ok bool) {
+	release, ok, err := e.State.TryHold(addr, e.Opts.Command+" refresh", e.txnID())
+	if err != nil {
+		e.Opts.Progress("Warning: %s: what the read found is not recorded, the lock could not be taken: %v", addr, err)
+		return nil, false
+	}
+	return release, ok
+}
+
 // persistRefreshed writes the record that a refresh read, so that the next
 // run within the refresh age can skip the provider. A read that differs from
 // the record leaves a mark on the new record, which keeps the node in every
@@ -160,7 +172,7 @@ func (e *Engine) persistRefreshed(addr string, sr *state.Resource, sch *schema.S
 // persistRead writes the record that a read returned. With markDrift, a read that
 // differs from the record leaves the mark; the read that follows an apply does not.
 func (e *Engine) persistRead(addr string, sr *state.Resource, sch *schema.Schema, attrs, private []byte, markDrift bool) {
-	release, ok, _ := e.State.TryHold(addr, e.Opts.Command+" refresh", e.txnID())
+	release, ok := e.holdToRecord(addr)
 	if !ok {
 		return
 	}
@@ -233,7 +245,9 @@ func (e *Engine) recordRefresh(addr, action string, before int, n *state.Resourc
 	switch {
 	case errors.Is(err, state.ErrChanged):
 		e.Opts.Progress("Warning: %s changed in the state since this command read it; what the refresh read is not recorded", addr)
-	case err == nil && e.txn != nil:
+	case err != nil:
+		e.Opts.Progress("Warning: %s: what the refresh read is not recorded: %v", addr, err)
+	case e.txn != nil:
 		e.txn.Record(addr, action, before, n.Revision)
 		return true
 	}
@@ -244,7 +258,7 @@ func (e *Engine) recordRefresh(addr, action string, before int, n *state.Resourc
 // The record keeps the attributes it had and carries the mark, so that the
 // next plan, saved plan and apply create the object again.
 func (e *Engine) persistGone(addr string, sr *state.Resource) {
-	release, ok, _ := e.State.TryHold(addr, e.Opts.Command+" refresh", e.txnID())
+	release, ok := e.holdToRecord(addr)
 	if !ok {
 		return
 	}

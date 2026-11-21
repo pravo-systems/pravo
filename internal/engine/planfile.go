@@ -974,6 +974,13 @@ func (e *Engine) fromState(r *config.Resource) (tftypes.Value, error) {
 	}
 	sr := e.State.Get(r.Address())
 	if sr == nil {
+		e.mu.Lock()
+		plan := e.applyPlan
+		e.mu.Unlock()
+		if plan != nil && plan.Inputs[r.Address()] > 0 {
+			// What reads it would be told that its value is still unknown, which says nothing of why.
+			return tftypes.Value{}, fmt.Errorf("%s: the plan read its record (revision %d) and the state has none", r.Address(), plan.Inputs[r.Address()])
+		}
 		e.record(ch)
 		return tftypes.Value{}, nil
 	}

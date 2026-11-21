@@ -70,3 +70,56 @@ func TestOverlayPassesStoredPlans(t *testing.T) {
 		t.Errorf("ReplaceIf of a plan: %q", got)
 	}
 }
+
+// What a store writes through an overlay never reaches the backend, so the version of the
+// record stays the one that the backend holds. A stored plan that expected the revision
+// the write would have given could not be applied by anyone.
+func TestOverlayStoreKeepsTheVersionTheBackendHolds(t *testing.T) {
+	ctx := context.Background()
+	base, err := NewLocalBackend(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := OpenBackend(ctx, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Set(&Resource{Addr: "db", Mode: "managed", Type: "t", Name: "db", Attributes: []byte(`{"v":"1"}`)}, "t1"); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	for name, b := range map[string]Backend{"overlay": OverlayBackend(base, "plans"), "traced overlay": traced(OverlayBackend(base, "plans"))} {
+		st, err := OpenBackend(ctx, b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := *st.Get("db")
+		n.Attributes = []byte(`{"v":"2"}`)
+		if err := st.Refresh(&n, "t2"); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if got := st.Get("db"); !jsonSame(got.Attributes, []byte(`{"v":"2"}`)) || got.Revision != 1 {
+			t.Errorf("%s: the store holds %s at revision %d, want the refreshed record at revision 1", name, got.Attributes, got.Revision)
+		}
+		if err := st.Set(&Resource{Addr: "db", Mode: "managed", Type: "t", Name: "db", Attributes: []byte(`{"v":"3"}`)}, "t3"); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if got := st.Get("db"); got.Revision != 1 {
+			t.Errorf("%s: a set moved the revision to %d", name, got.Revision)
+		}
+		st.Close()
+	}
+	plain, err := OpenBackend(ctx, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer plain.Close()
+	if got := plain.Get("db"); got.Revision != 1 || !jsonSame(got.Attributes, []byte(`{"v":"1"}`)) {
+		t.Errorf("the backend holds %s at revision %d: an overlay wrote to it", got.Attributes, got.Revision)
+	}
+	n := *plain.Get("db")
+	n.Attributes = []byte(`{"v":"2"}`)
+	if err := plain.Refresh(&n, "t4"); err != nil || plain.Get("db").Revision != 2 {
+		t.Errorf("a store without an overlay: revision %d, %v, want 2", plain.Get("db").Revision, err)
+	}
+}
