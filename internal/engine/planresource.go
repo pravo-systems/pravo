@@ -548,7 +548,7 @@ func (e *Engine) renewData(addr string, sr *state.Resource, age string) {
 	if maxAge, never, err := e.parseAge(age); err != nil || ((never || maxAge == 0) && stamp == sr.ProviderConfig) {
 		return
 	}
-	release, ok, _ := e.State.TryHold(addr, e.Opts.Command+" refresh", e.txnID())
+	release, ok := e.holdToRecord(addr)
 	if !ok {
 		return
 	}

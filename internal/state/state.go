@@ -901,6 +901,16 @@ func (s *Store) put(r *Resource, revision int, generation, txn string) error {
 	if err := s.writable(); err != nil {
 		return err
 	}
+	if inOverlay(s.b) {
+		// The write stays in memory and the backend never sees it, so the record stays
+		// at the version the backend holds: a stored plan that expected the one this
+		// would write could never be applied by anyone.
+		s.mu.Lock()
+		if prev, ok := s.nodes[r.Address()]; ok {
+			revision, generation = prev.Revision, prev.Generation
+		}
+		s.mu.Unlock()
+	}
 	c := *r
 	c.Revision, c.Generation = revision, generation
 	c.UpdatedAt = time.Now().UTC()
