@@ -4,10 +4,10 @@
 
 .i-pen { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2.8 13.2l.9-3.4 7.4-7.4 2.5 2.5-7.4 7.4zM9.8 3.7l2.5 2.5' fill='none' stroke='black' stroke-width='1.4' stroke-linejoin='miter'/%3E%3C/svg%3E"); }
 
-.drawbtn:not([hidden]) { display: inline-flex; align-items: center; gap: .4rem; height: 2.15rem; padding: 0 .8rem; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text-2); font: 500 var(--fs-3)/1 var(--font-ui); white-space: nowrap; transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast); }
-.drawbtn:hover { color: var(--text); border-color: var(--text-3); }
-.drawbtn[aria-pressed="true"] { background: var(--key); border-color: var(--key); color: var(--on-accent); }
-.drawbtn .i { width: .9rem; height: .9rem; }
+.drawbtn:not([hidden]), .tbbtn { display: inline-flex; align-items: center; gap: .4rem; height: 2.15rem; padding: 0 .8rem; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text-2); font: 500 var(--fs-3)/1 var(--font-ui); white-space: nowrap; transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast); }
+.drawbtn:hover, .tbbtn:hover { color: var(--text); border-color: var(--text-3); }
+.drawbtn[aria-pressed="true"], .tbbtn[aria-pressed="true"] { background: var(--key); border-color: var(--key); color: var(--on-accent); }
+.drawbtn .i, .tbbtn .i { width: .9rem; height: .9rem; }
 [data-view="list"] .drawbtn { display: none; }
 
 /* ---- the chrome over the canvas ---- */

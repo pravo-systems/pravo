@@ -87,7 +87,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | Up arrow, Down arrow | Move to the sibling above or below. |
 | Enter | Open the selected card or cluster. On an open group or one of its resources, close the group. |
 | `f` | Fit the graph to the window. |
-| `i` | Show the project in the inspector, or take it away. Escape takes it away too. The button at the right of the toolbar does the same. |
+| `i` | Show the project in the inspector, or take it away. Escape takes it away too. The **Project** button at the right of the toolbar does the same. |
 | `0` | Go back to the first view: the groups that were open when the page loaded, no cluster open and the whole graph in the window. The selection stays when it still shows, and the filter stays. |
 | `+`, `-` | Zoom in or out. |
 | Tab, Shift+Tab | In the list of the bar of [the drawing board](serve.md#the-drawing-board): the next or the previous group of kinds. |
