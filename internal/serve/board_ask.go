@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -38,6 +39,8 @@ type chatEvent struct {
 }
 
 const (
+	maxDrawCalls = 6 // draws of one question, besides its reads
+	maxReadMany  = 8 // searches of one types call, types of one form call
 	maxDrawItems = 16
 	maxDrawEdits = 8
 	maxAskDraft  = 16 << 10
@@ -51,12 +54,12 @@ The drawing board is where the person draws infrastructure into the specificatio
 When the person asks for something to exist, to be added, wired or changed (a database, a bucket, a password, a variable), draw it: do not only explain how. Answer in words only a question about what is there.
 Draw only what the types tool finds, with the kind and a provider label it gives (when a hit lists several providers, the one the person names, or else the first), and only fields that their form lists. A data source reads something that exists; an output publishes a value; env reads an environment variable. Prefer wiring to resources that exist over drawing new ones. A wire is {"wire": {"to": "<address>", "read": "<attribute>"}}; a typed value is {"text": "..."} or {"expr": "<CUE>"}. Name new things with small letters, digits and underscores.
 A secret is never a value that you write. For a password or a key, draw a resource that makes it (such as random_password, when the types tool finds one), or a secret of pravo (kind secret) that the person sets with pravo secret set, and wire it to the field that needs it. Never put a value into a sensitive or write-only field, and never ask for or repeat a secret.
-Call draw with the whole proposal every time: it answers with what the check says. Fix what it names and draw again, a few times at most. A new proposal replaces one that is pending. Then answer in two or three short sentences: what you drew, and what the person still has to fill or decide.`
+Read in few calls: types takes several searches at once, separated by ; (nat gateway; vpc; elastic ip), and form several types of one kind and provider, separated by commas. Call draw with the whole proposal every time: it answers with what the check says. Fix what it names and draw again, a few times at most. A new proposal replaces one that is pending. Then answer in two or three short sentences: what you drew, and what the person still has to fill or decide.`
 
 // boardChatReads are the reads that the board adds to those of the chat.
 var boardChatReads = []chatToolSpec{
-	{name: "types", desc: "Find what can be drawn by everyday words such as database, bucket, network or password, or by type: resource, data source (data vpc) and ephemeral types of the providers, outputs, environment variables, secrets, remote outputs and templates. Each hit has its kind.", path: "/api/board/types", params: [][2]string{{"q", "q"}}},
-	{name: "form", desc: "The form of a type: its fields, which are required, which are sensitive, and which take a wire to which types. Give the kind, the type and the provider label that types returned, such as $aws.", path: "/api/board/type", params: [][2]string{{"kind", "kind"}, {"type", "type"}, {"provider", "provider"}}, optional: map[string]bool{"type": true, "provider": true}},
+	{name: "types", desc: "Find what can be drawn by everyday words such as database, bucket, network or password, or by type: resource, data source (data vpc) and ephemeral types of the providers, outputs, environment variables, secrets, remote outputs and templates. Each hit has its kind. Several searches at once are separated by ; (vpc; subnet; nat gateway) and answered by search.", path: "/api/board/types", params: [][2]string{{"q", "q"}}},
+	{name: "form", desc: "The form of a type: its fields, which are required, which are sensitive, and which take a wire to which types. Give the kind, the type and the provider label that types returned, such as $aws. Several types of one kind and provider at once are separated by commas (aws_vpc,aws_subnet) and answered by type.", path: "/api/board/type", params: [][2]string{{"kind", "kind"}, {"type", "type"}, {"provider", "provider"}}, optional: map[string]bool{"type": true, "provider": true}},
 	{name: "editable", desc: "A node of the specification (a resource, a data source, an output...) as the board can change it: its fields as written and its form, or why it cannot be changed on the board.", path: "/api/board/edit", params: [][2]string{{"addr", "addr"}}},
 }
 
@@ -92,12 +95,49 @@ func (a *boardAsk) Call(ctx context.Context, name string, args json.RawMessage) 
 	if name == "draw" {
 		return a.draw(args)
 	}
-	for _, t := range boardChatReads {
-		if t.name == name {
-			return a.s.callSpec(ctx, boardChatReads, name, args)
-		}
+	switch name {
+	case "types":
+		return a.many(ctx, name, args, "q", ";")
+	case "form":
+		return a.many(ctx, name, args, "type", ",")
+	case "editable":
+		return a.s.callSpec(ctx, boardChatReads, name, args)
 	}
 	return a.s.callSpec(ctx, chatTools, name, args)
+}
+
+// many runs a read of the board once for each value of one argument that lists several, separated by sep, and answers
+// with the answers by value; with one value it is the read itself.
+func (a *boardAsk) many(ctx context.Context, name string, args json.RawMessage, key, sep string) (string, error) {
+	in := map[string]string{}
+	if err := json.Unmarshal(args, &in); err != nil || !strings.Contains(in[key], sep) {
+		return a.s.callSpec(ctx, boardChatReads, name, args)
+	}
+	var vals []string
+	for _, v := range strings.Split(in[key], sep) {
+		if v = strings.TrimSpace(v); v != "" && !slices.Contains(vals, v) {
+			vals = append(vals, v)
+		}
+	}
+	if len(vals) > maxReadMany {
+		return "", fmt.Errorf("%s takes at most %d at once", name, maxReadMany)
+	}
+	out := map[string]any{}
+	for _, v := range vals {
+		in[key] = v
+		one, _ := json.Marshal(in)
+		body, err := a.s.callSpec(ctx, boardChatReads, name, one)
+		switch {
+		case err != nil:
+			out[v] = map[string]string{"error": err.Error()}
+		case json.Valid([]byte(body)):
+			out[v] = json.RawMessage(body)
+		default:
+			out[v] = body // cut to size
+		}
+	}
+	b, err := json.Marshal(out)
+	return string(b), err
 }
 
 // proposal is the last drawing that the model made, or nil.
@@ -183,7 +223,7 @@ func (s *Server) chatRunOf(req *ChatRequest) (*chatRun, error) {
 		return nil, err
 	}
 	a := &boardAsk{s: s, m: m, base: &req.Board.Draft}
-	return &chatRun{tools: a, system: boardSystem, lim: chat.Limits{Calls: 16}, board: a, tail: tail}, nil
+	return &chatRun{tools: a, system: boardSystem, lim: chat.Limits{Calls: 24, Own: map[string]int{"draw": maxDrawCalls}}, board: a, tail: tail}, nil
 }
 
 // boardContext is what a question says of the board: the drawing as it is, what its check says, and the proposal that

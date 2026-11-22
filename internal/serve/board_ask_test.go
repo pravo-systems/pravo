@@ -3,6 +3,7 @@ package serve
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -171,5 +172,36 @@ func TestBoardAskOnlyWithTheBoardOpen(t *testing.T) {
 	big := &BoardProposal{Items: make([]BoardItem, maxDrawItems+1)}
 	if status, _ := askBoard(t, p, "x", &ChatBoard{Pending: big}); status != http.StatusBadRequest {
 		t.Errorf("a pending proposal too large: %d", status)
+	}
+}
+
+// The reads of several types at once answer by type, and the board still takes a drawing when the reads are spent.
+func TestBoardAskReadsManyAndDrawsAfterTheReads(t *testing.T) {
+	p := penProject(t, nil)
+	replies := []chat.Response{{Calls: []chat.Call{call("1", "types", `{"q":"fake_db; fake_file"}`), call("2", "form", `{"kind":"resource","type":"fake_db, fake_file","provider":"$fake"}`)}}}
+	for i := range 24 {
+		replies = append(replies, chat.Response{Calls: []chat.Call{call(fmt.Sprint("r", i), "types", `{"q":"db"}`)}})
+	}
+	replies = append(replies,
+		chat.Response{Calls: []chat.Call{call("d", "draw", `{"items":[{"label":"orders","type":"fake_db","provider":"$fake","values":{"name":{"text":"orders"}}}]}`)}},
+		chat.Response{Text: "Drew `orders`."})
+	p.srv.opts.Chat = &ChatOptions{Provider: &chat.Script{Replies: replies}, Name: "fake", Model: "m", Host: "example.test"}
+	status, evs := askBoard(t, p, "a database", &ChatBoard{})
+	if status != http.StatusOK {
+		t.Fatalf("ask: %d %+v", status, evs)
+	}
+	sent := eventOf(evs, "done").Sent
+	var types, form map[string]json.RawMessage
+	if json.Unmarshal([]byte(sent[0].Body), &types) != nil || len(types) != 2 || types["fake_db"] == nil || types["fake_file"] == nil {
+		t.Errorf("two searches: %s", sent[0].Body)
+	}
+	if json.Unmarshal([]byte(sent[1].Body), &form) != nil || len(form) != 2 || !strings.Contains(string(form["fake_file"]), "fields") {
+		t.Errorf("two forms: %s", sent[1].Body)
+	}
+	if last := sent[len(sent)-2]; !strings.Contains(last.Error, "you can still call draw") {
+		t.Errorf("the read after the reads are spent: %+v", last)
+	}
+	if pr := eventOf(evs, "proposal"); pr == nil || pr.Proposal == nil || len(pr.Proposal.Items) != 1 {
+		t.Errorf("no proposal after the reads were spent: %+v", sent[len(sent)-1])
 	}
 }

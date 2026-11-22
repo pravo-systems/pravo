@@ -56,6 +56,33 @@ func TestRunBoundsTheCalls(t *testing.T) {
 	}
 }
 
+type actTools struct{ fixedTools }
+
+func (f *actTools) Defs() []ToolDef {
+	return append(f.fixedTools.Defs(), ToolDef{Name: "act", Description: "d", Schema: map[string]any{"type": "object"}})
+}
+
+// A tool with its own count can still be called when the reads are spent, as many times as its own count allows.
+func TestRunCountsOwnToolsApart(t *testing.T) {
+	tools := &actTools{}
+	look, act := Call{ID: "l", Name: "look"}, Call{ID: "a", Name: "act"}
+	p := &Script{Replies: []Response{
+		{Calls: []Call{look, look, look}},
+		{Calls: []Call{act, act, act}},
+		{Text: "done"},
+	}}
+	_, sent, err := Run(context.Background(), p, tools, nil, Limits{Calls: 2, Own: map[string]int{"act": 2}}, func(Event) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(tools.ran, ","); got != "look,look,act,act" {
+		t.Errorf("ran %s", got)
+	}
+	if !strings.Contains(sent[2].Error, "you can still call act") || !strings.Contains(sent[5].Error, "act was called 2 times") {
+		t.Errorf("sent %+v", sent)
+	}
+}
+
 func TestAnthropicRoundTrip(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-api-key") != "k" || r.URL.Path != "/v1/messages" {

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -79,8 +80,11 @@ type Limits struct {
 	Calls int
 	// Bytes is how much tool output a question may send to the model (default 128 KiB).
 	Bytes int
-	// Rounds is how many times the model is asked (default Calls+2).
+	// Rounds is how many times the model is asked (default Calls+2, and the calls of Own).
 	Rounds int
+	// Own are tools that are counted on their own, each with its own number of calls, and not against Calls or
+	// Bytes: a tool that acts on what was read can still be called when the reads are spent.
+	Own map[string]int
 	// MaxTokens bounds one answer (default 1500).
 	MaxTokens int
 }
@@ -94,6 +98,9 @@ func (l Limits) withDefaults() Limits {
 	}
 	if l.Rounds <= 0 {
 		l.Rounds = l.Calls + 2
+		for _, n := range l.Own {
+			l.Rounds += n
+		}
 	}
 	if l.MaxTokens <= 0 {
 		l.MaxTokens = 1500
@@ -148,7 +155,11 @@ func RunWith(ctx context.Context, p Provider, system string, tools Tools, histor
 	}
 	var added []Message
 	var ledger []Sent
-	calls, bytes := 0, 0
+	calls, bytes, own := 0, 0, map[string]int{}
+	spent := "too many tool calls for one question; answer with what you have"
+	if len(lim.Own) > 0 {
+		spent = "too many reads for one question; " + ownLeft(lim.Own) + ", then answer with what you have"
+	}
 	for range lim.Rounds {
 		resp, err := p.Complete(ctx, Request{System: system, Messages: append(append([]Message{}, history...), added...), Tools: defs, MaxTokens: lim.MaxTokens})
 		if err != nil {
@@ -169,19 +180,27 @@ func RunWith(ctx context.Context, p Provider, system string, tools Tools, histor
 			switch {
 			case !known[c.Name]:
 				r.Error = "no such tool: " + c.Name
-			case calls >= lim.Calls:
-				r.Error = "too many tool calls for one question; answer with what you have"
-			case bytes >= lim.Bytes:
+			case lim.Own[c.Name] > 0 && own[c.Name] >= lim.Own[c.Name]:
+				r.Error = fmt.Sprintf("%s was called %d times for one question; answer with what you have", c.Name, own[c.Name])
+			case lim.Own[c.Name] == 0 && calls >= lim.Calls:
+				r.Error = spent
+			case lim.Own[c.Name] == 0 && bytes >= lim.Bytes:
 				r.Error = "enough has been read for one question; answer with what you have"
 			default:
-				calls++
+				if lim.Own[c.Name] > 0 {
+					own[c.Name]++
+				} else {
+					calls++
+				}
 				emit(Event{Type: "read", Tool: c.Name, Args: string(c.Args)})
 				body, err := tools.Call(ctx, c.Name, c.Args)
 				if err != nil {
 					r.Error = err.Error()
 				} else {
 					r.Body = body
-					bytes += len(body)
+					if lim.Own[c.Name] == 0 {
+						bytes += len(body)
+					}
 				}
 			}
 			ledger = append(ledger, Sent{Tool: c.Name, Args: c.Args, Body: r.Body, Error: r.Error, Bytes: len(r.Body) + len(r.Error)})
@@ -190,4 +209,14 @@ func RunWith(ctx context.Context, p Provider, system string, tools Tools, histor
 		added = append(added, Message{Role: "tool", Results: results})
 	}
 	return added, ledger, fmt.Errorf("the model kept asking for tools; stopped after %d rounds", lim.Rounds)
+}
+
+// ownLeft names the tools that can still be called when the reads are spent.
+func ownLeft(own map[string]int) string {
+	var names []string
+	for n := range own {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return "you can still call " + strings.Join(names, " and ")
 }

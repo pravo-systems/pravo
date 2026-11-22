@@ -261,7 +261,7 @@ export class Board {
         if (n.type === t.type && (n.mode === 'managed' || n.mode === 'data') && n.presence !== 'state' && n.addr !== it.label && !seen.has(n.addr)) { seen.add(n.addr); out.push({ addr: n.addr, type: n.type, read: t.read, rank, data: n.mode === 'data' }); }
       }
       for (const d of this.items) {
-        if (d !== it && (d.kind === 'resource' || d.kind === 'data') && d.type === t.type && !seen.has(d.label)) { seen.add(d.label); out.push({ addr: d.label, type: d.type, read: t.read, rank, draft: true, data: d.kind === 'data' }); }
+        if (d !== it && (d.kind === 'resource' || d.kind === 'data') && d.type === t.type && !seen.has(d.label)) { seen.add(d.label); out.push({ addr: d.label, type: d.type, read: t.read, rank, draft: true, proposed: !!d.proposed, data: d.kind === 'data' }); }
       }
     });
     return out;
@@ -409,6 +409,7 @@ export class Board {
   wireable(it) { return this.fields(it).some((f) => f.required && f.wire); }
 
   remove(label) {
+    const was = this.items.find((x) => x.label === label);
     this.items = this.items.filter((x) => x.label !== label);
     for (const it of this.items) for (const [k, v] of Object.entries(it.values)) {
       const ws = wiresOf(v);
@@ -418,6 +419,13 @@ export class Board {
     }
     this.changed({ graph: true });
     this.cb.select(null);
+    if (was && was.proposed) this.proposalLeft();
+  }
+
+  // proposalLeft follows a thing dropped from a pending proposal: the card shows the rest, or the proposal is dropped
+  proposalLeft() {
+    if (this.items.some((it) => it.proposed)) { this.renderProposal(); return; }
+    this.dropProposal(true);
   }
 
   rename(it, to) {
@@ -1148,10 +1156,10 @@ export class Board {
     nameIn.addEventListener('change', () => { const msg = this.rename(it, nameIn.value.trim()); nameErr.textContent = msg; if (msg) nameIn.value = it.label; });
     nameIn.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') nameIn.blur(); });
     const head = {
-      kick: it.proposed ? 'Proposal · keep or drop' : `Draft · ${kindWord(it)}`,
+      kick: `${stateWord(it)} · ${kindWord(it)}`,
       title: nameIn,
       path: h('div', { class: 'ih-path bd-what' }, h('b', null, f.title), h('code', null, it.kind === 'template' ? it.template : f.def || it.type), this.providerTag(it)),
-      tags: [h('span', { class: 'b bd-draft' }, 'draft')],
+      tags: [stateTag(it)],
     };
     const body = h('div', { class: 'bd-form', data: { label: it.label } });
     this.formEl = body;
@@ -1176,7 +1184,7 @@ export class Board {
       if (b.dataset.act === 'explain') this.cb.ask(askExplain(it.label));
     });
     this.formFields(it, body);
-    body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b danger', 'data-tip': 'Discard (Backspace)', on: { click: () => this.remove(it.label) } }, icon('x'), h('span', { class: 'lbl' }, 'Discard'))));
+    body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b danger', 'data-tip': it.proposed ? 'Drop from the proposal (Backspace)' : 'Discard (Backspace)', on: { click: () => this.remove(it.label) } }, icon('x'), h('span', { class: 'lbl' }, it.proposed ? 'Drop' : 'Discard'))));
     insp.showDraft(head, body);
     this.paintProblems();
   }
@@ -1226,12 +1234,12 @@ export class Board {
     const f = it.form || { fields: [], title: it.type };
     const edit = this.editOf(it);
     const head = {
-      kick: it.remove ? `Draft · delete ${kindWord(it)}` : `Draft · edit ${kindWord(it)}`,
+      kick: `${stateWord(it)} · ${it.remove ? 'delete' : 'edit'} ${kindWord(it)}`,
       title: it.addr,
       long: it.addr.length > 22,
       path: h('div', { class: 'ih-path bd-what' }, h('b', null, f.title || it.type), h('code', null, f.def || it.type), it.provider ? h('span', { class: 'b' }, it.provider) : null),
       copy: it.addr,
-      tags: [this.changeTag = h('span', { class: 'b bd-draft' }, changeWord(it, edit))],
+      tags: [this.changeTag = h('span', { class: 'b bd-draft' + (it.proposed ? ' prop' : '') }, changeWord(it, edit))],
     };
     const body = h('div', { class: 'bd-form', data: { label: it.label } });
     this.formEl = body;
@@ -1589,7 +1597,7 @@ export class Board {
     for (const c of cands.slice(0, 12)) {
       const on = cur.some((w) => w.to === c.addr);
       menu.append(h('button', { type: 'button', role: 'menuitem', class: 'bd-mi' + (on ? ' on' : ''), on: { click: () => { if (on) unwire(it, f, c.addr); else setWire(it, f, c.addr, c.read); this.closeMenu(); this.changed({ graph: true }); this.cb.redrawInspector(); } } },
-        h('span', { class: 'bd-sockm' + (on ? ' on' : '') }), h('b', null, c.addr), h('code', null, `.${c.read}`), h('span', { class: 'bd-pv' + (c.draft ? ' d' : '') }, c.draft ? 'draft' : c.type)));
+        h('span', { class: 'bd-sockm' + (on ? ' on' : '') }), h('b', null, c.addr), h('code', null, `.${c.read}`), h('span', { class: 'bd-pv' + (c.draft ? (c.proposed ? ' p' : ' d') : '') }, c.draft ? draftWord(c) : c.type)));
     }
     if (!cands.length) menu.append(h('p', { class: 'bd-none' }, 'No matching resource.'));
     for (const t of f.wire.to.slice(0, 2)) {
@@ -1621,7 +1629,7 @@ export class Board {
     const raw = this.cb.raw();
     const cands = [
       ...((raw && raw.nodes) || []).filter((n) => sec.kinds.includes(n.type) && !n.draft && n.presence !== 'state').map((n) => ({ addr: n.addr, kind: n.type })),
-      ...this.items.filter((d) => sec.kinds.includes(d.kind)).map((d) => ({ addr: d.label, kind: d.kind, draft: true })),
+      ...this.items.filter((d) => sec.kinds.includes(d.kind)).map((d) => ({ addr: d.label, kind: d.kind, draft: true, proposed: !!d.proposed })),
     ];
     const cur = wiresOf(it.values[f.name] || {});
     const menu = h('div', { class: 'bd-menu', role: 'menu', 'aria-label': `Secret for ${label}.${field}` });
@@ -1629,7 +1637,7 @@ export class Board {
     for (const c of cands.slice(0, 12)) {
       const on = cur.some((w) => w.to === c.addr);
       menu.append(h('button', { type: 'button', role: 'menuitem', class: 'bd-mi' + (on ? ' on' : ''), on: { click: () => { if (on) unwire(it, f, c.addr); else setWire(it, f, c.addr, sec.read); this.closeMenu(); this.changed({ graph: true }); this.cb.redrawInspector(); } } },
-        h('span', { class: 'bd-sockm' + (on ? ' on' : '') }), h('b', null, c.addr), h('code', null, `.${sec.read}`), h('span', { class: 'bd-pv' + (c.draft ? ' d' : '') }, c.draft ? 'draft' : KIND_WORDS[c.kind])));
+        h('span', { class: 'bd-sockm' + (on ? ' on' : '') }), h('b', null, c.addr), h('code', null, `.${sec.read}`), h('span', { class: 'bd-pv' + (c.draft ? (c.proposed ? ' p' : ' d') : '') }, c.draft ? draftWord(c) : KIND_WORDS[c.kind])));
     }
     if (!cands.length) menu.append(h('p', { class: 'bd-none' }, `No ${sec.kinds.map((k) => KIND_WORDS[k]).join(' or ')} yet.`));
     for (const k of sec.kinds) {
@@ -1802,6 +1810,11 @@ function valueShort(v) {
   const ws = wiresOf(v);
   return ws.length ? clipText(ws.map((x) => '\u2190 ' + x.to + (x.read ? '.' + x.read : '')).join(', '), 48) : '';
 }
+
+// A thing that Ask drew and the person has not kept is a proposal; one the person drew or kept is a draft.
+const stateWord = (it) => (it.proposed ? 'Proposal' : 'Draft');
+const draftWord = (c) => (c.proposed ? 'proposal' : 'draft');
+const stateTag = (it) => h('span', { class: 'b bd-draft' + (it.proposed ? ' prop' : '') }, draftWord(it));
 
 const changeWord = (it, edit) => (it.remove ? 'delete' : edit ? 'edit' : 'unchanged');
 
