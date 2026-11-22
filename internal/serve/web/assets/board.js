@@ -4,7 +4,7 @@
 // plans it. Nothing here stores a position: the layout engine places what is drawn, as it
 // places everything else, and the code is the only thing that is kept.
 
-import { h, clear, icon, debounce, plural, copyText, fmt } from './util.js';
+import { h, clear, icon, debounce, plural, copyText, fmt, clamp } from './util.js';
 import { codeWindow } from './ui.js';
 import * as api from './api.js';
 
@@ -791,7 +791,8 @@ export class Board {
     this.cb.announce('Proposal dropped');
   }
 
-  // renderProposal is the bar of a proposal that waits: what it adds and edits, and Keep and Drop
+  // renderProposal is the card of a proposal that waits, beside what it drew: each thing with the fields it sets and
+  // the required fields it leaves unset, then Form, Drop and Keep. placeProposal keeps it there as the graph moves.
   renderProposal() {
     const el = this.propEl;
     clear(el);
@@ -800,10 +801,59 @@ export class Board {
     if (!pending.length) return;
     const adds = pending.filter((it) => it.kind !== 'change').length, chg = pending.length - adds;
     const said = [adds ? `${adds} new` : '', chg ? `${chg} edited` : ''].filter(Boolean).join(', ');
-    el.append(h('span', { class: 'bd-pk' }, icon('ask'), 'Proposal'), h('span', { class: 'bd-pt' }, said),
-      h('span', { class: 'grow' }),
-      h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Discard the proposal', on: { click: () => this.dropProposal() } }, icon('x'), h('span', { class: 'lbl' }, 'Drop')),
-      h('button', { type: 'button', class: 'bd-b sm go', 'data-tip': 'Add the proposal to the draft', on: { click: () => this.keepProposal() } }, icon('check'), h('span', { class: 'lbl' }, 'Keep')));
+    const first = addrOf(pending[0]);
+    el.append(h('div', { class: 'bd-ph' }, h('span', { class: 'bd-pk' }, icon('ask'), 'Proposal'), h('span', { class: 'bd-pt' }, said)),
+      h('div', { class: 'bd-pl' }, ...pending.slice(0, 4).map((it) => this.proposalItem(it)),
+        pending.length > 4 ? h('p', { class: 'bd-pmore' }, `+${pending.length - 4} more`) : null),
+      h('div', { class: 'bd-pa' },
+        h('button', { type: 'button', class: 'bd-b sm', 'data-tip': `Show the form of ${first} in the inspector`, on: { click: () => this.cb.openForm(first) } }, icon('file'), h('span', { class: 'lbl' }, 'Form')),
+        h('span', { class: 'grow' }),
+        h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Discard the proposal', on: { click: () => this.dropProposal() } }, icon('x'), h('span', { class: 'lbl' }, 'Drop')),
+        h('button', { type: 'button', class: 'bd-b sm go', 'data-tip': 'Add the proposal to the draft', on: { click: () => this.keepProposal() } }, icon('check'), h('span', { class: 'lbl' }, 'Keep'))));
+    this.placeProposal();
+  }
+
+  // proposalItem is one thing of a proposal: its name and type, the fields it sets, and the required ones still unset
+  proposalItem(it) {
+    const addr = addrOf(it);
+    let what, rows;
+    if (it.kind === 'change') {
+      const e = this.editOf(it) || {};
+      what = it.remove ? 'delete' : 'edit';
+      rows = [...Object.entries(e.set || {}).map(([k, v]) => [k, valueShort(v)]), ...(e.unset || []).map((k) => [k, 'unset'])];
+    } else {
+      what = it.type || it.template || kindWord(it);
+      rows = Object.entries(it.values).map(([k, v]) => [k, valueShort(v)]);
+    }
+    const miss = it.remove ? [] : this.missing(it);
+    return h('div', { class: 'bd-pi' },
+      h('button', { type: 'button', class: 'bd-pn', 'data-tip': `Select ${addr}`, on: { click: () => this.cb.select(addr) } }, h('b', null, addr), h('span', null, what)),
+      rows.length ? h('dl', { class: 'bd-pf' }, ...rows.slice(0, 6).flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)])) : null,
+      rows.length > 6 ? h('p', { class: 'bd-pmore' }, `+${rows.length - 6} more fields`) : null,
+      miss.length ? h('p', { class: 'bd-pmiss' }, `Required unset: ${miss.join(', ')}`) : null);
+  }
+
+  // placeProposal puts the card under the first thing of the proposal, or above or beside it where there is no room,
+  // and in the corner while that thing is off the canvas
+  placeProposal() {
+    const el = this.propEl;
+    if (!el || el.hidden) return;
+    const first = this.items.find((it) => it.proposed);
+    const box = first && this.cb.boxOf(addrOf(first));
+    const W = this.el.clientWidth, H = this.el.clientHeight - this.strip.offsetHeight - 16, w = el.offsetWidth, ht = el.offsetHeight;
+    let left = 12, top = 12;
+    if (box && box.x + box.w > 0 && box.x < W && box.y + box.h > 0 && box.y < H) {
+      left = box.x;
+      top = box.y + box.h + 10;
+      if (top + ht > H) top = box.y - ht - 10;
+      if (top < 8) {
+        top = box.y;
+        left = box.x + box.w + 12 + w > W - 8 ? box.x - w - 12 : box.x + box.w + 12;
+      }
+      left = clamp(left, 8, Math.max(8, W - w - 8));
+      top = clamp(top, 8, Math.max(8, H - ht));
+    }
+    el.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
   }
 
   // ---- the chrome ----
@@ -1740,6 +1790,17 @@ function cueFields(board, it) {
     const v = it.values[f.name];
     if (v && v.expr !== undefined && (f.kind === 'text' || (f.kind === 'number' && !/^-?\d+(\.\d+)?$/.test(v.expr.trim())))) it.cue.add(f.name);
   }
+}
+
+const addrOf = (it) => (it.kind === 'change' ? it.addr : it.label);
+
+// valueShort is a value of a field in a line: a text quoted, CUE as written, a wire as what it reads
+function valueShort(v) {
+  if (!v) return '';
+  if (v.text !== undefined) return clipText(JSON.stringify(v.text), 48);
+  if (v.expr !== undefined) return clipText(v.expr.replace(/\s+/g, ' '), 48);
+  const ws = wiresOf(v);
+  return ws.length ? clipText(ws.map((x) => '\u2190 ' + x.to + (x.read ? '.' + x.read : '')).join(', '), 48) : '';
 }
 
 const changeWord = (it, edit) => (it.remove ? 'delete' : edit ? 'edit' : 'unchanged');

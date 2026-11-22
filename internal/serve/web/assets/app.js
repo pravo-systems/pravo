@@ -599,6 +599,8 @@ function relayout(o = {}) {
 }
 
 function minimapDraw() { schedule('minimap', () => minimap.draw()); }
+// viewMoved follows a move of the graph: the minimap, and the card of a proposal beside what it drew
+function viewMoved() { minimapDraw(); if (board) board.placeProposal(); }
 
 function dist(model, start, dir) {
   const out = new Map();
@@ -1890,9 +1892,9 @@ function wire() {
     onCluster: clusterAction,
     onSocket: (addr, field, ev) => { if (board) board.socketMenu(addr, field, null, { x: ev.clientX, y: ev.clientY }); },
     onClear: clearSelection,
-    onView: () => minimapDraw(),
-    onScene: () => minimapDraw(),
-    onSettled: () => minimapDraw(),
+    onView: () => viewMoved(),
+    onScene: () => viewMoved(),
+    onSettled: () => viewMoved(),
   });
   gv.motion = S.motion; // motion=off in the fragment was read before the graph existed
   minimap = new Minimap($('canvas'), gv);
@@ -1910,6 +1912,10 @@ function wire() {
     columns: maxRank,
     pad: padBoard,
     ask: (q) => { if (chatView) chatView.ask(q); },
+    // where a thing is drawn on the canvas, for the card of a proposal
+    boxOf: (addr) => { const id = itemOf(addr); return id && gv ? gv.screenBox(id) : null; },
+    // the form of a thing in the inspector, which Ask covers while it is open
+    openForm: (addr) => { if (chatView && chatView.isOpen) chatView.close(); if (S.model.nodes.has(addr)) selectNode(addr); },
     proposalChanged: () => { if (chatView) chatView.refreshProposal(); },
   });
   board.mount($('canvas'));

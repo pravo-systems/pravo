@@ -1097,6 +1097,14 @@ export class GraphView {
     this._tipHide = clearTip;
   }
 
+  // screenBox is where an item is drawn, in pixels of the canvas, or null when it is not laid out
+  screenBox(id) {
+    const p = this.lay && this.lay.pos.get(id);
+    if (!p) return null;
+    const { x, y, k } = this.view;
+    return { x: p.x * k + x, y: p.y * k + y, w: p.w * k, h: p.h * k };
+  }
+
   showTip(id) {
     let content, box;
     if (id.startsWith('lane:')) {
