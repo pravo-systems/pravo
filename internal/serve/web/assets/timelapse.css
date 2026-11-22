@@ -70,6 +70,9 @@ body:has(.app[data-view="timelapse"]) .planstrip, body:has(.app[data-view="timel
 .tl-deck-b { padding: .8rem .8rem .5rem; }
 .tl-deck-f { display: flex; align-items: center; gap: 1rem; padding: .5rem .8rem; border-top: 1px solid var(--line); }
 .tl-deck-k { margin: 0; font-size: var(--fs-2); color: var(--text-3); min-width: 0; }
+.tl-deck-k p { margin: 0; }
+.tl-deck-k .tl-tickcap { margin-top: .25rem; }
+.tl-tickcap code { font: 400 var(--fs-1)/1 var(--font-mono); color: var(--text-2); }
 .tl-btns { display: flex; gap: .4rem; flex: none; }
 .tl-btn { display: inline-flex; align-items: center; gap: .4rem; min-height: 2.1rem; }
 .tl-btn:disabled { opacity: .4; pointer-events: none; }
