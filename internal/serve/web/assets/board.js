@@ -1167,24 +1167,34 @@ export class Board {
     if (req.length) body.append(h('h3', { class: 'bd-sh' }, 'Required', h('span', { class: 'bd-n' }, String(req.length))), ...req.map((x) => this.fieldRow(it, x)));
     if (!opt.length) return;
     const rows = opt.map((x) => this.fieldRow(it, x));
-    const head = h('h3', { class: 'bd-sh' }, 'Optional', h('span', { class: 'bd-n' }, String(opt.length)));
-    body.append(head);
-    if (opt.length > 8) {
-      const q = h('input', { type: 'search', class: 'bd-q', placeholder: `Filter ${opt.length} fields`, 'aria-label': 'Filter optional fields', autocomplete: 'off', spellcheck: 'false' });
-      const none = h('p', { class: 'bd-none', hidden: true }, 'No matching field.');
-      q.addEventListener('input', () => {
-        const w = q.value.trim().toLowerCase();
-        let shown = 0;
-        opt.forEach((x, i) => {
-          const on = !w || x.name.includes(w) || (x.doc || '').toLowerCase().includes(w);
-          rows[i].hidden = !on;
-          if (on) shown++;
-        });
-        none.hidden = shown > 0;
+    // the optional fields fold: a field that is set stays in view, and the filter finds a field that is folded away
+    let open = optOpen(opt.length);
+    const btn = h('button', { type: 'button', class: 'bd-fold', 'aria-expanded': String(open), 'data-tip': 'Fold or unfold the optional fields' }, icon('chev'), 'Optional', h('span', { class: 'bd-n' }, String(opt.length)));
+    const q = opt.length > 8 ? h('input', { type: 'search', class: 'bd-q', placeholder: `Filter ${opt.length} fields`, 'aria-label': 'Filter optional fields', autocomplete: 'off', spellcheck: 'false' }) : null;
+    const none = h('p', { class: 'bd-none', hidden: true }, 'No matching field.');
+    const more = h('button', { type: 'button', class: 'bd-more', hidden: true, on: { click: () => { open = true; paint(true); } } });
+    const paint = (keep) => {
+      const w = q ? q.value.trim().toLowerCase() : '';
+      let shown = 0, folded = 0;
+      opt.forEach((x, i) => {
+        const match = !w || x.name.includes(w) || (x.doc || '').toLowerCase().includes(w);
+        const on = match && (open || !!w || !!it.values[x.name]);
+        if (match && !on) folded++;
+        rows[i].hidden = !on;
+        if (on) shown++;
       });
-      body.append(q, none);
-    }
-    body.append(...rows);
+      btn.setAttribute('aria-expanded', String(open));
+      none.hidden = shown > 0 || folded > 0;
+      more.hidden = !folded;
+      more.textContent = `${plural(folded, 'unset field')} folded · Show`;
+      if (keep) optOpen(opt.length, open);
+    };
+    btn.addEventListener('click', () => { open = !open; paint(true); });
+    if (q) q.addEventListener('input', () => paint(false));
+    body.append(h('h3', { class: 'bd-sh bd-shf' }, btn));
+    if (q) body.append(q);
+    body.append(none, ...rows, more);
+    paint(false);
   }
 
   // showChange draws the form of a resource of the specification that the drawing changes: its fields as written, and
@@ -1258,7 +1268,7 @@ export class Board {
     const lab = h('label', { class: 'bd-fl' }, h('code', null, f.name), f.wire ? h('span', { class: 'bd-sockm', title: 'takes a wire' }) : null, h('span', { class: 'bd-ty' }, f.type),
       f.computed && !f.required ? h('span', { class: 'bd-ty', title: 'Computed by the provider when unset' }, 'computed') : null, f.deprecated ? h('span', { class: 'bd-pv' }, 'deprecated') : null);
     row.append(lab);
-    if (f.doc) row.append(h('p', { class: 'bd-fd' }, f.doc));
+    if (f.doc) row.append(h('p', { class: 'bd-fd', title: f.doc.length > 90 ? f.doc : null }, f.doc));
     const ctl = h('div', { class: 'bd-ctl' });
     row.append(ctl, h('p', { class: 'bd-fe', role: 'alert' }));
     const draw = () => {
@@ -1702,6 +1712,18 @@ export class Board {
 }
 
 // ---- helpers ----
+
+// optOpen says whether the optional fields of a form are unfolded, as the person last left them, or for a type with
+// more than 8 of them, folded at first; with open, it records the choice
+function optOpen(n, open) {
+  const key = 'pravo.board.optional';
+  try {
+    if (open !== undefined) { localStorage.setItem(key, open ? '1' : '0'); return open; }
+    const v = localStorage.getItem(key);
+    if (v === '1' || v === '0') return v === '1';
+  } catch { /* storage is off: the default */ }
+  return n <= 8;
+}
 
 // secretBase is the name of what a field holds, without the marks of a write-only field and of its version
 const secretBase = (name) => name.replace(/_wo_version$/, '').replace(/_wo$/, '');

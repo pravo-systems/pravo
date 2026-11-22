@@ -195,6 +195,17 @@
 .bd-fl code { font: 600 var(--fs-3) var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
 .bd-ty { font: 400 var(--fs-1) var(--font-mono); color: var(--text-3); }
 .bd-fd { margin: 0; font: 400 var(--fs-2)/1.4 var(--font-ui); color: var(--text-3); }
+/* a field's description is one line until the field is pointed at or has the focus */
+.bd-row > .bd-fd { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+.bd-row:hover > .bd-fd, .bd-row:focus-within > .bd-fd { -webkit-line-clamp: unset; }
+.bd-shf { padding-bottom: 0; }
+.bd-fold { display: flex; align-items: center; gap: .35rem; width: 100%; padding: 0 0 .35rem; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; text-align: left; }
+.bd-fold:hover { color: var(--text); }
+.bd-fold .i { width: .7rem; height: .7rem; transition: transform .12s; }
+.bd-fold[aria-expanded="true"] .i { transform: rotate(90deg); }
+.bd-fold .bd-n { margin-left: .15rem; }
+.bd-more { justify-self: start; padding: .35rem 0; font: 400 var(--fs-2) var(--font-mono); color: var(--text-3); }
+.bd-more:hover { color: var(--key); }
 .bd-fe { margin: 0; font: 400 var(--fs-2)/1.35 var(--font-ui); color: var(--conflict); }
 .bd-fe:empty { display: none; }
 .bd-ctl { --bd-h: 2.25rem; display: flex; flex-wrap: wrap; gap: .35rem; align-items: flex-start; }
