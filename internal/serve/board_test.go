@@ -316,3 +316,54 @@ func TestBoardAdoptsAnObjectADiscoveryFound(t *testing.T) {
 		}
 	}
 }
+
+// Two providers of one source: the bar lists each type once with both providers, each told apart by what the
+// specification sets of it (never a secret it holds), and a thing drawn is written through the provider it names.
+func TestBoardListsATypeOnceForProvidersOfOneSource(t *testing.T) {
+	dir := t.TempDir()
+	spec := strings.Replace(specCUE, "$fake: {", "#Fake: {\n\tregion?:  string\n\tprofile?: string", 1) + `
+$fake:   #Fake & {region: "us"}
+$fakeEu: #Fake & {region: "eu-west-1", profile: "` + secretBlob + `"}
+`
+	writeSpec(t, dir, spec)
+	st, err := state.Open(filepath.Join(dir, "pravo.state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed(t, st)
+	p := start(t, dir, st, Options{})
+
+	var cfg BoardConfig
+	if err := json.Unmarshal(p.get("/api/board"), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	hints := map[string]string{}
+	for _, pr := range cfg.Providers {
+		hints[pr.Label] = pr.Hint
+	}
+	if len(cfg.Providers) != 2 || hints["$fake"] != "region us" || hints["$fakeEu"] != "region eu-west-1" {
+		t.Fatalf("providers: %+v (%s)", cfg.Providers, cfg.Problem)
+	}
+
+	var types BoardTypes
+	if err := json.Unmarshal(p.get("/api/board/types?q=fake"), &types); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]int{}
+	for _, hit := range types.Hits {
+		seen[hit.Type]++
+		if hit.Kind == "resource" && strings.Join(hit.Providers, " ") != "$fake $fakeEu" {
+			t.Errorf("%s lists providers %v", hit.Type, hit.Providers)
+		}
+	}
+	if seen["fake_db"] != 1 || seen["fake_file"] != 1 || types.Total != 2 {
+		t.Fatalf("types: %+v", types)
+	}
+
+	d := ordersDraft()
+	d.Items[0].Provider = "$fakeEu"
+	chk := boardCheckOf(t, p, d)
+	if chk.State != "valid" || !strings.Contains(chk.Code, "orders: $fakeEu.#Resource.fake_db & {") {
+		t.Fatalf("check: %s %+v\n%s", chk.State, chk.Problems, chk.Code)
+	}
+}

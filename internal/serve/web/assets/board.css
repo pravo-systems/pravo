@@ -34,6 +34,11 @@
 .bd-pv { font: 500 var(--fs-1)/1 var(--font-mono); color: var(--text-3); padding: .2rem .35rem; border: 1px solid var(--line); white-space: nowrap; }
 .bd-pv.t, .bd-pv.d { color: var(--key); border-color: color-mix(in srgb, var(--key) 40%, transparent); }
 .bd-none { margin: 0; padding: .6rem .7rem; font: 400 var(--fs-3) var(--font-ui); color: var(--text-3); }
+.bd-ph { display: flex; align-items: center; gap: .45rem; padding: .3rem .45rem .45rem; border-bottom: 1px solid var(--line); margin-bottom: .25rem; font: 400 var(--fs-3) var(--font-ui); color: var(--text-2); }
+.bd-ph b { color: var(--text); font-weight: 600; }
+.bd-ph code { font: 400 var(--fs-2) var(--font-mono); color: var(--text-2); }
+.bd-prov b { font-family: var(--font-mono); }
+.bd-psel { width: auto; max-width: 100%; padding: .15rem .35rem; font-size: var(--fs-2); }
 
 .bd-lamps { display: flex; gap: .35rem; min-width: 0; }
 .bd-lamp { display: flex; align-items: center; gap: .45rem; height: 2.3rem; padding: 0 .65rem; max-width: 12rem; min-width: 0; border: 1px solid var(--line); background: var(--surface); font: 400 var(--fs-2)/1 var(--font-ui); color: var(--text-2); }

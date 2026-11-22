@@ -18,7 +18,7 @@ type BoardTypes struct {
 	Version int            `json:"version"`
 	Query   string         `json:"query"`
 	Hits    []BoardTypeHit `json:"hits"`
-	// Total is how many types the providers of the board have.
+	// Total is how many types the providers of the board have, each counted once.
 	Total int `json:"total"`
 }
 
@@ -30,8 +30,12 @@ type BoardTypeHit struct {
 	Type string `json:"type"`
 	// Title is the plain name: "Virtual machine" for aws_instance.
 	Title string `json:"title"`
-	// Provider is the struct of the provider that runs it, such as $aws; empty for a template.
+	// Provider is the struct of the provider that runs it, such as $aws; empty for a template. With several providers
+	// that can draw the type, it is the first the specification declares.
 	Provider string `json:"provider,omitempty"`
+	// Providers are all the provider structs that can draw the type, Provider first, when there are two or more: a type
+	// is one hit however many providers of its source the specification declares, and the person picks the provider.
+	Providers []string `json:"providers,omitempty"`
 	// Blurb is the first sentence of what the schema or the template says of it.
 	Blurb string `json:"blurb,omitempty"`
 }
@@ -303,11 +307,26 @@ func (s *Server) boardTypesHandler(w http.ResponseWriter, r *http.Request, m *mo
 		score int
 	}
 	var all []scored
+	// one hit for each type, whichever providers can draw it
+	byType := map[string]int{}
+	counted := map[string]bool{}
 	for _, p := range s.boardProviders(m) {
-		out.Total += len(p.types)
 		for _, typ := range p.types {
+			if i, ok := byType[typ]; ok {
+				h := &all[i].hit
+				if len(h.Providers) == 0 {
+					h.Providers = []string{h.Provider}
+				}
+				h.Providers = append(h.Providers, p.Label)
+				continue
+			}
+			if !counted[typ] {
+				counted[typ] = true
+				out.Total++
+			}
 			title := boardTitle(typ)
 			if sc := boardTypeScore(typ, title, kept); sc > 0 {
+				byType[typ] = len(all)
 				all = append(all, scored{BoardTypeHit{Kind: "resource", Type: typ, Title: title, Provider: p.Label}, sc})
 			}
 		}

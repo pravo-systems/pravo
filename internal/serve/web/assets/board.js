@@ -35,6 +35,11 @@ export class Board {
     this.el = null;
     this.hits = [];
     this.hit = 0;
+    // choosing is the hit of a type that several providers can draw, while the bar asks which; lastProv is the provider
+    // last picked for each source
+    this.choosing = null;
+    this.provHit = 0;
+    this.lastProv = {};
     this.typeSeq = 0;
     this.recheck = debounce(() => this.runCheck(), CHECK_MS);
     this.findTypes = debounce((q) => this.searchTypes(q), 110);
@@ -76,13 +81,20 @@ export class Board {
     this.startEl = h('section', { class: 'bd-start', 'aria-labelledby': 'bd-start-h', hidden: true });
     this.el = h('div', { class: 'overlay board', id: 'board', hidden: true }, this.sweep, this.startEl, this.guideEl, this.code, this.tb, this.hint, this.strip);
     canvas.append(this.el);
-    this.input.addEventListener('input', () => this.findTypes(this.input.value));
+    this.input.addEventListener('input', () => { this.choosing = null; this.findTypes(this.input.value); });
     this.input.addEventListener('keydown', (ev) => this.onBarKey(ev));
     // an empty bar lists every type as it takes the focus; over the start of an empty state it waits for a word
     this.input.addEventListener('focus', () => { if (this.input.value) this.findTypes(this.input.value); else if (!this.startShown()) this.searchTypes(''); });
     this.input.addEventListener('blur', () => setTimeout(() => { if (!this.hitsEl.contains(document.activeElement)) this.closeHits(); }, 120));
     this.hitsEl.addEventListener('mousedown', (ev) => ev.preventDefault());
-    this.hitsEl.addEventListener('click', (ev) => { const b = ev.target.closest('[data-i]'); if (b) { if (b.dataset.ask) this.askFromBar(); else this.pick(this.hits[+b.dataset.i]); } });
+    this.hitsEl.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-i],[data-p],[data-back]');
+      if (!b) return;
+      if (b.dataset.back) this.unchoose();
+      else if (b.dataset.p) this.pick(this.choosing, this.choosing.providers[+b.dataset.p]);
+      else if (b.dataset.ask) this.askFromBar();
+      else this.pick(this.hits[+b.dataset.i]);
+    });
     this.btn.code.addEventListener('click', () => this.toggleCode());
     this.btn.review.addEventListener('click', () => this.ask('review'));
     this.btn.save.addEventListener('click', () => this.save());
@@ -454,13 +466,14 @@ export class Board {
 
   drawHits(q) {
     clear(this.hitsEl);
+    this.hitsEl.setAttribute('aria-label', 'Resource types');
     const ask = !!(this.cfg.guide && q.trim());
     if (!this.hits.length && !ask) {
       this.hitsEl.append(h('p', { class: 'bd-none' }, q ? `No resource type of ${this.providerNames()} is called “${q}”.` : 'Type what to add.'));
     }
     this.hits.forEach((x, i) => {
       this.hitsEl.append(h('button', { type: 'button', class: 'bd-hit' + (i === this.hit ? ' on' : ''), role: 'option', 'aria-selected': i === this.hit ? 'true' : 'false', data: { i } },
-        h('b', null, x.title), h('code', null, x.kind === 'template' ? 'template ' + x.type : x.type), x.provider ? h('span', { class: 'bd-pv' }, x.provider) : h('span', { class: 'bd-pv t' }, 'template'),
+        h('b', null, x.title), h('code', null, x.kind === 'template' ? 'template ' + x.type : x.type), this.hitChip(x),
         x.blurb ? h('span', { class: 'bd-blurb' }, x.blurb) : null));
     });
     if (ask) {
@@ -472,14 +485,59 @@ export class Board {
     this.input.setAttribute('aria-expanded', 'true');
   }
 
+  // hitChip names who draws a hit: its provider, how many providers can when there are several, or template
+  hitChip(x) {
+    if (x.kind === 'template') return h('span', { class: 'bd-pv t' }, 'template');
+    const n = (x.providers || []).length;
+    return h('span', { class: 'bd-pv', title: n > 1 ? x.providers.join(', ') : null }, n > 1 ? `${n} providers` : x.provider);
+  }
+
+  // chooseProvider turns the list of the bar into the providers that can draw the hit, the one last picked for its
+  // source first in focus
+  chooseProvider(hit) {
+    this.choosing = hit;
+    this.provHit = Math.max(0, hit.providers.indexOf(this.lastProv[this.sourceOf(hit.provider)]));
+    this.drawProviders();
+  }
+
+  unchoose() {
+    this.choosing = null;
+    this.drawHits(this.input.value);
+    this.input.focus();
+  }
+
+  sourceOf(label) {
+    const p = (this.cfg.providers || []).find((x) => x.label === label);
+    return p ? p.source : label;
+  }
+
+  drawProviders() {
+    const hit = this.choosing;
+    const last = this.lastProv[this.sourceOf(hit.provider)];
+    clear(this.hitsEl);
+    this.hitsEl.setAttribute('aria-label', `Providers of ${hit.type}`);
+    this.hitsEl.append(h('div', { class: 'bd-ph' },
+      h('button', { type: 'button', class: 'iconbtn sm', 'aria-label': 'Back to the types', 'data-tip': 'Back to the types (Esc)', data: { back: '1' } }, icon('back')),
+      h('span', null, h('b', null, hit.title), ' ', h('code', null, hit.type), ' with which provider?')));
+    hit.providers.forEach((label, i) => {
+      const p = (this.cfg.providers || []).find((x) => x.label === label) || { label };
+      const on = i === this.provHit;
+      this.hitsEl.append(h('button', { type: 'button', class: 'bd-hit bd-prov' + (on ? ' on' : ''), role: 'option', 'aria-selected': on ? 'true' : 'false', data: { p: String(i) } },
+        h('b', null, label), h('code', null, p.hint || ''), label === last ? h('span', { class: 'bd-pv' }, 'last used') : h('span')));
+    });
+    this.hitsEl.hidden = false;
+    this.input.setAttribute('aria-expanded', 'true');
+  }
+
   providerNames() {
     const ps = (this.cfg && this.cfg.providers) || [];
     return ps.length ? ps.map((p) => p.label).join(', ') : 'the providers';
   }
 
-  closeHits() { this.hitsEl.hidden = true; this.input.setAttribute('aria-expanded', 'false'); }
+  closeHits() { this.choosing = null; this.hitsEl.hidden = true; this.input.setAttribute('aria-expanded', 'false'); }
 
   onBarKey(ev) {
+    if (this.choosing) { this.onProviderKey(ev); return; }
     const n = this.options();
     if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
       ev.preventDefault();
@@ -495,6 +553,22 @@ export class Board {
     }
   }
 
+  onProviderKey(ev) {
+    const ps = this.choosing.providers;
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      this.provHit = (this.provHit + (ev.key === 'ArrowDown' ? 1 : ps.length - 1)) % ps.length;
+      this.drawProviders();
+    } else if (ev.key === 'Enter') {
+      ev.preventDefault();
+      this.pick(this.choosing, ps[this.provHit]);
+    } else if (ev.key === 'Escape' || (ev.key === 'Backspace' && !this.input.value)) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.unchoose();
+    }
+  }
+
   askFromBar() {
     const wish = this.input.value.trim();
     if (!wish || !this.cfg.guide) return;
@@ -503,9 +577,15 @@ export class Board {
     this.ask('draw', { wish });
   }
 
-  async pick(hit) {
+  // pick draws the hit; a type that several providers can draw asks which first, unless provider names it
+  async pick(hit, provider) {
+    if (!provider && (hit.providers || []).length > 1) { this.chooseProvider(hit); return; }
     this.closeHits();
     this.input.value = '';
+    if (provider) {
+      this.lastProv[this.sourceOf(provider)] = provider;
+      hit = { ...hit, provider };
+    }
     const it = await this.add(hit);
     if (it) this.input.focus();
   }
@@ -898,6 +978,22 @@ export class Board {
 
   // ---- the form, in the inspector ----
 
+  // providerTag names the provider of a thing drawn; while the specification has other providers of its source, it is a
+  // switch among them. A resource that adopts keeps the provider its discovery found it with.
+  providerTag(it) {
+    if (!it.provider) return null;
+    const same = (this.cfg.providers || []).filter((p) => p.source === this.sourceOf(it.provider));
+    if (it.kind !== 'resource' || it.adopt || it.saved || same.length < 2) return h('span', { class: 'b' }, it.provider);
+    const sel = h('select', { class: 'bd-sel bd-psel', 'aria-label': 'Provider', 'data-tip': 'The provider that draws it' },
+      ...same.map((p) => h('option', { value: p.label, selected: p.label === it.provider }, p.hint ? `${p.label} · ${p.hint}` : p.label)));
+    sel.addEventListener('change', () => {
+      it.provider = sel.value;
+      this.lastProv[this.sourceOf(sel.value)] = sel.value;
+      this.changed({ graph: true });
+    });
+    return sel;
+  }
+
   // showForm draws the form of a thing drawn in the inspector
   showForm(label, insp) {
     if (this.inFold(label)) { this.showFold(label, insp); return; }
@@ -912,7 +1008,7 @@ export class Board {
     const head = {
       kick: it.guide ? 'Drawn by the guide · keep it or drop it' : it.kind === 'template' ? 'Drawing · template' : it.adopt ? 'Drawing · resource that adopts' : 'Drawing · resource',
       title: nameIn,
-      path: h('div', { class: 'ih-path bd-what' }, h('b', null, f.title), h('code', null, it.kind === 'template' ? it.template : it.type), it.provider ? h('span', { class: 'b' }, it.provider) : null),
+      path: h('div', { class: 'ih-path bd-what' }, h('b', null, f.title), h('code', null, it.kind === 'template' ? it.template : it.type), this.providerTag(it)),
       tags: [h('span', { class: 'b bd-draft' }, 'draft')],
     };
     const body = h('div', { class: 'bd-form', data: { label: it.label } });

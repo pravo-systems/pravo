@@ -140,6 +140,9 @@ type BoardProvider struct {
 	Source  string `json:"source"`
 	Version string `json:"version"`
 	Types   int    `json:"types"`
+	// Hint tells providers of one source apart: what the specification sets of region, location, zone, project or
+	// profile, as text that is no secret, such as "region us-east-1".
+	Hint string `json:"hint,omitempty"`
 }
 
 // BoardDraft is the drawing that the page sends: the body of POST /api/board/check, /save and /plan.
@@ -319,6 +322,9 @@ func (s *Server) boardData(m *model) *boardModel {
 				p.set[t] = true
 			}
 			p.Types = len(p.types)
+			m.spec.cueMu.Lock()
+			p.Hint = boardProvHint(root.Value.LookupPath(d.Path), sch, m.scrubText)
+			m.spec.cueMu.Unlock()
 			seen[label] = true
 			bm.provs = append(bm.provs, p)
 		}
@@ -352,6 +358,42 @@ func (s *Server) boardData(m *model) *boardModel {
 }
 
 func (s *Server) boardProviders(m *model) []*boardProv { return s.boardData(m).provs }
+
+// boardHintKeys are the settings of a provider that tell two of one source apart, in the order the hint names them.
+var boardHintKeys = []string{"region", "location", "zone", "project", "profile"}
+
+// boardProvHint is the hint of the provider struct v: the first two of boardHintKeys that it sets to a concrete string,
+// leaving out what the schema of the provider calls sensitive and any value that the viewer would withhold. The caller
+// holds cueMu.
+func boardProvHint(v cue.Value, sch Schemas, scrub func(string) string) string {
+	if !v.Exists() {
+		return ""
+	}
+	secret := map[string]bool{}
+	if ps := sch.Provider(); ps != nil && ps.Block != nil {
+		for _, a := range ps.Block.Attributes {
+			secret[a.Name] = a.Sensitive || a.WriteOnly
+		}
+	}
+	var parts []string
+	for _, k := range boardHintKeys {
+		if secret[k] {
+			continue
+		}
+		f := v.LookupPath(cue.MakePath(cue.Str(k)))
+		if !f.Exists() || !f.IsConcrete() || f.Kind() != cue.StringKind {
+			continue
+		}
+		str, err := f.String()
+		if err != nil || str == "" || len(str) > 40 || scrub(str) != str {
+			continue
+		}
+		if parts = append(parts, k+" "+str); len(parts) == 2 {
+			break
+		}
+	}
+	return strings.Join(parts, ", ")
+}
 
 func (s *Server) boardWires(m *model) *wireIndex {
 	if ix := s.boardData(m).wires; ix != nil {

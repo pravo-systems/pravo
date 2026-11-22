@@ -133,7 +133,7 @@ func mcpDrawTools(d *mcpDrawer) []mcpTool {
 		return func(map[string]any) ([]string, error) { return []string{name}, nil }
 	}
 	return []mcpTool{
-		{Name: "pravo_draw_types", Description: "Find the resource types of the providers the specification declares, and its templates, that answer some words (database, bucket, network): the first step of drawing. Each hit names its type and the provider struct ($aws) to draw it with.",
+		{Name: "pravo_draw_types", Description: "Find the resource types of the providers the specification declares, and its templates, that answer some words (database, bucket, network): the first step of drawing. Each hit names its type and the provider struct ($aws) to draw it with; when the specification has several providers of one source, providers lists them all.",
 			InputSchema: mcpObject(map[string]any{"q": map[string]any{"type": "string", "description": "words, or a type name"}}),
 			args:        draw("draw-types"),
 			run: func(_ context.Context, in map[string]any) (string, error) {
