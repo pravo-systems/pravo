@@ -558,6 +558,7 @@ function toggleBoard(on) {
   $('app').dataset.board = board.on ? '1' : '';
   // the inspector of a selected resource offers to change it while the board is on
   if (S.sel && S.model && S.model.nodes.has(S.sel)) showInspector();
+  if (chatView) chatView.boardToggled();
   syncFragment();
 }
 
@@ -1908,6 +1909,8 @@ function wire() {
     pulse: (addr) => { const id = itemOf(addr); if (id) gv.flash(new Set([id])); },
     columns: maxRank,
     pad: padBoard,
+    ask: (q) => { if (chatView) chatView.ask(q); },
+    proposalChanged: () => { if (chatView) chatView.refreshProposal(); },
   });
   board.mount($('canvas'));
   $('btn-draw').addEventListener('click', () => toggleBoard());
@@ -2002,6 +2005,9 @@ function wire() {
     isPlan: (id) => S.plans.some((p) => p.id === id),
     onNode: (a) => { if (S.view !== 'graph' && S.view !== 'list') setView(S.lastResources || 'graph'); selectNode(a, { center: true }); },
     onPlan: openPlan,
+    board: () => (board && board.on ? board.askContext() : null),
+    propose: (p) => (board && board.on ? board.propose(p) : Promise.resolve([])),
+    proposalState: (made) => (board ? board.proposalState(made) : 'gone'),
     onToggle: (on) => {
       $('insp').classList.toggle('chat-on', on);
       if (on) $('app').dataset.chat = '1'; else delete $('app').dataset.chat;

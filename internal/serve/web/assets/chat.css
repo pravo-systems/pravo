@@ -27,6 +27,11 @@ button.ref, .ref { display: inline; padding: .12em .35em; margin: 0; border: 0; 
 .ref.plan { background: var(--change-wash); color: var(--change); }
 .ref.none { background: transparent; color: var(--text-2); cursor: default; }
 .ref .i { width: .7rem; height: .7rem; }
+/* what an answer drew on the board, and whether the person kept it */
+.a .a-prop { display: flex; gap: .45rem; align-items: baseline; margin: 0; padding: .55rem .9rem; border-top: 1px solid var(--line); border-left: 2px solid var(--overlap); font: 400 var(--fs-2)/1.6 var(--font-ui); color: var(--text-2); }
+.a .a-prop > .i { flex: none; color: var(--overlap); width: .8rem; height: .8rem; transform: translateY(.1rem); }
+.a .a-prop.kept, .a .a-prop.dropped, .a .a-prop.gone { border-left-color: var(--line-strong); }
+.a .a-prop.kept > .i, .a .a-prop.dropped > .i, .a .a-prop.gone > .i { color: var(--text-3); }
 .ledger { border-top: 1px solid var(--line); }
 .ledger summary { list-style: none; display: flex; align-items: center; gap: .5rem; padding: .45rem .7rem; font: 500 var(--fs-2)/1 var(--font-ui); color: var(--text-3); cursor: pointer; }
 .ledger summary::-webkit-details-marker { display: none; }

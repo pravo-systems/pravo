@@ -17,7 +17,8 @@ import (
 
 // The chat is README rule 12. It reads through the same handlers as the page, with
 // the token of the run, so that a value reaches a model only as the page would show
-// it. Its tools are listed here and in no other place; none writes.
+// it. Its tools are listed here, and with the drawing board open in board_ask.go
+// (rule 14); none writes.
 
 // ChatOptions turns the chat on. Nil in Options means it is off: the routes do not
 // exist and the page draws no control.
@@ -58,6 +59,9 @@ type ChatRequest struct {
 		Plan string `json:"plan"`
 		View string `json:"view"`
 	} `json:"context"`
+	// Board is the drawing board, when it is open: the model then also reads the types and forms of the board and can
+	// draw a proposal onto it (see board_ask.go).
+	Board *ChatBoard `json:"board,omitempty"`
 }
 
 // ChatTurn is a question or an answer.
@@ -284,8 +288,8 @@ func (s *Server) chatConfig(w http.ResponseWriter) {
 }
 
 // chatHandler answers one question as a stream of events: a "read" for each tool as
-// it is called, then "text" and "done" with everything that was sent to the model,
-// or "error". It is the one request of the page that talks to another host, and
+// it is called, with the board open a "proposal" when the model drew one, then "text"
+// and "done" with everything that was sent to the model, or "error". It is the one request of the page that talks to another host, and
 // reads nothing that the page's own requests do not read.
 func (s *Server) chatHandler(w http.ResponseWriter, r *http.Request) {
 	c := s.opts.Chat
@@ -303,7 +307,7 @@ func (s *Server) chatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req ChatRequest
-	dec := json.NewDecoder(io.LimitReader(r.Body, maxChatBody+1))
+	dec := json.NewDecoder(io.LimitReader(r.Body, maxChatBody+maxBoardBody+1)) // the conversation, and the drawing when the board is open
 	if err := dec.Decode(&req); err != nil || dec.More() {
 		writeError(w, http.StatusBadRequest, "the body is not a question")
 		return
@@ -313,6 +317,12 @@ func (s *Server) chatHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	run, err := s.chatRunOf(&req)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	hist[len(hist)-1].Text += run.tail
 	if s.chatActive.Add(1) > maxChatActive {
 		s.chatActive.Add(-1)
 		writeError(w, http.StatusServiceUnavailable, "too many questions at once")
@@ -328,14 +338,22 @@ func (s *Server) chatHandler(w http.ResponseWriter, r *http.Request) {
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
-	emit := func(e chat.Event) {
+	send := func(e chatEvent) {
 		data, _ := json.Marshal(e)
 		fmt.Fprintf(w, "data: %s\n\n", data)
 		fl.Flush()
 	}
-	_, _, err = chat.Run(r.Context(), c.Provider, serverTools{s}, hist, chat.Limits{}, emit)
+	emit := func(e chat.Event) {
+		if e.Type == "text" && run.board != nil {
+			if p := run.board.proposal(); p != nil {
+				send(chatEvent{Event: chat.Event{Type: "proposal"}, Proposal: p})
+			}
+		}
+		send(chatEvent{Event: e})
+	}
+	_, _, err = chat.RunWith(r.Context(), c.Provider, run.system, run.tools, hist, run.lim, emit)
 	if err != nil {
-		emit(chat.Event{Type: "error", Text: err.Error()})
+		send(chatEvent{Event: chat.Event{Type: "error", Text: err.Error()}})
 	}
 }
 

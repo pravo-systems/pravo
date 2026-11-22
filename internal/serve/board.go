@@ -125,9 +125,9 @@ type BoardConfig struct {
 	// Problem says why nothing can be drawn: the specification does not load, or declares no provider whose schema is
 	// cached.
 	Problem string `json:"problem,omitempty"`
-	// Guide names the model of the guide, when pravo serve was started with --chat: it draws from a wish, reviews the
-	// drawing and explains a thing on it, and writes nothing.
-	Guide string `json:"guide,omitempty"`
+	// Ask names the model of the Ask panel, when pravo serve was started with --chat. With the board open the panel also
+	// sees the drawing and can draw a proposal onto it, which the person keeps or drops; it writes nothing.
+	Ask string `json:"ask,omitempty"`
 	// Start is set when the board can start from a Terraform state: --edit, and a state that holds nothing yet.
 	Start bool `json:"start,omitempty"`
 }
@@ -466,7 +466,7 @@ func (s *Server) boardConfigHandler(w http.ResponseWriter, m *model) {
 	out := &BoardConfig{Version: APIVersion, Edit: s.opts.Board != nil, Apply: s.opts.Board != nil && s.opts.Board.Apply != nil, Providers: []BoardProvider{}, File: s.boardFile()}
 	out.Start = s.opts.Board != nil && s.opts.Board.Start != nil && m.recorded() == 0
 	if c := s.opts.Chat; c != nil {
-		out.Guide = strings.TrimSpace(c.Name + " " + c.Model)
+		out.Ask = strings.TrimSpace(c.Name + " " + c.Model)
 	}
 	if s.opts.Board != nil {
 		out.Actor = clip(stripControl(s.opts.Board.Actor), 64)
@@ -777,8 +777,6 @@ func (s *Server) boardRoute(w http.ResponseWriter, r *http.Request, m *model) {
 		s.boardCheckHandler(w, r, m)
 	case "/api/board/save":
 		s.boardSaveHandler(w, r, m)
-	case "/api/board/guide":
-		s.boardGuideHandler(w, r, m)
 	case "/api/board/apply":
 		s.boardApplyHandler(w, r, m)
 	case "/api/board/start":

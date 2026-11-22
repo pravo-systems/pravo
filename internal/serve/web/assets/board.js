@@ -20,6 +20,9 @@ const NODE_MODE = { resource: 'managed', template: 'managed', data: 'data', ephe
 const WIRE_TIP = 'Wire each required reference to the matching resource, or add one';
 const NOTHING_TO_WIRE = 'Nothing to wire: required references are set, or several resources match';
 const STEP_MS = 90; // the sweep crosses one column of the graph in this long
+// the questions that the Review and Explain buttons put to Ask
+const ASK_REVIEW = 'Review the drawing on the board: what it adds and changes, what could go wrong when it is applied, and what it is missing.';
+const askExplain = (addr) => `Explain \`${addr}\` on the board: what it is, what it reads and what reads it, and what its fields do.`;
 const KEEP = 'pravo.board.';
 
 export class Board {
@@ -29,6 +32,7 @@ export class Board {
     this.cb = cb;
     this.cfg = null;
     this.on = false;
+    this.proposal = null; // what the last answer of Ask laid on the board: {made, state}
     this.items = [];
     this.forms = new Map();
     this.check = null;
@@ -78,7 +82,7 @@ export class Board {
     this.hitsEl = h('div', { class: 'bd-hits', id: 'bd-hits', role: 'listbox', 'aria-label': 'Resource types', hidden: true });
     this.lampEls = { spec: lamp('Spec'), policy: lamp('Policy'), plan: lamp('Plan') };
     this.btn = {
-      review: h('button', { type: 'button', class: 'bd-b sq', hidden: true, 'data-tip': 'Guide: review the draft for risks' }, icon('ask'), h('span', { class: 'lbl' }, 'Review')),
+      review: h('button', { type: 'button', class: 'bd-b sq', hidden: true, 'data-tip': 'Ask: review the draft for risks' }, icon('ask'), h('span', { class: 'lbl' }, 'Review')),
       code: h('button', { type: 'button', class: 'bd-b sq', 'aria-pressed': 'false', 'data-tip': 'Show the generated CUE' }, icon('code'), h('span', { class: 'lbl' }, 'Code')),
       save: h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Write the draft to the specification' }, icon('file'), h('span', { class: 'lbl' }, 'Save')),
       plan: h('button', { type: 'button', class: 'bd-b go', 'data-tip': 'Run pravo plan with the draft' }, h('span', { class: 'bd-play', 'aria-hidden': 'true' }), h('span', { class: 'lbl' }, 'Plan')),
@@ -92,9 +96,9 @@ export class Board {
     this.strip = h('div', { class: 'bd-strip' }, bar,
       h('div', { class: 'bd-lamps', role: 'group', 'aria-label': 'Checks' }, this.lampEls.spec.el, this.lampEls.policy.el, this.lampEls.plan.el),
       h('div', { class: 'bd-acts' }, this.btn.review, this.btn.code, this.btn.save, this.btn.plan, this.btn.apply));
-    this.guideEl = h('section', { class: 'bd-guide', 'aria-label': 'The guide', 'aria-live': 'polite', hidden: true });
+    this.propEl = h('section', { class: 'bd-prop', 'aria-label': 'Proposal', 'aria-live': 'polite', hidden: true });
     this.startEl = h('section', { class: 'bd-start', 'aria-labelledby': 'bd-start-h', hidden: true });
-    this.el = h('div', { class: 'overlay board', id: 'board', hidden: true }, this.sweep, this.startEl, this.guideEl, this.code, this.tb, this.hint, this.strip);
+    this.el = h('div', { class: 'overlay board', id: 'board', hidden: true }, this.sweep, this.startEl, this.propEl, this.code, this.tb, this.hint, this.strip);
     canvas.append(this.el);
     this.input.addEventListener('input', () => { this.choosing = null; this.findTypes(this.input.value); });
     this.input.addEventListener('keydown', (ev) => this.onBarKey(ev));
@@ -113,7 +117,7 @@ export class Board {
     });
     this.hitsEl.addEventListener('scroll', () => { if (this.hitsEl.scrollTop + this.hitsEl.clientHeight > this.hitsEl.scrollHeight - 80) this.moreTypes(); });
     this.btn.code.addEventListener('click', () => this.toggleCode());
-    this.btn.review.addEventListener('click', () => this.ask('review'));
+    this.btn.review.addEventListener('click', () => this.cb.ask(ASK_REVIEW));
     this.btn.save.addEventListener('click', () => this.save());
     this.btn.plan.addEventListener('click', () => this.runPlan());
     this.btn.apply.addEventListener('click', () => this.confirmApply());
@@ -167,7 +171,7 @@ export class Board {
       const missing = this.missing(it);
       nodes.push({
         addr: it.label, mode: NODE_MODE[it.kind] || 'managed', type: it.kind === 'template' ? (it.form ? it.form.title : it.template) : it.type || it.kind, name: it.label, namespace: '',
-        provider: this.providerKey(it), presence: 'spec', draft: true, template: it.kind === 'template', adopts: !!it.adopt, guided: !!it.guide, incomplete: missing.length,
+        provider: this.providerKey(it), presence: 'spec', draft: true, template: it.kind === 'template', adopts: !!it.adopt, proposed: !!it.proposed, incomplete: missing.length,
         sockets: this.sockets(it), boardAction: acts ? acts.get(it.label) || '' : '',
       });
     }
@@ -201,7 +205,7 @@ export class Board {
   // changedNode is a node of the graph that the drawing changes: it says so, and carries the sockets of its form
   changedNode(n, c) {
     if (!c) return n;
-    return Object.assign({}, n, { boardEdit: c.remove ? 'remove' : this.editOf(c) ? 'change' : 'open', guided: !!c.guide, sockets: c.remove ? [] : this.sockets(c), incomplete: c.remove ? 0 : this.missing(c).length });
+    return Object.assign({}, n, { boardEdit: c.remove ? 'remove' : this.editOf(c) ? 'change' : 'open', proposed: !!c.proposed, sockets: c.remove ? [] : this.sockets(c), incomplete: c.remove ? 0 : this.missing(c).length });
   }
 
   // changedEdges are the edges of the graph with those of a changed resource as its new code has them: a wire taken off
@@ -458,12 +462,14 @@ export class Board {
   }
 
   // draft is the drawing as the server reads it
-  draft() {
-    const edits = this.items.filter((it) => it.kind === 'change').map((it) => this.editOf(it)).filter(Boolean);
+  draft() { return this.draftOf(this.items); }
+
+  draftOf(items) {
+    const edits = items.filter((it) => it.kind === 'change').map((it) => this.editOf(it)).filter(Boolean);
     // a thing that was saved is in the files: the drawing lets go of it once the graph shows it
     const f = this.fold && this.fold.addrs.length ? this.fold : null;
     const fold = f ? { name: f.name, title: f.title || undefined, label: f.label || undefined, addrs: f.addrs, ask: f.ask.length ? f.ask : undefined } : undefined;
-    return { file: this.cfg.file, edits: edits.length ? edits : undefined, fold, items: this.items.filter((it) => it.kind !== 'change' && !it.saved).map((it) => ({ label: it.label, kind: it.kind, type: it.type || undefined, provider: it.provider || undefined, template: it.template || undefined, values: it.values, adopt: it.adopt ? { discovery: it.adopt.discovery, key: it.adopt.key } : undefined })) };
+    return { file: this.cfg.file, edits: edits.length ? edits : undefined, fold, items: items.filter((it) => it.kind !== 'change' && !it.saved).map((it) => ({ label: it.label, kind: it.kind, type: it.type || undefined, provider: it.provider || undefined, template: it.template || undefined, values: it.values, adopt: it.adopt ? { discovery: it.adopt.discovery, key: it.adopt.key } : undefined })) };
   }
 
   sig() { const d = this.draft(); return JSON.stringify([d.items, d.edits || [], d.fold || null]); }
@@ -499,8 +505,8 @@ export class Board {
     if (seq !== this.typeSeq || document.activeElement !== this.input) return;
     this.types = out;
     this.hits = out.hits || [];
-    // a wish of several words that names no type goes to the guide first
-    this.hit = !this.hits.length || (this.cfg.guide && q.trim().split(/\s+/).length > 3 && this.hits.length < 2) ? Math.min(this.hits.length, this.options() - 1) : 0;
+    // a wish of several words that names no type goes to Ask first
+    this.hit = !this.hits.length || (this.cfg.ask && q.trim().split(/\s+/).length > 3 && this.hits.length < 2) ? Math.min(this.hits.length, this.options() - 1) : 0;
     this.drawHits(q);
     this.hitsEl.scrollTop = 0;
   }
@@ -531,8 +537,8 @@ export class Board {
     this.searchTypes(this.input.value);
   }
 
-  // options are the hits, and the guide when there is one and something is typed
-  options() { return this.hits.length + (this.cfg.guide && this.input.value.trim() ? 1 : 0); }
+  // options are the hits, and Ask when there is a model and something is typed
+  options() { return this.hits.length + (this.cfg.ask && this.input.value.trim() ? 1 : 0); }
 
   drawHits(q) {
     clear(this.hitsEl);
@@ -544,7 +550,7 @@ export class Board {
         title, h('span', null, fmt(n)));
       this.hitsEl.append(h('div', { class: 'bd-facets', role: 'group', 'aria-label': 'Kinds' }, chip('', 'All', all), ...t.groups.map((g) => chip(g.name, g.title, g.matched))));
     }
-    const ask = !!(this.cfg.guide && q.trim());
+    const ask = !!(this.cfg.ask && q.trim());
     if (!this.hits.length && !ask) {
       this.hitsEl.append(h('p', { class: 'bd-none' }, q ? `No match for “${q}”${this.group ? ' in ' + this.groupTitle().toLowerCase() : ''}.` : 'Nothing to draw.'));
     }
@@ -552,7 +558,7 @@ export class Board {
     if (ask) {
       const on = this.hit === this.hits.length;
       this.hitsEl.append(h('button', { type: 'button', class: 'bd-hit bd-ask' + (on ? ' on' : ''), role: 'option', 'aria-selected': on ? 'true' : 'false', data: { i: this.hits.length, ask: '1' } },
-        h('b', null, icon('ask'), 'Ask the guide'), h('code', null, '\u21e7\u21b5'), h('span', { class: 'bd-pv t' }, this.cfg.guide), h('span', { class: 'bd-blurb' }, `\u201c${clipText(q.trim(), 140)}\u201d`)));
+        h('b', null, icon('ask'), 'Ask'), h('code', null, '\u21e7\u21b5'), h('span', { class: 'bd-pv t' }, this.cfg.ask), h('span', { class: 'bd-blurb' }, `\u201c${clipText(q.trim(), 140)}\u201d`)));
     }
     this.hitsEl.append(h('div', { class: 'bd-hfoot' }));
     this.drawFoot();
@@ -690,10 +696,10 @@ export class Board {
 
   askFromBar() {
     const wish = this.input.value.trim();
-    if (!wish || !this.cfg.guide) return;
+    if (!wish || !this.cfg.ask) return;
     this.closeHits();
     this.input.value = '';
-    this.ask('draw', { wish });
+    this.cb.ask(wish);
   }
 
   // pick draws the hit; a type that several providers can draw asks which first, unless provider names it
@@ -709,128 +715,92 @@ export class Board {
     if (it) this.input.focus();
   }
 
-  // ---- the guide ----
+  // ---- what Ask proposes ----
 
-  // ask puts a question to the guide: draw (o.wish), review the drawing, or explain (o.addr). Its answer is a card on the
-  // board; a drawing it proposes is on the board, marked, until the person keeps it or drops it.
-  async ask(mode, o = {}) {
-    if (!this.cfg.guide) return;
-    if (this.guide && this.guide.state === 'running') this.guide.ctl.abort();
-    if (this.guide && this.guide.state !== 'running' && this.items.some((it) => it.guide)) this.dropGuide(true);
-    const g = { mode, wish: o.wish || '', addr: o.addr || '', state: 'running', reads: [], text: '', sent: null, made: [], ctl: new AbortController() };
-    this.guide = g;
-    this.renderGuide();
-    this.cb.announce(mode === 'draw' ? 'Guide: drafting' : mode === 'review' ? 'Guide: reviewing the draft' : `Guide: explaining ${o.addr}`);
-    const req = { mode, wish: g.wish || undefined, addr: g.addr || undefined, draft: this.draft() };
-    try {
-      await api.askGuide(req, (ev) => {
-        if (this.guide !== g) return;
-        if (ev.type === 'read') { g.reads.push(ev.tool); this.renderGuide(); }
-        else if (ev.type === 'proposal') g.proposal = ev.proposal;
-        else if (ev.type === 'text') g.text = ev.text;
-        else if (ev.type === 'done') g.sent = ev.sent || [];
-        else if (ev.type === 'error') { g.state = 'failed'; g.text = ev.text; }
-      }, g.ctl.signal);
-      if (this.guide !== g) return;
-      if (g.state !== 'failed') {
-        g.state = 'done';
-        if (g.proposal) g.made = await this.applyProposal(g.proposal);
-      }
-    } catch (err) {
-      if (this.guide !== g) return;
-      g.state = err && err.name === 'AbortError' ? 'stopped' : 'failed';
-      if (g.state === 'failed') g.text = err.message;
+  // askContext is the board in a question to Ask: the drawing without the proposal that waits, and that proposal.
+  askContext() {
+    const prop = this.items.filter((it) => it.proposed);
+    const draft = this.draftOf(this.items.filter((it) => !it.proposed));
+    if (!prop.length) return { draft };
+    const p = this.draftOf(prop);
+    return { draft, pending: { items: p.items, edits: p.edits || [] } };
+  }
+
+  // propose lays what Ask drew on the board, marked, in place of a proposal that still waits: new things, and changes of
+  // resources. It returns what it laid.
+  async propose(p) {
+    if (this.items.some((it) => it.proposed)) this.dropProposal(true);
+    const made = [];
+    for (const x of p.items || []) {
+      const kind = x.kind || (x.template ? 'template' : 'resource');
+      if (this.item(x.label)) continue;
+      let form;
+      try { form = await this.form(kind, x.template || x.type, x.provider); } catch { continue; }
+      const it = { label: x.label, kind, type: SCHEMA_KINDS.has(kind) ? x.type || '' : '', template: x.template || '', provider: x.provider || '', values: x.values || {}, form, shown: new Set(Object.keys(x.values || {})), cue: new Set(), adopt: null, proposed: true };
+      cueFields(this, it);
+      this.items.push(it);
+      made.push(it.label);
     }
-    this.renderGuide();
-    if (g.state === 'done') this.cb.announce(g.made.length ? `Guide proposed ${plural(g.made.length, 'change')}. Keep or drop.` : 'Guide answered');
+    for (const e of p.edits || []) {
+      if (this.changeOf(e.addr)) continue;
+      let r;
+      try { r = await api.boardEdit(e.addr); } catch { continue; }
+      if (r.reason) continue;
+      const it = this.changeItem(r, !!e.remove);
+      for (const [k, v] of Object.entries(e.set || {})) { it.values[k] = v; it.shown.add(k); }
+      for (const k of e.unset || []) delete it.values[k];
+      cueFields(this, it);
+      it.proposed = true;
+      this.items.push(it);
+      made.push(it.addr);
+    }
+    this.proposal = made.length ? { made, state: 'pending' } : null;
+    if (made.length) { this.changed({ graph: true }); this.cb.select(made[0]); }
+    this.renderProposal();
+    if (made.length) this.cb.announce(`Ask proposed ${plural(made.length, 'change')}. Keep or drop.`);
+    return made;
   }
 
-  // applyProposal lays what the guide drew on the board, marked as the guide's: new things, and changes of resources
-  applyProposal(p) {
-    return (async () => {
-      const made = [];
-      for (const x of p.items || []) {
-        const kind = x.kind || (x.template ? 'template' : 'resource');
-        if (this.item(x.label)) continue;
-        let form;
-        try { form = await this.form(kind, x.template || x.type, x.provider); } catch { continue; }
-        const it = { label: x.label, kind, type: SCHEMA_KINDS.has(kind) ? x.type || '' : '', template: x.template || '', provider: x.provider || '', values: x.values || {}, form, shown: new Set(Object.keys(x.values || {})), cue: new Set(), adopt: null, guide: true };
-        cueFields(this, it);
-        this.items.push(it);
-        made.push(it.label);
-      }
-      for (const e of p.edits || []) {
-        if (this.changeOf(e.addr)) continue;
-        let r;
-        try { r = await api.boardEdit(e.addr); } catch { continue; }
-        if (r.reason) continue;
-        const it = this.changeItem(r, !!e.remove);
-        for (const [k, v] of Object.entries(e.set || {})) { it.values[k] = v; it.shown.add(k); }
-        for (const k of e.unset || []) delete it.values[k];
-        cueFields(this, it);
-        it.guide = true;
-        this.items.push(it);
-        made.push(it.addr);
-      }
-      if (made.length) { this.changed({ graph: true }); this.cb.select(made[0]); }
-      return made;
-    })();
+  // proposalState is pending, kept or dropped for what an answer proposed, by the labels it laid
+  proposalState(made) {
+    const p = this.proposal;
+    return p && p.made.join('\n') === made.join('\n') ? p.state : 'gone';
   }
 
-  keepGuide() {
-    for (const it of this.items) delete it.guide;
-    if (this.guide) this.guide.kept = true;
+  keepProposal() {
+    for (const it of this.items) delete it.proposed;
+    if (this.proposal) this.proposal.state = 'kept';
     this.changed({ graph: true });
-    this.renderGuide();
+    this.renderProposal();
     this.cb.redrawInspector();
+    this.cb.proposalChanged();
     this.cb.announce('Proposal kept');
   }
 
-  dropGuide(quiet) {
-    this.items = this.items.filter((it) => !it.guide);
-    if (this.guide) this.guide.dropped = true;
+  dropProposal(quiet) {
+    this.items = this.items.filter((it) => !it.proposed);
+    if (this.proposal) this.proposal.state = 'dropped';
     this.changed({ graph: true });
+    this.renderProposal();
+    this.cb.proposalChanged();
     if (quiet) return;
-    this.renderGuide();
     this.cb.select(null);
     this.cb.announce('Proposal dropped');
   }
 
-  closeGuide() {
-    if (this.guide && this.guide.state === 'running') this.guide.ctl.abort();
-    if (this.items.some((it) => it.guide)) { this.dropGuide(true); }
-    this.guide = null;
-    this.renderGuide();
-  }
-
-  // renderGuide is the card of the guide: what was asked, what it read, its answer, and Keep and Drop for what it drew
-  renderGuide() {
-    const g = this.guide, el = this.guideEl;
+  // renderProposal is the bar of a proposal that waits: what it adds and edits, and Keep and Drop
+  renderProposal() {
+    const el = this.propEl;
     clear(el);
-    el.hidden = !g;
-    if (!g) return;
-    const what = g.mode === 'draw' ? `\u201c${clipText(g.wish, 160)}\u201d` : g.mode === 'review' ? 'Review the draft' : `Explain ${g.addr}`;
-    el.append(h('div', { class: 'bd-gh' }, h('span', { class: 'bd-gk' }, icon('ask'), 'Guide'), h('span', { class: 'bd-gm' }, this.cfg.guide), h('span', { class: 'grow' }),
-      h('button', { type: 'button', class: 'iconbtn', 'aria-label': g.state === 'running' ? 'Stop the guide' : 'Close the guide', on: { click: () => this.closeGuide() } }, icon('x'))));
-    el.append(h('p', { class: 'bd-gq' }, what));
-    if (g.reads.length) el.append(h('p', { class: 'bd-gr' }, h('span', null, 'read'), ...g.reads.slice(-8).map((t) => h('code', null, t)), g.reads.length > 8 ? h('span', null, `+${g.reads.length - 8}`) : null));
-    if (g.state === 'running') { el.append(h('p', { class: 'bd-gw' }, h('span', { class: 'bd-dot' }), g.reads.length ? `Reading ${g.reads[g.reads.length - 1]}\u2026` : 'Asking\u2026')); return; }
-    if (g.state === 'stopped') { el.append(h('p', { class: 'bd-gw' }, 'Stopped.')); return; }
-    if (g.text) el.append(h('div', { class: 'bd-gt' + (g.state === 'failed' ? ' bad' : '') }, ...guideText(g.text)));
-    const pending = this.items.filter((it) => it.guide);
-    if (pending.length) {
-      const adds = pending.filter((it) => it.kind !== 'change').length, chg = pending.length - adds;
-      const said = [adds ? `${adds} new` : '', chg ? `${chg} edited` : ''].filter(Boolean).join(', ');
-      el.append(h('div', { class: 'bd-gp' }, h('span', null, `Proposal: ${said}, marked guide.`),
-        h('span', { class: 'grow' }),
-        h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Discard the proposal', on: { click: () => this.dropGuide() } }, icon('x'), h('span', { class: 'lbl' }, 'Drop')),
-        h('button', { type: 'button', class: 'bd-b sm go', 'data-tip': 'Add the proposal to the draft', on: { click: () => this.keepGuide() } }, icon('check'), h('span', { class: 'lbl' }, 'Keep'))));
-    } else if (g.kept) el.append(h('p', { class: 'bd-gw' }, 'Kept.'));
-    else if (g.dropped) el.append(h('p', { class: 'bd-gw' }, 'Dropped.'));
-    if (g.sent && g.sent.length) {
-      el.append(h('details', { class: 'bd-gs' }, h('summary', null, `Sent to ${this.cfg.guide}: ${plural(g.sent.length, 'read')}`),
-        ...g.sent.map((x) => h('p', null, h('code', null, x.tool), ' ', clipText(typeof x.args === 'string' ? x.args : JSON.stringify(x.args || {}), 160), x.error ? h('span', { class: 'bad' }, ' \u2014 ' + x.error) : ` \u2014 ${x.bytes} bytes`))));
-    }
+    const pending = this.items.filter((it) => it.proposed);
+    el.hidden = !pending.length;
+    if (!pending.length) return;
+    const adds = pending.filter((it) => it.kind !== 'change').length, chg = pending.length - adds;
+    const said = [adds ? `${adds} new` : '', chg ? `${chg} edited` : ''].filter(Boolean).join(', ');
+    el.append(h('span', { class: 'bd-pk' }, icon('ask'), 'Proposal'), h('span', { class: 'bd-pt' }, said),
+      h('span', { class: 'grow' }),
+      h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Discard the proposal', on: { click: () => this.dropProposal() } }, icon('x'), h('span', { class: 'lbl' }, 'Drop')),
+      h('button', { type: 'button', class: 'bd-b sm go', 'data-tip': 'Add the proposal to the draft', on: { click: () => this.keepProposal() } }, icon('check'), h('span', { class: 'lbl' }, 'Keep')));
   }
 
   // ---- the chrome ----
@@ -866,10 +836,10 @@ export class Board {
     // the actions
     this.btn.save.hidden = !this.edit;
     this.btn.plan.hidden = !this.edit;
-    this.btn.review.hidden = !this.cfg.guide || !n;
-    const pending = this.items.some((it) => it.guide);
+    this.btn.review.hidden = !this.cfg.ask || !n;
+    const pending = this.items.some((it) => it.proposed);
     this.btn.save.disabled = !(n && chk && chk.state === 'valid') || pending;
-    this.btn.save.dataset.tip = pending ? 'Keep or drop the guide proposal first' : chk && chk.files && chk.files.length ? `Write: ${[chk.code ? chk.file : '', ...chk.files.map((f) => f.file)].filter(Boolean).join(', ')}` : 'Write the draft to the specification';
+    this.btn.save.dataset.tip = pending ? 'Keep or drop the proposal first' : chk && chk.files && chk.files.length ? `Write: ${[chk.code ? chk.file : '', ...chk.files.map((f) => f.file)].filter(Boolean).join(', ')}` : 'Write the draft to the specification';
     this.btn.plan.disabled = !!(p && p.state === 'running') || (n > 0 && !(chk && chk.state === 'valid'));
     this.btn.code.setAttribute('aria-pressed', this.codeOpen ? 'true' : 'false');
     this.renderApply();
@@ -1125,7 +1095,7 @@ export class Board {
     nameIn.addEventListener('change', () => { const msg = this.rename(it, nameIn.value.trim()); nameErr.textContent = msg; if (msg) nameIn.value = it.label; });
     nameIn.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') nameIn.blur(); });
     const head = {
-      kick: it.guide ? 'Guide proposal · keep or drop' : `Draft · ${kindWord(it)}`,
+      kick: it.proposed ? 'Proposal · keep or drop' : `Draft · ${kindWord(it)}`,
       title: nameIn,
       path: h('div', { class: 'ih-path bd-what' }, h('b', null, f.title), h('code', null, it.kind === 'template' ? it.template : f.def || it.type), this.providerTag(it)),
       tags: [h('span', { class: 'b bd-draft' }, 'draft')],
@@ -1143,14 +1113,14 @@ export class Board {
     const tools = h('div', { class: 'bd-tools' },
       this.wireable(it) ? h('button', { type: 'button', class: 'bd-b', 'data-act': 'complete', 'data-tip': WIRE_TIP }, icon('plus'), h('span', { class: 'lbl' }, 'Wire required')) : null,
       h('button', { type: 'button', class: 'bd-b', 'data-act': 'code', 'data-tip': 'Show the generated CUE' }, icon('code'), h('span', { class: 'lbl' }, 'Code')),
-      this.cfg.guide ? h('button', { type: 'button', class: 'bd-b', 'data-act': 'explain', 'data-tip': 'Guide: explain the type and its fields' }, icon('ask'), h('span', { class: 'lbl' }, 'Explain')) : null);
+      this.cfg.ask ? h('button', { type: 'button', class: 'bd-b', 'data-act': 'explain', 'data-tip': 'Ask: explain the type and its fields' }, icon('ask'), h('span', { class: 'lbl' }, 'Explain')) : null);
     body.append(tools);
     tools.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-act]');
       if (!b) return;
       if (b.dataset.act === 'complete') this.complete(it.label).then((n) => { if (!n) this.cb.announce(NOTHING_TO_WIRE); this.cb.redrawInspector(); });
       if (b.dataset.act === 'code') this.toggleCode(true);
-      if (b.dataset.act === 'explain') this.ask('explain', { addr: it.label });
+      if (b.dataset.act === 'explain') this.cb.ask(askExplain(it.label));
     });
     this.formFields(it, body);
     body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b danger', 'data-tip': 'Discard (Backspace)', on: { click: () => this.remove(it.label) } }, icon('x'), h('span', { class: 'lbl' }, 'Discard'))));
@@ -1225,7 +1195,7 @@ export class Board {
     const tools = h('div', { class: 'bd-tools' },
       this.wireable(it) ? h('button', { type: 'button', class: 'bd-b', 'data-tip': WIRE_TIP, on: { click: () => this.complete(it.label).then((n) => { if (!n) this.cb.announce(NOTHING_TO_WIRE); this.cb.redrawInspector(); }) } }, icon('plus'), h('span', { class: 'lbl' }, 'Wire required')) : null,
       h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Show the file diff', on: { click: () => this.toggleCode(true) } }, icon('code'), h('span', { class: 'lbl' }, 'Diff')),
-      this.cfg.guide ? h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Guide: explain the type and its fields', on: { click: () => this.ask('explain', { addr: it.addr }) } }, icon('ask'), h('span', { class: 'lbl' }, 'Explain')) : null);
+      this.cfg.ask ? h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Ask: explain the type and its fields', on: { click: () => this.cb.ask(askExplain(it.addr)) } }, icon('ask'), h('span', { class: 'lbl' }, 'Explain')) : null);
     body.append(tools);
     this.formFields(it, body);
     body.append(h('div', { class: 'bd-foot' },
@@ -1669,7 +1639,7 @@ export class Board {
   keep() {
     try {
       const key = KEEP + ((this.cb.project() || {}).dir || '');
-      const mine = this.items.filter((it) => !it.guide);
+      const mine = this.items.filter((it) => !it.proposed);
       if (!mine.length && !this.fold) { sessionStorage.removeItem(key); return; }
       const fold = this.fold ? [{ kind: 'fold', fold: this.fold }] : [];
       sessionStorage.setItem(key, JSON.stringify(fold.concat(mine.map((it) => (it.kind === 'change' ? { kind: 'change', label: it.label, addr: it.addr, base: it.base, values: it.values, remove: it.remove, shown: [...it.shown], cue: [...it.cue] } : { label: it.label, kind: it.kind, type: it.type, template: it.template, provider: it.provider, values: it.values, shown: [...it.shown], cue: [...it.cue], saved: !!it.saved, adopt: it.adopt || undefined })))));
@@ -1767,20 +1737,6 @@ function cueFields(board, it) {
     const v = it.values[f.name];
     if (v && v.expr !== undefined && (f.kind === 'text' || (f.kind === 'number' && !/^-?\d+(\.\d+)?$/.test(v.expr.trim())))) it.cue.add(f.name);
   }
-}
-
-// guideText is the answer of the guide as the card shows it: lines, the ones that start with a dash as a list, and what
-// is in backticks as code. It is text, never markup.
-function guideText(text) {
-  const out = [];
-  let list = null;
-  for (const line of String(text).split('\n')) {
-    const t = line.trim();
-    if (!t) { list = null; continue; }
-    const bits = t.replace(/^[-*]\s+/, '').split('`').map((x, i) => (i % 2 ? h('code', null, x) : x));
-    if (/^[-*]\s+/.test(t)) { if (!list) { list = h('ul'); out.push(list); } list.append(h('li', null, ...bits)); } else { list = null; out.push(h('p', null, ...bits)); }
-  }
-  return out;
 }
 
 const changeWord = (it, edit) => (it.remove ? 'delete' : edit ? 'edit' : 'unchanged');

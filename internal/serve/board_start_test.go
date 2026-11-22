@@ -95,7 +95,7 @@ func TestBoardDrawsInProcessThroughThePenOnly(t *testing.T) {
 	if status, body := p.srv.Draw("/api/board/types", url.Values{"q": {"db"}}, nil); status != http.StatusOK || !strings.Contains(string(body), "fake_db") {
 		t.Errorf("types in process: %d %s", status, body)
 	}
-	for _, path := range []string{"/api/board/apply", "/api/board/start", "/api/board/guide", "/api/graph", "/api/board/../board/apply"} {
+	for _, path := range []string{"/api/board/apply", "/api/board/start", "/api/graph", "/api/board/../board/apply"} {
 		if status, _ := p.srv.Draw(path, nil, map[string]string{"ticket": "bp-1"}); status != http.StatusNotFound {
 			t.Errorf("%s in process: %d", path, status)
 		}

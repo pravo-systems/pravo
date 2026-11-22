@@ -1,5 +1,9 @@
 // The Ask panel: a question to a language model that can only read what this page reads. It sits in the slot of the
-// inspector. The server holds no conversation: the page keeps it, and sends it with each question.
+// inspector. The server holds no conversation: the page keeps it, and sends it with each question. With the drawing board
+// open a question also carries the drawing, and the model can draw a proposal onto the board, which the person keeps or
+// drops there (README rule 14); it never saves, plans or applies.
+
+const PROPOSAL_WORD = { pending: 'Keep or drop it on the board.', kept: 'Kept.', dropped: 'Dropped.', gone: 'Replaced by a later proposal.' };
 
 import * as api from './api.js';
 import { h, clear, plural, icon } from './util.js';
@@ -21,7 +25,8 @@ function readLine(tool, args) {
 }
 
 export class ChatView {
-  // opts: context() -> {addr, plan, view}; isAddr(a); isPlan(id); onNode(a); onPlan(id); onToggle(open)
+  // opts: context() -> {addr, plan, view}; isAddr(a); isPlan(id); onNode(a); onPlan(id); onToggle(open); board() -> the
+  // drawing and the proposal that waits, or null when the board is closed; propose(p) -> what it laid; proposalState(made)
   constructor(root, opts) {
     this.root = root;
     this.o = opts;
@@ -52,6 +57,24 @@ export class ChatView {
   // the selection or the section changed
   refreshContext() { if (this.open_ && this.built) this.renderCtx(); }
 
+  // the board was opened or closed: what the panel says it reads changes
+  boardToggled() { if (this.open_ && this.built) this.render(); }
+
+  // a proposal was kept or dropped on the board
+  refreshProposal() { if (this.open_ && this.built) this.renderLog(); }
+
+  // ask opens the panel with a question: it is sent, unless an answer is still coming or the notice is not accepted yet,
+  // and then it waits in the field
+  ask(q) {
+    if (!this.enabled) return;
+    if (this.busy || !store.get()) this.draft = q;
+    this.open();
+    if (!this.busy && store.get()) this.send(q);
+    else if (this.built) { this.input.value = this.draft; this.sizeInput(); this.syncSend(); }
+  }
+
+  onBoard() { return !!(this.o.board && this.o.board()); }
+
   ctx() {
     const c = this.o.context();
     if (this.chipOff && c.addr !== this.chipOff) this.chipOff = null;
@@ -69,7 +92,7 @@ export class ChatView {
     this.ctxEl = h('div', { class: 'chat-ctx' });
     this.logEl = h('div', { class: 'chat-log', tabindex: 0, role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' });
     this.chipsEl = h('div', { class: 'chips' });
-    this.input = h('textarea', { rows: 1, placeholder: 'Ask about this view', 'aria-label': 'Your question', maxlength: 2000, value: this.draft, on: {
+    this.input = h('textarea', { rows: 1, placeholder: this.onBoard() ? 'Ask, or say what to draw' : 'Ask about this view', 'aria-label': 'Your question', maxlength: 2000, value: this.draft, on: {
       input: () => { this.draft = this.input.value; this.sizeInput(); this.syncSend(); },
       keydown: (ev) => {
         if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); this.send(); }
@@ -78,7 +101,7 @@ export class ChatView {
     this.sendBtn = h('button', { class: 'go', type: 'button', 'aria-label': 'Send', on: { click: () => this.send() } }, '↵');
     this.root.append(this.ctxEl, this.logEl,
       h('div', { class: 'chat-foot' }, this.chipsEl, h('div', { class: 'ask' }, this.input, this.sendBtn),
-        h('div', { class: 'chat-fine' }, icon('eye-off'), 'Reads the redacted views of this page. It cannot change anything.')));
+        h('div', { class: 'chat-fine' }, icon('eye-off'), this.onBoard() ? 'Reads the drawing and the redacted views of this page. It can draw a proposal; only you keep, save or apply it.' : 'Reads the redacted views of this page. It cannot change anything.')));
     this.built = true;
     this.renderCtx();
     this.renderLog();
@@ -91,7 +114,7 @@ export class ChatView {
     const row = (cls, dt, ...dd) => h('div', { class: 'r ' + cls }, h('dt', { text: dt }), h('dd', null, ...dd));
     return h('div', { class: 'note' },
       h('h3', { text: 'Ask questions about this estate.' }),
-      h('p', { class: 'lede', text: 'The assistant reads what this page shows, through the same redaction, and answers in words. It cannot change anything.' }),
+      h('p', { class: 'lede', text: 'The assistant reads what this page shows, through the same redaction, and answers in words. With the drawing board open it can also draw a proposal on it, which you keep or drop. It never saves, plans or applies.' }),
       h('dl', { class: 'facts' },
         row('', 'Provider', h('code', { text: c.provider }), ' · ', h('code', { text: c.model }), h('br'), h('span', { class: 'never' }, 'Questions go to ', h('code', { text: c.host || '' }))),
         row('', 'Key', 'Read from the environment of the ', h('code', { text: 'pravo serve' }), ' process. This page never sees it.'),
@@ -168,6 +191,10 @@ export class ChatView {
   answer(m) {
     const bytes = (m.sent || []).reduce((n, s) => n + (s.bytes || 0), 0);
     const el = h('div', { class: 'a' }, h('div', { class: 'a-h' }, h('span', { text: 'Answer' })), h('div', { class: 'a-b' }, ...this.prose(m.text)));
+    if (m.made && m.made.length) {
+      const st = this.o.proposalState ? this.o.proposalState(m.made) : 'gone';
+      el.append(h('p', { class: 'a-prop ' + st }, icon('pen'), h('span', null, 'Proposal on the board: ', ...m.made.flatMap((a, i) => [i ? ', ' : '', this.token(a)]), '. ', PROPOSAL_WORD[st] || '')));
+    }
     if (m.sent && m.sent.length) {
       el.append(h('details', { class: 'ledger' },
         h('summary', null, icon('chev'), `Sent to the model · ${plural(m.sent.length, 'read')} · ${kb(bytes)}`),
@@ -247,15 +274,17 @@ export class ChatView {
     this.renderLog();
     const turns = this.msgs.map((m) => ({ role: m.role, text: m.text }));
     const ctl = (this.ctl = new AbortController());
-    let answered = false;
+    let answered = false, proposal = null;
     try {
-      await api.askChat(turns, this.ctx(), (e) => {
+      await api.askChat(turns, this.ctx(), this.o.board ? this.o.board() : null, (e) => {
         if (e.type === 'read') { this.reads.push(e); this.renderLog(); }
+        else if (e.type === 'proposal') proposal = e.proposal;
         else if (e.type === 'text') { this.msgs.push({ role: 'assistant', text: e.text }); answered = true; }
         else if (e.type === 'done') { const a = this.msgs[this.msgs.length - 1]; if (answered && a) a.sent = e.sent || []; }
         else if (e.type === 'error') this.err = e.text || 'The assistant failed.';
       }, ctl.signal);
       if (!answered && !this.err) this.err = 'The assistant gave no answer.';
+      if (answered && proposal && this.o.propose && this.ctl === ctl) this.msgs[this.msgs.length - 1].made = await this.o.propose(proposal);
     } catch (e) {
       if (!(e && e.name === 'AbortError')) this.err = e && e.message ? e.message : 'The assistant could not be reached.';
     }

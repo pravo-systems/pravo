@@ -300,37 +300,19 @@
 .bd-fn { margin: 0; padding: .35rem .7rem; border-top: 1px solid var(--line); background: var(--surface-2); font: 400 var(--fs-1) var(--font-ui); color: var(--text-3); }
 .bd-fn b { font: 600 var(--fs-2) var(--font-mono); color: var(--text); }
 
-/* ---- the guide ---- */
+/* ---- what Ask proposes ---- */
 
-.node.guided .box { stroke: var(--overlap); }
-.node.guided .bar { fill: var(--overlap); }
-.node.guided .dt .dtr { fill: var(--overlap); }
-.bd-guide { position: absolute; left: .75rem; top: .75rem; width: min(27rem, calc(100% - 1.5rem)); max-height: calc(100% - 9rem); overflow: auto; display: grid; gap: .45rem; padding: .6rem .7rem .7rem; background: var(--surface); border: 1px solid var(--line-strong); border-top: 2px solid var(--overlap); box-shadow: var(--shadow-2); z-index: 3; }
-.bd-guide[hidden] { display: none; }
-.bd-gh { display: flex; align-items: center; gap: .5rem; }
-.bd-gk { display: inline-flex; align-items: center; gap: .35rem; font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--overlap); }
-.bd-gk .i { width: .8rem; height: .8rem; }
-.bd-gm { font: 400 var(--fs-1) var(--font-mono); color: var(--text-3); }
-.bd-gq { margin: 0; font: 600 var(--fs-3)/1.4 var(--font-ui); color: var(--text); overflow-wrap: anywhere; }
-.bd-gr { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: 0; font: 400 var(--fs-1) var(--font-ui); color: var(--text-3); }
-.bd-gr code { padding: .05rem .3rem; border: 1px solid var(--line); font: 400 var(--fs-1) var(--font-mono); color: var(--text-2); }
-.bd-gw { display: flex; align-items: center; gap: .45rem; margin: 0; font: 400 var(--fs-2) var(--font-ui); color: var(--text-2); }
-.bd-gw .bd-dot { width: .5rem; height: .5rem; background: var(--overlap); animation: bd-blink 1s steps(2) infinite; }
-@keyframes bd-blink { 50% { opacity: .25; } }
-.bd-gt { display: grid; gap: .35rem; font: 400 var(--fs-3)/1.5 var(--font-ui); color: var(--text); }
-.bd-gt p, .bd-gt ul { margin: 0; }
-.bd-gt ul { padding-left: 1.1rem; }
-.bd-gt code { font: 400 var(--fs-2) var(--font-mono); padding: 0 .2rem; background: var(--surface-2); }
-.bd-gt.bad { color: var(--conflict); }
-.bd-gp { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; padding-top: .5rem; border-top: 1px solid var(--line); font: 400 var(--fs-2) var(--font-ui); color: var(--text-2); }
-.bd-gs { font: 400 var(--fs-1)/1.45 var(--font-ui); color: var(--text-3); }
-.bd-gs summary { cursor: pointer; }
-.bd-gs p { margin: .2rem 0 0; overflow-wrap: anywhere; }
-.bd-gs code { font: 400 var(--fs-1) var(--font-mono); color: var(--text-2); }
-.bd-gs .bad { color: var(--conflict); }
+.node.proposed .box { stroke: var(--overlap); }
+.node.proposed .bar { fill: var(--overlap); }
+.node.proposed .dt .dtr { fill: var(--overlap); }
+.bd-prop { position: absolute; left: .75rem; top: .75rem; display: flex; align-items: center; gap: .55rem; max-width: calc(100% - 1.5rem); padding: .4rem .45rem .4rem .7rem; background: var(--surface); border: 1px solid var(--line-strong); border-left: 2px solid var(--overlap); box-shadow: var(--shadow-2); z-index: 3; font: 400 var(--fs-2) var(--font-ui); color: var(--text-2); }
+.bd-prop[hidden] { display: none; }
+.bd-pk { display: inline-flex; align-items: center; gap: .35rem; font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--overlap); }
+.bd-pk .i { width: .8rem; height: .8rem; }
+.bd-pt { white-space: nowrap; }
+.bd-prop .grow { flex: 1 1 .5rem; }
 .bd-hit.bd-ask b { display: inline-flex; align-items: center; gap: .35rem; color: var(--overlap); }
 .bd-hit.bd-ask b .i { width: .8rem; height: .8rem; }
-@media (prefers-reduced-motion: reduce) { .bd-gw .bd-dot { animation: none; } }
 
 /* on a canvas that the inspector narrows, Review and Code say what they are in their tips, and the lamps keep their words */
 @container board (max-width: 76rem) { .bd-acts .bd-b.sq .lbl { display: none; } }
