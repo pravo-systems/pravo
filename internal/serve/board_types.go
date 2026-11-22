@@ -22,11 +22,13 @@ type BoardTypes struct {
 	Total int `json:"total"`
 }
 
-// BoardTypeHit is one type the bar offers: a resource type of a provider the specification declares, or a template.
+// BoardTypeHit is one type the bar offers: a type of the schema of a provider the specification declares (a resource,
+// a data source, an ephemeral resource), a value pravo reads for itself, or a template.
 type BoardTypeHit struct {
-	// Kind is "resource" or "template".
+	// Kind is resource, data, ephemeral, template, or one of the values pravo reads for itself: output, env, secret_env,
+	// secret, secret_version, remote_outputs.
 	Kind string `json:"kind"`
-	// Type is the resource type, or the name of the template.
+	// Type is the type of the schema, the name of the template, or the kind again for a value pravo reads for itself.
 	Type string `json:"type"`
 	// Title is the plain name: "Virtual machine" for aws_instance.
 	Title string `json:"title"`
@@ -36,18 +38,22 @@ type BoardTypeHit struct {
 	// Providers are all the provider structs that can draw the type, Provider first, when there are two or more: a type
 	// is one hit however many providers of its source the specification declares, and the person picks the provider.
 	Providers []string `json:"providers,omitempty"`
+	// Def is the definition a value pravo reads for itself is written from: pravo.#Env.
+	Def string `json:"def,omitempty"`
 	// Blurb is the first sentence of what the schema or the template says of it.
 	Blurb string `json:"blurb,omitempty"`
 }
 
-// BoardType is the answer of GET /api/board/type?type=TYPE&provider=$aws: the form of a resource type.
+// BoardType is the answer of GET /api/board/type?kind=KIND&type=TYPE&provider=$aws: the form of a type.
 type BoardType struct {
 	Version  int    `json:"version"`
 	Kind     string `json:"kind"`
 	Type     string `json:"type"`
 	Title    string `json:"title"`
 	Provider string `json:"provider,omitempty"`
-	Doc      string `json:"doc,omitempty"`
+	// Def is the definition a value pravo reads for itself is written from: pravo.#Env.
+	Def string `json:"def,omitempty"`
+	Doc string `json:"doc,omitempty"`
 	// Fields are what a person sets: the required ones first, then the rest, each in the order of the schema.
 	Fields []BoardField `json:"fields"`
 	// Reads are the string attributes of the type that another resource can read: id, arn, name, and so on.
@@ -73,6 +79,8 @@ type BoardField struct {
 	Deprecated bool `json:"deprecated,omitempty"`
 	// Default is the CUE of the default of a template input.
 	Default string `json:"default,omitempty"`
+	// Placeholder is an example of a value, shown in an empty input.
+	Placeholder string `json:"placeholder,omitempty"`
 	// Options are the values an enum of a template input allows, as CUE.
 	Options []string `json:"options,omitempty"`
 	// Wire says what the field can be wired to: its socket.
@@ -302,37 +310,81 @@ func (s *Server) boardTypesHandler(w http.ResponseWriter, r *http.Request, m *mo
 		}
 	}
 	out := &BoardTypes{Version: APIVersion, Query: q, Hits: []BoardTypeHit{}}
-	type scored struct {
-		hit   BoardTypeHit
-		score int
+	all, total := s.boardTypeHits(m, kept)
+	out.Total = total
+	sort.SliceStable(all, func(i, j int) bool {
+		if all[i].score != all[j].score {
+			return all[i].score > all[j].score
+		}
+		return all[i].hit.Type < all[j].hit.Type
+	})
+	for i := 0; i < len(all) && i < 24; i++ {
+		h := all[i].hit
+		if k, ok := schemaKindOf(h.Kind); ok && h.Kind != "template" && i < 8 {
+			if _, block := s.boardSchema(m, h.Provider, k, h.Type); block != nil {
+				h.Blurb = firstSentence(block.Description)
+			}
+		}
+		out.Hits = append(out.Hits, h)
 	}
-	var all []scored
-	// one hit for each type, whichever providers can draw it
-	byType := map[string]int{}
-	counted := map[string]bool{}
-	for _, p := range s.boardProviders(m) {
-		for _, typ := range p.types {
-			if i, ok := byType[typ]; ok {
-				h := &all[i].hit
-				if len(h.Providers) == 0 {
-					h.Providers = []string{h.Provider}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// boardScored is a hit of the bar and how well it answers the words.
+type boardScored struct {
+	hit   BoardTypeHit
+	score int
+}
+
+// boardTypeHits are the hits of the bar for some words, and how many types there are in all, each counted once: one hit
+// for each type of each kind, whichever providers can draw it. A data source or an ephemeral resource ranks below the
+// resource of its name, unless the words ask for one ("data vpc").
+func (s *Server) boardTypeHits(m *model, kept []string) ([]boardScored, int) {
+	var all []boardScored
+	total := 0
+	want := boardWantKind(&kept)
+	for _, k := range boardSchemaKinds {
+		byType := map[string]int{}
+		for _, p := range s.boardProviders(m) {
+			for _, typ := range p.types[k.kind] {
+				if i, ok := byType[typ]; ok {
+					if i >= 0 {
+						h := &all[i].hit
+						if len(h.Providers) == 0 {
+							h.Providers = []string{h.Provider}
+						}
+						h.Providers = append(h.Providers, p.Label)
+					}
+					continue
 				}
-				h.Providers = append(h.Providers, p.Label)
-				continue
-			}
-			if !counted[typ] {
-				counted[typ] = true
-				out.Total++
-			}
-			title := boardTitle(typ)
-			if sc := boardTypeScore(typ, title, kept); sc > 0 {
-				byType[typ] = len(all)
-				all = append(all, scored{BoardTypeHit{Kind: "resource", Type: typ, Title: title, Provider: p.Label}, sc})
+				total++
+				byType[typ] = -1
+				if want != "" && want != k.kind {
+					continue
+				}
+				title := boardTitle(typ)
+				sc := boardTypeScore(typ, title, kept)
+				if k.kind != "resource" && want == "" {
+					sc -= 15
+					if len(kept) == 0 {
+						sc = 0 // an empty bar suggests resources
+					}
+				}
+				if sc > 0 {
+					byType[typ] = len(all)
+					all = append(all, boardScored{BoardTypeHit{Kind: k.kind, Type: typ, Title: title, Provider: p.Label}, sc})
+				}
 			}
 		}
 	}
+	for _, b := range boardBuiltins {
+		total++
+		if sc := boardBuiltinScore(b, kept); sc > 0 && want == "" {
+			all = append(all, boardScored{BoardTypeHit{Kind: b.kind, Type: b.kind, Title: b.title, Def: "pravo." + b.def, Blurb: b.doc}, sc})
+		}
+	}
 	for _, t := range s.boardTemplates(m) {
-		out.Total++
+		total++
 		title := strings.ToLower(t.Title + " " + t.Name + " " + t.Description)
 		sc := 30
 		for _, w := range kept {
@@ -342,26 +394,52 @@ func (s *Server) boardTypesHandler(w http.ResponseWriter, r *http.Request, m *mo
 			}
 			sc += 50
 		}
-		if sc > 0 {
-			all = append(all, scored{BoardTypeHit{Kind: "template", Type: t.Name, Title: t.Title, Blurb: clip(oneLine(t.Description), 160)}, sc + 40})
+		if sc > 0 && want == "" {
+			all = append(all, boardScored{BoardTypeHit{Kind: "template", Type: t.Name, Title: t.Title, Blurb: clip(oneLine(t.Description), 160)}, sc + 40})
 		}
 	}
-	sort.SliceStable(all, func(i, j int) bool {
-		if all[i].score != all[j].score {
-			return all[i].score > all[j].score
-		}
-		return all[i].hit.Type < all[j].hit.Type
-	})
-	for i := 0; i < len(all) && i < 24; i++ {
-		h := all[i].hit
-		if h.Kind == "resource" && i < 8 {
-			if sch := s.boardSchema(m, h.Provider, h.Type); sch != nil && sch.Block != nil {
-				h.Blurb = firstSentence(sch.Block.Description)
-			}
-		}
-		out.Hits = append(out.Hits, h)
+	return all, total
+}
+
+// boardWantKind takes a word that asks for a kind of the schema out of the words of the bar: "data vpc" asks for the data
+// source aws_vpc. It returns the kind, or "" when the words ask for none.
+func boardWantKind(words *[]string) string {
+	if len(*words) < 2 {
+		return ""
 	}
-	writeJSON(w, http.StatusOK, out)
+	kinds := map[string]string{"data": "data", "datasource": "data", "lookup": "data", "ephemeral": "ephemeral"}
+	for i, w := range *words {
+		if k, ok := kinds[w]; ok {
+			*words = append((*words)[:i:i], (*words)[i+1:]...)
+			return k
+		}
+	}
+	return ""
+}
+
+// boardBuiltinScore says how well a value pravo reads for itself answers the words of the bar. In an empty bar, an
+// output and an environment variable are offered with the resources that are drawn most.
+func boardBuiltinScore(b boardBuiltin, q []string) int {
+	if len(q) == 0 {
+		if b.kind == "output" || b.kind == "env" {
+			return 11
+		}
+		return 0
+	}
+	score := 0
+	for _, w := range q {
+		switch {
+		case w == b.kind:
+			score += 200
+		case containsWord(b.words, w):
+			score += 80
+		case containsPrefix(b.words, w) || containsPrefix(strings.ToLower(b.title), w):
+			score += 40
+		default:
+			return 0
+		}
+	}
+	return score + 20
 }
 
 var (
@@ -393,7 +471,8 @@ func firstSentence(d string) string {
 	return clip(d, 240)
 }
 
-// boardTypeHandler answers GET /api/board/type?type=TYPE&provider=$aws, and ?template=NAME for a template.
+// boardTypeHandler answers GET /api/board/type?kind=KIND&type=TYPE&provider=$aws, ?template=NAME for a template, and
+// ?kind=output (or another value pravo reads for itself) for a built-in. Without kind, the type is a resource's.
 func (s *Server) boardTypeHandler(w http.ResponseWriter, r *http.Request, m *model) {
 	q := r.URL.Query()
 	if name := q.Get("template"); name != "" {
@@ -405,23 +484,30 @@ func (s *Server) boardTypeHandler(w http.ResponseWriter, r *http.Request, m *mod
 		writeJSON(w, http.StatusOK, boardTemplateForm(t))
 		return
 	}
-	typ, prov := q.Get("type"), q.Get("provider")
-	p := s.boardProvider(m, prov, typ)
-	if p == nil {
-		writeError(w, http.StatusNotFound, "no provider of the specification has this type")
+	if b := boardBuiltinOf(q.Get("kind")); b != nil {
+		writeJSON(w, http.StatusOK, b.form())
 		return
 	}
-	sch := s.boardSchema(m, p.Label, typ)
-	if sch == nil || sch.Block == nil {
+	k, ok := schemaKindOf(q.Get("kind"))
+	if !ok {
+		writeError(w, http.StatusBadRequest, "kind is resource, data, ephemeral, output, env, secret_env, secret, secret_version or remote_outputs")
+		return
+	}
+	typ := q.Get("type")
+	p, block := s.boardSchema(m, q.Get("provider"), k, typ)
+	switch {
+	case p == nil:
+		writeError(w, http.StatusNotFound, "no provider of the specification has this "+k.kind+" type")
+	case block == nil:
 		writeError(w, http.StatusNotFound, "the schema of this type is not cached")
-		return
+	default:
+		writeJSON(w, http.StatusOK, s.boardForm(m, p, k, typ, block))
 	}
-	writeJSON(w, http.StatusOK, s.boardForm(m, p, typ, sch.Block))
 }
 
-// boardForm is the form of a resource type.
-func (s *Server) boardForm(m *model, p *boardProv, typ string, b *schema.Block) *BoardType {
-	out := &BoardType{Version: APIVersion, Kind: "resource", Type: typ, Title: boardTitle(typ), Provider: p.Label, Doc: firstSentence(b.Description),
+// boardForm is the form of a type of the schema of a provider.
+func (s *Server) boardForm(m *model, p *boardProv, k boardSchemaKind, typ string, b *schema.Block) *BoardType {
+	out := &BoardType{Version: APIVersion, Kind: k.kind, Type: typ, Title: boardTitle(typ), Provider: p.Label, Doc: firstSentence(b.Description),
 		Fields: []BoardField{}, Reads: []string{}, Label: boardLabelFor(typ)}
 	ix := s.boardWires(m)
 	var req, rest []BoardField

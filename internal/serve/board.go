@@ -158,11 +158,15 @@ type BoardDraft struct {
 	Seen map[string]string `json:"seen,omitempty"`
 }
 
-// BoardItem is one thing drawn: a resource or an instance of a template.
+// BoardItem is one thing drawn: a resource, a data source, an ephemeral resource, a value pravo reads for itself (an
+// output, an environment variable, a secret, the outputs of another root) or an instance of a template.
 type BoardItem struct {
 	// Label is its name, and its address: the drawing goes at the top level of the specification.
 	Label string `json:"label"`
-	// Type and Provider name a resource type and the provider struct that runs it ($aws); Template names a template.
+	// Kind is resource, data, ephemeral, template, output, env, secret_env, secret, secret_version or remote_outputs.
+	// Empty, it is a template when Template is set, else a resource.
+	Kind string `json:"kind,omitempty"`
+	// Type and Provider name a type of the schema and the provider struct that runs it ($aws); Template names a template.
 	Type     string                `json:"type,omitempty"`
 	Provider string                `json:"provider,omitempty"`
 	Template string                `json:"template,omitempty"`
@@ -272,10 +276,14 @@ type boardModel struct {
 // boardProv is a provider the board draws with: declared at the top level, locked, with its schema cached.
 type boardProv struct {
 	BoardProvider
-	sch   Schemas
-	types []string
-	set   map[string]bool
+	sch Schemas
+	// types are the types of each schema kind (resource, data, ephemeral), sorted; set holds them for a lookup.
+	types map[string][]string
+	set   map[string]map[string]bool
 }
+
+// has says whether the provider has a type of a schema kind.
+func (p *boardProv) has(kind, typ string) bool { return p.set[kind][typ] }
 
 func (s *Server) boardData(m *model) *boardModel {
 	m.boardOnce.Do(func() {
@@ -314,14 +322,18 @@ func (s *Server) boardData(m *model) *boardModel {
 			if !ok {
 				continue
 			}
-			p := &boardProv{BoardProvider: BoardProvider{Label: label, Local: d.Local, Source: d.Source.String(), Version: e.Version}, sch: sch, set: map[string]bool{}}
-			if l, ok := sch.(interface{ ResourceTypes() []string }); ok {
-				p.types = l.ResourceTypes()
+			p := &boardProv{BoardProvider: BoardProvider{Label: label, Local: d.Local, Source: d.Source.String(), Version: e.Version}, sch: sch,
+				types: map[string][]string{}, set: map[string]map[string]bool{}}
+			for _, k := range boardSchemaKinds {
+				if l, ok := sch.(interface{ TypesOf(string) []string }); ok {
+					p.types[k.kind] = l.TypesOf(k.mode)
+				}
+				p.set[k.kind] = map[string]bool{}
+				for _, t := range p.types[k.kind] {
+					p.set[k.kind][t] = true
+				}
+				p.Types += len(p.types[k.kind])
 			}
-			for _, t := range p.types {
-				p.set[t] = true
-			}
-			p.Types = len(p.types)
 			m.spec.cueMu.Lock()
 			p.Hint = boardProvHint(root.Value.LookupPath(d.Path), sch, m.scrubText)
 			m.spec.cueMu.Unlock()
@@ -331,7 +343,7 @@ func (s *Server) boardData(m *model) *boardModel {
 		var all []string
 		bySet := map[string]*boardProv{}
 		for _, p := range bm.provs {
-			for _, t := range p.types {
+			for _, t := range p.types["resource"] {
 				if bySet[t] == nil {
 					bySet[t] = p
 					all = append(all, t)
@@ -414,22 +426,27 @@ func (s *Server) boardTemplate(m *model, name string) *TemplateEntry {
 	return nil
 }
 
-// boardProvider is the provider of the label that has the type, or, with no label, the first that has it.
-func (s *Server) boardProvider(m *model, label, typ string) *boardProv {
+// boardProvider is the provider of the label that has the type of the schema kind, or, with no label, the first that
+// has it.
+func (s *Server) boardProvider(m *model, label string, k boardSchemaKind, typ string) *boardProv {
 	for _, p := range s.boardProviders(m) {
-		if (label == "" || p.Label == label) && p.set[typ] {
+		if (label == "" || p.Label == label) && p.has(k.kind, typ) {
 			return p
 		}
 	}
 	return nil
 }
 
-func (s *Server) boardSchema(m *model, label, typ string) *schema.Schema {
-	p := s.boardProvider(m, label, typ)
+// boardSchema is the schema of a type of a schema kind that the provider of the label has.
+func (s *Server) boardSchema(m *model, label string, k boardSchemaKind, typ string) (*boardProv, *schema.Block) {
+	p := s.boardProvider(m, label, k, typ)
 	if p == nil {
-		return nil
+		return nil, nil
 	}
-	return p.sch.Type("managed", typ)
+	if sch := p.sch.Type(k.mode, typ); sch != nil && sch.Block != nil {
+		return p, sch.Block
+	}
+	return p, nil
 }
 
 // boardFile is the name the board suggests: board.cue, else the first board-N.cue that no file has.
@@ -587,47 +604,23 @@ func boardLabels(bm *boardModel, d *BoardDraft, problems *drawProblems) map[stri
 // that needs a value and has none goes to code.missing.
 func (s *Server) boardBlockOf(m *model, it BoardItem, labels map[string]bool, code *boardCode, problems *drawProblems) (boardBlock, bool) {
 	bl := boardBlock{label: it.Label, heads: map[string]bool{}}
-	var form []BoardField
-	switch {
-	case it.Template != "":
-		t := s.boardTemplate(m, it.Template)
-		if t == nil {
-			problems.add(it.Label, "", "No template of the specification is named "+strconv.Quote(clip(it.Template, 60))+".")
+	head, form, ok := s.boardHeadOf(m, it, problems)
+	if !ok {
+		return bl, false
+	}
+	bl.head = head
+	if it.Adopt != nil {
+		imp, msg := boardImport(m, it, strings.SplitN(head, ".", 2)[0])
+		if msg != "" {
+			problems.add(it.Label, "@adopt", msg)
 			return bl, false
 		}
-		if it.Adopt != nil {
-			problems.add(it.Label, "@adopt", "A template does not adopt an object: draw a resource of its type.")
-			return bl, false
-		}
-		bl.head = t.Definition
-		form = boardTemplateForm(t).Fields
-	default:
-		p := s.boardProvider(m, it.Provider, it.Type)
-		if p == nil {
-			problems.add(it.Label, "", "No provider of the specification has the type "+strconv.Quote(clip(it.Type, 80))+".")
-			return bl, false
-		}
-		sch := p.sch.Type("managed", it.Type)
-		if sch == nil || sch.Block == nil {
-			problems.add(it.Label, "", "The schema of "+it.Type+" is not cached.")
-			return bl, false
-		}
-		bl.head = p.Label + ".#Resource." + it.Type
-		if it.Adopt != nil {
-			imp, msg := boardImport(m, it, p.Label)
-			if msg != "" {
-				problems.add(it.Label, "@adopt", msg)
-				return bl, false
-			}
-			bl.fields = append(bl.fields, boardField{"$import", imp})
-		}
-		form = s.boardForm(m, p, it.Type, sch.Block).Fields
+		bl.fields = append(bl.fields, boardField{"$import", imp})
 	}
 	known := map[string]bool{}
 	for _, f := range form {
 		known[f.Name] = true
 	}
-	ok := true
 	for name := range it.Values {
 		if !known[name] {
 			problems.add(it.Label, name, "There is no field "+strconv.Quote(clip(name, 60))+" to set.")
@@ -656,11 +649,59 @@ func (s *Server) boardBlockOf(m *model, it BoardItem, labels map[string]bool, co
 	return bl, ok
 }
 
+// boardHeadOf is what a thing drawn unifies with, and its form: $aws.#Data.aws_vpc for a data source, pravo.#Env for an
+// environment variable, the definition of a template. Only a resource adopts.
+func (s *Server) boardHeadOf(m *model, it BoardItem, problems *drawProblems) (string, []BoardField, bool) {
+	kind := it.kindOf()
+	if it.Adopt != nil && kind != "resource" {
+		problems.add(it.Label, "@adopt", "Only a resource adopts an object.")
+		return "", nil, false
+	}
+	if kind == "template" {
+		t := s.boardTemplate(m, it.Template)
+		if t == nil {
+			problems.add(it.Label, "", "No template of the specification is named "+strconv.Quote(clip(it.Template, 60))+".")
+			return "", nil, false
+		}
+		return t.Definition, boardTemplateForm(t).Fields, true
+	}
+	if b := boardBuiltinOf(kind); b != nil {
+		return "pravo." + b.def, b.fields, true
+	}
+	k, ok := schemaKindOf(kind)
+	if !ok {
+		problems.add(it.Label, "", "There is no kind "+strconv.Quote(clip(kind, 40))+" to draw.")
+		return "", nil, false
+	}
+	p, block := s.boardSchema(m, it.Provider, k, it.Type)
+	switch {
+	case p == nil:
+		problems.add(it.Label, "", "No provider of the specification has the "+k.kind+" type "+strconv.Quote(clip(it.Type, 80))+".")
+		return "", nil, false
+	case block == nil:
+		problems.add(it.Label, "", "The schema of "+it.Type+" is not cached.")
+		return "", nil, false
+	}
+	return p.Label + "." + k.member + "." + it.Type, s.boardForm(m, p, k, it.Type, block).Fields, true
+}
+
 // boardWrite writes the file of the drawing into code: the aliases it needs, then a struct for each thing drawn,
 // formatted, with the lines of each.
 func boardWrite(bm *boardModel, code *boardCode, blocks []boardBlock, lets, labels map[string]bool, problems *drawProblems) bool {
 	var b strings.Builder
-	b.WriteString("package " + bm.pkg + "\n\n// Drawn on the drawing board of pravo serve.\n\n")
+	b.WriteString("package " + bm.pkg + "\n\n")
+	for _, bl := range blocks {
+		if strings.HasPrefix(bl.head, "pravo.") {
+			// the definitions of the values pravo reads for itself are in its own package
+			if bm.top["pravo"] || labels["pravo"] {
+				problems.add("", "", "pravo is a field of the top level, so the new file cannot import pravo.dev/pravo: write it in the code.")
+				return false
+			}
+			b.WriteString("import \"pravo.dev/pravo\"\n\n")
+			break
+		}
+	}
+	b.WriteString("// Drawn on the drawing board of pravo serve.\n\n")
 	var names []string
 	for h := range lets {
 		names = append(names, h)
@@ -815,11 +856,11 @@ func boardExpr(v BoardValue, f BoardField, self string, labels map[string]bool, 
 		}
 		x, err := parser.ParseExpr("value", v.Expr)
 		if err != nil {
-			return "", nil, "This is not CUE: " + clip(strings.TrimPrefix(err.Error(), "value:"), 200)
+			return "", nil, "Invalid CUE: " + clip(strings.TrimPrefix(err.Error(), "value:"), 200)
 		}
 		out, err := format.Node(x)
 		if err != nil {
-			return "", nil, "This is not CUE."
+			return "", nil, "Invalid CUE."
 		}
 		for _, id := range refHeads(x) {
 			heads[id.Name] = true
@@ -1096,13 +1137,13 @@ func boardChanges(m *model, root *config.Root, d *BoardDraft, out *BoardCheck) [
 				changes = append(changes, engine.ChangeView{Addr: addr, Mode: "managed", Type: res.Type, Name: res.Name, Action: engine.ActionCreate,
 					Provider: res.ProviderKey, After: configured(root.Value.LookupPath(res.Path)), Template: engine.TemplateOf(root.Value, res.Path, marked)})
 			}
-		case edited[addr]:
+		case edited[addr] && res.Mode == "managed":
 			changes = append(changes, engine.ChangeView{Addr: addr, Mode: "managed", Type: res.Type, Name: res.Name, Action: engine.ActionUpdate,
 				Provider: res.ProviderKey, After: configured(root.Value.LookupPath(res.Path))})
 		}
 	}
 	for _, a := range out.Removes {
-		if res := m.spec.byPath[a]; res != nil {
+		if res := m.spec.byPath[a]; res != nil && res.Mode == "managed" {
 			changes = append(changes, engine.ChangeView{Addr: a, Mode: "managed", Type: res.Type, Name: res.Name, Action: engine.ActionDelete, Provider: res.ProviderKey})
 		}
 	}
@@ -1114,16 +1155,15 @@ func boardChanges(m *model, root *config.Root, d *BoardDraft, out *BoardCheck) [
 func boardReads(root *config.Root, labels map[string]bool) map[string][]string {
 	res := newSpecResolver(root)
 	sets := map[string]map[string]bool{}
-	for _, r := range root.Resources {
-		addr := r.Address()
+	read := func(addr string, at cue.Path) {
 		item, _, _ := strings.Cut(addr, ".")
 		if labels[addr] {
 			item = addr
 		}
-		if !labels[item] || (r.Mode != "managed" && r.Mode != "data") {
-			continue
+		if !labels[item] {
+			return
 		}
-		deps, _ := convert.Dependencies(root.At(r.Path), r.Path, res)
+		deps, _ := convert.Dependencies(root.At(at), at, res)
 		for _, p := range deps {
 			d, ok := res.byPath[p.String()]
 			if !ok {
@@ -1140,6 +1180,12 @@ func boardReads(root *config.Root, labels map[string]bool) map[string][]string {
 			}
 			sets[item][da] = true
 		}
+	}
+	for _, r := range root.Resources {
+		read(r.Address(), r.Path)
+	}
+	for _, o := range root.Outputs {
+		read(o.Name, o.Path)
 	}
 	out := map[string][]string{}
 	for item, set := range sets {

@@ -115,9 +115,9 @@ func TestBoardRefusesAFoldItCannotWriteExactly(t *testing.T) {
 	}{
 		{BoardFold{Name: "web", Addrs: []string{"apps.web"}}, "Only a resource written at the top of a file is folded"},
 		{BoardFold{Name: "shared", Addrs: []string{"cache"}}, "shared is a name of the specification already."},
-		{BoardFold{Name: "store", Addrs: []string{"cache"}, Ask: []string{"cache.zones"}}, "Only a value typed as it is"},
+		{BoardFold{Name: "store", Addrs: []string{"cache"}, Ask: []string{"cache.zones"}}, "Only a literal"},
 		{BoardFold{Name: "Store", Addrs: []string{"cache"}}, "Name the template with small letters"},
-		{BoardFold{Name: "store", Addrs: []string{"services.a.db"}}, "not written as a field of its own"},
+		{BoardFold{Name: "store", Addrs: []string{"services.a.db"}}, "Not declared as a field of its own"},
 	} {
 		chk := boardCheckOf(t, p, BoardDraft{Fold: &c.fold})
 		raw, _ := json.Marshal(chk.Problems)

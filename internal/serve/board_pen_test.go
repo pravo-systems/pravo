@@ -99,7 +99,7 @@ func TestBoardReadsAResourceAsThePenCanChangeIt(t *testing.T) {
 			t.Errorf("%s: %+v", addr, e)
 		}
 	}
-	if e := editableOf(t, p, "nothing"); !strings.Contains(e.Reason, "no resource") {
+	if e := editableOf(t, p, "nothing"); !strings.Contains(e.Reason, "no node") {
 		t.Errorf("nothing: %+v", e)
 	}
 }

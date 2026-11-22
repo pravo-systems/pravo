@@ -1853,6 +1853,8 @@ function onKey(ev) {
   if (k === 'g') { setView(S.view === 'graph' ? 'list' : 'graph'); return; }
   if (S.view !== 'graph') return;
   const onCanvas = ev.target === document.body || ev.target === $('canvas') || ev.target.closest('#canvas');
+  // on the board, Backspace or Delete takes the selected thing out of the draft, or marks a node for deletion
+  if ((k === 'Backspace' || k === 'Delete') && board && board.on && S.sel && board.deleteKey(S.sel)) { ev.preventDefault(); return; }
   if (k === 'f') { gv.fit(true); return; }
   if (k === 'i') { setProject(!S.proj); return; }
   if (k === '0') { resetView(); return; }

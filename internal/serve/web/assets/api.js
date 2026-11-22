@@ -89,8 +89,9 @@ export async function switchEnvironment(name) {
 export const board = () => get('/api/board');
 // boardTypes finds the resource types and templates that answer the words of the bar.
 export const boardTypes = (q, signal) => get('/api/board/types?q=' + encodeURIComponent(q || ''), signal);
-// boardType is the form of a resource type, or of a template.
-export const boardType = (kind, type, provider) => get('/api/board/type?' + (kind === 'template' ? 'template=' + encodeURIComponent(type) : 'type=' + encodeURIComponent(type) + '&provider=' + encodeURIComponent(provider || '')));
+// boardType is the form of a kind of thing: a type of a provider schema, a value pravo reads for itself, or a template.
+export const boardType = (kind, type, provider) => get('/api/board/type?' + (kind === 'template' ? 'template=' + encodeURIComponent(type)
+  : 'kind=' + encodeURIComponent(kind || 'resource') + '&type=' + encodeURIComponent(type || '') + '&provider=' + encodeURIComponent(provider || '')));
 // boardEdit reads a resource of the specification as the pen of the board can change it: its fields as written, the
 // form of its type, and the digest of its file. reason says why it cannot be changed on the board, when it cannot.
 export const boardEdit = (addr) => get('/api/board/edit?addr=' + encodeURIComponent(addr));

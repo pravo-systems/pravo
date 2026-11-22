@@ -379,7 +379,7 @@ export class DiscoveryView {
           snippet(a.snippet, 'Copy the resource', 'snip:' + k));
         // or draw it on the board, which writes the same $import into a new file and plans it
         if (a.provider && a.type && this.cb.canDraw && this.cb.canDraw()) {
-          box.append(h('div', { class: 'dv-draw' }, h('button', { type: 'button', class: 'btn', 'data-fk': 'draw:' + k, on: { click: () => this.cb.onDraw(a, it) } }, icon('pen'), h('span', null, 'Draw it on the board')),
+          box.append(h('div', { class: 'dv-draw' }, h('button', { type: 'button', class: 'btn', 'data-fk': 'draw:' + k, on: { click: () => this.cb.onDraw(a, it) } }, icon('pen'), h('span', null, 'Draw on the board')),
             h('span', { class: 'dv-note' }, 'to wire it to what you draw, and plan it before you save')));
         }
       }

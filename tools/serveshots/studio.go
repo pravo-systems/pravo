@@ -239,9 +239,6 @@ await draw('password', 'random_password', 'reports_key');
 type(await field('length'), '32');
 await draw('file', 'local_file', 'reports');
 type(await field('filename'), 'out/reports.json');
-const q = await until(() => document.querySelector('.bd-q'), 'the search of the fields');
-type(q, 'content');
-(await until(() => document.querySelector('.bd-mf[data-f="content"]'), 'the field content in the search')).click();
 (await until(() => document.querySelector('.bd-row[data-f="content"] .bd-mode'), 'the switch to CUE')).click();
 type(await until(() => document.querySelector('.bd-row[data-f="content"] textarea'), 'the CUE of content'), '"release \\(release.hex) on \\(network.name.id)\\n"');
 await lamp(0, 'ok');
@@ -265,7 +262,7 @@ func foldScript() string { return scriptPrelude + foldJS }
 const foldJS = `
 const tool = (word) => until(() => all('.itool button').find((b) => b.textContent.trim().startsWith(word)), 'the tool ' + word);
 const lamp = (i, cls) => until(() => { const l = all('.bd-lamp')[i]; return l && l.classList.contains(cls) ? l : null; }, 'the lamp ' + i + ' ' + cls);
-(await tool('Fold it')).click();
+(await tool('Fold')).click();
 await until(() => document.querySelector('.bd-fold'), 'the fold');
 // the page writes its own fragment as it draws, which can take the place of
 // this one before the page reads it: then it is written again

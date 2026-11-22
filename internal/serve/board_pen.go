@@ -20,6 +20,7 @@ import (
 	"cuelang.org/go/cue/token"
 
 	"github.com/pravo-systems/pravo/internal/config"
+	"github.com/pravo-systems/pravo/internal/schema"
 )
 
 // The pen of the drawing board changes resources that the specification has: it sets and unsets fields of the struct a
@@ -28,10 +29,13 @@ import (
 // written as one field of one file of the project (a template's, a loop's, one written in two places) is not changed
 // here: the board says where it is written.
 
-// BoardEditable is the answer of GET /api/board/edit: a resource as the pen can change it.
+// BoardEditable is the answer of GET /api/board/edit: a resource, a data source, an output or another thing of the
+// specification as the pen can change it.
 type BoardEditable struct {
-	Version  int    `json:"version"`
-	Addr     string `json:"addr"`
+	Version int    `json:"version"`
+	Addr    string `json:"addr"`
+	// Kind is the kind of the board: resource, data, ephemeral, output, env, and so on.
+	Kind     string `json:"kind,omitempty"`
 	Type     string `json:"type,omitempty"`
 	Provider string `json:"provider,omitempty"`
 	// File and Line say where it is written; Base is the digest of that file, which a change is made against.
@@ -93,8 +97,9 @@ type penTarget struct {
 	// scope are the labels of the structs around the resource, its own included: a reference that starts with one of
 	// them would read it, and not the resource of the top level that the wire means.
 	scope map[string]bool
-	res   *config.Resource
-	path  []string
+	// kind is the kind of the board; typ and provKey the type and the provider of a kind of the schema.
+	kind, typ, provKey string
+	path               []string
 }
 
 // penDigest names the bytes of a file.
@@ -124,19 +129,32 @@ func (s *Server) penFiles(m *model) []string {
 	return out
 }
 
-// penFind finds where the resource at addr is written. reason says why it cannot be changed here, when it cannot.
+// penFind finds where the thing at addr is written. reason says why it cannot be changed here, when it cannot.
 func (s *Server) penFind(m *model, addr string) (*penTarget, string) {
-	res := m.spec.byPath[addr]
-	if res == nil || m.spec.root == nil {
-		return nil, "The specification has no resource " + strconv.Quote(clip(addr, 80)) + "."
+	if m.spec.root == nil {
+		return nil, "The specification does not load."
 	}
-	if res.Mode != "managed" {
-		return nil, "Only a managed resource is changed on the board."
+	var at cue.Path
+	kind, typ, provKey := "", "", ""
+	if res := m.spec.byPath[addr]; res != nil {
+		at, kind, typ, provKey = res.Path, boardKindOfNode(res.Mode, res.Type), res.Type, res.ProviderKey
+	} else {
+		for _, o := range m.spec.root.Outputs {
+			if o.Name == addr {
+				at, kind = o.Path, "output"
+			}
+		}
+		if kind == "" {
+			return nil, "The specification has no node " + strconv.Quote(clip(addr, 80)) + "."
+		}
+	}
+	if kind == "" {
+		return nil, "A function call or a discovery is edited in the code."
 	}
 	var path []string
-	for _, sel := range res.Path.Selectors() {
+	for _, sel := range at.Selectors() {
 		if sel.LabelType() != cue.StringLabel {
-			return nil, "It is an element of a list: change it where the list is written."
+			return nil, "An element of a list: edit the list in the code."
 		}
 		path = append(path, sel.Unquoted())
 	}
@@ -151,17 +169,18 @@ func (s *Server) penFind(m *model, addr string) (*penTarget, string) {
 			continue
 		}
 		for _, t := range penSearch(file.Decls, path, map[string]bool{}) {
-			t.abs, t.name, t.src, t.res, t.path = f, filepath.Base(f), src, res, path
+			t.abs, t.name, t.src, t.path = f, filepath.Base(f), src, path
+			t.kind, t.typ, t.provKey = kind, typ, provKey
 			found = append(found, t)
 		}
 	}
 	switch {
 	case len(found) == 0:
-		return nil, "It is not written as a field of its own in a file of the project: a template, a loop or a condition makes it. Change it where that is written."
+		return nil, "Not declared as a field of its own in a project file: a template, a loop or a condition produces it. Edit that code."
 	case len(found) > 1:
-		return nil, "It is written in " + strconv.Itoa(len(found)) + " places, which the board does not join: change it in the code."
+		return nil, "Declared in " + strconv.Itoa(len(found)) + " places, which the board does not merge: edit it in the code."
 	case found[0].body == nil:
-		return nil, "Its value is not a struct that the board can add fields to: change it in the code."
+		return nil, "The value is not a struct the board can add fields to: edit it in the code."
 	}
 	return found[0], ""
 }
@@ -253,20 +272,14 @@ func (s *Server) boardEditable(m *model, addr string) *BoardEditable {
 		}
 		return out
 	}
-	out.Type = t.res.Type
+	out.Kind, out.Type = t.kind, t.typ
 	out.File, out.Line, out.Base = t.name, t.field.Pos().Line(), penDigest(t.src)
-	p := s.penProvider(m, t.res)
-	if p == nil {
-		out.Reason = "The schema of " + t.res.Type + " is not cached, so the board has no form for it."
+	form, prov, reason := s.penForm(m, t)
+	if form == nil {
+		out.Reason = reason
 		return out
 	}
-	out.Provider = p.Label
-	sch := p.sch.Type("managed", t.res.Type)
-	if sch == nil || sch.Block == nil {
-		out.Reason = "The schema of " + t.res.Type + " is not cached, so the board has no form for it."
-		return out
-	}
-	out.Form = s.boardForm(m, p, t.res.Type, sch.Block)
+	out.Form, out.Provider = form, prov
 	known := map[string]BoardField{}
 	for _, f := range out.Form.Fields {
 		known[f.Name] = f
@@ -293,13 +306,36 @@ func (s *Server) boardEditable(m *model, addr string) *BoardEditable {
 	return out
 }
 
-// penProvider is the provider of the board that runs a resource.
-func (s *Server) penProvider(m *model, res *config.Resource) *boardProv {
+// resourceBlock is the schema of a resource, a data source or an ephemeral resource of the specification, as the
+// provider that runs it has it; nil when the board has none.
+func (s *Server) resourceBlock(m *model, res *config.Resource) *schema.Block {
+	k, ok := schemaKindOfMode(res.Mode)
+	if !ok {
+		return nil
+	}
 	label := ""
 	if p, ok := m.spec.root.ProviderPath(res.ProviderKey); ok {
 		label = p.String()
 	}
-	return s.boardProvider(m, label, res.Type)
+	_, block := s.boardSchema(m, label, k, res.Type)
+	return block
+}
+
+// penForm is the form of the thing a target is, and the provider struct that runs it; reason says why there is none.
+func (s *Server) penForm(m *model, t *penTarget) (form *BoardType, provider, reason string) {
+	if b := boardBuiltinOf(t.kind); b != nil {
+		return b.form(), "", ""
+	}
+	k, _ := schemaKindOf(t.kind)
+	label := ""
+	if p, ok := m.spec.root.ProviderPath(t.provKey); ok {
+		label = p.String()
+	}
+	p, block := s.boardSchema(m, label, k, t.typ)
+	if block == nil {
+		return nil, "", "Schema of " + t.typ + " not cached: no form."
+	}
+	return s.boardForm(m, p, k, t.typ, block), p.Label, ""
 }
 
 // penLiteral says whether an expression holds a literal anywhere: a value typed into the code.
@@ -454,6 +490,9 @@ func (s *Server) boardEdits(m *model, d *BoardDraft, labels map[string]bool, pro
 	var out []BoardFileChange
 	for _, fw := range work {
 		text, err := penApply(fw.src, fw.splices)
+		if err == nil {
+			text = penPruneImports(string(fw.src), text)
+		}
 		if err != nil {
 			about := "@fold"
 			if len(fw.addrs) > 0 {
@@ -492,23 +531,18 @@ func (s *Server) penSplices(m *model, t *penTarget, e BoardEdit, labels map[stri
 		}
 		start, end, ok := penLines(t.src, penStart(t.field), t.field.End().Offset())
 		if !ok {
-			problems.add(e.Addr, "", "It shares its lines with other code: remove it in the code.")
+			problems.add(e.Addr, "", "Shares its lines with other code: delete it in the code.")
 			return nil, false
 		}
 		return []penSplice{{start: start, end: end}}, true
 	}
-	p := s.penProvider(m, t.res)
-	if p == nil {
-		problems.add(e.Addr, "", "The schema of "+t.res.Type+" is not cached.")
-		return nil, false
-	}
-	sch := p.sch.Type("managed", t.res.Type)
-	if sch == nil || sch.Block == nil {
-		problems.add(e.Addr, "", "The schema of "+t.res.Type+" is not cached.")
+	form, _, reason := s.penForm(m, t)
+	if form == nil {
+		problems.add(e.Addr, "", reason)
 		return nil, false
 	}
 	known := map[string]BoardField{}
-	for _, f := range s.boardForm(m, p, t.res.Type, sch.Block).Fields {
+	for _, f := range form.Fields {
 		known[f.Name] = f
 	}
 	written := map[string]*ast.Field{}
@@ -544,7 +578,7 @@ func (s *Server) penSplices(m *model, t *penTarget, e BoardEdit, labels map[stri
 		}
 		start, end, ok := penLines(t.src, penStart(g), g.End().Offset())
 		if !ok {
-			problems.add(e.Addr, name, "It shares its line with other code: unset it in the code.")
+			problems.add(e.Addr, name, "Shares its line with other code: unset it in the code.")
 			return nil, false
 		}
 		out = append(out, penSplice{start: start, end: end})
@@ -615,7 +649,7 @@ func penSets(m *model, t *penTarget, e BoardEdit, known map[string]BoardField, l
 // it gets: a field added to {a: 1} goes inside the braces.
 func penRewriteStruct(t *penTarget, written map[string]*ast.Field, set map[string]string, unset map[string]bool, addr string, problems *drawProblems) ([]penSplice, bool) {
 	if !t.body.Lbrace.IsValid() {
-		problems.add(addr, "", "Its struct has no braces: change it in the code.")
+		problems.add(addr, "", "The struct has no braces: edit it in the code.")
 		return nil, false
 	}
 	var parts []string
@@ -710,6 +744,86 @@ func penIndent(src []byte, off int) string {
 		i++
 	}
 	return string(src[ls:i])
+}
+
+// penPruneImports takes out of the new text of a file the imports that the change left unused, which CUE refuses: an
+// import that the old text read and the new one does not. One that was unused before is left as it was.
+func penPruneImports(old, text string) string {
+	of, err := parser.ParseFile("old.cue", old)
+	if err != nil {
+		return text
+	}
+	nf, err := parser.ParseFile("new.cue", text)
+	if err != nil {
+		return text
+	}
+	before, after := penIdents(of), penIdents(nf)
+	src := []byte(text)
+	var splices []penSplice
+	cut := func(n ast.Node) {
+		if start, end, ok := penLines(src, n.Pos().Offset(), n.End().Offset()); ok {
+			splices = append(splices, penSplice{start: start, end: end})
+		}
+	}
+	for _, d := range nf.Decls {
+		id, ok := d.(*ast.ImportDecl)
+		if !ok {
+			continue
+		}
+		var gone []*ast.ImportSpec
+		for _, sp := range id.Specs {
+			if name := penImportName(sp); before[name] && !after[name] {
+				gone = append(gone, sp)
+			}
+		}
+		if len(gone) > 0 && len(gone) == len(id.Specs) {
+			cut(id)
+			continue
+		}
+		for _, sp := range gone {
+			cut(sp)
+		}
+	}
+	if len(splices) == 0 {
+		return text
+	}
+	if out, err := penApply(src, splices); err == nil {
+		return out
+	}
+	return text
+}
+
+// penIdents are the identifiers a file refers to, outside its imports.
+func penIdents(f *ast.File) map[string]bool {
+	out := map[string]bool{}
+	for _, d := range f.Decls {
+		if _, ok := d.(*ast.ImportDecl); ok {
+			continue
+		}
+		ast.Walk(d, func(n ast.Node) bool {
+			if id, ok := n.(*ast.Ident); ok {
+				out[id.Name] = true
+			}
+			return true
+		}, nil)
+	}
+	return out
+}
+
+// penImportName is the name a file refers to an import by: its own name, else the package the path names.
+func penImportName(sp *ast.ImportSpec) string {
+	if sp.Name != nil {
+		return sp.Name.Name
+	}
+	path, err := strconv.Unquote(sp.Path.Value)
+	if err != nil {
+		return ""
+	}
+	if _, pkg, ok := strings.Cut(path, ":"); ok {
+		return pkg
+	}
+	path, _, _ = strings.Cut(path, "@")
+	return path[strings.LastIndex(path, "/")+1:]
 }
 
 // penApply makes the splices, from the last to the first, and formats the result when the file was formatted before, so
@@ -940,16 +1054,14 @@ func (s *Server) penMasked(m *model, text string) string {
 		if !ok {
 			return true
 		}
-		label, typ := penResourceType(g.Value)
+		label, k, typ := penResourceType(g.Value)
 		if typ == "" {
 			return true
 		}
 		sens := map[string]bool{}
-		if p := s.boardProvider(m, label, typ); p != nil {
-			if sch := p.sch.Type("managed", typ); sch != nil && sch.Block != nil {
-				for _, at := range sch.Block.Attributes {
-					sens[at.Name] = at.Sensitive || at.WriteOnly
-				}
+		if _, block := s.boardSchema(m, label, k, typ); block != nil {
+			for _, at := range block.Attributes {
+				sens[at.Name] = at.Sensitive || at.WriteOnly
 			}
 		}
 		for _, body := range penBodies(g.Value) {
@@ -993,34 +1105,36 @@ func (s *Server) penMasked(m *model, text string) string {
 	return m.scrubText(b.String())
 }
 
-// penResourceType reads the provider label and the type of a resource from the code of its value: an operand
-// $P.#Resource.T of a chain of &.
-func penResourceType(x ast.Expr) (label, typ string) {
+// penResourceType reads the provider label, the schema kind and the type of a resource, a data source or an ephemeral
+// resource from the code of its value: an operand $P.#Resource.T (or #Data, #Ephemeral) of a chain of &.
+func penResourceType(x ast.Expr) (label string, k boardSchemaKind, typ string) {
 	for {
 		b, ok := x.(*ast.BinaryExpr)
 		if !ok || b.Op != token.AND {
 			break
 		}
-		if l, t := penResourceType(b.Y); t != "" {
-			return l, t
+		if l, kk, t := penResourceType(b.Y); t != "" {
+			return l, kk, t
 		}
 		x = b.X
 	}
 	sel, ok := x.(*ast.SelectorExpr)
 	if !ok {
-		return "", ""
+		return "", k, ""
 	}
 	typ, _, _ = ast.LabelName(sel.Sel)
 	mid, ok := sel.X.(*ast.SelectorExpr)
 	if !ok {
-		return "", ""
+		return "", k, ""
 	}
-	if kind, _, _ := ast.LabelName(mid.Sel); kind != "#Resource" {
-		return "", ""
+	member, _, _ := ast.LabelName(mid.Sel)
+	k, known := schemaKindOfMode(member)
+	if !known {
+		return "", k, ""
 	}
 	id, ok := mid.X.(*ast.Ident)
 	if !ok {
-		return "", ""
+		return "", k, ""
 	}
-	return id.Name, typ
+	return id.Name, k, typ
 }

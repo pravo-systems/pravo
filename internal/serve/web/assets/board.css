@@ -33,6 +33,7 @@
 .bd-hit:hover, .bd-hit.on { background: var(--key-wash); border-left-color: var(--key); }
 .bd-pv { font: 500 var(--fs-1)/1 var(--font-mono); color: var(--text-3); padding: .2rem .35rem; border: 1px solid var(--line); white-space: nowrap; }
 .bd-pv.t, .bd-pv.d { color: var(--key); border-color: color-mix(in srgb, var(--key) 40%, transparent); }
+.bd-pv.k { color: var(--text-2); border-color: var(--line-strong); }
 .bd-none { margin: 0; padding: .6rem .7rem; font: 400 var(--fs-3) var(--font-ui); color: var(--text-3); }
 .bd-ph { display: flex; align-items: center; gap: .45rem; padding: .3rem .45rem .45rem; border-bottom: 1px solid var(--line); margin-bottom: .25rem; font: 400 var(--fs-3) var(--font-ui); color: var(--text-2); }
 .bd-ph b { color: var(--text); font-weight: 600; }
@@ -43,7 +44,7 @@
 .bd-lamps { display: flex; gap: .35rem; min-width: 0; }
 .bd-lamp { display: flex; align-items: center; gap: .45rem; height: 2.3rem; padding: 0 .65rem; max-width: 12rem; min-width: 0; border: 1px solid var(--line); background: var(--surface); font: 400 var(--fs-2)/1 var(--font-ui); color: var(--text-2); }
 .bd-ln { font: 600 var(--fs-1)/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
-.bd-lt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.bd-lt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; line-height: 1.4; }
 .bd-dot { flex: none; width: 9px; height: 9px; background: var(--surface-3); border: 1px solid var(--line-strong); }
 .bd-lamp.ok .bd-dot { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
 .bd-lamp.warn .bd-dot { background: var(--change); border-color: var(--change); box-shadow: 0 0 0 3px var(--change-wash); }
@@ -88,7 +89,7 @@
 .bd-tc:nth-child(2n) { border-right: 0; }
 .bd-tc:nth-last-child(-n + 2) { border-bottom: 0; }
 .bd-tc span { font: 600 .58rem/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
-.bd-tc b { font: 500 var(--fs-2)/1.15 var(--font-mono); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 13rem; }
+.bd-tc b { font: 500 var(--fs-2)/1.4 var(--font-mono); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 13rem; }
 .bd-tc.ap b { color: var(--text-3); }
 
 /* the code drawer */
@@ -166,10 +167,12 @@
 .bd-probs .bd-err { padding: .4rem .55rem; background: var(--conflict-wash); border-left: 2px solid var(--conflict); }
 .bd-tools { display: flex; flex-wrap: wrap; gap: .35rem; }
 .bd-sh { margin: .5rem 0 0; font: 600 var(--fs-1)/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); padding-bottom: .35rem; border-bottom: 1px solid var(--line); }
-.bd-set { display: grid; gap: .6rem; }
-.bd-set:empty { display: none; }
 .bd-row { display: grid; gap: .25rem; padding: .1rem 0 .1rem .6rem; border-left: 2px solid var(--line); }
 .bd-row.need { border-left-color: var(--change); }
+.bd-row.set { border-left-color: var(--accent); }
+.bd-row[hidden] { display: none; }
+.bd-sh .bd-n { margin-left: .5rem; font-weight: 500; letter-spacing: 0; }
+.bd-fl .bd-pv { padding: .1rem .3rem; }
 .bd-fl { display: flex; align-items: center; gap: .4rem; min-width: 0; }
 .bd-fl code { font: 600 var(--fs-3) var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
 .bd-ty { font: 400 var(--fs-1) var(--font-mono); color: var(--text-3); }
@@ -192,11 +195,6 @@
 .bd-wire code { font: 500 var(--fs-2) var(--font-mono); }
 .bd-sens { display: flex; gap: .4rem; align-items: flex-start; margin: 0; font: 400 var(--fs-2)/1.4 var(--font-ui); color: var(--text-2); }
 .bd-sens .i { flex: none; width: .8rem; height: .8rem; margin-top: .1rem; }
-.bd-more { display: grid; gap: 1px; }
-.bd-mf { display: grid; grid-template-columns: max-content max-content minmax(0, 1fr); align-items: center; gap: .45rem; padding: .35rem .45rem; text-align: left; font: 400 var(--fs-2) var(--font-ui); color: var(--text-3); }
-.bd-mf code { font: 500 var(--fs-2) var(--font-mono); color: var(--text); }
-.bd-mf span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bd-mf:hover { background: var(--key-wash); }
 .bd-foot { display: flex; flex-wrap: wrap; gap: .4rem; padding-top: .6rem; border-top: 1px solid var(--line); }
 
 /* the menu of a socket */

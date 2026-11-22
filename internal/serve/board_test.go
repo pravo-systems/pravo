@@ -74,7 +74,7 @@ func TestBoardDrawsAndChecksWithoutWriting(t *testing.T) {
 	if err := json.Unmarshal(p.get("/api/board"), &cfg); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Edit || len(cfg.Providers) != 1 || cfg.Providers[0].Label != "$fake" || cfg.Providers[0].Types != 2 || cfg.File != "board.cue" || cfg.Problem != "" {
+	if cfg.Edit || len(cfg.Providers) != 1 || cfg.Providers[0].Label != "$fake" || cfg.Providers[0].Types != 3 || cfg.File != "board.cue" || cfg.Problem != "" {
 		t.Fatalf("config: %+v", cfg)
 	}
 
@@ -351,12 +351,13 @@ $fakeEu: #Fake & {region: "eu-west-1", profile: "` + secretBlob + `"}
 	}
 	seen := map[string]int{}
 	for _, hit := range types.Hits {
-		seen[hit.Type]++
-		if hit.Kind == "resource" && strings.Join(hit.Providers, " ") != "$fake $fakeEu" {
+		seen[hit.Kind+" "+hit.Type]++
+		if strings.Join(hit.Providers, " ") != "$fake $fakeEu" {
 			t.Errorf("%s lists providers %v", hit.Type, hit.Providers)
 		}
 	}
-	if seen["fake_db"] != 1 || seen["fake_file"] != 1 || types.Total != 2 {
+	// two resource types, a data source and the six values pravo reads for itself, each counted once
+	if seen["resource fake_db"] != 1 || seen["resource fake_file"] != 1 || seen["data fake_zones"] != 1 || types.Total != 9 {
 		t.Fatalf("types: %+v", types)
 	}
 

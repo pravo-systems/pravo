@@ -126,33 +126,34 @@ func drawingArg(in map[string]any) (*serve.BoardDraft, error) {
 	return &d, nil
 }
 
-var drawingProp = map[string]any{"type": "object", "description": `The drawing, as the board reads it: {"items": [{"label": "orders", "type": "aws_db_instance", "provider": "$aws", "values": {"engine": {"text": "postgres"}, "allocated_storage": {"expr": "20"}, "vpc_security_group_ids": {"wires": [{"to": "db_sg", "read": "id"}]}}}], "edits": [{"addr": "web", "base": "<digest from pravo_draw_resource>", "set": {"instance_type": {"text": "t3.small"}}, "unset": ["tags"], "remove": false}], "fold": {"name": "web_app", "addrs": ["web", "db"], "ask": ["web.instance_type"]}, "file": "board.cue", "seen": {"main.cue": "<base of the file from pravo_draw_check>"}}. An item is a new resource at the top level (or an instance of a template, with "template"); a value is "text" (a string), "expr" (CUE as written: a number, a bool, a list, an interpolation) or "wire"/"wires" (a reference to an attribute of another resource, drawn or of the specification). An edit changes a resource of the specification where it is written. A fold makes a template of resources of the specification, with one instance that keeps their records; its plan only moves them.`}
+var drawingProp = map[string]any{"type": "object", "description": `The drawing, as the board reads it: {"items": [{"label": "orders", "type": "aws_db_instance", "provider": "$aws", "values": {"engine": {"text": "postgres"}, "allocated_storage": {"expr": "20"}, "vpc_security_group_ids": {"wires": [{"to": "db_sg", "read": "id"}]}}}], "edits": [{"addr": "web", "base": "<digest from pravo_draw_resource>", "set": {"instance_type": {"text": "t3.small"}}, "unset": ["tags"], "remove": false}], "fold": {"name": "web_app", "addrs": ["web", "db"], "ask": ["web.instance_type"]}, "file": "board.cue", "seen": {"main.cue": "<base of the file from pravo_draw_check>"}}. An item is a new thing at the top level: a resource, or with "kind" a data source (data), an ephemeral resource (ephemeral), an output, an environment variable (env, secret_env), a secret (secret, secret_version) or the outputs of another root (remote_outputs), or an instance of a template (with "template"); a value is "text" (a string), "expr" (CUE as written: a number, a bool, a list, an interpolation) or "wire"/"wires" (a reference to an attribute of another resource, drawn or of the specification). An edit changes a resource of the specification where it is written. A fold makes a template of resources of the specification, with one instance that keeps their records; its plan only moves them.`}
 
 func mcpDrawTools(d *mcpDrawer) []mcpTool {
 	draw := func(name string) func(in map[string]any) ([]string, error) {
 		return func(map[string]any) ([]string, error) { return []string{name}, nil }
 	}
 	return []mcpTool{
-		{Name: "pravo_draw_types", Description: "Find the resource types of the providers the specification declares, and its templates, that answer some words (database, bucket, network): the first step of drawing. Each hit names its type and the provider struct ($aws) to draw it with; when the specification has several providers of one source, providers lists them all.",
+		{Name: "pravo_draw_types", Description: "Find what can be drawn that answers some words (database, bucket, network, data vpc, output, env): the resource, data source and ephemeral types of the providers the specification declares, the values pravo reads for itself (output, env, secret_env, secret, secret_version, remote_outputs) and the templates. The first step of drawing. Each hit names its kind, its type and the provider struct ($aws) to draw it with; when the specification has several providers of one source, providers lists them all.",
 			InputSchema: mcpObject(map[string]any{"q": map[string]any{"type": "string", "description": "words, or a type name"}}),
 			args:        draw("draw-types"),
 			run: func(_ context.Context, in map[string]any) (string, error) {
 				return d.call("/api/board/types", url.Values{"q": {strArg(in, "q")}}, nil)
 			}},
-		{Name: "pravo_draw_form", Description: "The form of a resource type or a template, as the board fills it: each field with its type, whether it is required, whether it takes a wire (a reference to another resource) and its documentation. Give type and provider, or template.",
-			InputSchema: mcpObject(map[string]any{"type": map[string]any{"type": "string"}, "provider": map[string]any{"type": "string", "description": "the provider struct, such as $aws"}, "template": map[string]any{"type": "string"}}),
+		{Name: "pravo_draw_form", Description: "The form of a kind of thing, as the board fills it: each field with its type, whether it is required, whether it takes a wire (a reference to another resource) and its documentation. Give kind, type and provider as pravo_draw_types names them, kind alone for a value pravo reads for itself, or template.",
+			InputSchema: mcpObject(map[string]any{"kind": map[string]any{"type": "string", "description": "resource (the default), data, ephemeral, output, env, secret_env, secret, secret_version or remote_outputs"}, "type": map[string]any{"type": "string"}, "provider": map[string]any{"type": "string", "description": "the provider struct, such as $aws"}, "template": map[string]any{"type": "string"}}),
 			args:        draw("draw-form"),
 			run: func(_ context.Context, in map[string]any) (string, error) {
 				q := url.Values{}
 				if t := strArg(in, "template"); t != "" {
 					q.Set("template", t)
 				} else {
+					q.Set("kind", strArg(in, "kind"))
 					q.Set("type", strArg(in, "type"))
 					q.Set("provider", strArg(in, "provider"))
 				}
 				return d.call("/api/board/type", q, nil)
 			}},
-		{Name: "pravo_draw_resource", Description: "A resource of the specification as the pen can change it: its fields as written, the form of its type, the file and the digest (base) that an edit names, or why the pen cannot change it (then edit the file).",
+		{Name: "pravo_draw_resource", Description: "A node of the specification (a resource, a data source, an output, an environment variable...) as the pen can change it: its kind, its fields as written, its form, the file and the digest (base) that an edit names, or why the pen cannot change it (then edit the file).",
 			InputSchema: mcpObject(map[string]any{"addr": map[string]any{"type": "string"}}, "addr"),
 			args:        draw("draw-resource"),
 			run: func(_ context.Context, in map[string]any) (string, error) {

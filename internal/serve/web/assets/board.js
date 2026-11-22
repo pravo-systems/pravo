@@ -9,6 +9,14 @@ import { codeWindow } from './ui.js';
 import * as api from './api.js';
 
 const CHECK_MS = 240;
+// the kinds of thing the board draws, as the server names them: three of a provider schema, a template, and the values
+// pravo reads for itself; NODE_MODE is the mode of the graph each is drawn with
+const SCHEMA_KINDS = new Set(['resource', 'data', 'ephemeral']);
+const BUILTINS = new Set(['output', 'env', 'secret_env', 'secret', 'secret_version', 'remote_outputs']);
+const KIND_WORDS = { resource: 'resource', data: 'data source', ephemeral: 'ephemeral resource', template: 'template instance', output: 'output', env: 'environment variable', secret_env: 'secret environment variable', secret: 'sealed secret', secret_version: 'secret version', remote_outputs: 'remote outputs' };
+const NODE_MODE = { resource: 'managed', template: 'managed', data: 'data', ephemeral: 'ephemeral', output: 'output', env: 'builtin', secret_env: 'ephemeral', secret: 'ephemeral', secret_version: 'builtin', remote_outputs: 'builtin' };
+const WIRE_TIP = 'Wire each required reference to the matching resource, or add one';
+const NOTHING_TO_WIRE = 'Nothing to wire: required references are set, or several resources match';
 const STEP_MS = 90; // the sweep crosses one column of the graph in this long
 const KEEP = 'pravo.board.';
 
@@ -59,19 +67,19 @@ export class Board {
   mount(canvas) {
     this.canvas = canvas;
     this.input = h('input', { type: 'text', class: 'bd-in', autocomplete: 'off', spellcheck: 'false', role: 'combobox', 'aria-expanded': 'false', 'aria-controls': 'bd-hits', 'aria-autocomplete': 'list',
-      'aria-label': 'Add a resource: type what it is', placeholder: 'Add a resource: type what it is, such as database, bucket or network' });
+      'aria-label': 'Add to the specification', placeholder: 'Add: resource, data source, output, variable, secret, template' });
     this.hitsEl = h('div', { class: 'bd-hits', id: 'bd-hits', role: 'listbox', 'aria-label': 'Resource types', hidden: true });
     this.lampEls = { spec: lamp('Spec'), policy: lamp('Policy'), plan: lamp('Plan') };
     this.btn = {
-      review: h('button', { type: 'button', class: 'bd-b sq', hidden: true, 'data-tip': 'Ask the guide what the drawing does and what could go wrong' }, icon('ask'), h('span', { class: 'lbl' }, 'Review')),
-      code: h('button', { type: 'button', class: 'bd-b sq', 'aria-pressed': 'false', 'data-tip': 'Show the code of the drawing' }, icon('code'), h('span', { class: 'lbl' }, 'Code')),
-      save: h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Write the drawing as a new file of the specification' }, icon('file'), h('span', { class: 'lbl' }, 'Save')),
-      plan: h('button', { type: 'button', class: 'bd-b go', 'data-tip': 'Plan the specification with the drawing in it, as pravo plan does' }, h('span', { class: 'bd-play', 'aria-hidden': 'true' }), h('span', { class: 'lbl' }, 'Plan')),
+      review: h('button', { type: 'button', class: 'bd-b sq', hidden: true, 'data-tip': 'Guide: review the draft for risks' }, icon('ask'), h('span', { class: 'lbl' }, 'Review')),
+      code: h('button', { type: 'button', class: 'bd-b sq', 'aria-pressed': 'false', 'data-tip': 'Show the generated CUE' }, icon('code'), h('span', { class: 'lbl' }, 'Code')),
+      save: h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Write the draft to the specification' }, icon('file'), h('span', { class: 'lbl' }, 'Save')),
+      plan: h('button', { type: 'button', class: 'bd-b go', 'data-tip': 'Run pravo plan with the draft' }, h('span', { class: 'bd-play', 'aria-hidden': 'true' }), h('span', { class: 'lbl' }, 'Plan')),
       apply: h('button', { type: 'button', class: 'bd-b apply', hidden: true }, icon('check'), h('span', { class: 'lbl' }, 'Apply')),
     };
     this.hint = h('p', { class: 'bd-hint' });
-    this.tb = h('div', { class: 'bd-tb', role: 'group', 'aria-label': 'Title block of the drawing' });
-    this.code = h('section', { class: 'bd-code', 'aria-label': 'The code of the drawing', hidden: true });
+    this.tb = h('div', { class: 'bd-tb', role: 'group', 'aria-label': 'Title block' });
+    this.code = h('section', { class: 'bd-code', 'aria-label': 'Generated CUE', hidden: true });
     this.sweep = h('div', { class: 'bd-sweep', 'aria-hidden': 'true' });
     const bar = h('div', { class: 'bd-bar' }, h('span', { class: 'bd-plus', 'aria-hidden': 'true' }, icon('plus')), this.input, this.hitsEl);
     this.strip = h('div', { class: 'bd-strip' }, bar,
@@ -115,8 +123,8 @@ export class Board {
     if (on && !this.items.length) this.restoring = this.restore();
     this.render();
     this.cb.redraw({ fit: true });
-    if (on) { this.input.focus(); this.cb.announce('Drawing. Type what to add.'); if (this.items.length) this.recheck(); }
-    else { this.closeHits(); this.cb.announce('Drawing hidden. What is drawn is kept.'); }
+    if (on) { this.input.focus(); this.cb.announce('Board on.'); if (this.items.length) this.recheck(); }
+    else { this.closeHits(); this.cb.announce('Board off. Draft kept.'); }
   }
 
   // ---- what the graph shows ----
@@ -149,7 +157,7 @@ export class Board {
       if (it.kind === 'change' || have.has(it.label)) continue;
       const missing = this.missing(it);
       nodes.push({
-        addr: it.label, mode: 'managed', type: it.kind === 'template' ? (it.form ? it.form.title : it.template) : it.type, name: it.label, namespace: '',
+        addr: it.label, mode: NODE_MODE[it.kind] || 'managed', type: it.kind === 'template' ? (it.form ? it.form.title : it.template) : it.type || it.kind, name: it.label, namespace: '',
         provider: this.providerKey(it), presence: 'spec', draft: true, template: it.kind === 'template', adopts: !!it.adopt, guided: !!it.guide, incomplete: missing.length,
         sockets: this.sockets(it), boardAction: acts ? acts.get(it.label) || '' : '',
       });
@@ -236,10 +244,10 @@ export class Board {
     const seen = new Set();
     (f.wire.to || []).forEach((t, rank) => {
       for (const n of (raw && raw.nodes) || []) {
-        if (n.type === t.type && n.mode === 'managed' && n.presence !== 'state' && n.addr !== it.label && !seen.has(n.addr)) { seen.add(n.addr); out.push({ addr: n.addr, type: n.type, read: t.read, rank }); }
+        if (n.type === t.type && (n.mode === 'managed' || n.mode === 'data') && n.presence !== 'state' && n.addr !== it.label && !seen.has(n.addr)) { seen.add(n.addr); out.push({ addr: n.addr, type: n.type, read: t.read, rank, data: n.mode === 'data' }); }
       }
       for (const d of this.items) {
-        if (d !== it && d.kind === 'resource' && d.type === t.type && !seen.has(d.label)) { seen.add(d.label); out.push({ addr: d.label, type: d.type, read: t.read, rank, draft: true }); }
+        if (d !== it && (d.kind === 'resource' || d.kind === 'data') && d.type === t.type && !seen.has(d.label)) { seen.add(d.label); out.push({ addr: d.label, type: d.type, read: t.read, rank, draft: true, data: d.kind === 'data' }); }
       }
     });
     return out;
@@ -271,8 +279,8 @@ export class Board {
   async add(hit, o = {}) {
     await this.restoring; // a drawing that the tab kept comes back first, so that a name is not taken twice
     let form;
-    try { form = await this.form(hit.kind, hit.type, hit.provider); } catch (err) { this.cb.toast(`Could not read the form of ${hit.title || hit.type}: ${err.message}`, 'error'); return null; }
-    const it = { label: this.freeLabel(labelOf(o.name) || form.label), kind: hit.kind, type: hit.kind === 'resource' ? hit.type : '', template: hit.kind === 'template' ? hit.type : '', provider: hit.provider || '', values: {}, form, shown: new Set(), cue: new Set(), adopt: o.adopt || null };
+    try { form = await this.form(hit.kind, hit.type, hit.provider); } catch (err) { this.cb.toast(`Cannot load the schema of ${hit.title || hit.type}: ${err.message}`, 'error'); return null; }
+    const it = { label: this.freeLabel(labelOf(o.name) || form.label), kind: hit.kind, type: SCHEMA_KINDS.has(hit.kind) ? hit.type : '', template: hit.kind === 'template' ? hit.type : '', provider: hit.provider || '', values: {}, form, shown: new Set(), cue: new Set(), adopt: o.adopt || null };
     for (const x of o.identity || []) {
       const f = (form.fields || []).find((ff) => ff.name === x.name);
       if (f && f.kind === 'text' && !f.sensitive && typeof x.value === 'string' && !x.value.includes('•')) it.values[f.name] = { text: x.value };
@@ -284,7 +292,7 @@ export class Board {
       if (f) setWire(from, f, it.label, (f.wire.to.find((t) => t.type === it.type) || f.wire.to[0]).read);
     }
     this.changed({ graph: true });
-    if (!o.quiet) { this.cb.select(it.label); this.cb.announce(`${it.label} drawn, a ${form.title}`); }
+    if (!o.quiet) { this.cb.select(it.label); this.cb.announce(`${it.label} added: ${form.title}`); }
     return it;
   }
 
@@ -313,18 +321,18 @@ export class Board {
     }
     let e;
     try { e = await api.boardEdit(addr); } catch (err) { this.cb.toast(`Could not read ${addr}: ${err.message}`, 'error'); return null; }
-    if (e.reason) { this.cb.toast(`${addr} is not changed on the board`, 'info', 9000, e.reason); return null; }
+    if (e.reason) { this.cb.toast(`${addr} cannot be edited on the board`, 'info', 9000, e.reason); return null; }
     const it = this.changeItem(e, !!o.remove);
     this.items.push(it);
     this.changed({ graph: true });
     this.cb.select(addr);
-    this.cb.announce(o.remove ? `${addr} is to be removed. Nothing is written until you save.` : `Changing ${addr}. Nothing is written until you save.`);
+    this.cb.announce(o.remove ? `${addr} marked for deletion. Nothing is written until Save.` : `Editing ${addr}. Nothing is written until Save.`);
     return it;
   }
 
   // changeItem is a resource as the drawing changes it: what was read (orig) and what it is now (values)
   changeItem(e, remove) {
-    const it = { kind: 'change', label: e.addr, addr: e.addr, type: e.type, template: '', provider: e.provider || '', form: e.form, base: e.base, file: e.file, line: e.line,
+    const it = { kind: 'change', of: e.kind || 'resource', label: e.addr, addr: e.addr, type: e.type, template: '', provider: e.provider || '', form: e.form, base: e.base, file: e.file, line: e.line,
       orig: e.values || {}, values: JSON.parse(JSON.stringify(e.values || {})), withheld: new Set(e.withheld || []), kept: e.kept || [], remove, shown: new Set(), cue: new Set() };
     cueFields(this, it); // a text written as CUE, an interpolation say, is shown as CUE
     return it;
@@ -351,16 +359,39 @@ export class Board {
   // count is what the drawing sends: the things drawn and the resources it changes
   count() { return this.items.filter((it) => (it.kind !== 'change' && !it.saved) || (it.kind === 'change' && this.editOf(it))).length + (this.fold && this.fold.addrs.length ? 1 : 0); }
 
-  // nodeTool is what the inspector of a resource of the specification shows while the board is on: change it, or remove it
-  nodeTool(n) {
-    if (!this.on || !n || n.draft || n.mode !== 'managed' || n.presence === 'state' || this.changeOf(n.addr) || this.inFold(n.addr)) return null;
-    const into = this.fold ? foldWord(this.fold) : '';
-    return h('div', { class: 'bd-nt' }, h('span', { class: 'cl' }, 'Board'),
-      h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Change its fields on the board, written where it is written', on: { click: () => this.change(n.addr) } }, icon('pen'), h('span', { class: 'lbl' }, 'Change it')),
-      // a fold takes what is written at the top of a file: a resource inside a struct or an instance is folded in the code
-      n.addr.includes('.') ? null : h('button', { type: 'button', class: 'bd-b sm', 'data-tip': this.fold ? `Fold it into ${into} with the others` : 'Fold it, and what you add to it, into a template: the records stay, the code becomes a definition and an instance', on: { click: () => this.startFold(n.addr) } }, icon('template'), h('span', { class: 'lbl' }, this.fold ? `Add to ${into}` : 'Fold it')),
-      h('button', { type: 'button', class: 'bd-b sm danger', 'data-tip': 'Take it out of the specification on the board: the plan destroys it', on: { click: () => this.change(n.addr, { remove: true }) } }, icon('x'), h('span', { class: 'lbl' }, 'Remove it')));
+  // editable says whether the board edits a node of the specification: a resource, a data source, an ephemeral
+  // resource, an output or a value pravo reads for itself, written in the files (a function call or a discovery is not)
+  editable(n) {
+    return !!(n && !n.draft && n.presence !== 'state' && (['managed', 'data', 'ephemeral', 'output'].includes(n.mode) || (n.mode === 'builtin' && BUILTINS.has(n.type))));
   }
+
+  // nodeTool is what the inspector of a node of the specification shows while the board is on: edit it, fold it (a
+  // resource), or delete it
+  nodeTool(n) {
+    if (!this.on || !this.editable(n) || this.changeOf(n.addr) || this.inFold(n.addr)) return null;
+    const into = this.fold ? foldWord(this.fold) : '';
+    const managed = n.mode === 'managed';
+    return h('div', { class: 'bd-nt' }, h('span', { class: 'cl' }, 'Board'),
+      h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Edit fields in the declaring file', on: { click: () => this.change(n.addr) } }, icon('pen'), h('span', { class: 'lbl' }, 'Edit')),
+      // a fold takes what is written at the top of a file: a resource inside a struct or an instance is folded in the code
+      n.addr.includes('.') || !managed ? null : h('button', { type: 'button', class: 'bd-b sm', 'data-tip': this.fold ? `Add to the fold into ${into}` : 'Fold into a template: the code becomes a definition and an instance, state records move, nothing is replaced', on: { click: () => this.startFold(n.addr) } }, icon('template'), h('span', { class: 'lbl' }, this.fold ? `Add to ${into}` : 'Fold')),
+      h('button', { type: 'button', class: 'bd-b sm danger', 'data-tip': managed ? 'Delete from the specification (Backspace); the plan destroys the object' : 'Delete from the specification (Backspace)', on: { click: () => this.change(n.addr, { remove: true }) } }, icon('x'), h('span', { class: 'lbl' }, 'Delete')));
+  }
+
+  // deleteKey is Backspace or Delete on the selected node: a thing drawn leaves the draft, and a node of the
+  // specification is marked for deletion, which Save writes
+  deleteKey(addr) {
+    const it = this.item(addr);
+    if (it && it.kind !== 'change') { this.remove(addr); this.cb.announce(`${addr} discarded`); return true; }
+    if (it && it.remove) return true;
+    const n = ((this.cb.raw() || {}).nodes || []).find((x) => x.addr === addr);
+    if (!it && !this.editable(n)) return false;
+    this.change(addr, { remove: true });
+    return true;
+  }
+
+  // wireable says whether a thing has a required field that takes a wire: what Wire required fills
+  wireable(it) { return this.fields(it).some((f) => f.required && f.wire); }
 
   remove(label) {
     this.items = this.items.filter((x) => x.label !== label);
@@ -377,8 +408,8 @@ export class Board {
   rename(it, to) {
     const raw = this.cb.raw();
     if (to === it.label) return '';
-    if (!/^[a-z][a-z0-9_]{0,62}$/.test(to)) return 'A name is small letters, digits and underscores, and starts with a letter.';
-    if (this.item(to) || ((raw && raw.nodes) || []).some((n) => n.addr === to || n.addr.startsWith(to + '.'))) return `${to} is taken.`;
+    if (!/^[a-z][a-z0-9_]{0,62}$/.test(to)) return 'Use [a-z][a-z0-9_]*.';
+    if (this.item(to) || ((raw && raw.nodes) || []).some((n) => n.addr === to || n.addr.startsWith(to + '.'))) return `${to} is already declared.`;
     const from = it.label;
     it.label = to;
     for (const x of this.items) for (const v of Object.values(x.values)) for (const w of wiresOf(v)) if (w.to === from) w.to = to;
@@ -403,7 +434,7 @@ export class Board {
       const made = await this.add(hit, { quiet: true, wire: { label: it.label, field: f.name } });
       if (made) { n++; n += await this.complete(made.label, depth + 1); }
     }
-    if (n && depth === 0) { this.changed({ graph: true }); this.cb.announce(`${plural(n, 'wire')} made`); }
+    if (n && depth === 0) { this.changed({ graph: true }); this.cb.announce(`${plural(n, 'wire')} added`); }
     return n;
   }
 
@@ -422,7 +453,7 @@ export class Board {
     // a thing that was saved is in the files: the drawing lets go of it once the graph shows it
     const f = this.fold && this.fold.addrs.length ? this.fold : null;
     const fold = f ? { name: f.name, title: f.title || undefined, label: f.label || undefined, addrs: f.addrs, ask: f.ask.length ? f.ask : undefined } : undefined;
-    return { file: this.cfg.file, edits: edits.length ? edits : undefined, fold, items: this.items.filter((it) => it.kind !== 'change' && !it.saved).map((it) => ({ label: it.label, type: it.type || undefined, provider: it.provider || undefined, template: it.template || undefined, values: it.values, adopt: it.adopt ? { discovery: it.adopt.discovery, key: it.adopt.key } : undefined })) };
+    return { file: this.cfg.file, edits: edits.length ? edits : undefined, fold, items: this.items.filter((it) => it.kind !== 'change' && !it.saved).map((it) => ({ label: it.label, kind: it.kind, type: it.type || undefined, provider: it.provider || undefined, template: it.template || undefined, values: it.values, adopt: it.adopt ? { discovery: it.adopt.discovery, key: it.adopt.key } : undefined })) };
   }
 
   sig() { const d = this.draft(); return JSON.stringify([d.items, d.edits || [], d.fold || null]); }
@@ -466,30 +497,32 @@ export class Board {
 
   drawHits(q) {
     clear(this.hitsEl);
-    this.hitsEl.setAttribute('aria-label', 'Resource types');
+    this.hitsEl.setAttribute('aria-label', 'Types');
     const ask = !!(this.cfg.guide && q.trim());
     if (!this.hits.length && !ask) {
-      this.hitsEl.append(h('p', { class: 'bd-none' }, q ? `No resource type of ${this.providerNames()} is called “${q}”.` : 'Type what to add.'));
+      this.hitsEl.append(h('p', { class: 'bd-none' }, q ? `No match for “${q}” in ${this.providerNames()}.` : 'Search by type or keyword.'));
     }
     this.hits.forEach((x, i) => {
       this.hitsEl.append(h('button', { type: 'button', class: 'bd-hit' + (i === this.hit ? ' on' : ''), role: 'option', 'aria-selected': i === this.hit ? 'true' : 'false', data: { i } },
-        h('b', null, x.title), h('code', null, x.kind === 'template' ? 'template ' + x.type : x.type), this.hitChip(x),
+        h('b', null, x.title), h('code', null, x.kind === 'template' ? 'template ' + x.type : x.def || x.type), this.hitChip(x),
         x.blurb ? h('span', { class: 'bd-blurb' }, x.blurb) : null));
     });
     if (ask) {
       const on = this.hit === this.hits.length;
       this.hitsEl.append(h('button', { type: 'button', class: 'bd-hit bd-ask' + (on ? ' on' : ''), role: 'option', 'aria-selected': on ? 'true' : 'false', data: { i: this.hits.length, ask: '1' } },
-        h('b', null, icon('ask'), 'Ask the guide to draw it'), h('code', null, '\u21e7\u21b5'), h('span', { class: 'bd-pv t' }, this.cfg.guide), h('span', { class: 'bd-blurb' }, `\u201c${clipText(q.trim(), 140)}\u201d`)));
+        h('b', null, icon('ask'), 'Ask the guide'), h('code', null, '\u21e7\u21b5'), h('span', { class: 'bd-pv t' }, this.cfg.guide), h('span', { class: 'bd-blurb' }, `\u201c${clipText(q.trim(), 140)}\u201d`)));
     }
     this.hitsEl.hidden = false;
     this.input.setAttribute('aria-expanded', 'true');
   }
 
-  // hitChip names who draws a hit: its provider, how many providers can when there are several, or template
+  // hitChip names the kind of a hit and who draws it: its provider, or how many providers can when there are several
   hitChip(x) {
     if (x.kind === 'template') return h('span', { class: 'bd-pv t' }, 'template');
+    if (!SCHEMA_KINDS.has(x.kind)) return h('span', { class: 'bd-pv t' }, 'pravo');
     const n = (x.providers || []).length;
-    return h('span', { class: 'bd-pv', title: n > 1 ? x.providers.join(', ') : null }, n > 1 ? `${n} providers` : x.provider);
+    const who = n > 1 ? `${n} providers` : x.provider;
+    return h('span', { class: 'bd-pv' + (x.kind === 'resource' ? '' : ' k'), title: n > 1 ? x.providers.join(', ') : null }, x.kind === 'resource' ? who : `${x.kind} · ${who}`);
   }
 
   // chooseProvider turns the list of the bar into the providers that can draw the hit, the one last picked for its
@@ -517,8 +550,8 @@ export class Board {
     clear(this.hitsEl);
     this.hitsEl.setAttribute('aria-label', `Providers of ${hit.type}`);
     this.hitsEl.append(h('div', { class: 'bd-ph' },
-      h('button', { type: 'button', class: 'iconbtn sm', 'aria-label': 'Back to the types', 'data-tip': 'Back to the types (Esc)', data: { back: '1' } }, icon('back')),
-      h('span', null, h('b', null, hit.title), ' ', h('code', null, hit.type), ' with which provider?')));
+      h('button', { type: 'button', class: 'iconbtn sm', 'aria-label': 'Back', 'data-tip': 'Back (Esc)', data: { back: '1' } }, icon('back')),
+      h('span', null, h('b', null, hit.title), ' ', h('code', null, hit.type), ' · provider')));
     hit.providers.forEach((label, i) => {
       const p = (this.cfg.providers || []).find((x) => x.label === label) || { label };
       const on = i === this.provHit;
@@ -601,7 +634,7 @@ export class Board {
     const g = { mode, wish: o.wish || '', addr: o.addr || '', state: 'running', reads: [], text: '', sent: null, made: [], ctl: new AbortController() };
     this.guide = g;
     this.renderGuide();
-    this.cb.announce(mode === 'draw' ? 'Asked the guide to draw it' : mode === 'review' ? 'Asked the guide to review the drawing' : `Asked the guide about ${o.addr}`);
+    this.cb.announce(mode === 'draw' ? 'Guide: drafting' : mode === 'review' ? 'Guide: reviewing the draft' : `Guide: explaining ${o.addr}`);
     const req = { mode, wish: g.wish || undefined, addr: g.addr || undefined, draft: this.draft() };
     try {
       await api.askGuide(req, (ev) => {
@@ -623,7 +656,7 @@ export class Board {
       if (g.state === 'failed') g.text = err.message;
     }
     this.renderGuide();
-    if (g.state === 'done') this.cb.announce(g.made.length ? `The guide drew ${plural(g.made.length, 'thing')}. Keep it or drop it.` : 'The guide answered');
+    if (g.state === 'done') this.cb.announce(g.made.length ? `Guide proposed ${plural(g.made.length, 'change')}. Keep or drop.` : 'Guide answered');
   }
 
   // applyProposal lays what the guide drew on the board, marked as the guide's: new things, and changes of resources
@@ -631,11 +664,11 @@ export class Board {
     return (async () => {
       const made = [];
       for (const x of p.items || []) {
-        const kind = x.template ? 'template' : 'resource';
+        const kind = x.kind || (x.template ? 'template' : 'resource');
         if (this.item(x.label)) continue;
         let form;
         try { form = await this.form(kind, x.template || x.type, x.provider); } catch { continue; }
-        const it = { label: x.label, kind, type: x.type || '', template: x.template || '', provider: x.provider || '', values: x.values || {}, form, shown: new Set(Object.keys(x.values || {})), cue: new Set(), adopt: null, guide: true };
+        const it = { label: x.label, kind, type: SCHEMA_KINDS.has(kind) ? x.type || '' : '', template: x.template || '', provider: x.provider || '', values: x.values || {}, form, shown: new Set(Object.keys(x.values || {})), cue: new Set(), adopt: null, guide: true };
         cueFields(this, it);
         this.items.push(it);
         made.push(it.label);
@@ -664,7 +697,7 @@ export class Board {
     this.changed({ graph: true });
     this.renderGuide();
     this.cb.redrawInspector();
-    this.cb.announce('Kept what the guide drew');
+    this.cb.announce('Proposal kept');
   }
 
   dropGuide(quiet) {
@@ -674,7 +707,7 @@ export class Board {
     if (quiet) return;
     this.renderGuide();
     this.cb.select(null);
-    this.cb.announce('Dropped what the guide drew');
+    this.cb.announce('Proposal dropped');
   }
 
   closeGuide() {
@@ -690,7 +723,7 @@ export class Board {
     clear(el);
     el.hidden = !g;
     if (!g) return;
-    const what = g.mode === 'draw' ? `\u201c${clipText(g.wish, 160)}\u201d` : g.mode === 'review' ? 'Review the drawing' : `Explain ${g.addr}`;
+    const what = g.mode === 'draw' ? `\u201c${clipText(g.wish, 160)}\u201d` : g.mode === 'review' ? 'Review the draft' : `Explain ${g.addr}`;
     el.append(h('div', { class: 'bd-gh' }, h('span', { class: 'bd-gk' }, icon('ask'), 'Guide'), h('span', { class: 'bd-gm' }, this.cfg.guide), h('span', { class: 'grow' }),
       h('button', { type: 'button', class: 'iconbtn', 'aria-label': g.state === 'running' ? 'Stop the guide' : 'Close the guide', on: { click: () => this.closeGuide() } }, icon('x'))));
     el.append(h('p', { class: 'bd-gq' }, what));
@@ -701,15 +734,15 @@ export class Board {
     const pending = this.items.filter((it) => it.guide);
     if (pending.length) {
       const adds = pending.filter((it) => it.kind !== 'change').length, chg = pending.length - adds;
-      const said = [adds ? `draws ${plural(adds, 'thing')}` : '', chg ? `changes ${plural(chg, 'resource')}` : ''].filter(Boolean).join(' and ');
-      el.append(h('div', { class: 'bd-gp' }, h('span', null, `It ${said}, marked guide on the board.`),
+      const said = [adds ? `${adds} new` : '', chg ? `${chg} edited` : ''].filter(Boolean).join(', ');
+      el.append(h('div', { class: 'bd-gp' }, h('span', null, `Proposal: ${said}, marked guide.`),
         h('span', { class: 'grow' }),
-        h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Take it off the board', on: { click: () => this.dropGuide() } }, icon('x'), h('span', { class: 'lbl' }, 'Drop')),
-        h('button', { type: 'button', class: 'bd-b sm go', 'data-tip': 'Make it part of your drawing', on: { click: () => this.keepGuide() } }, icon('check'), h('span', { class: 'lbl' }, 'Keep'))));
-    } else if (g.kept) el.append(h('p', { class: 'bd-gw' }, 'Kept: it is part of your drawing.'));
+        h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Discard the proposal', on: { click: () => this.dropGuide() } }, icon('x'), h('span', { class: 'lbl' }, 'Drop')),
+        h('button', { type: 'button', class: 'bd-b sm go', 'data-tip': 'Add the proposal to the draft', on: { click: () => this.keepGuide() } }, icon('check'), h('span', { class: 'lbl' }, 'Keep'))));
+    } else if (g.kept) el.append(h('p', { class: 'bd-gw' }, 'Kept.'));
     else if (g.dropped) el.append(h('p', { class: 'bd-gw' }, 'Dropped.'));
     if (g.sent && g.sent.length) {
-      el.append(h('details', { class: 'bd-gs' }, h('summary', null, `What was sent to ${this.cfg.guide}: ${plural(g.sent.length, 'read')}`),
+      el.append(h('details', { class: 'bd-gs' }, h('summary', null, `Sent to ${this.cfg.guide}: ${plural(g.sent.length, 'read')}`),
         ...g.sent.map((x) => h('p', null, h('code', null, x.tool), ' ', clipText(typeof x.args === 'string' ? x.args : JSON.stringify(x.args || {}), 160), x.error ? h('span', { class: 'bad' }, ' \u2014 ' + x.error) : ` \u2014 ${x.bytes} bytes`))));
     }
   }
@@ -723,25 +756,25 @@ export class Board {
     // the lamps say a word or two; what they mean in full is their tip and their name to a screen reader
     const st = !n ? 'empty' : chk ? chk.state : 'checking';
     const probs = (chk && chk.problems) || [];
-    if (st === 'checking') this.lampEls.spec.set('busy', 'Checking', '', 'Checking the drawing');
-    else if (st === 'empty') this.lampEls.spec.set('off', 'Nothing drawn', '');
-    else if (st === 'valid') this.lampEls.spec.set('ok', 'Loads', '', 'The drawing loads and checks with the specification');
-    else if (st === 'incomplete') this.lampEls.spec.set('warn', `${probs.length} to fill`, probs.map(problemText).join('\n'), `${plural(probs.length, 'field')} to fill`);
+    if (st === 'checking') this.lampEls.spec.set('busy', 'Checking', '', 'Checking the draft');
+    else if (st === 'empty') this.lampEls.spec.set('off', 'Empty', '');
+    else if (st === 'valid') this.lampEls.spec.set('ok', 'Valid', '', 'The draft evaluates with the specification');
+    else if (st === 'incomplete') this.lampEls.spec.set('warn', `${probs.length} required`, probs.map(problemText).join('\n'), `${plural(probs.length, 'required field')} unset`);
     else if (st === 'exists') this.lampEls.spec.set('bad', 'File exists', firstProblem(chk), firstProblem(chk));
     else this.lampEls.spec.set('bad', plural(probs.length || 1, 'error'), probs.map(problemText).join('\n'), firstProblem(chk));
     const pol = chk && chk.policy;
-    if (!n) this.lampEls.policy.set('off', 'Nothing yet', '');
-    else if (!pol) this.lampEls.policy.set('off', 'Waits', 'The policies judge the drawing once it loads', 'Judged once the drawing loads');
-    else if (pol.state === 'none') this.lampEls.policy.set('off', 'None', pol.note || 'No policy judges these resources', 'No policy');
+    if (!n) this.lampEls.policy.set('off', 'Empty', '');
+    else if (!pol) this.lampEls.policy.set('off', 'Pending', 'Evaluated once the spec is valid', 'Evaluated once the spec is valid');
+    else if (pol.state === 'none') this.lampEls.policy.set('off', 'None', pol.note || 'No policy applies to these resources', 'No policy');
     else if (pol.state === 'holds') this.lampEls.policy.set('ok', `${pol.policies.length} hold`, pol.policies.map((p) => p.name).join('\n'), `${plural(pol.policies.length, 'policy', 'policies')} hold`);
     else if (pol.state === 'refused') { const r = pol.policies.find((p) => p.outcome === 'refused'); this.lampEls.policy.set('bad', 'Refused', (r ? r.name + ': ' : '') + (r && r.issues ? r.issues.join('\n') : ''), `Refused by ${r ? r.name : 'a policy'}`); }
-    else this.lampEls.policy.set('warn', 'Not yet', pol.note || 'A policy reads what only a plan knows: plan it', 'Cannot tell before a plan');
+    else this.lampEls.policy.set('warn', 'Needs plan', pol.note || 'A policy reads planned values: run a plan', 'Unknown until planned');
     const p = this.plan;
-    if (!this.edit) this.lampEls.plan.set('off', 'Needs --edit', 'Start pravo serve --edit to plan from the board', 'Plan with pravo serve --edit');
-    else if (!p) this.lampEls.plan.set('off', 'Not run', 'Plan runs pravo plan with the drawing in the specification', 'Not planned');
+    if (!this.edit) this.lampEls.plan.set('off', 'Needs --edit', 'Run pravo serve --edit to plan from the board', 'Needs pravo serve --edit');
+    else if (!p) this.lampEls.plan.set('off', 'Not run', 'Runs pravo plan with the draft', 'Not planned');
     else if (p.state === 'running') this.lampEls.plan.set('busy', 'Planning', '', 'Planning');
-    else if (p.state === 'failed') this.lampEls.plan.set('bad', 'Failed', p.error || '', 'The plan failed');
-    else if (p.sig !== this.sig()) this.lampEls.plan.set('off', 'Changed', 'The drawing changed since the plan: plan it again', 'Changed since the plan');
+    else if (p.state === 'failed') this.lampEls.plan.set('bad', 'Failed', p.error || '', 'Plan failed');
+    else if (p.sig !== this.sig()) this.lampEls.plan.set('off', 'Stale', 'The draft changed since the plan', 'Stale: the draft changed since the plan');
     else if (p.result.refused) this.lampEls.plan.set('bad', 'Refused', p.result.refused, 'A policy refuses the plan');
     else this.lampEls.plan.set('ok', planMarks(p.result), planWords(p.result), 'Planned: ' + planWords(p.result));
     // the actions
@@ -750,16 +783,16 @@ export class Board {
     this.btn.review.hidden = !this.cfg.guide || !n;
     const pending = this.items.some((it) => it.guide);
     this.btn.save.disabled = !(n && chk && chk.state === 'valid') || pending;
-    this.btn.save.dataset.tip = pending ? 'Keep or drop what the guide drew first' : chk && chk.files && chk.files.length ? `Write the drawing: ${[chk.code ? chk.file : '', ...chk.files.map((f) => f.file)].filter(Boolean).join(', ')}` : 'Write the drawing as a new file of the specification';
+    this.btn.save.dataset.tip = pending ? 'Keep or drop the guide proposal first' : chk && chk.files && chk.files.length ? `Write: ${[chk.code ? chk.file : '', ...chk.files.map((f) => f.file)].filter(Boolean).join(', ')}` : 'Write the draft to the specification';
     this.btn.plan.disabled = !!(p && p.state === 'running') || (n > 0 && !(chk && chk.state === 'valid'));
     this.btn.code.setAttribute('aria-pressed', this.codeOpen ? 'true' : 'false');
     this.renderApply();
     this.hint.hidden = this.items.length > 0;
     this.hint.textContent = this.cfg.problem || (this.edit
       ? (this.cfg.apply
-        ? 'Draw into the specification, or select a resource to change it. Nothing is written until you save, and nothing is applied until you plan the saved files and press Apply.'
-        : 'Draw into the specification, or select a resource to change it. Nothing is written until you save, and nothing is applied: that stays a command.')
-      : 'Draw into the specification, or select a resource to change it. Nothing is written: copy the code, or start pravo serve --edit to save and plan from here.');
+        ? 'Add from the bar, or select a node to edit or delete it. Save writes files; Apply runs a plan of saved files.'
+        : 'Add from the bar, or select a node to edit or delete it. Save writes files; apply with pravo apply.')
+      : 'Add from the bar, or select a node to edit or delete it. Read-only: copy the code, or run pravo serve --edit to save and plan.');
     this.renderTitle();
     this.renderStart();
     if (this.codeOpen) this.renderCode();
@@ -768,7 +801,7 @@ export class Board {
     if (it && it.kind === 'change' && this.formEl && this.formEl.isConnected) {
       const edit = this.editOf(it);
       if (this.changeTag) this.changeTag.textContent = changeWord(it, edit);
-      if (this.dropLbl) this.dropLbl.textContent = edit ? 'Drop the change' : 'Leave it as it is';
+      if (this.dropLbl) this.dropLbl.textContent = edit ? 'Discard edit' : 'Close';
     }
   }
 
@@ -780,7 +813,7 @@ export class Board {
     const planned = p && p.state === 'done' ? `${clockOf(p.at)} · ${planWords(p.result)}` : p && p.state === 'running' ? 'planning' : '·';
     const rows = [['Project', proj.package || baseOf(proj.dir)], ['Revision', String(this.cb.revision() || '·').slice(0, 10)], ['Drawn by', this.count() ? this.cfg.actor || 'you' : '·'], ['Checked by', checked], ['Planned', planned], ['Applied by', this.applied ? `${this.cfg.actor || 'you'} · ${clockOf(this.applied.at)}` : '·']];
     clear(this.tb);
-    for (const [k, v] of rows) this.tb.append(h('div', { class: 'bd-tc' + (k === 'Applied by' ? ' ap' : '') }, h('span', null, k), h('b', { title: k === 'Applied by' && !this.applied ? (this.cfg.apply ? 'Apply a plan of the files as they are from the board, or run pravo apply' : 'Apply is a command, run from a terminal: pravo apply') : v }, v)));
+    for (const [k, v] of rows) this.tb.append(h('div', { class: 'bd-tc' + (k === 'Applied by' ? ' ap' : '') }, h('span', null, k), h('b', { title: k === 'Applied by' && !this.applied ? (this.cfg.apply ? 'Apply a plan of the saved files, or run pravo apply' : 'Run pravo apply from a terminal') : v }, v)));
   }
 
   toggleCode(on = !this.codeOpen) {
@@ -803,15 +836,15 @@ export class Board {
     const name = this.saved && !this.items.length ? this.saved.file : chk && chk.code ? chk.file : files.length ? plural(files.length, 'file') + ' changed' : (chk && chk.file) || this.cfg.file;
     const head = h('div', { class: 'bd-ch' }, h('b', null, name),
       h('span', { class: 'grow' }),
-      chk && chk.code ? h('button', { type: 'button', class: 'bd-b sm', on: { click: () => copyText(chk.code).then((ok) => this.cb.announce(ok ? 'Copied the code' : 'Could not copy')) } }, icon('copy'), h('span', { class: 'lbl' }, 'Copy the code')) : null,
-      h('button', { type: 'button', class: 'iconbtn', 'aria-label': 'Close the code', on: { click: () => this.toggleCode(false) } }, icon('x')));
+      chk && chk.code ? h('button', { type: 'button', class: 'bd-b sm', on: { click: () => copyText(chk.code).then((ok) => this.cb.announce(ok ? 'Copied' : 'Copy failed')) } }, icon('copy'), h('span', { class: 'lbl' }, 'Copy')) : null,
+      h('button', { type: 'button', class: 'iconbtn', 'aria-label': 'Close', on: { click: () => this.toggleCode(false) } }, icon('x')));
     this.code.append(head);
     if (this.saved && (!chk || !this.items.length)) {
-      this.code.append(h('div', { class: 'bd-next' }, h('p', null, this.cfg.apply ? `Wrote ${this.saved.file}. Plan it and press Apply, or run it from a terminal:` : `Wrote ${this.saved.file}. Apply it from a terminal, where your keys are:`),
-        ...this.saved.commands.map((c) => h('div', { class: 'cmdline' }, h('span', { class: 'ps' }, '$'), h('code', null, c), h('button', { class: 'cpbtn', type: 'button', 'aria-label': 'Copy the command', on: { click: () => copyText(c) } }, icon('copy'))))));
+      this.code.append(h('div', { class: 'bd-next' }, h('p', null, this.cfg.apply ? `Wrote ${this.saved.file}. Plan and apply here, or from a terminal:` : `Wrote ${this.saved.file}. Apply from a terminal:`),
+        ...this.saved.commands.map((c) => h('div', { class: 'cmdline' }, h('span', { class: 'ps' }, '$'), h('code', null, c), h('button', { class: 'cpbtn', type: 'button', 'aria-label': 'Copy', on: { click: () => copyText(c) } }, icon('copy'))))));
     }
     if (!chk || (!chk.code && !files.length)) {
-      if (!this.saved) this.code.append(h('p', { class: 'bd-empty' }, this.count() ? 'Writing the code…' : 'The code appears here as you draw.'));
+      if (!this.saved) this.code.append(h('p', { class: 'bd-empty' }, this.count() ? 'Generating…' : 'Generated CUE appears here.'));
       return;
     }
     // one window, or each with the name of its file over it
@@ -821,7 +854,7 @@ export class Board {
       if (files.length) box.append(h('p', { class: 'bd-fn' }, h('b', null, chk.file), ' new'));
       const rng = chk.lines && chk.lines[sel];
       const lines = chk.code.replace(/\n$/, '').split('\n').map((text, i) => ({ no: i + 1, text, mark: rng && i + 1 >= rng[0] && i + 1 <= rng[1] ? 'focus' : '' }));
-      box.append(codeWindow({ file: chk.file, start_line: 1, end_line: lines.length, lines, kind: 'file' }, { title: `The code of the drawing, ${chk.file}`, cls: 'bd-cw' }));
+      box.append(codeWindow({ file: chk.file, start_line: 1, end_line: lines.length, lines, kind: 'file' }, { title: `Generated CUE, ${chk.file}`, cls: 'bd-cw' }));
     }
     for (const fc of files) {
       const rng = fc.lines && fc.lines[sel];
@@ -830,7 +863,7 @@ export class Board {
       const nums = fc.diff.filter((d) => d.op !== '-' && d.line).map((d) => d.line);
       const rm = Object.values(fc.lines || {}).filter((r) => !r[0]).length;
       if (box.classList.contains('many')) box.append(h('p', { class: 'bd-fn' }, h('b', null, fc.file), fc.new ? ' new' : rm ? ' changed, removes ' + plural(rm, 'resource') : ' changed'));
-      box.append(codeWindow({ file: fc.file, start_line: nums[0] || 1, end_line: nums[nums.length - 1] || 1, lines, kind: 'file' }, { title: `The change of ${fc.file}`, cls: 'bd-cw bd-diff' }));
+      box.append(codeWindow({ file: fc.file, start_line: nums[0] || 1, end_line: nums[nums.length - 1] || 1, lines, kind: 'file' }, { title: `Diff of ${fc.file}`, cls: 'bd-cw bd-diff' }));
     }
     const focus = this.code.querySelector('.m-focus, .m-add, .m-del');
     if (focus) focus.scrollIntoView({ block: 'nearest' });
@@ -845,7 +878,7 @@ export class Board {
     // the files are written as the board showed their change, and no other way
     const seen = Object.fromEntries((this.check.files || []).map((f) => [f.file, f.base]));
     try { out = await api.boardPost('/api/board/save', Object.assign(this.draft(), { seen })); } catch (err) {
-      this.cb.toast(`Could not save: ${err.message}`, 'error', 9000, err.check ? (err.check.problems || []).map(problemText).join(' · ') : '');
+      this.cb.toast(`Save failed: ${err.message}`, 'error', 9000, err.check ? (err.check.problems || []).map(problemText).join(' · ') : '');
       this.render();
       return;
     }
@@ -855,7 +888,7 @@ export class Board {
     this.fold = null;
     const files = [out.file, ...(out.changed || [])].filter(Boolean).join(', ');
     this.saved = { file: files, commands: out.commands, at: Date.now() };
-    this.cb.toast(`Saved ${files}`, 'info', 6000, this.cfg.apply ? 'The graph shows it once the specification is read again. Plan it, then press Apply.' : 'The graph shows it once the specification is read again. Apply it from a terminal: ' + out.commands[out.commands.length - 1]);
+    this.cb.toast(`Saved ${files}`, 'info', 6000, this.cfg.apply ? 'The graph updates when the specification reloads. Plan, then Apply.' : 'The graph updates when the specification reloads. Apply: ' + out.commands[out.commands.length - 1]);
     this.cb.announce(`Saved ${files}`);
     this.cb.redraw({});
     await this.load();
@@ -882,7 +915,7 @@ export class Board {
       const probs = planProblems(err.message, new Set(this.items.map((it) => it.label)));
       this.plan = { state: 'failed', sig, at: Date.now(), error: err.message, problems: probs };
       const on = [...new Set(probs.map((x) => x.item))];
-      this.cb.toast(on.length ? `The plan failed on ${on.join(', ')}` : 'The plan failed', 'error', 9000, on.length ? 'What the provider says is in the form of each.' : clipText(err.message, 300));
+      this.cb.toast(on.length ? `Plan failed: ${on.join(', ')}` : 'Plan failed', 'error', 9000, on.length ? 'Provider errors are shown on the fields.' : clipText(err.message, 300));
       if (on.length && !on.includes(this.cb.selected())) this.cb.select(on[0]);
     }
     this.sweepRun(false);
@@ -901,13 +934,13 @@ export class Board {
     const p = this.plan;
     let tip = '';
     if (this.applying) tip = 'Applying';
-    else if (this.count()) tip = 'Save the drawing, then plan it: the board applies what the files say';
-    else if (!p || p.state !== 'done') tip = 'Plan first: the board applies a plan that it showed you';
-    else if (p.sig !== this.sig()) tip = 'The drawing changed since the plan: plan it again';
+    else if (this.count()) tip = 'Save and plan first: Apply runs a plan of saved files';
+    else if (!p || p.state !== 'done') tip = 'Plan first: Apply runs the plan shown';
+    else if (p.sig !== this.sig()) tip = 'Stale plan: the draft changed since';
     else if (p.result.held) tip = p.result.held;
     else if (!p.result.ticket) tip = p.result.refused ? 'A policy refuses the plan' : 'The plan changes nothing';
     b.disabled = !!tip;
-    b.dataset.tip = tip || `Apply the plan you see: ${planWords(p.result)}`;
+    b.dataset.tip = tip || `Apply: ${planWords(p.result)}`;
   }
 
   // confirmApply asks once, beside the button, as pravo apply asks for yes: what the plan does, and that it is real
@@ -918,8 +951,8 @@ export class Board {
     const go = h('button', { type: 'button', class: 'bd-b sm apply' }, icon('check'), h('span', { class: 'lbl' }, 'Apply now'));
     const no = h('button', { type: 'button', class: 'bd-b sm' }, h('span', { class: 'lbl' }, 'Cancel'));
     const menu = h('div', { class: 'bd-menu bd-confirm', role: 'alertdialog', 'aria-label': 'Apply the plan' },
-      h('p', { class: 'bd-mh' }, h('b', null, 'Apply the plan: '), planWords(p.result)),
-      h('p', { class: 'bd-cw-note' }, onlyMoves(p.result) ? 'This moves records of the state to their new addresses, as pravo apply does: nothing that they made changes.' : 'This changes real infrastructure with your keys, as pravo apply does. Every change is checked against the plan you see.'),
+      h('p', { class: 'bd-mh' }, h('b', null, 'Apply: '), planWords(p.result)),
+      h('p', { class: 'bd-cw-note' }, onlyMoves(p.result) ? 'Moves state records to their new addresses, as pravo apply. No infrastructure changes.' : 'Changes real infrastructure with your credentials, as pravo apply. Each change is checked against this plan.'),
       h('div', { class: 'bd-foot' }, no, go));
     document.body.append(menu);
     const r = this.btn.apply.getBoundingClientRect();
@@ -949,14 +982,14 @@ export class Board {
       const d = out.done;
       this.applied = { at: Date.now(), result: d };
       const words = `${d.added} added, ${d.changed} changed, ${d.destroyed} destroyed${d.moved ? `, ${d.moved} moved` : ''}`;
-      this.cb.toast(`Applied: ${words}`, 'info', 9000, `txn ${d.txn}${d.deferred ? `. ${plural(d.deferred, 'change')} waited for what the apply made: plan again.` : ''}`);
+      this.cb.toast(`Applied: ${words}`, 'info', 9000, `txn ${d.txn}${d.deferred ? `. ${plural(d.deferred, 'change')} deferred: plan again.` : ''}`);
       this.cb.announce(`Applied: ${words}`);
       // a record that moved is found at its new address when the graph is read again
       if (d.moved) this.moved = new Map(this.plan.result.changes.filter((c) => c.from).map((c) => [c.from, c.addr]));
       this.saved = null; // what was written is applied: the commands to apply it are done with
       this.plan = null; // the plan is used: the next is made of the state as the apply left it
     } catch (err) {
-      this.cb.toast('The apply failed', 'error', 12000, clipText(err.message, 400));
+      this.cb.toast('Apply failed', 'error', 12000, clipText(err.message, 400));
       this.plan = null;
     }
     this.applying = false;
@@ -983,8 +1016,8 @@ export class Board {
   providerTag(it) {
     if (!it.provider) return null;
     const same = (this.cfg.providers || []).filter((p) => p.source === this.sourceOf(it.provider));
-    if (it.kind !== 'resource' || it.adopt || it.saved || same.length < 2) return h('span', { class: 'b' }, it.provider);
-    const sel = h('select', { class: 'bd-sel bd-psel', 'aria-label': 'Provider', 'data-tip': 'The provider that draws it' },
+    if (!SCHEMA_KINDS.has(it.kind) || it.adopt || it.saved || same.length < 2) return h('span', { class: 'b' }, it.provider);
+    const sel = h('select', { class: 'bd-sel bd-psel', 'aria-label': 'Provider', 'data-tip': 'Provider configuration' },
       ...same.map((p) => h('option', { value: p.label, selected: p.label === it.provider }, p.hint ? `${p.label} · ${p.hint}` : p.label)));
     sel.addEventListener('change', () => {
       it.provider = sel.value;
@@ -1006,9 +1039,9 @@ export class Board {
     nameIn.addEventListener('change', () => { const msg = this.rename(it, nameIn.value.trim()); nameErr.textContent = msg; if (msg) nameIn.value = it.label; });
     nameIn.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') nameIn.blur(); });
     const head = {
-      kick: it.guide ? 'Drawn by the guide · keep it or drop it' : it.kind === 'template' ? 'Drawing · template' : it.adopt ? 'Drawing · resource that adopts' : 'Drawing · resource',
+      kick: it.guide ? 'Guide proposal · keep or drop' : `Draft · ${kindWord(it)}`,
       title: nameIn,
-      path: h('div', { class: 'ih-path bd-what' }, h('b', null, f.title), h('code', null, it.kind === 'template' ? it.template : it.type), this.providerTag(it)),
+      path: h('div', { class: 'ih-path bd-what' }, h('b', null, f.title), h('code', null, it.kind === 'template' ? it.template : f.def || it.type), this.providerTag(it)),
       tags: [h('span', { class: 'b bd-draft' }, 'draft')],
     };
     const body = h('div', { class: 'bd-form', data: { label: it.label } });
@@ -1017,66 +1050,55 @@ export class Board {
     if (f.doc) body.append(h('p', { class: 'bd-doc' }, f.doc));
     if (it.adopt) {
       body.append(h('div', { class: 'bd-adopt' },
-        h('p', null, 'Adopts ', h('code', { title: it.adopt.key }, it.adopt.name || it.adopt.key), ', which the discovery ', h('b', null, it.adopt.discovery), ' found. The plan imports it and shows how it differs from what you write here.'),
-        h('button', { type: 'button', class: 'linkbtn', on: { click: () => { it.adopt = null; this.changed({ graph: true }); this.cb.redrawInspector(); } } }, 'Draw a new one instead')));
+        h('p', null, 'Imports ', h('code', { title: it.adopt.key }, it.adopt.name || it.adopt.key), ' found by discovery ', h('b', null, it.adopt.discovery), '. The plan imports it and shows the diff against these fields.'),
+        h('button', { type: 'button', class: 'linkbtn', on: { click: () => { it.adopt = null; this.changed({ graph: true }); this.cb.redrawInspector(); } } }, 'Create new instead')));
     }
     body.append(nameErr, h('div', { class: 'bd-probs', role: 'status' }));
     const tools = h('div', { class: 'bd-tools' },
-      h('button', { type: 'button', class: 'bd-b', 'data-act': 'complete', 'data-tip': 'Wire every socket it needs: to what fits, or to a new resource' }, icon('plus'), h('span', { class: 'lbl' }, 'Complete it')),
-      h('button', { type: 'button', class: 'bd-b', 'data-act': 'code', 'data-tip': 'Show its lines in the code' }, icon('code'), h('span', { class: 'lbl' }, 'Its code')),
-      this.cfg.guide ? h('button', { type: 'button', class: 'bd-b', 'data-act': 'explain', 'data-tip': 'Ask the guide what it is and what its fields do' }, icon('ask'), h('span', { class: 'lbl' }, 'Explain')) : null);
+      this.wireable(it) ? h('button', { type: 'button', class: 'bd-b', 'data-act': 'complete', 'data-tip': WIRE_TIP }, icon('plus'), h('span', { class: 'lbl' }, 'Wire required')) : null,
+      h('button', { type: 'button', class: 'bd-b', 'data-act': 'code', 'data-tip': 'Show the generated CUE' }, icon('code'), h('span', { class: 'lbl' }, 'Code')),
+      this.cfg.guide ? h('button', { type: 'button', class: 'bd-b', 'data-act': 'explain', 'data-tip': 'Guide: explain the type and its fields' }, icon('ask'), h('span', { class: 'lbl' }, 'Explain')) : null);
     body.append(tools);
     tools.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-act]');
       if (!b) return;
-      if (b.dataset.act === 'complete') this.complete(it.label).then((n) => { if (!n) this.cb.announce('Nothing to wire: every socket it needs has a wire, or several things fit'); this.cb.redrawInspector(); });
+      if (b.dataset.act === 'complete') this.complete(it.label).then((n) => { if (!n) this.cb.announce(NOTHING_TO_WIRE); this.cb.redrawInspector(); });
       if (b.dataset.act === 'code') this.toggleCode(true);
       if (b.dataset.act === 'explain') this.ask('explain', { addr: it.label });
     });
     this.formFields(it, body);
-    body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b danger', on: { click: () => this.remove(it.label) } }, icon('x'), h('span', { class: 'lbl' }, 'Remove from the drawing'))));
+    body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b danger', 'data-tip': 'Discard (Backspace)', on: { click: () => this.remove(it.label) } }, icon('x'), h('span', { class: 'lbl' }, 'Discard'))));
     insp.showDraft(head, body);
     this.paintProblems();
   }
 
-  // formFields are the fields of a form: what it needs, what is set, and a search over the rest
+  // formFields are the fields of a form, every one of them: the required first, then the optional in the order of the
+  // schema with the deprecated last, and a filter over the optional once there are many
   formFields(it, body) {
     const f = it.form || { fields: [] };
     const req = f.fields.filter((x) => x.required);
-    const has = (x) => it.values[x.name] || it.shown.has(x.name) || (it.withheld && it.withheld.has(x.name));
-    const set = f.fields.filter((x) => !x.required && has(x));
-    if (req.length) body.append(h('h3', { class: 'bd-sh' }, 'It needs'), ...req.map((x) => this.fieldRow(it, x)));
-    const setBox = h('div', { class: 'bd-set' }, ...set.map((x) => this.fieldRow(it, x)));
-    body.append(h('h3', { class: 'bd-sh' }, set.length ? 'Also set' : 'Set more'), setBox);
-    // the rest, behind a search: a provider type has dozens of fields
-    const rest = f.fields.filter((x) => !x.required);
-    if (rest.length) {
-      const q = h('input', { type: 'search', class: 'bd-q', placeholder: `Find one of ${plural(rest.length, 'field')}`, 'aria-label': 'Find a field to set', autocomplete: 'off', spellcheck: 'false' });
-      const list = h('div', { class: 'bd-more' });
-      const draw = () => {
-        clear(list);
+    const opt = f.fields.filter((x) => !x.required && !x.deprecated).concat(f.fields.filter((x) => !x.required && x.deprecated));
+    if (req.length) body.append(h('h3', { class: 'bd-sh' }, 'Required', h('span', { class: 'bd-n' }, String(req.length))), ...req.map((x) => this.fieldRow(it, x)));
+    if (!opt.length) return;
+    const rows = opt.map((x) => this.fieldRow(it, x));
+    const head = h('h3', { class: 'bd-sh' }, 'Optional', h('span', { class: 'bd-n' }, String(opt.length)));
+    body.append(head);
+    if (opt.length > 8) {
+      const q = h('input', { type: 'search', class: 'bd-q', placeholder: `Filter ${opt.length} fields`, 'aria-label': 'Filter optional fields', autocomplete: 'off', spellcheck: 'false' });
+      const none = h('p', { class: 'bd-none', hidden: true }, 'No matching field.');
+      q.addEventListener('input', () => {
         const w = q.value.trim().toLowerCase();
-        const pick = rest.filter((x) => !has(x) && (!w || x.name.includes(w) || (x.doc || '').toLowerCase().includes(w)));
-        const show = w ? pick.slice(0, 12) : pick.filter((x) => x.wire).slice(0, 6);
-        for (const x of show) list.append(h('button', { type: 'button', class: 'bd-mf', data: { f: x.name } }, h('code', null, x.name), x.wire ? h('span', { class: 'bd-sockm', title: 'takes a wire' }) : null, h('span', null, x.doc || x.type)));
-        if (!show.length && w) list.append(h('p', { class: 'bd-none' }, 'No field is called that.'));
-      };
-      q.addEventListener('input', draw);
-      list.addEventListener('click', (ev) => {
-        const b = ev.target.closest('[data-f]');
-        if (!b) return;
-        const x = rest.find((y) => y.name === b.dataset.f);
-        it.shown.add(x.name);
-        setBox.append(this.fieldRow(it, x));
-        q.value = '';
-        draw();
-        if (x.wire) this.changed({ graph: true });
-        const inp = setBox.lastChild.querySelector('input, textarea, button');
-        if (inp) inp.focus();
+        let shown = 0;
+        opt.forEach((x, i) => {
+          const on = !w || x.name.includes(w) || (x.doc || '').toLowerCase().includes(w);
+          rows[i].hidden = !on;
+          if (on) shown++;
+        });
+        none.hidden = shown > 0;
       });
-      draw();
-      body.append(q, list);
+      body.append(q, none);
     }
+    body.append(...rows);
   }
 
   // showChange draws the form of a resource of the specification that the drawing changes: its fields as written, and
@@ -1085,34 +1107,34 @@ export class Board {
     const f = it.form || { fields: [], title: it.type };
     const edit = this.editOf(it);
     const head = {
-      kick: it.remove ? 'Drawing · removes a resource' : 'Drawing · changes a resource',
+      kick: it.remove ? `Draft · delete ${kindWord(it)}` : `Draft · edit ${kindWord(it)}`,
       title: it.addr,
       long: it.addr.length > 22,
-      path: h('div', { class: 'ih-path bd-what' }, h('b', null, f.title || it.type), h('code', null, it.type), it.provider ? h('span', { class: 'b' }, it.provider) : null),
+      path: h('div', { class: 'ih-path bd-what' }, h('b', null, f.title || it.type), h('code', null, f.def || it.type), it.provider ? h('span', { class: 'b' }, it.provider) : null),
       copy: it.addr,
       tags: [this.changeTag = h('span', { class: 'b bd-draft' }, changeWord(it, edit))],
     };
     const body = h('div', { class: 'bd-form', data: { label: it.label } });
     this.formEl = body;
     this.formItem = it;
-    body.append(h('p', { class: 'bd-where' }, 'Written in ', h('code', null, `${it.file}:${it.line}`), it.remove ? '. Saving takes it out of the file, with the comments above it; the plan destroys what it made.' : '. Saving writes the fields you change into that file, and leaves the rest of it as it is.'));
+    body.append(h('p', { class: 'bd-where' }, 'Declared in ', h('code', null, `${it.file}:${it.line}`), it.remove ? '. Save removes it and its leading comments from the file.' + (it.of === 'resource' ? ' The plan destroys it.' : '') : '. Save rewrites only the changed fields.'));
     body.append(h('div', { class: 'bd-probs', role: 'status' }));
     if (it.remove) {
-      body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b', on: { click: () => { it.remove = false; this.changed({ graph: true }); this.cb.redrawInspector(); } } }, icon('back'), h('span', { class: 'lbl' }, 'Keep it'))));
+      body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b', on: { click: () => { it.remove = false; this.changed({ graph: true }); this.cb.redrawInspector(); } } }, icon('back'), h('span', { class: 'lbl' }, 'Undo delete'))));
       insp.showDraft(head, body);
       this.paintProblems();
       return;
     }
-    if (it.kept.length) body.append(h('p', { class: 'bd-kept' }, 'Also written, and left as it is: ', ...it.kept.flatMap((k, i) => [i ? ', ' : '', h('code', null, k)])));
+    if (it.kept.length) body.append(h('p', { class: 'bd-kept' }, 'Not shown, kept as written: ', ...it.kept.flatMap((k, i) => [i ? ', ' : '', h('code', null, k)])));
     const tools = h('div', { class: 'bd-tools' },
-      h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Wire every socket it needs: to what fits, or to a new resource', on: { click: () => this.complete(it.label).then((n) => { if (!n) this.cb.announce('Nothing to wire: every socket it needs has a wire, or several things fit'); this.cb.redrawInspector(); }) } }, icon('plus'), h('span', { class: 'lbl' }, 'Complete it')),
-      h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Show the change of its file', on: { click: () => this.toggleCode(true) } }, icon('code'), h('span', { class: 'lbl' }, 'The change')),
-      this.cfg.guide ? h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Ask the guide what it is and what its fields do', on: { click: () => this.ask('explain', { addr: it.addr }) } }, icon('ask'), h('span', { class: 'lbl' }, 'Explain')) : null);
+      this.wireable(it) ? h('button', { type: 'button', class: 'bd-b', 'data-tip': WIRE_TIP, on: { click: () => this.complete(it.label).then((n) => { if (!n) this.cb.announce(NOTHING_TO_WIRE); this.cb.redrawInspector(); }) } }, icon('plus'), h('span', { class: 'lbl' }, 'Wire required')) : null,
+      h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Show the file diff', on: { click: () => this.toggleCode(true) } }, icon('code'), h('span', { class: 'lbl' }, 'Diff')),
+      this.cfg.guide ? h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Guide: explain the type and its fields', on: { click: () => this.ask('explain', { addr: it.addr }) } }, icon('ask'), h('span', { class: 'lbl' }, 'Explain')) : null);
     body.append(tools);
     this.formFields(it, body);
     body.append(h('div', { class: 'bd-foot' },
-      h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Drop the change and take it off the drawing', on: { click: () => this.stopChange(it.addr) } }, icon('back'), this.dropLbl = h('span', { class: 'lbl' }, edit ? 'Drop the change' : 'Leave it as it is')),
-      h('button', { type: 'button', class: 'bd-b danger', 'data-tip': 'Take it out of the specification: the plan destroys it', on: { click: () => { it.remove = true; this.changed({ graph: true }); this.cb.redrawInspector(); } } }, icon('x'), h('span', { class: 'lbl' }, 'Remove it'))));
+      h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Discard the edit', on: { click: () => this.stopChange(it.addr) } }, icon('back'), this.dropLbl = h('span', { class: 'lbl' }, edit ? 'Discard edit' : 'Close')),
+      h('button', { type: 'button', class: 'bd-b danger', 'data-tip': it.of === 'resource' ? 'Delete from the specification (Backspace); the plan destroys the object' : 'Delete from the specification (Backspace)', on: { click: () => { it.remove = true; this.changed({ graph: true }); this.cb.redrawInspector(); } } }, icon('x'), h('span', { class: 'lbl' }, 'Delete'))));
     insp.showDraft(head, body);
     this.paintProblems();
   }
@@ -1140,13 +1162,15 @@ export class Board {
       err.textContent = p && p.message !== 'needs a value' ? p.message : '';
       const has = it.fold ? !!(this.fold && this.fold[row.dataset.f.slice(1)]) : !!it.values[row.dataset.f];
       row.classList.toggle('need', !has && row.classList.contains('req'));
+      row.classList.toggle('set', has && !row.classList.contains('req'));
     }
   }
 
   // fieldRow is one field of the form: its name, what it is, and the control that sets it
   fieldRow(it, f) {
     const row = h('div', { class: 'bd-row' + (f.required ? ' req' : ''), data: { f: f.name } });
-    const lab = h('label', { class: 'bd-fl' }, h('code', null, f.name), f.wire ? h('span', { class: 'bd-sockm', title: 'takes a wire' }) : null, h('span', { class: 'bd-ty' }, f.type));
+    const lab = h('label', { class: 'bd-fl' }, h('code', null, f.name), f.wire ? h('span', { class: 'bd-sockm', title: 'takes a wire' }) : null, h('span', { class: 'bd-ty' }, f.type),
+      f.computed && !f.required ? h('span', { class: 'bd-ty', title: 'Computed by the provider when unset' }, 'computed') : null, f.deprecated ? h('span', { class: 'bd-pv' }, 'deprecated') : null);
     row.append(lab);
     if (f.doc) row.append(h('p', { class: 'bd-fd' }, f.doc));
     const ctl = h('div', { class: 'bd-ctl' });
@@ -1156,15 +1180,15 @@ export class Board {
       const v = it.values[f.name];
       const ws = v ? wiresOf(v) : [];
       if (ws.length) {
-        for (const w of ws) ctl.append(h('span', { class: 'bd-wire' }, h('span', { class: 'bd-sockm on' }), 'reads ', h('code', null, `${w.to}.${w.read}`),
-          h('button', { type: 'button', class: 'iconbtn sm', 'aria-label': `Disconnect ${w.to}`, on: { click: () => { unwire(it, f, w.to); draw(); this.changed({ graph: true }); } } }, icon('x'))));
-        if (f.wire && f.wire.many) ctl.append(h('button', { type: 'button', class: 'bd-b sm', on: { click: (ev) => this.socketMenu(it.label, f.name, ev.currentTarget) } }, icon('plus'), h('span', { class: 'lbl' }, 'Add a wire')));
+        for (const w of ws) ctl.append(h('span', { class: 'bd-wire' }, h('span', { class: 'bd-sockm on' }), h('code', null, `${w.to}.${w.read}`),
+          h('button', { type: 'button', class: 'iconbtn sm', 'aria-label': `Unwire ${w.to}`, on: { click: () => { unwire(it, f, w.to); draw(); this.changed({ graph: true }); } } }, icon('x'))));
+        if (f.wire && f.wire.many) ctl.append(h('button', { type: 'button', class: 'bd-b sm', on: { click: (ev) => this.socketMenu(it.label, f.name, ev.currentTarget) } }, icon('plus'), h('span', { class: 'lbl' }, 'Add wire')));
         return;
       }
-      if (f.wire) ctl.append(h('button', { type: 'button', class: 'bd-b sm', on: { click: (ev) => this.socketMenu(it.label, f.name, ev.currentTarget) } }, h('span', { class: 'bd-sockm' }), h('span', { class: 'lbl' }, 'Wire it')));
+      if (f.wire) ctl.append(h('button', { type: 'button', class: 'bd-b sm', on: { click: (ev) => this.socketMenu(it.label, f.name, ev.currentTarget) } }, h('span', { class: 'bd-sockm' }), h('span', { class: 'lbl' }, 'Wire')));
       if (f.sensitive || f.write_only) {
         const typed = it.withheld && it.withheld.has(f.name) && !v;
-        ctl.append(h('p', { class: 'bd-sens' }, icon('lock'), typed ? 'A value is typed into the code here, and the board does not show it. It stays as it is, unless you wire the field or write CUE that reads a secret.' : 'Sensitive: wire it, or write CUE that reads a secret. The board writes no secret into the code.'));
+        ctl.append(h('p', { class: 'bd-sens' }, icon('lock'), typed ? 'Literal value in the source, hidden. Unchanged unless wired or set as CUE.' : 'Sensitive: wire a secret, or set CUE that reads one. Literals are not written.'));
         ctl.append(this.valueInput(it, f, 'expr', draw));
         return;
       }
@@ -1173,7 +1197,7 @@ export class Board {
       const cueOn = typed && it.cue.has(f.name);
       ctl.append(this.valueInput(it, f, cueOn ? 'expr' : f.kind, draw));
       if (typed) {
-        ctl.append(h('button', { type: 'button', class: 'bd-mode', 'aria-pressed': cueOn ? 'true' : 'false', 'aria-label': `Write ${f.name} as CUE`, 'data-tip': cueOn ? 'Back to a typed value' : 'Write CUE: a reference, or a string with \\(interpolation)',
+        ctl.append(h('button', { type: 'button', class: 'bd-mode', 'aria-pressed': cueOn ? 'true' : 'false', 'aria-label': `${f.name} as CUE`, 'data-tip': cueOn ? 'Set a literal' : 'Set a CUE expression: a reference, or \\(interpolation)',
           on: { click: () => { this.toggleCue(it, f); draw(); const el = ctl.querySelector('input, textarea'); if (el) el.focus(); } } }, 'CUE'));
       }
     };
@@ -1219,7 +1243,7 @@ export class Board {
     if (kind === 'expr' || kind === 'list') {
       const list = kind === 'list';
       const text = !v ? '' : list ? listText(v.expr) : v.expr || '';
-      const ta = h('textarea', { class: 'bd-ta', rows: list ? 3 : 2, spellcheck: 'false', 'aria-label': f.name, placeholder: list ? 'one per line' : f.kind === 'text' ? 'CUE, such as "app-\\(release.hex)"' : f.kind === 'number' ? 'CUE, such as listen.port + 1' : f.default ? `CUE, such as ${f.default}` : 'CUE, such as a struct or a list' });
+      const ta = h('textarea', { class: 'bd-ta', rows: list ? 3 : 2, spellcheck: 'false', 'aria-label': f.name, placeholder: list ? 'one per line' : f.ph || (f.kind === 'text' ? '"app-\\(release.hex)"' : f.kind === 'number' ? 'listen.port + 1' : f.default ? f.default : 'CUE') });
       ta.value = text;
       ta.addEventListener('input', debounce(() => {
         const t = ta.value;
@@ -1237,7 +1261,7 @@ export class Board {
       return sel;
     }
     const inp = h('input', { type: 'text', class: 'bd-tin', spellcheck: 'false', 'aria-label': f.name, inputmode: kind === 'number' ? 'decimal' : 'text',
-      placeholder: f.wire ? 'or type its value' : kind === 'number' ? 'a number' : f.default || '' });
+      placeholder: f.wire ? 'value, or wire' : kind === 'number' ? 'number' : f.default || '' });
     inp.value = !v ? '' : kind === 'number' ? v.expr || '' : v.text || '';
     inp.addEventListener('input', debounce(() => {
       const t = inp.value;
@@ -1265,7 +1289,7 @@ export class Board {
     el.dataset.open = String(this.startOpen);
     clear(el);
     if (!this.startOpen) {
-      el.append(h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Bring what a Terraform state holds onto the board, as pravo shadow does', on: { click: () => { this.startOpen = true; this.renderStart(); this.startIn.focus(); } } }, icon('file'), h('span', { class: 'lbl' }, 'Bring a Terraform state')));
+      el.append(h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Import a Terraform state, as pravo shadow', on: { click: () => { this.startOpen = true; this.renderStart(); this.startIn.focus(); } } }, icon('file'), h('span', { class: 'lbl' }, 'Import Terraform state')));
       return;
     }
     this.startIn = h('input', { type: 'text', class: 'bd-tin', placeholder: 'terraform.tfstate, or s3://bucket/key', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Where the Terraform state is' });
@@ -1280,15 +1304,15 @@ export class Board {
       this.startIn.classList.add('chosen');
       this.startState();
     });
-    this.startGo = h('button', { type: 'button', class: 'bd-b go', on: { click: () => this.runStart() } }, h('span', { class: 'bd-play', 'aria-hidden': 'true' }), h('span', { class: 'lbl' }, 'Bring it onto the board'));
+    this.startGo = h('button', { type: 'button', class: 'bd-b go', on: { click: () => this.runStart() } }, h('span', { class: 'bd-play', 'aria-hidden': 'true' }), h('span', { class: 'lbl' }, 'Import'));
     this.startSt = h('p', { class: 'bd-sst', role: 'status' });
     el.append(
-      h('div', { class: 'bd-sk' }, h('span', null, 'Start'), h('button', { type: 'button', class: 'iconbtn sm', 'aria-label': 'Fold the start away', 'data-tip': 'Fold it away', on: { click: () => { this.startOpen = false; this.renderStart(); } } }, icon('minus'))),
-      h('h2', { id: 'bd-start-h' }, 'The state holds nothing yet'),
-      h('p', { class: 'bd-sp' }, 'Draw the first resource in the bar below, or bring what a Terraform state holds: every resource, written as code, with the record of its object.'),
-      h('div', { class: 'bd-srow' }, this.startIn, h('button', { type: 'button', class: 'bd-b sm', on: { click: () => pick.click() } }, icon('file'), h('span', { class: 'lbl' }, 'Choose a file')), pick),
+      h('div', { class: 'bd-sk' }, h('span', null, 'Start'), h('button', { type: 'button', class: 'iconbtn sm', 'aria-label': 'Collapse', 'data-tip': 'Collapse', on: { click: () => { this.startOpen = false; this.renderStart(); } } }, icon('minus'))),
+      h('h2', { id: 'bd-start-h' }, 'Empty state'),
+      h('p', { class: 'bd-sp' }, 'Add the first resource from the bar, or import a Terraform state: each resource is written as code, with its state record.'),
+      h('div', { class: 'bd-srow' }, this.startIn, h('button', { type: 'button', class: 'bd-b sm', on: { click: () => pick.click() } }, icon('file'), h('span', { class: 'lbl' }, 'Choose file')), pick),
       h('div', { class: 'bd-srow' }, this.startGo),
-      h('p', { class: 'bd-fd' }, 'As pravo shadow does: it writes a new file and the records of the objects, asks the provider about each, and plans it. Terraform keeps the objects until pravo shadow take-over, and nothing is applied. The providers of the state are declared here first.'),
+      h('p', { class: 'bd-fd' }, 'Runs pravo shadow: writes a new file and the state records, refreshes each object, and plans. Terraform keeps ownership until pravo shadow take-over; nothing is applied. The state’s providers are declared first.'),
       this.startSt);
     this.startState();
   }
@@ -1299,7 +1323,7 @@ export class Board {
     if (!this.startGo) return;
     this.startGo.disabled = this.starting;
     this.startIn.disabled = this.starting;
-    if (this.starting) this.startSt.textContent = 'Reading the state, and asking the provider about each resource. A large state takes a while.';
+    if (this.starting) this.startSt.textContent = 'Reading the state and refreshing each resource…';
   }
 
   // runStart brings the state the person named, or chose, onto the board. The server refuses it once the state holds
@@ -1309,9 +1333,9 @@ export class Board {
     const place = this.startIn.value.trim();
     let body;
     if (this.startFile) {
-      try { body = { state: await this.startFile.text() }; } catch { this.startSt.textContent = 'The file could not be read.'; return; }
+      try { body = { state: await this.startFile.text() }; } catch { this.startSt.textContent = 'Cannot read the file.'; return; }
     } else if (place) body = { place };
-    else { this.startSt.textContent = 'Name the state: a path on this machine, an s3:// address, or a file you choose.'; this.startIn.focus(); return; }
+    else { this.startSt.textContent = 'Enter a local path or an s3:// address, or choose a file.'; this.startIn.focus(); return; }
     this.starting = true;
     this.renderStart();
     this.sweepRun(true);
@@ -1319,15 +1343,15 @@ export class Board {
       const out = await api.boardStart(body);
       if (out.error) throw new Error(out.error);
       const d = out.done;
-      const said = d.verified ? 'the plan of it changes nothing' : `the plan of it wants ${plural((d.wants || []).length, 'change')}: ${(d.wants || []).slice(0, 4).join(', ')}`;
+      const said = d.verified ? 'plan: no changes' : `plan: ${plural((d.wants || []).length, 'change')} (${(d.wants || []).slice(0, 4).join(', ')})`;
       const notes = (d.notes || []).length ? ` ${plural(d.notes.length, 'note')}: ${clipText(d.notes.join(' '), 300)}` : '';
-      this.cb.toast(`Brought ${plural(d.resources, 'resource')} onto the board`, d.verified ? 'info' : 'warn', 14000, `Wrote ${d.file}; ${said}. Terraform keeps the objects until pravo shadow take-over.${notes}`);
-      this.cb.announce(`Brought ${plural(d.resources, 'resource')} onto the board from ${d.from}: ${said}.`);
+      this.cb.toast(`Imported ${plural(d.resources, 'resource')}`, d.verified ? 'info' : 'warn', 14000, `Wrote ${d.file}; ${said}. Terraform keeps ownership until pravo shadow take-over.${notes}`);
+      this.cb.announce(`Imported ${plural(d.resources, 'resource')} from ${d.from}; ${said}.`);
       this.startFile = null;
       this.startSt.textContent = '';
     } catch (err) {
       this.startSt.textContent = clipText(err.message, 600);
-      this.cb.toast('The state was not brought onto the board', 'error', 12000, clipText(err.message, 400));
+      this.cb.toast('Import failed', 'error', 12000, clipText(err.message, 400));
     }
     this.starting = false;
     this.sweepRun(false);
@@ -1353,7 +1377,7 @@ export class Board {
     this.changed({ graph: true });
     this.cb.select(addr);
     this.cb.redrawInspector();
-    this.cb.announce(this.fold.addrs.length > 1 ? `${addr} is in the fold, with ${plural(this.fold.addrs.length - 1, 'other resource')}` : `Folding ${addr}. Select another resource and add it, then name the template.`);
+    this.cb.announce(this.fold.addrs.length > 1 ? `${addr} added to the fold (${this.fold.addrs.length})` : `Folding ${addr}. Select more resources to add, then name the template.`);
   }
 
   // unfold takes a resource out of the fold; the last one out ends the fold
@@ -1371,7 +1395,7 @@ export class Board {
     this.fold = null;
     this.changed({ graph: true });
     if (at) this.cb.select(at);
-    this.cb.announce('The fold is dropped. Nothing was written.');
+    this.cb.announce('Fold discarded.');
   }
 
   // showFold draws the fold in the inspector: its name, what it folds, the inputs the template gets, and the values it
@@ -1382,7 +1406,7 @@ export class Board {
     const had = document.activeElement && document.activeElement.closest('.bd-fold') ? document.activeElement.dataset.k : '';
     const out = this.check && this.check.fold;
     const head = {
-      kick: 'Drawing · folds into a template',
+      kick: 'Draft · fold into template',
       title: out ? out.def : f.name ? foldWord(f) : 'A new template',
       path: h('div', { class: 'ih-path bd-what' }, h('b', null, plural(f.addrs.length, 'resource')), h('code', null, out ? `${out.file} · ${out.label}` : 'pravo.#Template')),
       tags: [h('span', { class: 'b bd-draft' }, 'fold')],
@@ -1390,7 +1414,7 @@ export class Board {
     const body = h('div', { class: 'bd-form bd-fold', data: { label: '@fold' } });
     this.formEl = body;
     this.formItem = { label: '@fold', values: {}, fold: true };
-    body.append(h('p', { class: 'bd-where' }, 'Saving writes a template that holds these resources into a new file, with one instance of it that keeps their records ($from). The plan moves the records and changes nothing they made.'));
+    body.append(h('p', { class: 'bd-where' }, 'Save writes a template with these resources to a new file, plus one instance that keeps their state records ($from). The plan only moves records.'));
     body.append(h('div', { class: 'bd-probs', role: 'status' }));
     const text = (key, label, ph, tip) => {
       const inp = h('input', { type: 'text', class: 'bd-tin', value: f[key] || '', placeholder: ph, spellcheck: 'false', autocomplete: 'off', 'aria-label': label, data: { k: '@' + key } });
@@ -1398,31 +1422,31 @@ export class Board {
       inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') inp.blur(); });
       return h('div', { class: 'bd-row' + (key === 'name' ? ' req' : ''), data: { f: '@' + key } }, h('label', { class: 'bd-fl' }, h('code', null, label)), h('p', { class: 'bd-fd' }, tip), h('div', { class: 'bd-ctl' }, inp), h('p', { class: 'bd-fe', role: 'alert' }));
     };
-    body.append(h('h3', { class: 'bd-sh' }, 'It needs'), text('name', 'name', 'web_app', 'The name of the template, in small letters, digits and underscores. The definition and the file take it.'));
-    body.append(h('h3', { class: 'bd-sh' }, 'Also set'),
-      text('title', 'title', f.name ? foldTitle(f.name) : 'Web app', 'What the catalog of templates calls it.'),
-      text('label', 'instance', f.name || 'web_app', `The address of the instance. The resources move under it: ${f.label || f.name || 'web_app'}.${f.addrs[0]}.`));
-    body.append(h('h3', { class: 'bd-sh' }, 'It folds'), h('ul', { class: 'bd-flist' }, ...f.addrs.map((a) => h('li', { class: a === addr ? 'on' : '' },
+    body.append(h('h3', { class: 'bd-sh' }, 'Required'), text('name', 'name', 'web_app', 'Template name, [a-z][a-z0-9_]*. Names the definition and the file.'));
+    body.append(h('h3', { class: 'bd-sh' }, 'Optional'),
+      text('title', 'title', f.name ? foldTitle(f.name) : 'Web app', 'Title in the template catalog.'),
+      text('label', 'instance', f.name || 'web_app', `Instance address. Resources move under it: ${f.label || f.name || 'web_app'}.${f.addrs[0]}.`));
+    body.append(h('h3', { class: 'bd-sh' }, 'Resources'), h('ul', { class: 'bd-flist' }, ...f.addrs.map((a) => h('li', { class: a === addr ? 'on' : '' },
       h('button', { type: 'button', class: 'linkbtn', on: { click: () => this.cb.select(a) } }, h('code', null, a)),
       out && out.moves[a] ? h('span', { class: 'bd-ty' }, 'to ' + out.moves[a]) : null,
-      h('button', { type: 'button', class: 'iconbtn sm', 'aria-label': `Take ${a} out of the fold`, 'data-tip': 'Take it out of the fold', on: { click: () => this.unfold(a) } }, icon('x'))))),
-    h('p', { class: 'bd-fd' }, 'To fold another resource, select it and press Add.'));
+      h('button', { type: 'button', class: 'iconbtn sm', 'aria-label': `Remove ${a} from the fold`, 'data-tip': 'Remove from the fold', on: { click: () => this.unfold(a) } }, icon('x'))))),
+    h('p', { class: 'bd-fd' }, 'Select another resource and press Add.'));
     if (out) {
       const reads = out.inputs.filter((x) => !x.asked);
       body.append(h('h3', { class: 'bd-sh' }, 'Inputs'));
-      if (!reads.length && !out.inputs.length) body.append(h('p', { class: 'bd-fd' }, 'It reads nothing of other resources, so it asks for nothing yet. Tick a value below to ask for it.'));
-      for (const x of out.inputs) body.append(h('p', { class: 'bd-inp' }, h('code', null, x.name), h('span', { class: 'bd-ty' }, x.asked ? `asks for ${x.from}, as written by default` : `reads ${x.from}`)));
+      if (!reads.length && !out.inputs.length) body.append(h('p', { class: 'bd-fd' }, 'No references to other resources. Tick a value below to make it an input.'));
+      for (const x of out.inputs) body.append(h('p', { class: 'bd-inp' }, h('code', null, x.name), h('span', { class: 'bd-ty' }, x.asked ? `input, default ${x.from}` : `from ${x.from}`)));
       const can = Object.entries(out.fields || {}).flatMap(([a, fs]) => fs.map((k) => `${a}.${k}`));
       if (can.length) {
-        body.append(h('h3', { class: 'bd-sh' }, 'Ask for'), h('div', { class: 'bd-asks' }, ...can.map((q) => {
+        body.append(h('h3', { class: 'bd-sh' }, 'Make an input'), h('div', { class: 'bd-asks' }, ...can.map((q) => {
           const box = h('input', { type: 'checkbox', checked: f.ask.includes(q), data: { k: q } });
           box.addEventListener('change', () => { f.ask = box.checked ? [...f.ask, q] : f.ask.filter((x) => x !== q); this.changed({ graph: true }); });
           return h('label', { class: 'bd-askf' }, box, h('code', null, q));
         })));
       }
     }
-    body.append(h('div', { class: 'bd-tools' }, h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Show the template and the changes of the files', on: { click: () => this.toggleCode(true) } }, icon('code'), h('span', { class: 'lbl' }, 'The change'))));
-    body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Drop the fold: the resources stay as they are written', on: { click: () => this.dropFold() } }, icon('back'), h('span', { class: 'lbl' }, 'Drop the fold'))));
+    body.append(h('div', { class: 'bd-tools' }, h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Show the template and the diffs', on: { click: () => this.toggleCode(true) } }, icon('code'), h('span', { class: 'lbl' }, 'Diff'))));
+    body.append(h('div', { class: 'bd-foot' }, h('button', { type: 'button', class: 'bd-b', 'data-tip': 'Discard the fold; the resources stay as written', on: { click: () => this.dropFold() } }, icon('back'), h('span', { class: 'lbl' }, 'Discard fold'))));
     insp.showDraft(head, body);
     this.paintProblems();
     if (had) { const el = [...body.querySelectorAll('[data-k]')].find((x) => x.dataset.k === had); if (el) el.focus(); }
@@ -1439,18 +1463,18 @@ export class Board {
     const cands = this.candidates(it, f);
     const cur = wiresOf(it.values[f.name] || {});
     const menu = h('div', { class: 'bd-menu', role: 'menu', 'aria-label': `Wire ${label}.${field}` });
-    menu.append(h('p', { class: 'bd-mh' }, h('code', null, `${label}.${field}`), f.required ? ' needs one' : ''));
+    menu.append(h('p', { class: 'bd-mh' }, h('code', null, `${label}.${field}`), f.required ? ' required' : ''));
     for (const c of cands.slice(0, 12)) {
       const on = cur.some((w) => w.to === c.addr);
       menu.append(h('button', { type: 'button', role: 'menuitem', class: 'bd-mi' + (on ? ' on' : ''), on: { click: () => { if (on) unwire(it, f, c.addr); else setWire(it, f, c.addr, c.read); this.closeMenu(); this.changed({ graph: true }); this.cb.redrawInspector(); } } },
-        h('span', { class: 'bd-sockm' + (on ? ' on' : '') }), h('b', null, c.addr), h('code', null, `.${c.read}`), h('span', { class: 'bd-pv' + (c.draft ? ' d' : '') }, c.draft ? 'drawn' : c.type)));
+        h('span', { class: 'bd-sockm' + (on ? ' on' : '') }), h('b', null, c.addr), h('code', null, `.${c.read}`), h('span', { class: 'bd-pv' + (c.draft ? ' d' : '') }, c.draft ? 'draft' : c.type)));
     }
-    if (!cands.length) menu.append(h('p', { class: 'bd-none' }, 'Nothing on the drawing fits.'));
+    if (!cands.length) menu.append(h('p', { class: 'bd-none' }, 'No matching resource.'));
     for (const t of f.wire.to.slice(0, 2)) {
-      menu.append(h('button', { type: 'button', role: 'menuitem', class: 'bd-mi new', on: { click: async () => { this.closeMenu(); const made = await this.add({ kind: 'resource', type: t.type, provider: it.provider }, { wire: { label, field } }); if (made) this.cb.announce(`${made.label} drawn and wired to ${label}.${field}`); } } },
-        icon('plus'), h('span', null, 'Draw a new ', h('code', null, t.type))));
+      menu.append(h('button', { type: 'button', role: 'menuitem', class: 'bd-mi new', on: { click: async () => { this.closeMenu(); const made = await this.add({ kind: 'resource', type: t.type, provider: it.provider }, { wire: { label, field } }); if (made) this.cb.announce(`${made.label} added, wired to ${label}.${field}`); } } },
+        icon('plus'), h('span', null, 'New ', h('code', null, t.type))));
     }
-    if (cur.length) menu.append(h('button', { type: 'button', role: 'menuitem', class: 'bd-mi', on: { click: () => { delete it.values[f.name]; this.closeMenu(); this.changed({ graph: true }); this.cb.redrawInspector(); } } }, icon('x'), h('span', null, 'Disconnect')));
+    if (cur.length) menu.append(h('button', { type: 'button', role: 'menuitem', class: 'bd-mi', on: { click: () => { delete it.values[f.name]; this.closeMenu(); this.changed({ graph: true }); this.cb.redrawInspector(); } } }, icon('x'), h('span', null, 'Unwire')));
     document.body.append(menu);
     const r = anchor ? anchor.getBoundingClientRect() : { left: at.x, bottom: at.y, top: at.y };
     const mw = Math.min(340, window.innerWidth - 16);
@@ -1522,12 +1546,19 @@ export class Board {
         this.items.push({ label: x.label, kind: x.kind, type: x.type || '', template: x.template || '', provider: x.provider || '', values: x.values || {}, shown: new Set(x.shown || []), cue: new Set(x.cue || []), saved: !!x.saved, adopt, form });
       } catch { /* a type that the providers do not have any more */ }
     }
-    if (gone) this.cb.toast(`${plural(gone, 'change')} let go`, 'info', 8000, 'Its file changed since it was read. Change it again on the board.');
+    if (gone) this.cb.toast(`${plural(gone, 'edit')} discarded`, 'info', 8000, 'The file changed since it was read.');
     if (this.items.length || this.fold) { this.changed({ graph: true }); this.cb.redrawInspector(); }
   }
 }
 
 // ---- helpers ----
+
+// kindWord names the kind of a thing on the board: what is drawn, or what an edit changes
+function kindWord(it) {
+  if (it.kind === 'change') return KIND_WORDS[it.of] || 'resource';
+  if (it.adopt) return 'resource import';
+  return KIND_WORDS[it.kind] || it.kind;
+}
 
 // foldWord is the name of a fold as the graph and the buttons say it: the instance, else the template
 function foldWord(f) { return f.label || f.name || 'a template'; }
@@ -1577,7 +1608,7 @@ function guideText(text) {
   return out;
 }
 
-const changeWord = (it, edit) => (it.remove ? 'draft · remove' : edit ? 'draft · change' : 'not changed yet');
+const changeWord = (it, edit) => (it.remove ? 'delete' : edit ? 'edit' : 'unchanged');
 
 // sameValue says whether two values of a field are the same: the same text, the same CUE, or the same wires
 function sameValue(a, b) {
@@ -1619,7 +1650,7 @@ const problemText = (p) => (p.item ? p.item + (p.field && !p.field.startsWith('@
 
 function firstProblem(chk) {
   const p = (chk.problems || [])[0];
-  if (!p) return 'Does not load';
+  if (!p) return 'Invalid';
   const t = problemText(p);
   return t.length > 64 ? t.slice(0, 63) + '…' : t;
 }
@@ -1649,7 +1680,7 @@ function planProblems(text, labels) {
   }
   return [...by.values()].map((p) => ({
     item: p.item, field: p.fields.length === 1 ? p.fields[0] : '',
-    message: `The provider says: ${p.summary}${p.fields.length > 1 ? ', at ' + p.fields.sort().join(', ') : ''}${p.detail ? ': ' + p.detail : ''}`,
+    message: `Provider: ${p.summary}${p.fields.length > 1 ? ', at ' + p.fields.sort().join(', ') : ''}${p.detail ? ': ' + p.detail : ''}`,
   }));
 }
 

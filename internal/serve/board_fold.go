@@ -213,7 +213,7 @@ func (s *Server) boardFold(m *model, d *BoardDraft, labels map[string]bool, prob
 		t := sel[a]
 		start, end, ok := penLines(t.src, penStart(t.field), t.field.End().Offset())
 		if !ok {
-			problems.add(a, "", "It shares its lines with other code: fold it in the code.")
+			problems.add(a, "", "Shares its lines with other code: fold it in the code.")
 			return nil
 		}
 		w.splices[t.abs] = append(w.splices[t.abs], penSplice{start: start, end: end})
@@ -254,12 +254,16 @@ func (s *Server) foldTargets(m *model, d *BoardDraft, problems *drawProblems) ma
 			continue
 		}
 		if edited[a] {
-			problems.add(a, "", "It is changed on the board: fold it once the change is saved, or drop the change.")
+			problems.add(a, "", "Edited on the board: save or discard the edit before folding.")
 			continue
 		}
 		t, reason := s.penFind(m, a)
 		if t == nil {
 			problems.add(a, "", reason)
+			continue
+		}
+		if t.kind != "resource" {
+			problems.add(a, "", "Only a resource is folded.")
 			continue
 		}
 		if len(t.path) != 1 {
@@ -269,7 +273,7 @@ func (s *Server) foldTargets(m *model, d *BoardDraft, problems *drawProblems) ma
 		for _, el := range t.body.Elts {
 			if g, ok := el.(*ast.Field); ok {
 				if name, _, _ := ast.LabelName(g.Label); name == "$from" {
-					problems.add(a, "", "It moves already ($from): fold it once that move is applied.")
+					problems.add(a, "", "Already moving ($from): apply that move before folding.")
 				}
 			}
 		}
@@ -329,7 +333,7 @@ func (s *Server) foldRefs(m *model, pk *foldPackage, sel map[string]*penTarget, 
 					continue
 				}
 				if r.unsure {
-					problems.add(r.name, "", "Something reads it in a way the board cannot point at the instance: fold it in the code.")
+					problems.add(r.name, "", "Read in a way the board cannot point at the instance: fold it in the code.")
 					continue
 				}
 				inner.outside[abs] = append(inner.outside[abs], penSplice{start: r.start, end: r.identEnd, text: label + "." + r.name})
@@ -340,7 +344,7 @@ func (s *Server) foldRefs(m *model, pk *foldPackage, sel map[string]*penTarget, 
 			}
 			if path, ok := pk.imports[abs][r.name]; ok {
 				if have, ok := needs[r.name]; ok && have != path {
-					problems.add(in, "", "It reads the import "+r.name+", which names another package in another file: fold it in the code.")
+					problems.add(in, "", "Reads the import "+r.name+", which names another package in another file: fold it in the code.")
 				}
 				needs[r.name] = path
 				continue
@@ -350,7 +354,7 @@ func (s *Server) foldRefs(m *model, pk *foldPackage, sel map[string]*penTarget, 
 				continue // a value of the package: the definition reads it as the resource did
 			}
 			if r.unsure {
-				problems.add(in, "", "It reads "+res+" in a way the board cannot make an input of: fold it in the code.")
+				problems.add(in, "", "Reads "+res+" in a way the board cannot make an input of: fold it in the code.")
 				continue
 			}
 			from := strings.Join(r.path, ".")
@@ -431,15 +435,11 @@ func (s *Server) foldInputType(m *model, addr string, path []string) string {
 	if res == nil || len(rest) != 1 {
 		return "_"
 	}
-	p := s.penProvider(m, res)
-	if p == nil {
+	block := s.resourceBlock(m, res)
+	if block == nil {
 		return "_"
 	}
-	sch := p.sch.Type(res.Mode, res.Type)
-	if sch == nil || sch.Block == nil {
-		return "_"
-	}
-	for _, at := range sch.Block.Attributes {
+	for _, at := range block.Attributes {
 		if at.Name != rest[0] {
 			continue
 		}
@@ -521,7 +521,7 @@ func foldAsk(sel map[string]*penTarget, ask []string, inner *foldInner, taken ma
 			kind = foldLiteralKind(g.Value)
 		}
 		if kind == "" {
-			problems.add(addr, field, "Only a value typed as it is (a string, a number, true or false) is asked for.")
+			problems.add(addr, field, "Only a literal (a string, a number, true or false) can become an input.")
 			continue
 		}
 		name := foldInputName(addr+"_"+field, taken)
@@ -578,7 +578,7 @@ func foldText(pk *foldPackage, sel map[string]*penTarget, f *BoardFold, def, lab
 		}
 		body, err := penSpliced(t.src[start:end], rel)
 		if err != nil {
-			problems.add(a, "", "It cannot be lifted as it is written: "+clip(err.Error(), 200))
+			problems.add(a, "", "Cannot be lifted as written: "+clip(err.Error(), 200))
 			return "", false
 		}
 		b.WriteString("\n\t" + strings.ReplaceAll(body, "\n", "\n\t") + "\n")
