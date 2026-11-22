@@ -119,7 +119,7 @@ How pravo behaves: evaluation, plans, state, providers, policies.
 | [concepts/the-viewer.md](concepts/the-viewer.md) | How pravo serve reads an estate: what a group is, what presence means, how the first view is chosen, what the nine sections show, which values are withheld and why the viewer changes nothing. | 41 KB |
 | [concepts/traces.md](concepts/traces.md) | What a run of pravo records about itself: one trace of spans per command, the calls to the providers and the network calls under them, where the time went and where a run stopped, and what a span never contains. | 12 KB |
 | [concepts/discovery.md](concepts/discovery.md) | How a discovery lists the objects that exist in a scope, what it keeps in the state, how the unmanaged ones are told from the rest, and when to run it again. | 10 KB |
-| [concepts/the-assistant.md](concepts/the-assistant.md) | What the read-only assistant of the viewer is, which reads it has and which it has not, what leaves the machine and what never does, how values stay withheld, and what an answer can and cannot be trusted for. | 7 KB |
+| [concepts/the-assistant.md](concepts/the-assistant.md) | What the read-only assistant of the viewer is, which reads it has and which it has not, what leaves the machine and what never does, how values stay withheld, and what an answer can and cannot be trusted for. | 8 KB |
 | [concepts/the-library-and-the-machine-interface.md](concepts/the-library-and-the-machine-interface.md) | The three ways a program uses pravo: the commands with --json and exit codes, the MCP server for an agent, and the Go library for a program that plans and applies on behalf of its users. What each gives, what each never does, and which is the stable surface. | 9 KB |
 
 ## How-to

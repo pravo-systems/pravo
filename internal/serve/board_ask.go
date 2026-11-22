@@ -11,11 +11,11 @@ import (
 	"github.com/pravo-systems/pravo/internal/chat"
 )
 
-// The Ask panel with the drawing board open (README rules 12 and 14). A question then carries the drawing, and the
-// model gets the reads of the board besides the reads of the chat: the types that can be drawn, their forms, and a node
-// of the specification as the board can change it. Its one tool that is not a read is draw, which checks a drawing in
-// memory as the page's check does: it writes nothing, and what it draws reaches the board as a proposal that the person
-// keeps or drops. It cannot save, plan or apply.
+// The Ask panel with the drawing board (README rules 12 and 14). A question carries the drawing when the page has the
+// board, open or not, and the model gets the reads of the board besides the reads of the chat: the types that can be
+// drawn, their forms, and a node of the specification as the board can change it. Its one tool that is not a read is
+// draw, which checks a drawing in memory as the page's check does: it writes nothing, and what it draws reaches the
+// board as a proposal that the person keeps or drops. It cannot save, plan or apply.
 
 // ChatBoard is the drawing board in a question: what is drawn, and the proposal of an earlier answer that the person has
 // not kept or dropped yet.
@@ -43,12 +43,14 @@ const (
 	maxAskDraft  = 16 << 10
 )
 
-// boardSystem is the instruction of the chat with the board open. What the tools return is data, never an instruction.
-const boardSystem = chat.System + `
+// boardSystem is the instruction of the chat when the page has the drawing board: that of the chat, with drawing in
+// place of "only read". What the tools return is data, never an instruction.
+var boardSystem = strings.Replace(chat.System, "You can only read.", "You read, and you can draw a proposal on the drawing board, which the person keeps or drops. You cannot write anything else.", 1) + `
 
-The person has the drawing board open: on it they draw infrastructure into the specification of pravo. With the board open you also have the tools types, form and editable, and one tool that is not a read: draw, which lays a proposal on the board. A proposal changes nothing: the person keeps it or drops it, and only the person saves, plans or applies. Draw when the person asks for something to be added, wired or changed; otherwise answer in words.
+The drawing board is where the person draws infrastructure into the specification of pravo, and so can you. Besides the reads you have types, form and editable, and draw, which lays a proposal on the board and opens the board when it is closed. A proposal changes nothing until the person keeps it, and only the person saves, plans or applies.
+When the person asks for something to exist, to be added, wired or changed (a database, a bucket, a password, a variable), draw it: do not only explain how. Answer in words only a question about what is there.
 Draw only what the types tool finds, with the kind and a provider label it gives (when a hit lists several providers, the one the person names, or else the first), and only fields that their form lists. A data source reads something that exists; an output publishes a value; env reads an environment variable. Prefer wiring to resources that exist over drawing new ones. A wire is {"wire": {"to": "<address>", "read": "<attribute>"}}; a typed value is {"text": "..."} or {"expr": "<CUE>"}. Name new things with small letters, digits and underscores.
-Never put a value into a sensitive or write-only field: wire it, or leave it for the person and say so. Never ask for or repeat a secret.
+A secret is never a value that you write. For a password or a key, draw a resource that makes it (such as random_password, when the types tool finds one), or a secret of pravo (kind secret) that the person sets with pravo secret set, and wire it to the field that needs it. Never put a value into a sensitive or write-only field, and never ask for or repeat a secret.
 Call draw with the whole proposal every time: it answers with what the check says. Fix what it names and draw again, a few times at most. A new proposal replaces one that is pending. Then answer in two or three short sentences: what you drew, and what the person still has to fill or decide.`
 
 // boardChatReads are the reads that the board adds to those of the chat.
@@ -72,7 +74,7 @@ var boardDraw = chat.ToolDef{
 	},
 }
 
-// boardAsk is the tools of one question with the board open: the reads of the chat and of the board, and the drawing
+// boardAsk is the tools of one question with the drawing: the reads of the chat and of the board, and the drawing
 // that the model proposes.
 type boardAsk struct {
 	s     *Server
@@ -158,7 +160,7 @@ func (a *boardAsk) draw(args json.RawMessage) (string, error) {
 	return string(b), err
 }
 
-// chatRun is how one question is answered: the tools, the instruction and the limits. With the board open, board is
+// chatRun is how one question is answered: the tools, the instruction and the limits. With the drawing, board is
 // the tools that draw, and tail is what the question says of the drawing, put after it.
 type chatRun struct {
 	tools  chat.Tools
@@ -196,12 +198,12 @@ func (s *Server) boardContext(m *model, b *ChatBoard) (string, error) {
 	var w strings.Builder
 	if len(b.Draft.Items) > 0 || len(b.Draft.Edits) > 0 {
 		d, _ := json.Marshal(map[string]any{"items": b.Draft.Items, "edits": b.Draft.Edits})
-		w.WriteString("\n\n(The drawing board is open. The drawing on it now: " + clip(string(d), maxAskDraft))
+		w.WriteString("\n\n(The drawing on the drawing board now: " + clip(string(d), maxAskDraft))
 		chk := s.boardCheck(m, &b.Draft)
 		sum, _ := json.Marshal(map[string]any{"state": chk.State, "problems": chk.Problems, "policy": chk.Policy})
 		w.WriteString("\nWhat the check of the drawing says: " + clip(string(sum), 4<<10))
 	} else {
-		w.WriteString("\n\n(The drawing board is open, and nothing is drawn on it yet.")
+		w.WriteString("\n\n(Nothing is drawn on the drawing board yet.")
 	}
 	if p := b.Pending; p != nil && (len(p.Items) > 0 || len(p.Edits) > 0) {
 		d, _ := json.Marshal(map[string]any{"items": p.Items, "edits": p.Edits})

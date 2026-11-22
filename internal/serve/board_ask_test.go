@@ -122,6 +122,9 @@ func TestBoardAskDrawsAProposalAndWritesNothing(t *testing.T) {
 	if req.System != boardSystem || !strings.HasPrefix(q, "a database for orders") || !strings.Contains(q, `"label":"billing"`) || !strings.Contains(q, "What the check of the drawing says") {
 		t.Errorf("what the model was asked: %q / %q", req.System[:40], q)
 	}
+	if strings.Contains(req.System, "You can only read") || !strings.Contains(req.System, "random_password") {
+		t.Errorf("the instruction with the board says that it draws, and how a secret is drawn: %q", req.System)
+	}
 	want := strings.Join(chatToolNames(), ",") + ",types,form,editable,draw"
 	if got := toolNames(req.Tools); got != want {
 		t.Errorf("tools: %s, want %s", got, want)
@@ -162,7 +165,7 @@ func TestBoardAskOnlyWithTheBoardOpen(t *testing.T) {
 	if status, _ := askBoard(t, p, "make it larger", &ChatBoard{Pending: pending}); status != http.StatusOK {
 		t.Fatalf("with a pending proposal: %d", status)
 	}
-	if q := script.Requests[2].Messages[0].Text; !strings.Contains(q, "nothing is drawn on it yet") || !strings.Contains(q, "Your last proposal") || !strings.Contains(q, `"label":"orders"`) {
+	if q := script.Requests[2].Messages[0].Text; !strings.Contains(q, "Nothing is drawn on the drawing board yet") || !strings.Contains(q, "Your last proposal") || !strings.Contains(q, `"label":"orders"`) {
 		t.Errorf("the pending proposal was not given: %q", q)
 	}
 	big := &BoardProposal{Items: make([]BoardItem, maxDrawItems+1)}

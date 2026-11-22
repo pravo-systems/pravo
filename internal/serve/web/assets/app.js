@@ -547,13 +547,13 @@ function redrawBoard(o = {}) {
 }
 
 // toggleBoard shows the drawing board in the graph of the inventory, or hides it; what is drawn stays in the page.
-function toggleBoard(on) {
+function toggleBoard(on, o) {
   if (!board || !board.cfg) return;
   const want = on === undefined ? !board.on : on;
   if (want && S.view !== 'graph') setView('graph');
   // the strip of the board covers the bottom of the canvas: the picture is framed above it
   FIT.padBottom = want ? 150 + boardPad : 60;
-  board.toggle(want);
+  board.toggle(want, o);
   $('btn-draw').setAttribute('aria-pressed', board.on ? 'true' : 'false');
   $('app').dataset.board = board.on ? '1' : '';
   // the inspector of a selected resource offers to change it while the board is on
@@ -2005,8 +2005,13 @@ function wire() {
     isPlan: (id) => S.plans.some((p) => p.id === id),
     onNode: (a) => { if (S.view !== 'graph' && S.view !== 'list') setView(S.lastResources || 'graph'); selectNode(a, { center: true }); },
     onPlan: openPlan,
-    board: () => (board && board.on ? board.askContext() : null),
-    propose: (p) => (board && board.on ? board.propose(p) : Promise.resolve([])),
+    // Ask can draw wherever the page has a board: a proposal opens the board on the graph when it is closed
+    board: () => (board && board.cfg ? board.askContext() : null),
+    propose: (p) => {
+      if (!board || !board.cfg) return Promise.resolve([]);
+      if (!board.on) toggleBoard(true, { focus: false });
+      return board.propose(p);
+    },
     proposalState: (made) => (board ? board.proposalState(made) : 'gone'),
     onToggle: (on) => {
       $('insp').classList.toggle('chat-on', on);

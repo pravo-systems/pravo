@@ -128,15 +128,16 @@ export class Board {
 
   // ---- on and off ----
 
-  toggle(on = !this.on) {
-    if (!this.cfg || on === this.on) { if (on && this.on) this.input.focus(); return; }
+  // toggle shows or hides the board; o.focus false leaves the focus where it is, as when Ask opens it with a proposal
+  toggle(on = !this.on, o = {}) {
+    if (!this.cfg || on === this.on) { if (on && this.on && o.focus !== false) this.input.focus(); return; }
     this.on = on;
     this.el.hidden = !on;
     document.documentElement.classList.toggle('board-on', on);
     if (on && !this.items.length) this.restoring = this.restore();
     this.render();
     this.cb.redraw({ fit: true });
-    if (on) { this.input.focus(); this.cb.announce('Board on.'); if (this.items.length) this.recheck(); }
+    if (on) { if (o.focus !== false) this.input.focus(); this.cb.announce('Board on.'); if (this.items.length) this.recheck(); }
     else { this.closeHits(); this.cb.announce('Board off. Draft kept.'); }
   }
 
@@ -717,7 +718,8 @@ export class Board {
 
   // ---- what Ask proposes ----
 
-  // askContext is the board in a question to Ask: the drawing without the proposal that waits, and that proposal.
+  // askContext is the board in a question to Ask, open or not: the drawing without the proposal that waits, and that
+  // proposal.
   askContext() {
     const prop = this.items.filter((it) => it.proposed);
     const draft = this.draftOf(this.items.filter((it) => !it.proposed));
@@ -729,6 +731,7 @@ export class Board {
   // propose lays what Ask drew on the board, marked, in place of a proposal that still waits: new things, and changes of
   // resources. It returns what it laid.
   async propose(p) {
+    await this.restoring; // a drawing that the tab kept comes back first, so that a proposal does not take its place
     if (this.items.some((it) => it.proposed)) this.dropProposal(true);
     const made = [];
     for (const x of p.items || []) {

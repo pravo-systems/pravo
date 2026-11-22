@@ -1,7 +1,7 @@
 // The Ask panel: a question to a language model that can only read what this page reads. It sits in the slot of the
-// inspector. The server holds no conversation: the page keeps it, and sends it with each question. With the drawing board
-// open a question also carries the drawing, and the model can draw a proposal onto the board, which the person keeps or
-// drops there (README rule 14); it never saves, plans or applies.
+// inspector. The server holds no conversation: the page keeps it, and sends it with each question. Where the page has the
+// drawing board, a question also carries the drawing, and the model can draw a proposal onto the board, which opens the
+// board if it is closed; the person keeps or drops it there (README rule 14). It never saves, plans or applies.
 
 const PROPOSAL_WORD = { pending: 'Keep or drop it on the board.', kept: 'Kept.', dropped: 'Dropped.', gone: 'Replaced by a later proposal.' };
 
@@ -26,7 +26,7 @@ function readLine(tool, args) {
 
 export class ChatView {
   // opts: context() -> {addr, plan, view}; isAddr(a); isPlan(id); onNode(a); onPlan(id); onToggle(open); board() -> the
-  // drawing and the proposal that waits, or null when the board is closed; propose(p) -> what it laid; proposalState(made)
+  // drawing and the proposal that waits, or null when the page has no board; propose(p) -> what it laid; proposalState(made)
   constructor(root, opts) {
     this.root = root;
     this.o = opts;
@@ -73,7 +73,7 @@ export class ChatView {
     else if (this.built) { this.input.value = this.draft; this.sizeInput(); this.syncSend(); }
   }
 
-  onBoard() { return !!(this.o.board && this.o.board()); }
+  canDraw() { return !!(this.o.board && this.o.board()); }
 
   ctx() {
     const c = this.o.context();
@@ -92,7 +92,7 @@ export class ChatView {
     this.ctxEl = h('div', { class: 'chat-ctx' });
     this.logEl = h('div', { class: 'chat-log', tabindex: 0, role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' });
     this.chipsEl = h('div', { class: 'chips' });
-    this.input = h('textarea', { rows: 1, placeholder: this.onBoard() ? 'Ask, or say what to draw' : 'Ask about this view', 'aria-label': 'Your question', maxlength: 2000, value: this.draft, on: {
+    this.input = h('textarea', { rows: 1, placeholder: this.canDraw() ? 'Ask, or say what to draw' : 'Ask about this view', 'aria-label': 'Your question', maxlength: 2000, value: this.draft, on: {
       input: () => { this.draft = this.input.value; this.sizeInput(); this.syncSend(); },
       keydown: (ev) => {
         if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); this.send(); }
@@ -101,7 +101,7 @@ export class ChatView {
     this.sendBtn = h('button', { class: 'go', type: 'button', 'aria-label': 'Send', on: { click: () => this.send() } }, '↵');
     this.root.append(this.ctxEl, this.logEl,
       h('div', { class: 'chat-foot' }, this.chipsEl, h('div', { class: 'ask' }, this.input, this.sendBtn),
-        h('div', { class: 'chat-fine' }, icon('eye-off'), this.onBoard() ? 'Reads the drawing and the redacted views of this page. It can draw a proposal; only you keep, save or apply it.' : 'Reads the redacted views of this page. It cannot change anything.')));
+        h('div', { class: 'chat-fine' }, icon('eye-off'), this.canDraw() ? 'Reads the drawing and the redacted views of this page. It can draw a proposal; only you keep, save or apply it.' : 'Reads the redacted views of this page. It cannot change anything.')));
     this.built = true;
     this.renderCtx();
     this.renderLog();

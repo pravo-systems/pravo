@@ -17,7 +17,7 @@ import (
 
 // The chat is README rule 12. It reads through the same handlers as the page, with
 // the token of the run, so that a value reaches a model only as the page would show
-// it. Its tools are listed here, and with the drawing board open in board_ask.go
+// it. Its tools are listed here, and with the drawing of the board in board_ask.go
 // (rule 14); none writes.
 
 // ChatOptions turns the chat on. Nil in Options means it is off: the routes do not
@@ -288,7 +288,7 @@ func (s *Server) chatConfig(w http.ResponseWriter) {
 }
 
 // chatHandler answers one question as a stream of events: a "read" for each tool as
-// it is called, with the board open a "proposal" when the model drew one, then "text"
+// it is called, with the drawing a "proposal" when the model drew one, then "text"
 // and "done" with everything that was sent to the model, or "error". It is the one request of the page that talks to another host, and
 // reads nothing that the page's own requests do not read.
 func (s *Server) chatHandler(w http.ResponseWriter, r *http.Request) {
@@ -307,7 +307,7 @@ func (s *Server) chatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req ChatRequest
-	dec := json.NewDecoder(io.LimitReader(r.Body, maxChatBody+maxBoardBody+1)) // the conversation, and the drawing when the board is open
+	dec := json.NewDecoder(io.LimitReader(r.Body, maxChatBody+maxBoardBody+1)) // the conversation, and the drawing
 	if err := dec.Decode(&req); err != nil || dec.More() {
 		writeError(w, http.StatusBadRequest, "the body is not a question")
 		return

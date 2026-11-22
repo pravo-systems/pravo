@@ -125,8 +125,8 @@ type BoardConfig struct {
 	// Problem says why nothing can be drawn: the specification does not load, or declares no provider whose schema is
 	// cached.
 	Problem string `json:"problem,omitempty"`
-	// Ask names the model of the Ask panel, when pravo serve was started with --chat. With the board open the panel also
-	// sees the drawing and can draw a proposal onto it, which the person keeps or drops; it writes nothing.
+	// Ask names the model of the Ask panel, when pravo serve was started with --chat. The panel also sees the drawing
+	// and can draw a proposal onto it, which the person keeps or drops; it writes nothing.
 	Ask string `json:"ask,omitempty"`
 	// Start is set when the board can start from a Terraform state: --edit, and a state that holds nothing yet.
 	Start bool `json:"start,omitempty"`
