@@ -197,15 +197,17 @@
 .bd-fd { margin: 0; font: 400 var(--fs-2)/1.4 var(--font-ui); color: var(--text-3); }
 .bd-fe { margin: 0; font: 400 var(--fs-2)/1.35 var(--font-ui); color: var(--conflict); }
 .bd-fe:empty { display: none; }
-.bd-ctl { display: flex; flex-wrap: wrap; gap: .35rem; align-items: flex-start; }
+.bd-ctl { --bd-h: 2.25rem; display: flex; flex-wrap: wrap; gap: .35rem; align-items: flex-start; }
 /* the value first, its actions at its top right (Wire, Secret, CUE), what a sensitive field says under them */
-.bd-ctl > .bd-b { order: 1; flex: none; height: 2.05rem; }
+.bd-ctl > .bd-b { order: 1; flex: none; height: var(--bd-h); }
 .bd-ctl > .bd-mode { order: 2; }
 .bd-ctl > .bd-sens { order: 3; flex: 1 1 100%; }
 .bd-tin, .bd-ta, .bd-sel, .bd-q { width: 100%; padding: .38rem .5rem; border: 1px solid var(--line-strong); background: var(--surface); font: 400 var(--fs-3)/1.35 var(--font-mono); color: var(--text); }
-.bd-ta { resize: vertical; min-height: 2.2rem; }
+.bd-ta { resize: vertical; min-height: var(--bd-h); }
+/* one height for a value and the buttons beside it */
+.bd-tin, .bd-sel { height: var(--bd-h); }
 .bd-ctl > .bd-tin, .bd-ctl > .bd-ta { flex: 1 1 12rem; width: auto; min-width: 0; }
-.bd-mode { flex: none; align-self: flex-start; height: 2.05rem; padding: 0 .45rem; border: 1px solid var(--line-strong); background: var(--surface); font: 600 var(--fs-1)/1 var(--font-mono); letter-spacing: .06em; color: var(--text-3); }
+.bd-mode { flex: none; align-self: flex-start; height: var(--bd-h); padding: 0 .45rem; border: 1px solid var(--line-strong); background: var(--surface); font: 600 var(--fs-1)/1 var(--font-mono); letter-spacing: .06em; color: var(--text-3); }
 .bd-mode:hover { color: var(--text); border-color: var(--text-3); }
 .bd-mode[aria-pressed="true"] { background: var(--key); border-color: var(--key); color: var(--on-accent); }
 .bd-tin:focus, .bd-ta:focus, .bd-sel:focus, .bd-q:focus { border-color: var(--key); outline: none; box-shadow: var(--focus); }
