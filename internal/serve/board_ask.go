@@ -39,11 +39,12 @@ type chatEvent struct {
 }
 
 const (
-	maxDrawCalls = 6 // draws of one question, besides its reads
-	maxReadMany  = 8 // searches of one types call, types of one form call
-	maxDrawItems = 16
-	maxDrawEdits = 8
-	maxAskDraft  = 16 << 10
+	maxDrawCalls  = 6    // draws of one question, besides its reads
+	maxDrawTokens = 8192 // an answer with the board: a whole proposal is written in one call
+	maxReadMany   = 8    // searches of one types call, types of one form call
+	maxDrawItems  = 16
+	maxDrawEdits  = 8
+	maxAskDraft   = 16 << 10
 )
 
 // boardSystem is the instruction of the chat when the page has the drawing board: that of the chat, with drawing in
@@ -54,7 +55,7 @@ The drawing board is where the person draws infrastructure into the specificatio
 When the person asks for something to exist, to be added, wired or changed (a database, a bucket, a password, a variable), draw it: do not only explain how. Answer in words only a question about what is there.
 Draw only what the types tool finds, with the kind and a provider label it gives (when a hit lists several providers, the one the person names, or else the first), and only fields that their form lists. A data source reads something that exists; an output publishes a value; env reads an environment variable. Prefer wiring to resources that exist over drawing new ones. A wire is {"wire": {"to": "<address>", "read": "<attribute>"}}; a typed value is {"text": "..."} or {"expr": "<CUE>"}. Name new things with small letters, digits and underscores.
 A secret is never a value that you write. For a password or a key, draw a resource that makes it (such as random_password, when the types tool finds one), or a secret of pravo (kind secret) that the person sets with pravo secret set, and wire it to the field that needs it. Never put a value into a sensitive or write-only field, and never ask for or repeat a secret.
-Read in few calls: types takes several searches at once, separated by ; (nat gateway; vpc; elastic ip), and form several types of one kind and provider, separated by commas. Call draw with the whole proposal every time: it answers with what the check says. Fix what it names and draw again, a few times at most. A new proposal replaces one that is pending. Then answer in two or three short sentences: what you drew, and what the person still has to fill or decide.`
+Keep a proposal to what was asked: required fields, wires and what the person named; leave other optional fields unset. Read in few calls: types takes several searches at once, separated by ; (nat gateway; vpc; elastic ip), and form several types of one kind and provider, separated by commas. Call draw with the whole proposal every time: it answers with what the check says. Fix what it names and draw again, a few times at most. A new proposal replaces one that is pending. Then answer in two or three short sentences: what you drew, and what the person still has to fill or decide.`
 
 // boardChatReads are the reads that the board adds to those of the chat.
 var boardChatReads = []chatToolSpec{
@@ -110,8 +111,15 @@ func (a *boardAsk) Call(ctx context.Context, name string, args json.RawMessage) 
 // with the answers by value; with one value it is the read itself.
 func (a *boardAsk) many(ctx context.Context, name string, args json.RawMessage, key, sep string) (string, error) {
 	in := map[string]string{}
-	if err := json.Unmarshal(args, &in); err != nil || !strings.Contains(in[key], sep) {
-		return a.s.callSpec(ctx, boardChatReads, name, args)
+	if err := json.Unmarshal(args, &in); err != nil {
+		in = listed(args, key, sep) // a list where the tool takes one string
+		if in == nil {
+			return a.s.callSpec(ctx, boardChatReads, name, args)
+		}
+	}
+	if !strings.Contains(in[key], sep) {
+		one, _ := json.Marshal(in)
+		return a.s.callSpec(ctx, boardChatReads, name, one)
 	}
 	var vals []string
 	for _, v := range strings.Split(in[key], sep) {
@@ -140,6 +148,28 @@ func (a *boardAsk) many(ctx context.Context, name string, args json.RawMessage, 
 	return string(b), err
 }
 
+// listed reads arguments of strings where key may be a list of strings, as the values of key separated by sep; or nil.
+func listed(args json.RawMessage, key, sep string) map[string]string {
+	var raw map[string]json.RawMessage
+	if json.Unmarshal(args, &raw) != nil {
+		return nil
+	}
+	in := map[string]string{}
+	for k, v := range raw {
+		var one string
+		var many []string
+		switch {
+		case json.Unmarshal(v, &one) == nil:
+			in[k] = one
+		case k == key && json.Unmarshal(v, &many) == nil:
+			in[k] = strings.Join(many, sep)
+		default:
+			return nil
+		}
+	}
+	return in
+}
+
 // proposal is the last drawing that the model made, or nil.
 func (a *boardAsk) proposal() *BoardProposal {
 	a.mu.Lock()
@@ -157,6 +187,9 @@ func (a *boardAsk) draw(args json.RawMessage) (string, error) {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&p); err != nil {
 		return "", errors.New("the proposal is {items: [...], edits: [...]}: " + clip(err.Error(), 200))
+	}
+	if len(p.Items) == 0 && len(p.Edits) == 0 {
+		return "", errors.New("the proposal is empty: give the items to draw or the edits to make, all of them in this call")
 	}
 	if len(p.Items) > maxDrawItems || len(p.Edits) > maxDrawEdits {
 		return "", fmt.Errorf("a proposal draws at most %d things and changes at most %d resources", maxDrawItems, maxDrawEdits)
@@ -223,7 +256,7 @@ func (s *Server) chatRunOf(req *ChatRequest) (*chatRun, error) {
 		return nil, err
 	}
 	a := &boardAsk{s: s, m: m, base: &req.Board.Draft}
-	return &chatRun{tools: a, system: boardSystem, lim: chat.Limits{Calls: 24, Own: map[string]int{"draw": maxDrawCalls}}, board: a, tail: tail}, nil
+	return &chatRun{tools: a, system: boardSystem, lim: chat.Limits{Calls: 24, Own: map[string]int{"draw": maxDrawCalls}, MaxTokens: maxDrawTokens}, board: a, tail: tail}, nil
 }
 
 // boardContext is what a question says of the board: the drawing as it is, what its check says, and the proposal that

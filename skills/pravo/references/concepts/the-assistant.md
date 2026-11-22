@@ -24,7 +24,7 @@ Where the viewer has the [drawing board](../reference/serve.md#the-drawing-board
 
 A command that would help is text. The page draws it in a box that copies it, and says that this page runs nothing. The person who reads it runs it, with their own identity, in their own terminal, where the policies and the approvals that apply to them apply.
 
-A question is bounded. It makes at most twelve reads (24 with the drawing board, where one read can search for several types or give several forms), sends at most 128 KiB of their results, and a single result is cut at 32 KiB. On the board, `draw` is counted apart: up to six drawings, also after the reads are spent. A conversation holds at most 40 turns of at most 4000 characters, and a body at most 64 KiB. At most four questions run at the same time, and the server answers a fifth with an error.
+A question is bounded. It makes at most twelve reads (24 with the drawing board, where one read can search for several types or give several forms), sends at most 128 KiB of their results, and a single result is cut at 32 KiB. On the board, `draw` is counted apart: up to six drawings, also after the reads are spent, and an answer may be 8,192 tokens long, since a whole proposal is written in one call. A call cut off at that length does not run, and the model is told to send less. A conversation holds at most 40 turns of at most 4000 characters, and a body at most 64 KiB. At most four questions run at the same time, and the server answers a fifth with an error.
 
 ## What leaves the machine
 

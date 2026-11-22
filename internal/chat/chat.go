@@ -7,6 +7,7 @@
 package chat
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -67,6 +68,8 @@ type Request struct {
 type Response struct {
 	Text  string
 	Calls []Call
+	// Cut says the answer reached MaxTokens: a call in it may be incomplete.
+	Cut bool
 }
 
 // Provider sends a Request to a language model.
@@ -155,7 +158,7 @@ func RunWith(ctx context.Context, p Provider, system string, tools Tools, histor
 	}
 	var added []Message
 	var ledger []Sent
-	calls, bytes, own := 0, 0, map[string]int{}
+	calls, read, own := 0, 0, map[string]int{}
 	spent := "too many tool calls for one question; answer with what you have"
 	if len(lim.Own) > 0 {
 		spent = "too many reads for one question; " + ownLeft(lim.Own) + ", then answer with what you have"
@@ -175,16 +178,22 @@ func RunWith(ctx context.Context, p Provider, system string, tools Tools, histor
 			return added, ledger, nil
 		}
 		var results []Result
-		for _, c := range resp.Calls {
+		for i, c := range resp.Calls {
 			r := Result{ID: c.ID, Name: c.Name}
+			whole := len(bytes.TrimSpace(c.Args)) == 0 || json.Valid(c.Args)
+			if !whole {
+				added[len(added)-1].Calls[i].Args = json.RawMessage("{}") // a provider takes back only whole arguments
+			}
 			switch {
 			case !known[c.Name]:
 				r.Error = "no such tool: " + c.Name
+			case !whole || resp.Cut && i == len(resp.Calls)-1:
+				r.Error = fmt.Sprintf("this call was cut off at the length limit of an answer (%d tokens) and did not run; send less in one call", lim.MaxTokens)
 			case lim.Own[c.Name] > 0 && own[c.Name] >= lim.Own[c.Name]:
 				r.Error = fmt.Sprintf("%s was called %d times for one question; answer with what you have", c.Name, own[c.Name])
 			case lim.Own[c.Name] == 0 && calls >= lim.Calls:
 				r.Error = spent
-			case lim.Own[c.Name] == 0 && bytes >= lim.Bytes:
+			case lim.Own[c.Name] == 0 && read >= lim.Bytes:
 				r.Error = "enough has been read for one question; answer with what you have"
 			default:
 				if lim.Own[c.Name] > 0 {
@@ -199,7 +208,7 @@ func RunWith(ctx context.Context, p Provider, system string, tools Tools, histor
 				} else {
 					r.Body = body
 					if lim.Own[c.Name] == 0 {
-						bytes += len(body)
+						read += len(body)
 					}
 				}
 			}

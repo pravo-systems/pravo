@@ -69,13 +69,14 @@ func (a *anthropic) Complete(ctx context.Context, r Request) (Response, error) {
 		body["tools"] = tools
 	}
 	var out struct {
-		Content []aBlock `json:"content"`
+		Content    []aBlock `json:"content"`
+		StopReason string   `json:"stop_reason"`
 	}
 	hdr := map[string]string{"x-api-key": a.c.Key, "anthropic-version": "2023-06-01"}
 	if err := post(ctx, a.hc, a.base+"/v1/messages", hdr, body, &out); err != nil {
 		return Response{}, err
 	}
-	var resp Response
+	resp := Response{Cut: out.StopReason == "max_tokens"}
 	for _, b := range out.Content {
 		switch b.Type {
 		case "text":

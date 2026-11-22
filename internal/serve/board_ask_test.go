@@ -178,7 +178,7 @@ func TestBoardAskOnlyWithTheBoardOpen(t *testing.T) {
 // The reads of several types at once answer by type, and the board still takes a drawing when the reads are spent.
 func TestBoardAskReadsManyAndDrawsAfterTheReads(t *testing.T) {
 	p := penProject(t, nil)
-	replies := []chat.Response{{Calls: []chat.Call{call("1", "types", `{"q":"fake_db; fake_file"}`), call("2", "form", `{"kind":"resource","type":"fake_db, fake_file","provider":"$fake"}`)}}}
+	replies := []chat.Response{{Calls: []chat.Call{call("1", "types", `{"q":"fake_db; fake_file"}`), call("2", "form", `{"kind":"resource","type":["fake_db","fake_file"],"provider":"$fake"}`), call("3", "draw", `{}`)}}}
 	for i := range 24 {
 		replies = append(replies, chat.Response{Calls: []chat.Call{call(fmt.Sprint("r", i), "types", `{"q":"db"}`)}})
 	}
@@ -197,6 +197,9 @@ func TestBoardAskReadsManyAndDrawsAfterTheReads(t *testing.T) {
 	}
 	if json.Unmarshal([]byte(sent[1].Body), &form) != nil || len(form) != 2 || !strings.Contains(string(form["fake_file"]), "fields") {
 		t.Errorf("two forms: %s", sent[1].Body)
+	}
+	if !strings.Contains(sent[2].Error, "the proposal is empty") {
+		t.Errorf("an empty proposal: %+v", sent[2])
 	}
 	if last := sent[len(sent)-2]; !strings.Contains(last.Error, "you can still call draw") {
 		t.Errorf("the read after the reads are spent: %+v", last)
