@@ -1357,6 +1357,8 @@ export class GraphView {
     const pts = new Map();
     let down = null, pinch = null;
     el.addEventListener('wheel', (ev) => {
+      // a panel over the graph that scrolls (the list of the bar, the code, the guide) scrolls with the wheel
+      if (ev.target.closest && ev.target.closest('.bd-hits, .bd-code, .bd-guide, .bd-start')) return;
       ev.preventDefault();
       if (this.camTween) { cancelAnimationFrame(this.camTween); this.camTween = null; }
       const r = el.getBoundingClientRect();
