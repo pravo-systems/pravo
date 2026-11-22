@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -13,13 +14,31 @@ import (
 // The types of the board: what the one bar finds when a person types what they want ("a database", "bucket"), and
 // the form of one type, built from its provider schema, with the attributes that can be wired.
 
-// BoardTypes is the answer of GET /api/board/types?q=WORDS.
+// BoardTypes is the answer of GET /api/board/types?q=WORDS&group=GROUP&offset=N&limit=N.
 type BoardTypes struct {
-	Version int            `json:"version"`
-	Query   string         `json:"query"`
-	Hits    []BoardTypeHit `json:"hits"`
-	// Total is how many types the providers of the board have, each counted once.
+	Version int    `json:"version"`
+	Query   string `json:"query"`
+	// Group is the group of kinds the hits are of; empty for all of them.
+	Group string `json:"group,omitempty"`
+	// Hits are the hits from Offset on, at most the limit asked for.
+	Hits []BoardTypeHit `json:"hits"`
+	// Offset is where Hits start among the Matched.
+	Offset int `json:"offset"`
+	// Matched is how many hits the words have in the group.
+	Matched int `json:"matched"`
+	// Total is how many types, values and templates the board can draw, each counted once.
 	Total int `json:"total"`
+	// Groups are the groups of kinds the board can draw, each with how many hits the words have in it and how many it
+	// holds; a group that holds nothing is left out.
+	Groups []BoardTypeGroup `json:"groups"`
+}
+
+// BoardTypeGroup is a group of kinds that the bar filters on: resources, data sources, secrets.
+type BoardTypeGroup struct {
+	Name    string `json:"name"`
+	Title   string `json:"title"`
+	Matched int    `json:"matched"`
+	Total   int    `json:"total"`
 }
 
 // BoardTypeHit is one type the bar offers: a type of the schema of a provider the specification declares (a resource,
@@ -232,7 +251,7 @@ func boardTypeScore(typ, title string, q []string) int {
 		if _, ok := boardNames[typ]; ok {
 			return 10
 		}
-		return 0
+		return 1
 	}
 	short := strings.TrimPrefix(typ, prefixOf(typ)+"_")
 	words := strings.Split(short, "_")
@@ -292,9 +311,11 @@ func containsPrefix(text, w string) bool {
 	return false
 }
 
-// boardTypesHandler answers GET /api/board/types?q=WORDS.
+// boardTypesHandler answers GET /api/board/types?q=WORDS&group=GROUP&offset=N&limit=N. An empty bar lists everything,
+// the types drawn most first; a group narrows the hits to its kinds, and offset and limit page through them.
 func (s *Server) boardTypesHandler(w http.ResponseWriter, r *http.Request, m *model) {
-	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+	qs := r.URL.Query()
+	q := strings.ToLower(strings.TrimSpace(qs.Get("q")))
 	if len(q) > 120 {
 		q = q[:120]
 	}
@@ -309,17 +330,43 @@ func (s *Server) boardTypesHandler(w http.ResponseWriter, r *http.Request, m *mo
 			kept = append(kept, w)
 		}
 	}
-	out := &BoardTypes{Version: APIVersion, Query: q, Hits: []BoardTypeHit{}}
-	all, total := s.boardTypeHits(m, kept)
-	out.Total = total
-	sort.SliceStable(all, func(i, j int) bool {
-		if all[i].score != all[j].score {
-			return all[i].score > all[j].score
+	group := qs.Get("group")
+	if group == "all" || boardGroupTitle(group) == "" {
+		group = ""
+	}
+	if want := boardWantKind(&kept); want != "" && group == "" {
+		group = want
+	}
+	offset, limit := boardPage(qs.Get("offset"), qs.Get("limit"))
+	all, totals := s.boardTypeHits(m, kept, group)
+	out := &BoardTypes{Version: APIVersion, Query: q, Group: group, Hits: []BoardTypeHit{}, Offset: offset, Groups: []BoardTypeGroup{}}
+	matched := map[string]int{}
+	var in []boardScored
+	for _, h := range all {
+		g := boardGroupOf(h.hit.Kind)
+		matched[g]++
+		if group == "" || g == group {
+			in = append(in, h)
 		}
-		return all[i].hit.Type < all[j].hit.Type
+	}
+	for _, g := range boardGroups {
+		out.Total += totals[g.name]
+		if totals[g.name] > 0 {
+			out.Groups = append(out.Groups, BoardTypeGroup{Name: g.name, Title: g.title, Matched: matched[g.name], Total: totals[g.name]})
+		}
+	}
+	sort.SliceStable(in, func(i, j int) bool {
+		if in[i].score != in[j].score {
+			return in[i].score > in[j].score
+		}
+		if gi, gj := boardGroupRank(in[i].hit.Kind), boardGroupRank(in[j].hit.Kind); gi != gj {
+			return gi < gj
+		}
+		return in[i].hit.Type < in[j].hit.Type
 	})
-	for i := 0; i < len(all) && i < 24; i++ {
-		h := all[i].hit
+	out.Matched = len(in)
+	for i := offset; i < len(in) && i < offset+limit; i++ {
+		h := in[i].hit
 		if k, ok := schemaKindOf(h.Kind); ok && h.Kind != "template" && i < 8 {
 			if _, block := s.boardSchema(m, h.Provider, k, h.Type); block != nil {
 				h.Blurb = firstSentence(block.Description)
@@ -330,19 +377,30 @@ func (s *Server) boardTypesHandler(w http.ResponseWriter, r *http.Request, m *mo
 	writeJSON(w, http.StatusOK, out)
 }
 
+// boardPage reads the offset and the limit of a page of hits: 24 by default, at most 100.
+func boardPage(off, lim string) (offset, limit int) {
+	offset, limit = 0, 24
+	if n, err := strconv.Atoi(off); err == nil && n > 0 {
+		offset = n
+	}
+	if n, err := strconv.Atoi(lim); err == nil && n > 0 {
+		limit = min(n, 100)
+	}
+	return offset, limit
+}
+
 // boardScored is a hit of the bar and how well it answers the words.
 type boardScored struct {
 	hit   BoardTypeHit
 	score int
 }
 
-// boardTypeHits are the hits of the bar for some words, and how many types there are in all, each counted once: one hit
-// for each type of each kind, whichever providers can draw it. A data source or an ephemeral resource ranks below the
-// resource of its name, unless the words ask for one ("data vpc").
-func (s *Server) boardTypeHits(m *model, kept []string) ([]boardScored, int) {
+// boardTypeHits are the hits of the bar for some words, and how many things each group holds, each counted once: one
+// hit for each type of each kind, whichever providers can draw it. An empty bar hits everything. A data source or an
+// ephemeral resource ranks below the resource of its name, unless the words ask for its group ("data vpc").
+func (s *Server) boardTypeHits(m *model, kept []string, group string) ([]boardScored, map[string]int) {
 	var all []boardScored
-	total := 0
-	want := boardWantKind(&kept)
+	totals := map[string]int{}
 	for _, k := range boardSchemaKinds {
 		byType := map[string]int{}
 		for _, p := range s.boardProviders(m) {
@@ -357,18 +415,12 @@ func (s *Server) boardTypeHits(m *model, kept []string) ([]boardScored, int) {
 					}
 					continue
 				}
-				total++
+				totals[k.kind]++
 				byType[typ] = -1
-				if want != "" && want != k.kind {
-					continue
-				}
 				title := boardTitle(typ)
 				sc := boardTypeScore(typ, title, kept)
-				if k.kind != "resource" && want == "" {
+				if k.kind != "resource" && group != k.kind && len(kept) > 0 {
 					sc -= 15
-					if len(kept) == 0 {
-						sc = 0 // an empty bar suggests resources
-					}
 				}
 				if sc > 0 {
 					byType[typ] = len(all)
@@ -378,13 +430,13 @@ func (s *Server) boardTypeHits(m *model, kept []string) ([]boardScored, int) {
 		}
 	}
 	for _, b := range boardBuiltins {
-		total++
-		if sc := boardBuiltinScore(b, kept); sc > 0 && want == "" {
+		totals[boardGroupOf(b.kind)]++
+		if sc := boardBuiltinScore(b, kept); sc > 0 {
 			all = append(all, boardScored{BoardTypeHit{Kind: b.kind, Type: b.kind, Title: b.title, Def: "pravo." + b.def, Blurb: b.doc}, sc})
 		}
 	}
 	for _, t := range s.boardTemplates(m) {
-		total++
+		totals["template"]++
 		title := strings.ToLower(t.Title + " " + t.Name + " " + t.Description)
 		sc := 30
 		for _, w := range kept {
@@ -394,11 +446,11 @@ func (s *Server) boardTypeHits(m *model, kept []string) ([]boardScored, int) {
 			}
 			sc += 50
 		}
-		if sc > 0 && want == "" {
+		if sc > 0 {
 			all = append(all, boardScored{BoardTypeHit{Kind: "template", Type: t.Name, Title: t.Title, Blurb: clip(oneLine(t.Description), 160)}, sc + 40})
 		}
 	}
-	return all, total
+	return all, totals
 }
 
 // boardWantKind takes a word that asks for a kind of the schema out of the words of the bar: "data vpc" asks for the data
@@ -418,13 +470,14 @@ func boardWantKind(words *[]string) string {
 }
 
 // boardBuiltinScore says how well a value pravo reads for itself answers the words of the bar. In an empty bar, an
-// output and an environment variable are offered with the resources that are drawn most.
+// output, an environment variable and the two secrets come before the resources that are drawn most.
 func boardBuiltinScore(b boardBuiltin, q []string) int {
 	if len(q) == 0 {
-		if b.kind == "output" || b.kind == "env" {
+		switch b.kind {
+		case "output", "env", "secret_env", "secret":
 			return 11
 		}
-		return 0
+		return 1
 	}
 	score := 0
 	for _, w := range q {

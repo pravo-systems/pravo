@@ -87,8 +87,9 @@ export async function switchEnvironment(name) {
 }
 // board is what the drawing board draws with: the providers and templates, the file it suggests, and whether it can save and plan (--edit).
 export const board = () => get('/api/board');
-// boardTypes finds the resource types and templates that answer the words of the bar.
-export const boardTypes = (q, signal) => get('/api/board/types?q=' + encodeURIComponent(q || ''), signal);
+// boardTypes finds what the board can draw that answers the words of the bar: a page of hits in a group of kinds (all
+// of them when group is empty), from offset on, with how many there are in each group.
+export const boardTypes = (q, group, offset, signal) => get('/api/board/types?q=' + encodeURIComponent(q || '') + (group ? '&group=' + encodeURIComponent(group) : '') + (offset ? '&offset=' + offset : ''), signal);
 // boardType is the form of a kind of thing: a type of a provider schema, a value pravo reads for itself, or a template.
 export const boardType = (kind, type, provider) => get('/api/board/type?' + (kind === 'template' ? 'template=' + encodeURIComponent(type)
   : 'kind=' + encodeURIComponent(kind || 'resource') + '&type=' + encodeURIComponent(type || '') + '&provider=' + encodeURIComponent(provider || '')));

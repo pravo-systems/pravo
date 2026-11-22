@@ -90,6 +90,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `i` | Show the project in the inspector, or take it away. Escape takes it away too. The button at the right of the toolbar does the same. |
 | `0` | Go back to the first view: the groups that were open when the page loaded, no cluster open and the whole graph in the window. The selection stays when it still shows, and the filter stays. |
 | `+`, `-` | Zoom in or out. |
+| Tab, Shift+Tab | In the list of the bar of [the drawing board](serve.md#the-drawing-board): the next or the previous group of kinds. |
 | Backspace, Delete | On [the drawing board](serve.md#the-drawing-board): take the selected thing out of the draft, or mark the selected node of the specification for deletion, which Save writes. Not while a field has the focus. |
 | `[` and `]` | Close or open every group. |
 | Drag | Pan the graph. |

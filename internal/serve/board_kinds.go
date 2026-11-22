@@ -126,3 +126,49 @@ func boardKindOfNode(mode, typ string) string {
 	}
 	return ""
 }
+
+// boardGroups are the groups of kinds that the bar filters on, in the order the bar lists them.
+var boardGroups = []struct{ name, title string }{
+	{"resource", "Resources"},
+	{"data", "Data sources"},
+	{"ephemeral", "Ephemeral"},
+	{"variable", "Variables"},
+	{"secret", "Secrets"},
+	{"output", "Outputs"},
+	{"template", "Templates"},
+}
+
+// boardGroupOf is the group of a kind: the outputs of another root are read as a data source is, and the three kinds of
+// secret are one group.
+func boardGroupOf(kind string) string {
+	switch kind {
+	case "remote_outputs":
+		return "data"
+	case "env":
+		return "variable"
+	case "secret_env", "secret", "secret_version":
+		return "secret"
+	}
+	return kind
+}
+
+// boardGroupTitle is the title of a group, or "" for a name that is not one.
+func boardGroupTitle(name string) string {
+	for _, g := range boardGroups {
+		if g.name == name {
+			return g.title
+		}
+	}
+	return ""
+}
+
+// boardGroupRank is where the group of a kind comes in boardGroups.
+func boardGroupRank(kind string) int {
+	g := boardGroupOf(kind)
+	for i, x := range boardGroups {
+		if x.name == g {
+			return i
+		}
+	}
+	return len(boardGroups)
+}

@@ -4,7 +4,7 @@
 // plans it. Nothing here stores a position: the layout engine places what is drawn, as it
 // places everything else, and the code is the only thing that is kept.
 
-import { h, clear, icon, debounce, plural, copyText } from './util.js';
+import { h, clear, icon, debounce, plural, copyText, fmt } from './util.js';
 import { codeWindow } from './ui.js';
 import * as api from './api.js';
 
@@ -14,6 +14,8 @@ const CHECK_MS = 240;
 const SCHEMA_KINDS = new Set(['resource', 'data', 'ephemeral']);
 const BUILTINS = new Set(['output', 'env', 'secret_env', 'secret', 'secret_version', 'remote_outputs']);
 const KIND_WORDS = { resource: 'resource', data: 'data source', ephemeral: 'ephemeral resource', template: 'template instance', output: 'output', env: 'environment variable', secret_env: 'secret environment variable', secret: 'sealed secret', secret_version: 'secret version', remote_outputs: 'remote outputs' };
+// KIND_COL is the kind of a hit in the first column of the list of the bar: the group it is filtered with
+const KIND_COL = { resource: 'Resource', data: 'Data source', ephemeral: 'Ephemeral', template: 'Template', output: 'Output', env: 'Variable', secret_env: 'Secret', secret: 'Secret', secret_version: 'Secret', remote_outputs: 'Data source' };
 const NODE_MODE = { resource: 'managed', template: 'managed', data: 'data', ephemeral: 'ephemeral', output: 'output', env: 'builtin', secret_env: 'ephemeral', secret: 'ephemeral', secret_version: 'builtin', remote_outputs: 'builtin' };
 const WIRE_TIP = 'Wire each required reference to the matching resource, or add one';
 const NOTHING_TO_WIRE = 'Nothing to wire: required references are set, or several resources match';
@@ -43,6 +45,11 @@ export class Board {
     this.el = null;
     this.hits = [];
     this.hit = 0;
+    // the list of the bar is a page of hits in a group of kinds: types is the last answer, group the group, more a page
+    // being read
+    this.types = null;
+    this.group = '';
+    this.more = null;
     // choosing is the hit of a type that several providers can draw, while the bar asks which; lastProv is the provider
     // last picked for each source
     this.choosing = null;
@@ -92,17 +99,19 @@ export class Board {
     this.input.addEventListener('input', () => { this.choosing = null; this.findTypes(this.input.value); });
     this.input.addEventListener('keydown', (ev) => this.onBarKey(ev));
     // an empty bar lists every type as it takes the focus; over the start of an empty state it waits for a word
-    this.input.addEventListener('focus', () => { if (this.input.value) this.findTypes(this.input.value); else if (!this.startShown()) this.searchTypes(''); });
+    this.input.addEventListener('focus', () => { if (this.input.value) this.findTypes(this.input.value); else this.searchTypes(''); });
     this.input.addEventListener('blur', () => setTimeout(() => { if (!this.hitsEl.contains(document.activeElement)) this.closeHits(); }, 120));
     this.hitsEl.addEventListener('mousedown', (ev) => ev.preventDefault());
     this.hitsEl.addEventListener('click', (ev) => {
-      const b = ev.target.closest('[data-i],[data-p],[data-back]');
+      const b = ev.target.closest('[data-i],[data-p],[data-back],[data-g]');
       if (!b) return;
-      if (b.dataset.back) this.unchoose();
+      if (b.dataset.g !== undefined) this.setGroup(b.dataset.g);
+      else if (b.dataset.back) this.unchoose();
       else if (b.dataset.p) this.pick(this.choosing, this.choosing.providers[+b.dataset.p]);
       else if (b.dataset.ask) this.askFromBar();
       else this.pick(this.hits[+b.dataset.i]);
     });
+    this.hitsEl.addEventListener('scroll', () => { if (this.hitsEl.scrollTop + this.hitsEl.clientHeight > this.hitsEl.scrollHeight - 80) this.moreTypes(); });
     this.btn.code.addEventListener('click', () => this.toggleCode());
     this.btn.review.addEventListener('click', () => this.ask('review'));
     this.btn.save.addEventListener('click', () => this.save());
@@ -285,11 +294,12 @@ export class Board {
       const f = (form.fields || []).find((ff) => ff.name === x.name);
       if (f && f.kind === 'text' && !f.sensitive && typeof x.value === 'string' && !x.value.includes('•')) it.values[f.name] = { text: x.value };
     }
+    Object.assign(it.values, o.values || {});
     this.items.push(it);
     if (o.wire) {
       const from = this.item(o.wire.label);
       const f = from && this.fields(from).find((x) => x.name === o.wire.field);
-      if (f) setWire(from, f, it.label, (f.wire.to.find((t) => t.type === it.type) || f.wire.to[0]).read);
+      if (f) setWire(from, f, it.label, o.wire.read || (f.wire.to.find((t) => t.type === it.type) || f.wire.to[0]).read);
     }
     this.changed({ graph: true });
     if (!o.quiet) { this.cb.select(it.label); this.cb.announce(`${it.label} added: ${form.title}`); }
@@ -483,13 +493,42 @@ export class Board {
 
   async searchTypes(q) {
     const seq = ++this.typeSeq;
+    this.more = null;
     let out;
-    try { out = await api.boardTypes(q); } catch { return; }
+    try { out = await api.boardTypes(q, this.group); } catch { return; }
     if (seq !== this.typeSeq || document.activeElement !== this.input) return;
+    this.types = out;
     this.hits = out.hits || [];
     // a wish of several words that names no type goes to the guide first
     this.hit = !this.hits.length || (this.cfg.guide && q.trim().split(/\s+/).length > 3 && this.hits.length < 2) ? Math.min(this.hits.length, this.options() - 1) : 0;
     this.drawHits(q);
+    this.hitsEl.scrollTop = 0;
+  }
+
+  // moreTypes reads the next page of the list into it, once the list is scrolled or stepped to its end
+  moreTypes() {
+    const t = this.types;
+    if (this.choosing || !t || this.more || this.hits.length >= t.matched) return this.more || Promise.resolve();
+    const seq = this.typeSeq;
+    this.more = api.boardTypes(t.query, this.group, this.hits.length).then((out) => {
+      if (seq !== this.typeSeq || this.hitsEl.hidden) return;
+      const at = this.hits.length;
+      this.hits = this.hits.concat(out.hits || []);
+      const before = this.hitsEl.querySelector('.bd-hfoot, .bd-ask');
+      (out.hits || []).forEach((x, i) => this.hitsEl.insertBefore(this.hitRow(x, at + i), before));
+      const ask = this.hitsEl.querySelector('.bd-ask');
+      if (ask) ask.dataset.i = String(this.hits.length);
+      if (this.hit >= at) this.hit = Math.min(this.hit + (out.hits || []).length, this.options() - 1);
+      this.drawFoot();
+    }).catch(() => {}).finally(() => { if (seq === this.typeSeq) this.more = null; });
+    return this.more;
+  }
+
+  // setGroup narrows the list to a group of kinds, or '' for all of them
+  setGroup(g) {
+    if (g === this.group) return;
+    this.group = g;
+    this.searchTypes(this.input.value);
   }
 
   // options are the hits, and the guide when there is one and something is typed
@@ -498,31 +537,68 @@ export class Board {
   drawHits(q) {
     clear(this.hitsEl);
     this.hitsEl.setAttribute('aria-label', 'Types');
+    const t = this.types;
+    if (t && t.groups && t.groups.length > 1) {
+      const all = t.groups.reduce((n, g) => n + g.matched, 0);
+      const chip = (name, title, n) => h('button', { type: 'button', class: 'bd-fc', 'aria-pressed': this.group === name ? 'true' : 'false', disabled: !n && this.group !== name, data: { g: name } },
+        title, h('span', null, fmt(n)));
+      this.hitsEl.append(h('div', { class: 'bd-facets', role: 'group', 'aria-label': 'Kinds' }, chip('', 'All', all), ...t.groups.map((g) => chip(g.name, g.title, g.matched))));
+    }
     const ask = !!(this.cfg.guide && q.trim());
     if (!this.hits.length && !ask) {
-      this.hitsEl.append(h('p', { class: 'bd-none' }, q ? `No match for “${q}” in ${this.providerNames()}.` : 'Search by type or keyword.'));
+      this.hitsEl.append(h('p', { class: 'bd-none' }, q ? `No match for “${q}”${this.group ? ' in ' + this.groupTitle().toLowerCase() : ''}.` : 'Nothing to draw.'));
     }
-    this.hits.forEach((x, i) => {
-      this.hitsEl.append(h('button', { type: 'button', class: 'bd-hit' + (i === this.hit ? ' on' : ''), role: 'option', 'aria-selected': i === this.hit ? 'true' : 'false', data: { i } },
-        h('b', null, x.title), h('code', null, x.kind === 'template' ? 'template ' + x.type : x.def || x.type), this.hitChip(x),
-        x.blurb ? h('span', { class: 'bd-blurb' }, x.blurb) : null));
-    });
+    this.hits.forEach((x, i) => this.hitsEl.append(this.hitRow(x, i)));
     if (ask) {
       const on = this.hit === this.hits.length;
       this.hitsEl.append(h('button', { type: 'button', class: 'bd-hit bd-ask' + (on ? ' on' : ''), role: 'option', 'aria-selected': on ? 'true' : 'false', data: { i: this.hits.length, ask: '1' } },
         h('b', null, icon('ask'), 'Ask the guide'), h('code', null, '\u21e7\u21b5'), h('span', { class: 'bd-pv t' }, this.cfg.guide), h('span', { class: 'bd-blurb' }, `\u201c${clipText(q.trim(), 140)}\u201d`)));
     }
+    this.hitsEl.append(h('div', { class: 'bd-hfoot' }));
+    this.drawFoot();
     this.hitsEl.hidden = false;
+    this.el.classList.add('listing');
     this.input.setAttribute('aria-expanded', 'true');
   }
 
-  // hitChip names the kind of a hit and who draws it: its provider, or how many providers can when there are several
+  // hitRow is one hit of the list: its kind, its name and type, who draws it, and what it is
+  hitRow(x, i) {
+    return h('button', { type: 'button', class: 'bd-hit k' + (i === this.hit ? ' on' : ''), role: 'option', 'aria-selected': i === this.hit ? 'true' : 'false', data: { i } },
+      h('span', { class: 'bd-kd' }, KIND_COL[x.kind] || x.kind), h('b', null, x.title), h('code', null, x.kind === 'template' ? x.type : x.def || x.type), this.hitChip(x),
+      x.blurb ? h('span', { class: 'bd-blurb' }, x.blurb) : null);
+  }
+
+  // drawFoot says how much of the list is shown, and the keys of the list
+  drawFoot() {
+    const el = this.hitsEl.querySelector('.bd-hfoot');
+    const t = this.types;
+    if (!el || !t) return;
+    clear(el);
+    const what = this.group ? this.groupTitle().toLowerCase() : 'kinds';
+    el.append(h('span', null, this.hits.length < t.matched ? `${fmt(this.hits.length)} of ${fmt(t.matched)} · scroll for more` : `${fmt(t.matched)} ${t.matched === 1 ? 'match' : 'matches'}${t.query ? '' : ' · type to filter'}`),
+      h('span', null, h('kbd', null, 'Tab'), ` ${this.group ? what : 'filter by kind'}`));
+  }
+
+  groupTitle() {
+    const g = this.types && (this.types.groups || []).find((x) => x.name === this.group);
+    return g ? g.title : 'All';
+  }
+
+  // markHit moves the highlight of the list to this.hit, and into view
+  markHit() {
+    for (const b of this.hitsEl.querySelectorAll('.bd-hit')) {
+      const on = +b.dataset.i === this.hit;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) b.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  // hitChip names who draws a hit: its provider, or how many providers can when there are several
   hitChip(x) {
-    if (x.kind === 'template') return h('span', { class: 'bd-pv t' }, 'template');
-    if (!SCHEMA_KINDS.has(x.kind)) return h('span', { class: 'bd-pv t' }, 'pravo');
+    if (!SCHEMA_KINDS.has(x.kind)) return h('span');
     const n = (x.providers || []).length;
-    const who = n > 1 ? `${n} providers` : x.provider;
-    return h('span', { class: 'bd-pv' + (x.kind === 'resource' ? '' : ' k'), title: n > 1 ? x.providers.join(', ') : null }, x.kind === 'resource' ? who : `${x.kind} · ${who}`);
+    return h('span', { class: 'bd-pv', title: n > 1 ? x.providers.join(', ') : null }, n > 1 ? `${n} providers` : x.provider);
   }
 
   // chooseProvider turns the list of the bar into the providers that can draw the hit, the one last picked for its
@@ -567,7 +643,7 @@ export class Board {
     return ps.length ? ps.map((p) => p.label).join(', ') : 'the providers';
   }
 
-  closeHits() { this.choosing = null; this.hitsEl.hidden = true; this.input.setAttribute('aria-expanded', 'false'); }
+  closeHits() { this.choosing = null; this.hitsEl.hidden = true; this.el.classList.remove('listing'); this.input.setAttribute('aria-expanded', 'false'); }
 
   onBarKey(ev) {
     if (this.choosing) { this.onProviderKey(ev); return; }
@@ -575,10 +651,20 @@ export class Board {
     if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
       ev.preventDefault();
       if (!n) return;
+      // the last hit read steps into the next page, when there is one, and not back to the top
+      const t = this.types;
+      if (ev.key === 'ArrowDown' && this.hit === this.hits.length - 1 && t && this.hits.length < t.matched) {
+        this.moreTypes().then(() => { if (this.hit < this.hits.length - 1) { this.hit++; this.markHit(); } });
+        return;
+      }
       this.hit = (this.hit + (ev.key === 'ArrowDown' ? 1 : n - 1)) % n;
-      this.drawHits(this.input.value);
-      const on = this.hitsEl.querySelector('.on');
-      if (on) on.scrollIntoView({ block: 'nearest' });
+      this.markHit();
+    } else if (ev.key === 'Tab' && !this.hitsEl.hidden && this.types && (this.types.groups || []).length > 1) {
+      // Tab steps through the groups of kinds while the list is open
+      ev.preventDefault();
+      const gs = ['', ...this.types.groups.filter((g) => g.matched || g.name === this.group).map((g) => g.name)];
+      const i = gs.indexOf(this.group);
+      this.setGroup(gs[(i + (ev.shiftKey ? gs.length - 1 : 1)) % gs.length]);
     } else if (ev.key === 'Enter') {
       ev.preventDefault();
       if (ev.shiftKey || (this.hit === this.hits.length && n > this.hits.length)) this.askFromBar();
@@ -1186,9 +1272,14 @@ export class Board {
         return;
       }
       if (f.wire) ctl.append(h('button', { type: 'button', class: 'bd-b sm', on: { click: (ev) => this.socketMenu(it.label, f.name, ev.currentTarget) } }, h('span', { class: 'bd-sockm' }), h('span', { class: 'lbl' }, 'Wire')));
+      const sec = this.secretOf(it, f);
+      if (sec) ctl.append(h('button', { type: 'button', class: 'bd-b sm', 'data-tip': sec.kinds.map((k) => KIND_WORDS[k]).join(' or '), on: { click: (ev) => this.secretMenu(it.label, f.name, ev.currentTarget) } }, icon('lock'), h('span', { class: 'lbl' }, sec.read === 'version' ? 'Secret version' : sec.kinds[0] === 'env' ? 'Variable' : 'Secret')));
       if (f.sensitive || f.write_only) {
         const typed = it.withheld && it.withheld.has(f.name) && !v;
-        ctl.append(h('p', { class: 'bd-sens' }, icon('lock'), typed ? 'Literal value in the source, hidden. Unchanged unless wired or set as CUE.' : 'Sensitive: wire a secret, or set CUE that reads one. Literals are not written.'));
+        const wo = !f.write_only && this.fields(it).some((x) => x.name === f.name + '_wo');
+        ctl.append(h('p', { class: 'bd-sens' }, icon('lock'), typed ? 'Literal value in the source, hidden. Unchanged unless wired or set as CUE.'
+          : f.write_only ? 'Write-only: never recorded. Wire a secret, or set CUE that reads one.'
+            : `Sensitive, recorded in state.${wo ? ` ${f.name}_wo takes a secret and is never recorded.` : ''} Wire a variable, or set CUE. Literals are not written.`));
         ctl.append(this.valueInput(it, f, 'expr', draw));
         return;
       }
@@ -1243,7 +1334,7 @@ export class Board {
     if (kind === 'expr' || kind === 'list') {
       const list = kind === 'list';
       const text = !v ? '' : list ? listText(v.expr) : v.expr || '';
-      const ta = h('textarea', { class: 'bd-ta', rows: list ? 3 : 2, spellcheck: 'false', 'aria-label': f.name, placeholder: list ? 'one per line' : f.ph || (f.kind === 'text' ? '"app-\\(release.hex)"' : f.kind === 'number' ? 'listen.port + 1' : f.default ? f.default : 'CUE') });
+      const ta = h('textarea', { class: 'bd-ta', rows: list ? 3 : 2, spellcheck: 'false', 'aria-label': f.name, placeholder: list ? 'one per line' : f.sensitive || f.write_only ? 'secret.value' : f.ph || (f.kind === 'text' ? '"app-\\(release.hex)"' : f.kind === 'number' ? 'listen.port + 1' : f.default ? f.default : 'CUE') });
       ta.value = text;
       ta.addEventListener('input', debounce(() => {
         const t = ta.value;
@@ -1316,8 +1407,6 @@ export class Board {
       this.startSt);
     this.startState();
   }
-
-  startShown() { return !!(this.on && this.cfg && this.cfg.start && this.empty && this.startOpen && !this.items.length); }
 
   startState() {
     if (!this.startGo) return;
@@ -1475,6 +1564,67 @@ export class Board {
         icon('plus'), h('span', null, 'New ', h('code', null, t.type))));
     }
     if (cur.length) menu.append(h('button', { type: 'button', role: 'menuitem', class: 'bd-mi', on: { click: () => { delete it.values[f.name]; this.closeMenu(); this.changed({ graph: true }); this.cb.redrawInspector(); } } }, icon('x'), h('span', null, 'Unwire')));
+    this.openMenu(menu, anchor, at);
+  }
+
+  // secretOf says what a field that holds a secret can read: a write-only field, or any field of an ephemeral resource,
+  // reads a sealed secret or a secret environment variable, which are ephemeral and never recorded; the version beside a
+  // write-only field reads the version of a sealed secret; any other sensitive field is recorded in state, so it reads an
+  // environment variable. null for a field that holds no secret.
+  secretOf(it, f) {
+    if (/_wo_version$/.test(f.name)) return { kinds: ['secret_version'], read: 'version' };
+    if (!f.sensitive && !f.write_only) return null;
+    if (f.write_only || it.kind === 'ephemeral') return { kinds: ['secret', 'secret_env'], read: 'value' };
+    return { kinds: ['env'], read: 'value' };
+  }
+
+  // secretMenu wires a field that holds a secret to a secret of the graph or of the drawing, or draws a new one for it
+  secretMenu(label, field, anchor) {
+    this.closeMenu();
+    const it = this.item(label);
+    const f = it && this.fields(it).find((x) => x.name === field);
+    const sec = it && f && this.secretOf(it, f);
+    if (!sec) return;
+    const raw = this.cb.raw();
+    const cands = [
+      ...((raw && raw.nodes) || []).filter((n) => sec.kinds.includes(n.type) && !n.draft && n.presence !== 'state').map((n) => ({ addr: n.addr, kind: n.type })),
+      ...this.items.filter((d) => sec.kinds.includes(d.kind)).map((d) => ({ addr: d.label, kind: d.kind, draft: true })),
+    ];
+    const cur = wiresOf(it.values[f.name] || {});
+    const menu = h('div', { class: 'bd-menu', role: 'menu', 'aria-label': `Secret for ${label}.${field}` });
+    menu.append(h('p', { class: 'bd-mh' }, h('code', null, `${label}.${field}`), f.write_only ? ' write-only' : f.sensitive ? ' sensitive' : ''));
+    for (const c of cands.slice(0, 12)) {
+      const on = cur.some((w) => w.to === c.addr);
+      menu.append(h('button', { type: 'button', role: 'menuitem', class: 'bd-mi' + (on ? ' on' : ''), on: { click: () => { if (on) unwire(it, f, c.addr); else setWire(it, f, c.addr, sec.read); this.closeMenu(); this.changed({ graph: true }); this.cb.redrawInspector(); } } },
+        h('span', { class: 'bd-sockm' + (on ? ' on' : '') }), h('b', null, c.addr), h('code', null, `.${sec.read}`), h('span', { class: 'bd-pv' + (c.draft ? ' d' : '') }, c.draft ? 'draft' : KIND_WORDS[c.kind])));
+    }
+    if (!cands.length) menu.append(h('p', { class: 'bd-none' }, `No ${sec.kinds.map((k) => KIND_WORDS[k]).join(' or ')} yet.`));
+    for (const k of sec.kinds) {
+      menu.append(h('button', { type: 'button', role: 'menuitem', class: 'bd-mi new', on: { click: async () => {
+        this.closeMenu();
+        const made = await this.add({ kind: k, type: k }, { name: secretBase(f.name) + (k === 'secret_version' ? '_version' : ''), values: this.secretName(it, f, k), wire: { label, field, read: sec.read } });
+        if (made) this.cb.announce(`${made.label} added, wired to ${label}.${field}`);
+      } } }, icon('plus'), h('span', null, 'New ' + KIND_WORDS[k])));
+    }
+    if (cur.length) menu.append(h('button', { type: 'button', role: 'menuitem', class: 'bd-mi', on: { click: () => { delete it.values[f.name]; this.closeMenu(); this.changed({ graph: true }); this.cb.redrawInspector(); } } }, icon('x'), h('span', null, 'Unwire')));
+    this.openMenu(menu, anchor);
+  }
+
+  // secretName is the name a new secret for a field starts with: the environment variable in capitals, the sealed
+  // secret under the name of the thing, and the version of the sealed secret that the write-only field beside it reads
+  secretName(it, f, kind) {
+    const base = secretBase(f.name);
+    if (kind === 'env' || kind === 'secret_env') return { name: { text: base.toUpperCase() } };
+    if (kind === 'secret_version') {
+      const w = wiresOf(it.values[base + '_wo'] || {})[0];
+      const s = w && this.item(w.to);
+      if (s && s.kind === 'secret' && s.values.name && s.values.name.text) return { name: { text: s.values.name.text } };
+    }
+    return { name: { text: `${it.label}/${base}` } };
+  }
+
+  // openMenu shows a menu under its anchor, or above it when there is no room, and closes it on a click outside or Esc
+  openMenu(menu, anchor, at) {
     document.body.append(menu);
     const r = anchor ? anchor.getBoundingClientRect() : { left: at.x, bottom: at.y, top: at.y };
     const mw = Math.min(340, window.innerWidth - 16);
@@ -1552,6 +1702,9 @@ export class Board {
 }
 
 // ---- helpers ----
+
+// secretBase is the name of what a field holds, without the marks of a write-only field and of its version
+const secretBase = (name) => name.replace(/_wo_version$/, '').replace(/_wo$/, '');
 
 // kindWord names the kind of a thing on the board: what is drawn, or what an edit changes
 function kindWord(it) {

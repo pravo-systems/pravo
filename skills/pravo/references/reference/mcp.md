@@ -51,7 +51,7 @@ The server never asks for a passphrase. The commands it runs open a [sealed stat
 | `pravo_locks` | `tags` | `state locks` |
 | `pravo_drift` | `tags`, `due`, `limit` | `drift --due --limit N` |
 | `pravo_providers` | none | `providers` |
-| `pravo_draw_types` | `q` | the drawing board, in the server |
+| `pravo_draw_types` | `q`, `group`, `offset` | the drawing board, in the server |
 | `pravo_draw_form` | `kind`, `type` and `provider`, or `template` | the drawing board, in the server |
 | `pravo_draw_resource` | `addr` (required) | the drawing board, in the server |
 | `pravo_draw_check` | `drawing` (required) | the drawing board, in the server |

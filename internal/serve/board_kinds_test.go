@@ -136,3 +136,46 @@ func TestBoardEditsEveryKind(t *testing.T) {
 		t.Fatalf("files: %+v", text)
 	}
 }
+
+// An empty bar lists everything the board can draw, a page at a time, with how many there are of each group of kinds; a
+// group narrows the list to its kinds.
+func TestBoardListsEveryKindByGroup(t *testing.T) {
+	p := kindsProject(t)
+	var all BoardTypes
+	if err := json.Unmarshal(p.get("/api/board/types?q="), &all); err != nil {
+		t.Fatal(err)
+	}
+	groups := map[string]BoardTypeGroup{}
+	for _, g := range all.Groups {
+		groups[g.Name] = g
+	}
+	for name, n := range map[string]int{"resource": 2, "data": 2, "variable": 1, "secret": 3, "output": 1} {
+		if g := groups[name]; g.Total != n || g.Matched != n {
+			t.Errorf("group %s: %+v, want %d", name, g, n)
+		}
+	}
+	if _, ok := groups["template"]; ok || all.Matched != all.Total || len(all.Hits) != all.Matched {
+		t.Fatalf("the empty bar: %d of %d matched, %d hits, groups %+v", all.Matched, all.Total, len(all.Hits), all.Groups)
+	}
+	var secrets BoardTypes
+	if err := json.Unmarshal(p.get("/api/board/types?q=&group=secret"), &secrets); err != nil {
+		t.Fatal(err)
+	}
+	var kinds []string
+	for _, h := range secrets.Hits {
+		kinds = append(kinds, h.Kind)
+	}
+	if secrets.Group != "secret" || secrets.Matched != 3 || strings.Join(kinds, " ") != "secret secret_env secret_version" {
+		t.Fatalf("the secrets: %s %d %v", secrets.Group, secrets.Matched, kinds)
+	}
+	var page BoardTypes
+	if err := json.Unmarshal(p.get("/api/board/types?q=&offset=2&limit=3"), &page); err != nil {
+		t.Fatal(err)
+	}
+	if page.Offset != 2 || len(page.Hits) != 3 || page.Hits[0].Type != all.Hits[2].Type || page.Matched != all.Matched {
+		t.Fatalf("a page: offset %d, %d hits, %+v", page.Offset, len(page.Hits), page.Hits)
+	}
+	if h := firstHit(t, p, "data+zones"); h.Kind != "data" {
+		t.Errorf("data zones: %+v", h)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/serve"
@@ -133,11 +134,20 @@ func mcpDrawTools(d *mcpDrawer) []mcpTool {
 		return func(map[string]any) ([]string, error) { return []string{name}, nil }
 	}
 	return []mcpTool{
-		{Name: "pravo_draw_types", Description: "Find what can be drawn that answers some words (database, bucket, network, data vpc, output, env): the resource, data source and ephemeral types of the providers the specification declares, the values pravo reads for itself (output, env, secret_env, secret, secret_version, remote_outputs) and the templates. The first step of drawing. Each hit names its kind, its type and the provider struct ($aws) to draw it with; when the specification has several providers of one source, providers lists them all.",
-			InputSchema: mcpObject(map[string]any{"q": map[string]any{"type": "string", "description": "words, or a type name"}}),
-			args:        draw("draw-types"),
+		{Name: "pravo_draw_types", Description: "Find what can be drawn that answers some words (database, bucket, network, data vpc, output, env): the resource, data source and ephemeral types of the providers the specification declares, the values pravo reads for itself (output, env, secret_env, secret, secret_version, remote_outputs) and the templates. The first step of drawing. Each hit names its kind, its type and the provider struct ($aws) to draw it with; when the specification has several providers of one source, providers lists them all. groups counts the hits of each group of kinds; matched counts the hits of the group asked for, of which a page holds 24 from offset.",
+			InputSchema: mcpObject(map[string]any{"q": map[string]any{"type": "string", "description": "words, or a type name; empty lists everything"},
+				"group":  map[string]any{"type": "string", "description": "resource, data, ephemeral, variable, secret, output or template; all when left out"},
+				"offset": map[string]any{"type": "integer", "description": "the first hit of the page"}}),
+			args: draw("draw-types"),
 			run: func(_ context.Context, in map[string]any) (string, error) {
-				return d.call("/api/board/types", url.Values{"q": {strArg(in, "q")}}, nil)
+				q := url.Values{"q": {strArg(in, "q")}}
+				if g := strArg(in, "group"); g != "" {
+					q.Set("group", g)
+				}
+				if n, ok := in["offset"].(float64); ok && n > 0 {
+					q.Set("offset", strconv.Itoa(int(n)))
+				}
+				return d.call("/api/board/types", q, nil)
 			}},
 		{Name: "pravo_draw_form", Description: "The form of a kind of thing, as the board fills it: each field with its type, whether it is required, whether it takes a wire (a reference to another resource) and its documentation. Give kind, type and provider as pravo_draw_types names them, kind alone for a value pravo reads for itself, or template.",
 			InputSchema: mcpObject(map[string]any{"kind": map[string]any{"type": "string", "description": "resource (the default), data, ephemeral, output, env, secret_env, secret, secret_version or remote_outputs"}, "type": map[string]any{"type": "string"}, "provider": map[string]any{"type": "string", "description": "the provider struct, such as $aws"}, "template": map[string]any{"type": "string"}}),
