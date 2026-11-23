@@ -425,6 +425,7 @@ export class Board {
   // proposalLeft follows a thing dropped from a pending proposal: the card shows the rest, or the proposal is dropped
   proposalLeft() {
     if (this.items.some((it) => it.proposed)) { this.renderProposal(); return; }
+    if (this.proposal && this.proposal.keptSome) { this.keepProposal(); return; }
     this.dropProposal(true);
   }
 
@@ -780,7 +781,7 @@ export class Board {
 
   keepProposal() {
     for (const it of this.items) delete it.proposed;
-    if (this.proposal) this.proposal.state = 'kept';
+    if (this.proposal) this.proposal.state = this.proposal.droppedSome ? 'part' : 'kept';
     this.changed({ graph: true });
     this.renderProposal();
     this.cb.redrawInspector();
@@ -807,22 +808,29 @@ export class Board {
     const pending = this.items.filter((it) => it.proposed);
     el.hidden = !pending.length;
     if (!pending.length) return;
+    const sel = this.cb.selected();
+    const focus = pending.find((it) => addrOf(it) === sel) || pending.find((it) => addrOf(it) === this.propFocus) || pending[0];
+    this.propFocus = addrOf(focus);
     const adds = pending.filter((it) => it.kind !== 'change').length, chg = pending.length - adds;
-    const said = [adds ? `${adds} new` : '', chg ? `${chg} edited` : ''].filter(Boolean).join(', ');
-    const first = addrOf(pending[0]);
+    const unset = pending.filter((it) => !it.remove && this.missing(it).length).length;
+    const said = [adds ? `${adds} new` : '', chg ? `${chg} edited` : '', unset ? `${unset} with required unset` : ''].filter(Boolean).join(' · ');
+    const all = pending.length > 1;
+    const list = h('div', { class: 'bd-pl' }, ...pending.map((it) => this.proposalItem(it, it === focus, all)));
     el.append(h('div', { class: 'bd-ph' }, h('span', { class: 'bd-pk' }, icon('ask'), 'Proposal'), h('span', { class: 'bd-pt' }, said)),
-      h('div', { class: 'bd-pl' }, ...pending.slice(0, 4).map((it) => this.proposalItem(it)),
-        pending.length > 4 ? h('p', { class: 'bd-pmore' }, `+${pending.length - 4} more`) : null),
+      list,
       h('div', { class: 'bd-pa' },
-        h('button', { type: 'button', class: 'bd-b sm', 'data-tip': `Show the form of ${first} in the inspector`, on: { click: () => this.cb.openForm(first) } }, icon('file'), h('span', { class: 'lbl' }, 'Form')),
+        h('button', { type: 'button', class: 'bd-b sm', 'data-tip': `Show the form of ${this.propFocus} in the inspector`, on: { click: () => this.cb.openForm(this.propFocus) } }, icon('file'), h('span', { class: 'lbl' }, 'Form')),
         h('span', { class: 'grow' }),
-        h('button', { type: 'button', class: 'bd-b sm', 'data-tip': 'Discard the proposal', on: { click: () => this.dropProposal() } }, icon('x'), h('span', { class: 'lbl' }, 'Drop')),
-        h('button', { type: 'button', class: 'bd-b sm go', 'data-tip': 'Add the proposal to the draft', on: { click: () => this.keepProposal() } }, icon('check'), h('span', { class: 'lbl' }, 'Keep'))));
+        h('button', { type: 'button', class: 'bd-b sm', 'data-tip': all ? `Drop all ${pending.length}` : 'Drop the proposal', on: { click: () => this.dropProposal() } }, icon('x'), h('span', { class: 'lbl' }, all ? 'Drop all' : 'Drop')),
+        h('button', { type: 'button', class: 'bd-b sm go', 'data-tip': all ? `Keep all ${pending.length} in the draft` : 'Keep the proposal in the draft', on: { click: () => this.keepProposal() } }, icon('check'), h('span', { class: 'lbl' }, all ? 'Keep all' : 'Keep'))));
     this.placeProposal();
+    const on = list.querySelector('.bd-pi.on');
+    if (on && all) list.scrollTop = Math.max(0, on.offsetTop - list.offsetTop - 4);
   }
 
-  // proposalItem is one thing of a proposal: its name and type, the fields it sets, and the required ones still unset
-  proposalItem(it) {
+  // proposalItem is one thing of a proposal: a row with its name, type and what is unset, and Keep and Drop when the
+  // proposal has more than one; the open one also lists the fields it sets
+  proposalItem(it, open, each) {
     const addr = addrOf(it);
     let what, rows;
     if (it.kind === 'change') {
@@ -834,21 +842,56 @@ export class Board {
       rows = Object.entries(it.values).map(([k, v]) => [k, valueShort(v)]);
     }
     const miss = it.remove ? [] : this.missing(it);
-    return h('div', { class: 'bd-pi' },
-      h('button', { type: 'button', class: 'bd-pn', 'data-tip': `Select ${addr}`, on: { click: () => this.cb.select(addr) } }, h('b', null, addr), h('span', null, what)),
-      rows.length ? h('dl', { class: 'bd-pf' }, ...rows.slice(0, 6).flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)])) : null,
-      rows.length > 6 ? h('p', { class: 'bd-pmore' }, `+${rows.length - 6} more fields`) : null,
-      miss.length ? h('p', { class: 'bd-pmiss' }, `Required unset: ${miss.join(', ')}`) : null);
+    const pick = () => { this.propFocus = addr; this.cb.select(addr); this.renderProposal(); };
+    return h('div', { class: 'bd-pi' + (open ? ' on' : ''), data: { addr } },
+      h('div', { class: 'bd-pr' },
+        h('button', { type: 'button', class: 'bd-pn', 'aria-expanded': open ? 'true' : 'false', 'data-tip': `Select ${addr}`, on: { click: pick } },
+          icon('chev'), h('b', null, addr), h('span', null, what), miss.length ? h('em', null, `${miss.length} unset`) : null),
+        each ? h('button', { type: 'button', class: 'bd-pib', 'aria-label': `Drop ${addr}`, 'data-tip': `Drop ${addr}`, on: { click: () => this.dropOne(it) } }, icon('x')) : null,
+        each ? h('button', { type: 'button', class: 'bd-pib go', 'aria-label': `Keep ${addr}`, 'data-tip': `Keep ${addr}`, on: { click: () => this.keepOne(it) } }, icon('check')) : null),
+      open && rows.length ? h('dl', { class: 'bd-pf' }, ...rows.flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)])) : null,
+      open && miss.length ? h('p', { class: 'bd-pmiss' }, `Required unset: ${miss.join(', ')}`) : null);
   }
 
-  // placeProposal puts the card under the first thing of the proposal, or above or beside it where there is no room,
+  // keepOne keeps one thing of a proposal in the draft, and dropOne drops it; the rest stays proposed
+  keepOne(it) {
+    delete it.proposed;
+    if (this.proposal) this.proposal.keptSome = true;
+    this.changed({ graph: true });
+    this.cb.redrawInspector();
+    this.cb.announce(`Kept ${addrOf(it)}`);
+    this.proposalLeft();
+  }
+
+  dropOne(it) {
+    if (this.proposal) this.proposal.droppedSome = true;
+    if (it.kind === 'change') {
+      this.items = this.items.filter((x) => x !== it);
+      this.changed({ graph: true });
+      this.proposalLeft();
+    } else this.remove(it.label);
+    this.cb.announce(`Dropped ${addrOf(it)}`);
+  }
+
+  // selectionChanged opens the row of a proposed thing when it is selected on the canvas
+  selectionChanged() {
+    const sel = this.cb.selected();
+    if (this.propEl && !this.propEl.hidden && sel !== this.propFocus && this.items.some((it) => it.proposed && addrOf(it) === sel)) this.renderProposal();
+  }
+
+  // placeProposal puts the card under the open thing of the proposal, or above or beside it where there is no room,
   // and in the corner while that thing is off the canvas
   placeProposal() {
     const el = this.propEl;
     if (!el || el.hidden) return;
-    const first = this.items.find((it) => it.proposed);
+    const first = this.items.find((it) => it.proposed && addrOf(it) === this.propFocus) || this.items.find((it) => it.proposed);
     const box = first && this.cb.boxOf(addrOf(first));
-    const W = this.el.clientWidth, H = this.el.clientHeight - this.strip.offsetHeight - 16, w = el.offsetWidth, ht = el.offsetHeight;
+    const W = this.el.clientWidth, H = this.el.clientHeight - this.strip.offsetHeight - 16;
+    // on a short canvas (a phone with Ask open) the card keeps its head and actions, and the rows wait for room
+    const tight = H < 220;
+    el.classList.toggle('tight', tight);
+    el.style.maxHeight = tight ? '' : `${Math.min(H, 480)}px`;
+    const w = el.offsetWidth, ht = el.offsetHeight;
     let left = 12, top = 12;
     if (box && box.x + box.w > 0 && box.x < W && box.y + box.h > 0 && box.y < H) {
       left = box.x;

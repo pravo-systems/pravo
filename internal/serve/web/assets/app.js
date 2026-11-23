@@ -723,6 +723,7 @@ function selectNode(addr, o = {}) {
   if (S.sel !== addr) S.reach = false;
   S.sel = addr;
   S.proj = false;
+  if (board) board.selectionChanged();
   if (!STICKY_TABS.has(S.tab) && !o.keepTab) S.tab = null;
   if (changed) { relayout({ animate: o.animate !== false }); renderSide(); } else applySelection(o.pulse !== false);
   if (changed) applySelection(o.pulse !== false);

@@ -3,7 +3,7 @@
 // drawing board, a question also carries the drawing, and the model can draw a proposal onto the board, which opens the
 // board if it is closed; the person keeps or drops it there (README rule 14). It never saves, plans or applies.
 
-const PROPOSAL_WORD = { pending: 'Keep or drop it on the board.', kept: 'Kept.', dropped: 'Dropped.', gone: 'Replaced by a later proposal.' };
+const PROPOSAL_WORD = { pending: 'Keep or drop it on the board.', kept: 'Kept.', part: 'Kept in part, the rest dropped.', dropped: 'Dropped.', gone: 'Replaced by a later proposal.' };
 
 import * as api from './api.js';
 import { h, clear, plural, icon } from './util.js';
