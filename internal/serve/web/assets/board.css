@@ -310,7 +310,9 @@
 .bd-prop { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; gap: .45rem; width: min(24rem, calc(100% - 1rem)); max-height: 30rem; padding: .55rem .6rem .6rem; background: var(--surface); border: 1px solid var(--line-strong); border-top: 2px solid var(--overlap); box-shadow: var(--shadow-2); z-index: 4; pointer-events: auto; font: 400 var(--fs-2) var(--font-ui); color: var(--text-2); }
 .bd-prop[hidden] { display: none; }
 .bd-prop.tight .bd-pl { display: none; }
-.bd-ph { display: flex; align-items: center; gap: .55rem; flex: none; }
+.bd-ph { display: flex; align-items: center; gap: .55rem; flex: none; cursor: grab; user-select: none; touch-action: none; }
+.bd-prop.moving .bd-ph { cursor: grabbing; }
+.bd-pgrip { flex: none; width: .7rem; height: .9rem; margin-left: auto; background: radial-gradient(circle, var(--text-3) 1px, transparent 1.3px) 0 0 / .35rem .3rem; opacity: .8; }
 .bd-pk { display: inline-flex; align-items: center; gap: .35rem; font: 600 var(--fs-1)/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--overlap); }
 .bd-pk .i { width: .8rem; height: .8rem; }
 .bd-pt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

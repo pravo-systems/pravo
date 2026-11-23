@@ -97,6 +97,7 @@ export class Board {
       h('div', { class: 'bd-lamps', role: 'group', 'aria-label': 'Checks' }, this.lampEls.spec.el, this.lampEls.policy.el, this.lampEls.plan.el),
       h('div', { class: 'bd-acts' }, this.btn.review, this.btn.code, this.btn.save, this.btn.plan, this.btn.apply));
     this.propEl = h('section', { class: 'bd-prop', 'aria-label': 'Proposal', 'aria-live': 'polite', hidden: true });
+    this.dragProposal();
     this.startEl = h('section', { class: 'bd-start', 'aria-labelledby': 'bd-start-h', hidden: true });
     this.el = h('div', { class: 'overlay board', id: 'board', hidden: true }, this.sweep, this.startEl, this.propEl, this.code, this.tb, this.hint, this.strip);
     canvas.append(this.el);
@@ -767,6 +768,7 @@ export class Board {
       made.push(it.addr);
     }
     this.proposal = made.length ? { made, state: 'pending' } : null;
+    this.propAt = null;
     if (made.length) { this.changed({ graph: true }); this.cb.select(made[0]); }
     this.renderProposal();
     if (made.length) this.cb.announce(`Ask proposed ${plural(made.length, 'change')}. Keep or drop.`);
@@ -816,7 +818,7 @@ export class Board {
     const said = [adds ? `${adds} new` : '', chg ? `${chg} edited` : '', unset ? `${unset} with required unset` : ''].filter(Boolean).join(' · ');
     const all = pending.length > 1;
     const list = h('div', { class: 'bd-pl' }, ...pending.map((it) => this.proposalItem(it, it === focus, all)));
-    el.append(h('div', { class: 'bd-ph' }, h('span', { class: 'bd-pk' }, icon('ask'), 'Proposal'), h('span', { class: 'bd-pt' }, said)),
+    el.append(h('div', { class: 'bd-ph', title: 'Drag to move · double-click to put it back by the node' }, h('span', { class: 'bd-pk' }, icon('ask'), 'Proposal'), h('span', { class: 'bd-pt' }, said), h('span', { class: 'bd-pgrip', 'aria-hidden': 'true' })),
       list,
       h('div', { class: 'bd-pa' },
         h('button', { type: 'button', class: 'bd-b sm', 'data-tip': `Show the form of ${this.propFocus} in the inspector`, on: { click: () => this.cb.openForm(this.propFocus) } }, icon('file'), h('span', { class: 'lbl' }, 'Form')),
@@ -873,6 +875,36 @@ export class Board {
     this.cb.announce(`Dropped ${addrOf(it)}`);
   }
 
+  // dragProposal lets the card be moved by its head, off what it covers; it then stays put until the proposal ends,
+  // and a double-click puts it back by the node
+  dragProposal() {
+    const el = this.propEl;
+    let from = null, head = false;
+    el.addEventListener('pointerdown', (ev) => {
+      head = ev.button === 0 && !!ev.target.closest('.bd-ph');
+      if (!head) return;
+      const m = /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/.exec(el.style.transform) || [0, 0, 0];
+      from = { x: ev.clientX - +m[1], y: ev.clientY - +m[2], id: ev.pointerId };
+      el.setPointerCapture(ev.pointerId);
+      el.classList.add('moving');
+      ev.preventDefault();
+    });
+    el.addEventListener('pointermove', (ev) => {
+      if (!from || ev.pointerId !== from.id) return;
+      this.propAt = { x: ev.clientX - from.x, y: ev.clientY - from.y };
+      this.placeProposal();
+    });
+    const end = (ev) => {
+      if (!from || ev.pointerId !== from.id) return;
+      from = null;
+      el.classList.remove('moving');
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    // the pointer is captured while the head is held, so a double-click there reaches the card itself
+    el.addEventListener('dblclick', () => { if (head) { this.propAt = null; this.placeProposal(); } });
+  }
+
   // selectionChanged opens the row of a proposed thing when it is selected on the canvas
   selectionChanged() {
     const sel = this.cb.selected();
@@ -893,7 +925,11 @@ export class Board {
     el.style.maxHeight = tight ? '' : `${Math.min(H, 480)}px`;
     const w = el.offsetWidth, ht = el.offsetHeight;
     let left = 12, top = 12;
-    if (box && box.x + box.w > 0 && box.x < W && box.y + box.h > 0 && box.y < H) {
+    if (this.propAt) {
+      // moved by hand: it stays where it was put, within the canvas
+      left = clamp(this.propAt.x, 8, Math.max(8, W - w - 8));
+      top = clamp(this.propAt.y, 8, Math.max(8, H - ht));
+    } else if (box && box.x + box.w > 0 && box.x < W && box.y + box.h > 0 && box.y < H) {
       left = box.x;
       top = box.y + box.h + 10;
       if (top + ht > H) top = box.y - ht - 10;
