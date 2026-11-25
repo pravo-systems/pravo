@@ -100,6 +100,9 @@ func (w *Workspace) DriftPlanned(ctx context.Context) (*DriftReport, *Planned, e
 			if reasons == nil {
 				reasons = []string{}
 			}
+			if c.Action == engine.ActionNoop {
+				reasons = []string{"the infrastructure differs from the state in values the specification does not set; the state now holds what was found and nothing needs to change"}
+			}
 			item := DriftItem{Addr: c.Addr, Action: string(c.Action), Reasons: reasons, Gone: c.Action == engine.ActionCreate}
 			if item.Gone {
 				item.Note = eng.DriftNote(c.Addr)
