@@ -360,6 +360,18 @@ port: Replacement complete after 0s [id=20061]
 Apply complete! Resources: 2 added, 0 changed, 2 destroyed. [txn <txn>]
 ```
 
+### A saved plan is checked whole
+
+Before an apply of a plan file or a stored plan changes anything, pravo plans every resource of the plan again, with what the apply changes still unknown, as the plan was made. It compares each answer with the saved change, and it reads nothing from the objects: the records and reads that the plan holds are the ones it starts from. When a provider plans one resource differently now, the whole apply is refused with exit code 3, nothing is changed, and the error lists every resource that differs with the attributes that differ. The values are not printed, because they may be secrets.
+
+```text
+Error: saved plan is stale; run "pravo plan" again:
+  - cp.worker.service: the provider produced a different plan than the saved one (they differ in triggers.taskDefinition)
+Nothing was changed: the whole plan was checked before the apply began.
+```
+
+The check of each resource during the apply stays, for what changes after the check. A change that is deferred to a value of the apply is planned when that value is known, and only that check covers it.
+
 ### Apply a stored plan
 
 `pravo plan --store` writes a plan into the state, and `pravo apply ID` applies it. The checks are those of a plan file: the configuration, the providers, the lineage of the state, and the revision and generation of every record the plan writes or reads. This holds for every kind of stored plan, also one that only changes outputs, moves records or imports objects: [`pravo plan`](plan.md#store-a-plan) lists the kinds. A difference is exit code 3 and changes nothing. The policies in force judge the whole plan, and `--only` applies a closed part. `--refresh`, `--full` and `--replace` are refused, as they are with a plan file: the plan decided them. [`pravo plan`](plan.md#store-a-plan) stores a plan, and [Store a plan and apply it later](../how-to/store-a-plan-and-apply-it-later.md) follows two people through it.
@@ -438,7 +450,7 @@ echo blocker > fail/blocker
 pravo -C fail plan --store --actor ci > /dev/null
 id=$(pravo -C fail plan list --json | jq -r '.plans[0].id')
 pravo -C fail apply $id > apply.txt 2>&1; echo "exit $?"
-grep -E '^(1 change|Error)' apply.txt
+grep -E '^(1 change|The environment|  Applied|  Not applied|Error)' apply.txt
 ```
 
 Output:
@@ -446,10 +458,13 @@ Output:
 ```text
 exit 1
 1 change was applied before the error and is recorded in plan-<id>; run "pravo apply plan-<id>" again to apply the rest.
+The environment is now partly applied.
+  Applied: first
+  Not applied (the one that failed, and what did not start): after, bad
 Error: bad: Create local file error: An unexpected error occurred while writing the file
 ```
 
-`first` was created, and `bad` and `after` were not. The progress object names `first`, and the plan is `partial`. The exit code is that of the error.
+`first` was created, and `bad` and `after` were not, and the note says so: the environment is now between two configurations until the rest is applied. The progress object names `first`, and the plan is `partial`. The exit code is that of the error.
 
 ```sh
 id=$(pravo -C fail plan list --json | jq -r '.plans[0].id')

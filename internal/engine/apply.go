@@ -723,6 +723,11 @@ func (e *Engine) takeApplyLocks(ctx context.Context, plan *Plan, sc *applyScope)
 	if err := e.checkBound(held.held()); err != nil {
 		return reject(err)
 	}
+	// A saved plan is planned again whole before the first change, so that a resource the
+	// walk would reach last does not leave the others half applied.
+	if err := e.checkWhole(ctx, plan, sc); err != nil {
+		return reject(err)
+	}
 	// The policies in force judge the resource changes of the whole plan file before
 	// the start is signed, which lists the versions that judged.
 	if locked > 0 || len(plan.Policies) > 0 {

@@ -685,6 +685,19 @@ func reportPartial(rt *runContext, p *pravo.PartialApply, name string) {
 		return // only records were written; there is nothing to say about the plan's changes
 	}
 	rt.out.Printf("%d %s applied before the error and %s recorded in %s; %s.\n", p.Count, noun, are, name, p.Next)
+	// What the error leaves behind is said plainly: the estate is between two configurations.
+	if len(p.NotApplied) > 0 {
+		rt.out.Printf("The environment is now partly applied.\n  Applied: %s\n  Not applied (the one that failed, and what did not start): %s\n", addrList(p.Applied), addrList(p.NotApplied))
+	}
+}
+
+// addrList names the addresses of a note, as many as fit on a screen.
+func addrList(addrs []string) string {
+	const most = 30
+	if len(addrs) <= most {
+		return strings.Join(addrs, ", ")
+	}
+	return fmt.Sprintf("%s, and %d more", strings.Join(addrs[:most], ", "), len(addrs)-most)
 }
 
 func runApply(rt *runContext, cmd *cobra.Command, refresh string, full, autoApprove, destroy bool, replace, allowDestroy, allowCreate []string) error {
