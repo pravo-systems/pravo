@@ -1,0 +1,30 @@
+/* ==========================================================================
+   99 landing: the squares of the reach band, one for each resource of the estate.
+   ========================================================================== */
+
+/* the reach band: a square for each resource. --c, --r and --m (the squares missing from the last row)
+   come from the count of resources ({{squares}}). The field is 261px wide, 3px to a cell at 2001 resources.
+   It has a row of its own under the number, in line with the text (the margin pushes it onto a new row). */
+.reach-side { flex-flow: row wrap; align-items: baseline; gap: 1rem 1.5rem; }
+.reach-field {
+  --w: 261px; --cell: calc(var(--w) / var(--c)); flex: none; align-self: flex-start; margin-right: 100%; width: var(--w); height: calc(var(--r) * var(--cell)); position: relative;
+  background:
+    linear-gradient(var(--surface), var(--surface)) 100% 100% / calc(var(--m) * var(--cell)) var(--cell) no-repeat,
+    linear-gradient(90deg, transparent calc(var(--cell) - 1px), var(--surface) 0) 0 0 / var(--cell) 100%,
+    linear-gradient(transparent calc(var(--cell) - 1px), var(--surface) 0) 0 0 / 100% var(--cell),
+    var(--text-2);
+}
+.reach-field-one {
+  background:
+    linear-gradient(var(--surface), var(--surface)) 100% 100% / calc(var(--m) * var(--cell)) var(--cell) no-repeat,
+    linear-gradient(var(--accent), var(--accent)) calc(var(--lc) * var(--cell)) calc(var(--lr) * var(--cell)) / calc(var(--cell) - 1px) calc(var(--cell) - 1px) no-repeat,
+    linear-gradient(90deg, transparent calc(var(--cell) - 1px), var(--surface) 0) 0 0 / var(--cell) 100%,
+    linear-gradient(transparent calc(var(--cell) - 1px), var(--surface) 0) 0 0 / 100% var(--cell),
+    var(--line-strong);
+}
+.reach-field-one::after {
+  content: ""; position: absolute; width: calc(var(--cell) * 2); height: calc(var(--cell) * 2);
+  left: calc(var(--lc) * var(--cell) - var(--cell) / 2 - 1px); top: calc(var(--lr) * var(--cell) - var(--cell) / 2 - 1px); border: 1px solid var(--accent);
+}
+.reach-field { transition: clip-path 1.2s var(--ease) .3s; clip-path: inset(0); }
+@media (max-width: 25.99rem), (min-width: 60rem) and (max-height: 46rem) { .reach-field { --w: 174px; } }

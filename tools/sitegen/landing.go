@@ -20,6 +20,7 @@ var (
 	bandClassRe   = regexp.MustCompile(`class="([^"]*\s)?band(\s[^"]*)?"`)
 	wrapRe        = regexp.MustCompile(`^<section[^>]*>\s*<div class="wrap(\s[^"]*)?"`)
 	dataTokenRe   = regexp.MustCompile(`\{\{(data|json) ([^{}]*)\}\}`)
+	squaresRe     = regexp.MustCompile(`\{\{squares ([^{}\s]+) ([^{}\s]+)\}\}`)
 )
 
 // landingPartials reads site/landing/NN-name.html in file name order.
@@ -74,6 +75,25 @@ func (s *site) substituteTokens(file, text string) string {
 		}
 		text = strings.ReplaceAll(text, "{{"+tok+"}}", html.EscapeString(v))
 	}
+	text = squaresRe.ReplaceAllStringFunc(text, func(tok string) string {
+		m := squaresRe.FindStringSubmatch(tok)
+		var n [2]int
+		for i, path := range m[1:] {
+			v, err := s.dataValue(path)
+			if err == nil {
+				n[i], err = countOf(v)
+			}
+			if err != nil {
+				s.msgs.errorf("site/%s: %s: %v", file, tok, err)
+				return ""
+			}
+		}
+		if n[0] < 1 || n[1] != 1 {
+			s.msgs.errorf("site/%s: %s: the field shows %d squares with %d lit; it draws one lit square of at least one", file, tok, n[0], n[1])
+			return ""
+		}
+		return squareGridStyle(n[0])
+	})
 	return dataTokenRe.ReplaceAllStringFunc(text, func(tok string) string {
 		m := dataTokenRe.FindStringSubmatch(tok)
 		v, err := s.dataValue(strings.TrimSpace(m[2]))
@@ -307,4 +327,36 @@ func (s *site) writeLanding(of *outFiles) error {
 		return err
 	}
 	return of.write("index.html", buf.Bytes())
+}
+
+// countOf reads a count that a data file holds as a number or as a string of digits.
+func countOf(v any) (int, error) {
+	switch x := v.(type) {
+	case float64:
+		return int(x), nil
+	case string:
+		return strconv.Atoi(strings.TrimSpace(x))
+	}
+	return 0, errors.New("the value is not a count")
+}
+
+// squareGrid lays n squares out in rows, c to a row, in a field that is about
+// 87 squares wide for 23 rows, whatever n is: the smallest c whose grid is at
+// least that wide for n squares. The last row is partial when c*r exceeds n;
+// m is the number of squares missing from it.
+func squareGrid(n int) (c, r, m int) {
+	c = 1
+	for c*c*23 < n*87 {
+		c++
+	}
+	r = (n + c - 1) / c
+	return c, r, c*r - n
+}
+
+// squareGridStyle is the custom properties of the square field of the reach
+// band: the columns, the rows, the squares missing from the last row, and the
+// cell of the one lit square (the middle of the field).
+func squareGridStyle(n int) string {
+	c, r, m := squareGrid(n)
+	return fmt.Sprintf("--c:%d;--r:%d;--m:%d;--lc:%d;--lr:%d", c, r, m, c*40/87, r*11/23)
 }
