@@ -698,6 +698,11 @@ html:not(.js) #theme-toggle, html:not(.js) .search-open { display: none; }
   pointer-events: none;
 }
 
+/* ---- the one-row header needs 991px with the whole search field: from 60rem to 64rem the field is shorter ---- */
+@media (min-width: 60rem) and (max-width: 63.99rem) {
+  .search-open { min-width: 8.5rem; }
+}
+
 /* ---- phones and small tablets: brand row, then a scrolling nav row ---- */
 @media (max-width: 59.99rem) {
   .site-header {
