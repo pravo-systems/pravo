@@ -629,7 +629,9 @@ func printDrift(rt *runContext, report *pravo.DriftReport, proposal *driftPropos
 				rt.out.Printf("    - %s\n", d.Note)
 			}
 		}
-		if proposal == nil && noWrite {
+		if !driftNeedsAction(report) {
+			rt.out.Println("The specification still matches what was found, so there is nothing to put back.")
+		} else if proposal == nil && noWrite {
 			rt.out.Println("Nothing was marked (--no-write), so pravo plan does not show these; run pravo drift without --no-write to mark them first.")
 		} else if proposal == nil {
 			rt.out.Println("Run pravo plan to see what puts them back, or pravo apply to do it.")
@@ -639,4 +641,16 @@ func printDrift(rt *runContext, report *pravo.DriftReport, proposal *driftPropos
 		proposal.print(rt)
 	}
 	return nil
+}
+
+// driftNeedsAction reports whether a plan has something to do about the drift: a
+// resource whose difference lies only in values the specification does not set
+// is a no-op, and the record already holds what was found.
+func driftNeedsAction(report *pravo.DriftReport) bool {
+	for _, d := range report.Drifted {
+		if d.Action != string(engine.ActionNoop) {
+			return true
+		}
+	}
+	return false
 }

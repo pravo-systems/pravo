@@ -275,6 +275,31 @@ func (e *Engine) persistGone(addr string, sr *state.Resource) {
 	e.recordRefresh(addr, action, before, &n)
 }
 
+// clearNoopMark ends the mark of a record whose plan has nothing to do. The mark
+// keeps a node in every plan until an apply writes it, so that the apply puts
+// back what a read found. When the plan of the record as the read left it is a
+// no-op, the difference lies in values the specification does not manage: the
+// record already holds what was found, and there is nothing for an apply to
+// write. Left on, the mark would say for ever that the node is planned.
+func (e *Engine) clearNoopMark(p *resourcePlan) {
+	if p.sr == nil || p.strict || p.ch.removal || e.Opts.Refresh == RefreshNone {
+		return
+	}
+	addr := p.ch.Addr
+	cur := e.State.Get(addr)
+	if cur == nil || cur.DriftedAt == nil || cur.Gone {
+		return
+	}
+	release, ok := e.holdToRecord(addr)
+	if !ok {
+		return
+	}
+	defer release()
+	n := *cur
+	n.DriftedAt = nil
+	e.recordRefresh(addr, "refresh", n.Revision, &n)
+}
+
 // readInputs reads the records that the nodes reached by the walk depend on and
 // that the walk did not read. The plan of a node holds only while the nodes it
 // reads are as the state records them. A record that differs, or whose object

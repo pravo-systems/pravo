@@ -438,6 +438,7 @@ func (e *Engine) planManaged(ctx context.Context, p *resourcePlan) (*Change, err
 		}
 	case prior.Equal(res.PlannedState):
 		ch.Action = ActionNoop
+		e.clearNoopMark(p)
 	default:
 		ch.Action = ActionUpdate
 	}

@@ -43,8 +43,10 @@ type fakeProvider struct {
 	calls map[string]int
 	// drifted and vanished change what ReadResource reports for the resource
 	// whose name attribute is the key: another content, or no object at all.
-	drifted  map[string]string
-	vanished map[string]bool
+	drifted map[string]string
+	// driftedID changes what the read reports for the computed id of a resource.
+	driftedID map[string]string
+	vanished  map[string]bool
 	// sideEffect makes the apply of the resource with this name change another
 	// resource that exists already: ReadResource reports the content that it names
 	// for the target from then on, as a provider whose attachment changes the role.
@@ -346,6 +348,17 @@ func (f *fakeProvider) drift(name, content string) {
 	f.drifted[name] = content
 }
 
+// driftID makes the real world hold another computed id for name: a difference that
+// the specification does not manage.
+func (f *fakeProvider) driftID(name, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.driftedID == nil {
+		f.driftedID = map[string]string{}
+	}
+	f.driftedID[name] = id
+}
+
 // vanish removes the object of the resource named name from the real world.
 // changeOnApply makes the apply of name change target, as in sideEffect.
 func (f *fakeProvider) changeOnApply(name, target, content string) {
@@ -478,8 +491,12 @@ func (f *fakeProvider) ReadResource(_ context.Context, _ string, st tftypes.Valu
 	f.read = append(f.read, name)
 	vanished := f.vanished[name]
 	content, drifted := f.drifted[name]
+	newID, idDrifted := f.driftedID[name]
 	f.mu.Unlock()
 	switch {
+	case idDrifted:
+		m["id"] = tftypes.NewValue(tftypes.String, newID)
+		return tftypes.NewValue(st.Type(), m), private, nil, nil
 	case vanished:
 		return tftypes.NewValue(st.Type(), nil), nil, nil, nil
 	case drifted:
