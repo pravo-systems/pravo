@@ -716,7 +716,7 @@ func (f *fakeProvider) ImportResourceState(_ context.Context, typ string, target
 	st := tftypes.NewValue(t, map[string]tftypes.Value{
 		"id": tftypes.NewValue(tftypes.String, id), "name": tftypes.NewValue(tftypes.String, name),
 		"content": tftypes.NewValue(tftypes.String, content), "pin": tftypes.NewValue(tftypes.String, nil),
-		"secret_wo": tftypes.NewValue(tftypes.String, nil), "secret_wo_version": tftypes.NewValue(tftypes.String, nil),
+		"secret_wo": tftypes.NewValue(tftypes.String, nil), "secret_wo_version": tftypes.NewValue(tftypes.String, nil), "triggers": tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
 	})
 	return []plugin.ImportedResource{{TypeName: typ, State: st}}, nil, nil
 }
@@ -800,6 +800,7 @@ func fakeSchema() *schema.ProviderSchema {
 			{Name: "pin", TypeJSON: json.RawMessage(`"string"`), Optional: true, Sensitive: true},
 			{Name: "secret_wo", TypeJSON: json.RawMessage(`"string"`), Optional: true, WriteOnly: true},
 			attr("secret_wo_version", false, true, false),
+			{Name: "triggers", TypeJSON: json.RawMessage(`["map","string"]`), Optional: true, Computed: true},
 		}}}},
 		DataSources: map[string]*schema.Schema{"fake_data": {Block: &schema.Block{Attributes: []*schema.Attribute{
 			attr("id", false, false, true), attr("name", true, false, false), attr("content", false, false, true),
