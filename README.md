@@ -102,7 +102,7 @@ A definition that holds resources is how code is shared in pravo: it is used thr
 
 ## Built for teams
 
-**See it.** `pravo serve` opens a read-only viewer on your machine: the graph of groups and resources, plans, history, state, secrets, policies, templates and traces in one place, with nothing to host. It listens on the loopback interface, needs the token that it prints, withholds sensitive values on the server and writes nothing. [Explore your estate](docs/how-to/explore-your-estate.md)
+**See it.** `pravo serve` opens a read-only viewer on your machine: the graph of groups and resources, plans, history, state, secrets, policies, templates and traces in one place, with no setup. It listens on the loopback interface, needs the token that it prints, withholds sensitive values on the server and writes nothing. [Explore your estate](docs/how-to/explore-your-estate.md)
 
 **Change one resource, read one resource.** A plan starts at your change, follows the recorded dependencies and reads only what the change reaches. Change one value in an estate of 2,001 resources, and OpenTofu reads all 2,001 from the cloud while pravo reads one. Applies that do not overlap run at the same time, started by different people, and an overlapping apply is refused, not queued. `pravo drift` finds drift in what no plan reached. [What a plan reaches](docs/concepts/what-a-plan-reaches.md)
 
