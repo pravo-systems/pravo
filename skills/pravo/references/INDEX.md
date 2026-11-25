@@ -14,7 +14,7 @@ One page for each command and each part of the specification, tables first.
 |---|---|---|
 | [reference/init.md](reference/init.md) | Install the providers a root needs, write the lock file and generate the CUE packages that a specification imports. | 10 KB |
 | [reference/plan.md](reference/plan.md) | Show the actions that apply takes. A plan changes no infrastructure, and it can be saved, stored in the state, judged by a policy and applied later. | 36 KB |
-| [reference/apply.md](reference/apply.md) | Plan, ask for confirmation and apply, or apply a saved plan or a plan stored in the state exactly as it was reviewed, in whole or in closed parts. | 32 KB |
+| [reference/apply.md](reference/apply.md) | Plan, ask for confirmation and apply, or apply a saved plan or a plan stored in the state exactly as it was reviewed, in whole or in closed parts. | 34 KB |
 | [reference/destroy.md](reference/destroy.md) | Destroy every resource recorded in the state, dependents first, after a plan and a confirmation. | 8 KB |
 | [reference/show.md](reference/show.md) | Print a saved plan or a plan stored in the state, with the time, the command and the actor that made it, and a warning when it cannot be applied. | 10 KB |
 | [reference/output.md](reference/output.md) | Print the output values that the last apply recorded in the state, as CUE or as JSON. | 4 KB |
@@ -93,7 +93,7 @@ One page for each command and each part of the specification, tables first.
 
 | File | Covers | Size |
 |---|---|---|
-| [reference/errors.md](reference/errors.md) | Every error a user is likely to meet, as pravo prints it: the symptom, the cause and the fix. | 76 KB |
+| [reference/errors.md](reference/errors.md) | Every error a user is likely to meet, as pravo prints it: the symptom, the cause and the fix. | 77 KB |
 | [reference/glossary.md](reference/glossary.md) | The terms of CUE and of pravo, each with a definition of one or two sentences and a link to the lesson that teaches it. | 33 KB |
 | [reference/faq.md](reference/faq.md) | Short, factual answers to the questions asked first. | 11 KB |
 | [reference/not-in-pravo.md](reference/not-in-pravo.md) | The commands, flags, blocks and files of OpenTofu and Terraform that pravo does not have, and what to use in each place. | 9 KB |

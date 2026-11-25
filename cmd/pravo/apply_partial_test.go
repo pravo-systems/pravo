@@ -46,6 +46,11 @@ func TestFailedApplyOfAStoredPlanRecordsWhatItApplied(t *testing.T) {
 	if !strings.Contains(text, note) {
 		t.Errorf("the apply did not say %q:\n%s", note, text)
 	}
+	for _, line := range []string{"The environment is now partly applied.", "  Applied: first\n", "  Not applied (the one that failed, and what did not start): after, bad\n"} {
+		if !strings.Contains(text, line) {
+			t.Errorf("the apply did not say %q:\n%s", line, text)
+		}
+	}
 	if strings.Index(text, note) > strings.Index(text, "Error:") || strings.Contains(text, "Apply complete!") {
 		t.Errorf("the note comes after the error, or the apply says it completed:\n%s", text)
 	}

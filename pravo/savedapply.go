@@ -3,6 +3,7 @@ package pravo
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/pravo-systems/pravo/internal/engine"
@@ -124,11 +125,21 @@ func recordSavedPartial(ctx context.Context, o SavedApplyOptions, again string, 
 		isChange[a] = true
 	}
 	pa := &PartialApply{}
+	done := map[string]bool{}
 	for _, a := range res.Applied {
 		if isChange[a] {
 			pa.Count++
+			pa.Applied = append(pa.Applied, a)
+			done[a] = true
 		}
 	}
+	for _, a := range pending {
+		if !done[a] {
+			pa.NotApplied = append(pa.NotApplied, a)
+		}
+	}
+	sort.Strings(pa.Applied)
+	sort.Strings(pa.NotApplied)
 	if err := o.Sink.PartlyApplied(ctx, res.Applied, res.Txn); err != nil {
 		pa.RecordErr = savedRecordErr(res.Txn, o.Name, err)
 		return pa

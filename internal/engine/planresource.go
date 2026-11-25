@@ -461,7 +461,14 @@ func (e *Engine) priorObject(ctx context.Context, prov plugin.Provider, p *resou
 			ch.Imported, ch.ImportID, ch.ImportIdentity = true, mark.label, mark.identity
 		}
 	} else if imp, ok := e.Root.Imports[addr]; ok && !p.strict {
-		prior, private, err = e.importResource(ctx, prov, p.r, p.s, imp, ch)
+		if sc := e.savedImport(addr); sc != nil {
+			// The check of a saved plan does not read the object again: reading it stages
+			// its record, and the apply writes the record that the plan read.
+			prior, private = sc.Prior, sc.PriorPrivate
+			ch.Imported, ch.ImportID, ch.ImportIdentity = true, sc.ImportID, sc.ImportIdentity
+		} else {
+			prior, private, err = e.importResource(ctx, prov, p.r, p.s, imp, ch)
+		}
 	}
 	return prior, private, err
 }

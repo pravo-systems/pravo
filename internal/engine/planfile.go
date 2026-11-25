@@ -390,10 +390,16 @@ func parsePlanFile(name string, data []byte) (*PlanFile, error) {
 // configuration, providers or state it was made against.
 type ErrStalePlan struct {
 	Reasons []string `json:"reasons"`
+	// Note says more of what was done about it, such as that nothing was changed.
+	Note string `json:"note,omitempty"`
 }
 
 func (e *ErrStalePlan) Error() string {
-	return "saved plan is stale; run \"pravo plan\" again:\n  - " + strings.Join(e.Reasons, "\n  - ")
+	msg := "saved plan is stale; run \"pravo plan\" again:\n  - " + strings.Join(e.Reasons, "\n  - ")
+	if e.Note != "" {
+		msg += "\n" + e.Note
+	}
+	return msg
 }
 
 // newPlan makes the plan that a file stands for, with the changes it holds.
@@ -588,11 +594,56 @@ func (e *Engine) restoreChange(sc savedChange) (*Change, error) {
 // known: a provider may resolve unknowns during apply, but must not change
 // values it had already decided on.
 func consistent(saved, actual tftypes.Value) bool {
+	w := pathWalk{}
+	return w.consistent(saved, actual)
+}
+
+// inconsistentPaths lists, sorted, the places where actual does not agree with saved
+// (see consistent): the paths of the attributes, never their values, which may be
+// secrets.
+func inconsistentPaths(saved, actual tftypes.Value) []string {
+	w := pathWalk{all: true}
+	w.consistent(saved, actual)
+	for i, p := range w.out {
+		w.out[i] = strings.TrimPrefix(p, ".")
+	}
+	sort.Strings(w.out)
+	return w.out
+}
+
+// pathWalk is the walk of consistent. With all set it goes on after the first
+// difference and lists the paths of every one.
+type pathWalk struct {
+	path []string
+	out  []string
+	all  bool
+}
+
+// differ notes a difference at the current path and answers false.
+func (w *pathWalk) differ() bool {
+	if w.all {
+		w.out = append(w.out, pathString(w.path))
+	}
+	return false
+}
+
+// below walks one element of a collection.
+func (w *pathWalk) below(key string, saved, actual tftypes.Value) bool {
+	if !w.all {
+		return w.consistent(saved, actual)
+	}
+	w.path = append(w.path, key)
+	ok := w.consistent(saved, actual)
+	w.path = w.path[:len(w.path)-1]
+	return ok
+}
+
+func (w *pathWalk) consistent(saved, actual tftypes.Value) bool {
 	if !saved.IsKnown() {
 		return true
 	}
 	if !actual.IsKnown() {
-		return false
+		return w.differ()
 	}
 	if saved.IsNull() || actual.IsNull() {
 		if saved.IsNull() == actual.IsNull() {
@@ -601,42 +652,62 @@ func consistent(saved, actual tftypes.Value) bool {
 		// A list, set or map that one side leaves null and the other holds empty is the
 		// same value, as nullempty.go says for drift: a plan made from a read (tags {})
 		// and an apply that plans from the record (tags null) must agree.
-		return emptyCollection(saved) || emptyCollection(actual)
+		if emptyCollection(saved) || emptyCollection(actual) {
+			return true
+		}
+		return w.differ()
 	}
 	t := saved.Type()
 	switch {
 	case t.Is(tftypes.Object{}) || t.Is(tftypes.Map{}):
 		var sm, am map[string]tftypes.Value
 		if saved.As(&sm) != nil || actual.As(&am) != nil || len(sm) != len(am) {
-			return false
+			return w.differ()
 		}
+		ok := true
 		for k, sv := range sm {
-			av, ok := am[k]
-			if !ok || !consistent(sv, av) {
+			av, found := am[k]
+			if !found {
+				// The key is absent: a difference at its path.
+				w.path = append(w.path, k)
+				w.differ()
+				w.path = w.path[:len(w.path)-1]
+				ok = false
+			} else if !w.below(k, sv, av) {
+				ok = false
+			}
+			if !ok && !w.all {
 				return false
 			}
 		}
-		return true
+		return ok
 	case t.Is(tftypes.List{}) || t.Is(tftypes.Tuple{}):
 		var sl, al []tftypes.Value
 		if saved.As(&sl) != nil || actual.As(&al) != nil || len(sl) != len(al) {
-			return false
+			return w.differ()
 		}
+		ok := true
 		for i := range sl {
-			if !consistent(sl[i], al[i]) {
-				return false
+			if !w.below(fmt.Sprintf("[%d]", i), sl[i], al[i]) {
+				if !w.all {
+					return false
+				}
+				ok = false
 			}
 		}
-		return true
+		return ok
 	case t.Is(tftypes.Set{}):
 		// Sets cannot be correlated element-wise when they hold unknowns;
 		// require equality only when both are fully known.
-		if saved.IsFullyKnown() {
-			return equivalent(saved, actual)
+		if saved.IsFullyKnown() && !equivalent(saved, actual) {
+			return w.differ()
 		}
 		return true
 	}
-	return saved.Equal(actual)
+	if !saved.Equal(actual) {
+		return w.differ()
+	}
+	return true
 }
 
 // checkSaved compares the change computed during apply with the saved one: the
@@ -652,30 +723,58 @@ func consistent(saved, actual tftypes.Value) bool {
 // the plan was made from other values than the apply sees, and what the apply
 // would leave is not what was approved.
 func (e *Engine) checkSaved(ch *Change) error {
+	d := e.diffSaved(ch)
+	if d == nil {
+		return nil
+	}
+	return e.stale(ch.Addr, d.ofSaved, d.ofRun)
+}
+
+// savedDiff is how a change that was planned differs from the saved one: ofSaved
+// says it for a plan file, ofRun for the plan of this run, and attrs lists the
+// attributes whose values differ, when it is values that do.
+type savedDiff struct {
+	ofSaved, ofRun string
+	attrs          []string
+}
+
+// withAttrs is a difference in the values of attributes, which it names.
+func withAttrs(ofSaved, ofRun string, saved, actual tftypes.Value) *savedDiff {
+	d := &savedDiff{ofSaved: ofSaved, ofRun: ofRun, attrs: inconsistentPaths(saved, actual)}
+	if len(d.attrs) > 0 {
+		list := " (they differ in " + strings.Join(d.attrs, ", ") + ")"
+		d.ofSaved += list
+		d.ofRun += list
+	}
+	return d
+}
+
+// diffSaved is checkSaved without the error: nil when the change is the saved one.
+func (e *Engine) diffSaved(ch *Change) *savedDiff {
 	e.mu.Lock()
 	saved, ok := e.saved[ch.Addr]
 	e.mu.Unlock()
 	if !ok {
-		return e.stale(ch.Addr, "not part of the saved plan", "it is not part of the plan")
+		return &savedDiff{ofSaved: "not part of the saved plan", ofRun: "it is not part of the plan"}
 	}
 	idle := func(a Action) bool { return a == ActionNoop || a == ActionRead }
 	if saved.Action != ch.Action && !idle(ch.Action) {
-		return e.stale(ch.Addr,
-			fmt.Sprintf("the saved plan would %s but the provider now plans to %s", saved.Action, ch.Action),
-			fmt.Sprintf("the plan would %s it, the provider now plans to %s", saved.Action, ch.Action))
+		return &savedDiff{
+			ofSaved: fmt.Sprintf("the saved plan would %s but the provider now plans to %s", saved.Action, ch.Action),
+			ofRun:   fmt.Sprintf("the plan would %s it, the provider now plans to %s", saved.Action, ch.Action)}
 	}
 	switch ch.Action {
 	case ActionCreate, ActionUpdate:
 		if !consistent(saved.Planned, ch.Planned) {
-			return e.stale(ch.Addr, "the provider produced a different plan than the saved one", "the provider produced a different plan than before")
+			return withAttrs("the provider produced a different plan than the saved one", "the provider produced a different plan than before", saved.Planned, ch.Planned)
 		}
 	case ActionReplace:
 		if !consistent(saved.PlannedCreate, ch.PlannedCreate) {
-			return e.stale(ch.Addr, "the provider produced a different replacement plan than the saved one", "the provider produced a different replacement plan than before")
+			return withAttrs("the provider produced a different replacement plan than the saved one", "the provider produced a different replacement plan than before", saved.PlannedCreate, ch.PlannedCreate)
 		}
 	}
 	if saved.Action == ActionRead && ch.Action == ActionRead && !consistent(saved.Planned, ch.Planned) {
-		return e.stale(ch.Addr, "the data source returned something other than what the saved plan read", "the data source returned something other than what the plan read")
+		return withAttrs("the data source returned something other than what the saved plan read", "the data source returned something other than what the plan read", saved.Planned, ch.Planned)
 	}
 	if idle(ch.Action) {
 		// The change that the plan promised is made when the node holds what the plan
@@ -688,9 +787,9 @@ func (e *Engine) checkSaved(ch *Change) error {
 			made = saved.PlannedCreate
 		}
 		if made.Type() != nil && !consistent(made, ch.Prior) {
-			return e.stale(ch.Addr,
-				fmt.Sprintf("the saved plan would %s but the provider now plans to %s, and the record is not what the plan would make", saved.Action, ch.Action),
-				fmt.Sprintf("the plan would %s it, the provider now plans to %s, and the record is not what the plan would make", saved.Action, ch.Action))
+			return &savedDiff{
+				ofSaved: fmt.Sprintf("the saved plan would %s but the provider now plans to %s, and the record is not what the plan would make", saved.Action, ch.Action),
+				ofRun:   fmt.Sprintf("the plan would %s it, the provider now plans to %s, and the record is not what the plan would make", saved.Action, ch.Action)}
 		}
 	}
 	return nil

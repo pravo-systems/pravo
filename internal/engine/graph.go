@@ -513,7 +513,7 @@ func (e *Engine) run(ctx context.Context, apply bool) (cue.Value, error) {
 	if err != nil {
 		return e.current, err
 	}
-	if apply && e.scope != nil {
+	if (apply || e.checking() != nil) && e.scope != nil {
 		nodes = e.scope.nodes(nodes)
 	} else {
 		for _, n := range nodes {

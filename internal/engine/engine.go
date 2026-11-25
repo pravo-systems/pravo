@@ -275,6 +275,9 @@ type applyState struct {
 	// scope limits the apply walk to the nodes the plan changes and the nodes
 	// they read.
 	scope *applyScope
+	// check is the dry walk that checks a saved plan before an apply begins, nil
+	// at any other time (precheck.go).
+	check *wholeCheck
 	// held is the set of locks the apply holds on the nodes it writes.
 	held *heldLocks
 	// flying holds the nodes whose provider is changing the object right now, by
@@ -793,9 +796,16 @@ func (e *Engine) runTaskInner(ctx context.Context, r *config.Resource, apply boo
 }
 
 func (e *Engine) planTask(ctx context.Context, r *config.Resource, v cue.Value) (tftypes.Value, error) {
+	w := e.checking()
+	if w != nil && e.only != nil && !e.only[r.Address()] {
+		return e.fromState(r)
+	}
 	ch, err := e.planResource(ctx, r, v, false)
 	if err != nil {
 		return tftypes.Value{}, err
+	}
+	if w != nil {
+		e.noteChecked(w, ch)
 	}
 	// What the plan read of the node is written by now: a saved plan expects the
 	// record as it is.

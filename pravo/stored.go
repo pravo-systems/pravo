@@ -206,6 +206,11 @@ type StoredApply struct {
 type PartialApply struct {
 	// Count is the number of changes of the plan that were applied.
 	Count int
+	// Applied lists, sorted, the addresses of the changes that were applied, and
+	// NotApplied those of the changes that were not: the one that failed, and the
+	// ones that were not started. The estate is partly applied while NotApplied is
+	// not empty.
+	Applied, NotApplied []string
 	// RecordErr is why they could not be recorded in the stored plan, if so. The
 	// changes are applied all the same.
 	RecordErr error

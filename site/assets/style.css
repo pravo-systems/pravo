@@ -3775,7 +3775,8 @@ html:not(.js) .bl-nojs { display: block; }
 .download-note { margin: 0; max-width: 34rem; font-size: var(--fs-5); line-height: 1.5; color: var(--text-2); }
 .download-term { width: 100%; max-width: 36rem; margin: 0; }
 .download-term .term-body { padding-right: 3.2rem; }
-.download-term .term-line, .download-term .cmd-text { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.download-term .term-line, .download-term .cmd-text { white-space: pre-wrap; overflow-wrap: normal; word-break: normal; min-width: 0; }
+.download-term .term-body { overflow-x: auto; }
 .download-list { margin: 0; padding: 0; list-style: none; display: grid; gap: .45rem; font-size: var(--fs-5); color: var(--text-2); }
 .download-list a { color: var(--text); text-decoration-color: var(--accent); text-underline-offset: .2em; }
 
