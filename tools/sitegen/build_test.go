@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -561,5 +562,50 @@ func TestPrettyIndexLinks(t *testing.T) {
 		if got := string(prettyIndexLinks([]byte(in))); got != want {
 			t.Errorf("%s became %s, want %s", in, got, want)
 		}
+	}
+}
+
+func TestSquareGrid(t *testing.T) {
+	if c, r, m := squareGrid(2001); c != 87 || r != 23 || m != 0 {
+		t.Errorf("squareGrid(2001) = %d, %d, %d; want 87, 23, 0", c, r, m)
+	}
+	for _, n := range []int{1, 2, 7, 100, 1999, 2000, 2001, 2002, 5000, 123457} {
+		c, r, m := squareGrid(n)
+		if c*r-m != n || m < 0 || m >= c {
+			t.Errorf("squareGrid(%d) = %d, %d, %d: %d squares, %d missing from a row of %d", n, c, r, m, c*r-m, m, c)
+		}
+	}
+}
+
+// The square field of the reach band has one square for each resource of the
+// estate that the text of the band counts, and one lit square for the one
+// resource that pravo reads.
+func TestReachFieldMatchesTheCount(t *testing.T) {
+	out := buildRealSite(t, false)
+	b, err := os.ReadFile(filepath.Join(out, "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(b)
+	m := regexp.MustCompile(`estate of (\d+) resources`).FindStringSubmatch(page)
+	if m == nil {
+		t.Fatal("the reach band does not say how many resources the estate has")
+	}
+	want, _ := strconv.Atoi(m[1])
+	fields := regexp.MustCompile(`<i class="reach-field[^"]*" style="--c:(\d+);--r:(\d+);--m:(\d+);`).FindAllStringSubmatch(page, -1)
+	if len(fields) != 2 {
+		t.Fatalf("found %d square fields in the reach band, want 2", len(fields))
+	}
+	for i, f := range fields {
+		c, _ := strconv.Atoi(f[1])
+		r, _ := strconv.Atoi(f[2])
+		miss, _ := strconv.Atoi(f[3])
+		if got := c*r - miss; got != want {
+			t.Errorf("square field %d draws %d squares, the band counts %d resources", i+1, got, want)
+		}
+	}
+	reads := regexp.MustCompile(`reach-name">pravo reads</p>\s*<dl class="stats"><div class="stat"><dt>[^<]*</dt><dd[^>]*>(\d+)</dd>`).FindStringSubmatch(page)
+	if reads == nil || reads[1] != "1" {
+		t.Errorf("pravo reads %v resources; the field lights exactly one square", reads)
 	}
 }
