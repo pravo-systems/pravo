@@ -20,9 +20,11 @@ The model is told what the markers mean, so that it says that a value is withhel
 
 It has no tool that applies, approves, stores, collects, locks, plans, refreshes or adopts, that runs a discovery, or that writes or reads a secret. The set is a table that the server compiles in. A name that the model asks for and that is not in the table is refused, and nothing runs. The part of the viewer that holds the tools imports nothing that writes, and a test says so. A test also plays a model that tries every one of those actions by name, and by text planted in a tag, a plan reason and a span, and checks that the project and the state hold the same bytes afterwards and that nothing was written to the bucket.
 
+Where the viewer has the [drawing board](../reference/serve.md#the-drawing-board), a question also carries the drawing, and the model has the board's reads (the types that can be drawn, their forms, a resource as the board can change it) and one tool more, `draw`. It checks a proposal in memory, as the board's own check does, and lays it on the board, opening the board when it is closed, where you keep it or drop it. It writes nothing: saving, planning and applying stay with you, and a sensitive field takes no value from it.
+
 A command that would help is text. The page draws it in a box that copies it, and says that this page runs nothing. The person who reads it runs it, with their own identity, in their own terminal, where the policies and the approvals that apply to them apply.
 
-A question is bounded. It makes at most twelve reads, sends at most 128 KiB of their results, and a single result is cut at 32 KiB. A conversation holds at most 40 turns of at most 4000 characters, and a body at most 64 KiB. At most four questions run at the same time, and the server answers a fifth with an error.
+A question is bounded. It makes at most twelve reads (24 with the drawing board, where one read can search for several types or give several forms), sends at most 128 KiB of their results, and a single result is cut at 32 KiB. On the board, `draw` is counted apart: up to six drawings, also after the reads are spent, and an answer may be 8,192 tokens long, since a whole proposal is written in one call. A call cut off at that length does not run, and the model is told to send less. A conversation holds at most 40 turns of at most 4000 characters, and a body at most 64 KiB. At most four questions run at the same time, and the server answers a fifth with an error.
 
 ## What leaves the machine
 
@@ -49,6 +51,6 @@ Check an answer against the node it names. The inspector shows the value, the so
 ## Recap
 
 - The assistant is off until the provider is named, and the key lives in the environment of the process and nowhere else.
-- It reads through the viewer's own read paths, so it sees what the page shows, with the same values withheld, and it has no tool that writes.
+- It reads through the viewer's own read paths, so it sees what the page shows, with the same values withheld, and it has no tool that writes. On the drawing board it can draw a proposal, which you keep or drop.
 - A question is bounded, and each answer lists every read and the text sent to the provider for it.
 - An answer can be wrong. Its links are real, and the page it links to is the evidence.

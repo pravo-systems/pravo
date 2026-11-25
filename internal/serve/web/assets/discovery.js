@@ -377,6 +377,11 @@ export class DiscoveryView {
         box.append(
           h('p', { class: 'dv-lead' }, 'Add this to the specification. The next plan reads the object and shows how it differs from what you wrote.'),
           snippet(a.snippet, 'Copy the resource', 'snip:' + k));
+        // or draw it on the board, which writes the same $import into a new file and plans it
+        if (a.provider && a.type && this.cb.canDraw && this.cb.canDraw()) {
+          box.append(h('div', { class: 'dv-draw' }, h('button', { type: 'button', class: 'btn', 'data-fk': 'draw:' + k, on: { click: () => this.cb.onDraw(a, it) } }, icon('pen'), h('span', null, 'Draw on the board')),
+            h('span', { class: 'dv-note' }, 'to wire it to what you draw, and plan it before you save')));
+        }
       }
       (a.steps || []).forEach((s, i) => {
         if (s.kind === 'command') box.append(command(s.text, !!s.placeholder, 'Copy the command', `step:${k}:${i}`));

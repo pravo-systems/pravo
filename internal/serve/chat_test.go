@@ -51,6 +51,7 @@ func TestChatImportsNothingThatWrites(t *testing.T) {
 		}
 	}
 	check("chat.go", forbidden)
+	check("board_ask.go", forbidden)
 	files, _ := filepath.Glob("../chat/*.go")
 	for _, f := range files {
 		if strings.HasSuffix(f, "_test.go") {

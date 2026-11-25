@@ -40,6 +40,7 @@ A fragment looks like `#/?sel=api.services.billing.config&tab=source&collapse=ne
 | `palette` | `1` | The command palette open. |
 | `pq` | Text | The text typed into the palette. |
 | `help` | `1` | The sheet of shortcuts open. |
+| `draw` | `1` | [The drawing board](serve.md#the-drawing-board) open over the graph. The link opens the board and carries no drawing: a drawing stays in the tab that made it. |
 
 A view of the Inventory with a resource selected is the usual link to share: `#/?sel=api.services.billing.config&tab=history`. A view of another section needs `view`: `#/?view=plans&plq=by:ben`, `#/?view=policies&pol=approve_deletes`, `#/?view=traces&trace=ID&span=ID`.
 
@@ -73,6 +74,7 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | `e` | Switch between the Inventory and the Secrets sections. |
 | `m` | Switch between the Inventory and the Templates sections. |
 | `v` | Switch between the Inventory and the Environments section, for a specification that declares `$environments`. |
+| `b` | Open or close [the drawing board](serve.md#the-drawing-board) over the graph. |
 | `c` | Open or close the Ask panel, when the viewer was started with [the assistant](serve.md#the-assistant). |
 | Esc | Close the palette, the sheet, a drawer or the Ask panel. In a text field, leave it. Otherwise clear the reach, then go back to where a search began while its result is selected, then close the group that a click opened, then clear the selection. |
 
@@ -85,9 +87,11 @@ The sheet of shortcuts in the viewer opens with `?`. Keys other than Ctrl-K and 
 | Up arrow, Down arrow | Move to the sibling above or below. |
 | Enter | Open the selected card or cluster. On an open group or one of its resources, close the group. |
 | `f` | Fit the graph to the window. |
-| `i` | Show the project in the inspector, or take it away. Escape takes it away too. The button at the right of the toolbar does the same. |
+| `i` | Show the project in the inspector, or take it away. Escape takes it away too. The **Project** button at the right of the toolbar does the same. |
 | `0` | Go back to the first view: the groups that were open when the page loaded, no cluster open and the whole graph in the window. The selection stays when it still shows, and the filter stays. |
 | `+`, `-` | Zoom in or out. |
+| Tab, Shift+Tab | In the list of the bar of [the drawing board](serve.md#the-drawing-board): the next or the previous group of kinds. |
+| Backspace, Delete | On [the drawing board](serve.md#the-drawing-board): take the selected thing out of the draft, or mark the selected node of the specification for deletion, which Save writes. Not while a field has the focus. |
 | `[` and `]` | Close or open every group. |
 | Drag | Pan the graph. |
 | Wheel or pinch | Zoom the graph. Shift and the wheel pan sideways. |

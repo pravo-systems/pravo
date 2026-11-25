@@ -7,10 +7,12 @@
 package chat
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -66,6 +68,8 @@ type Request struct {
 type Response struct {
 	Text  string
 	Calls []Call
+	// Cut says the answer reached MaxTokens: a call in it may be incomplete.
+	Cut bool
 }
 
 // Provider sends a Request to a language model.
@@ -79,8 +83,11 @@ type Limits struct {
 	Calls int
 	// Bytes is how much tool output a question may send to the model (default 128 KiB).
 	Bytes int
-	// Rounds is how many times the model is asked (default Calls+2).
+	// Rounds is how many times the model is asked (default Calls+2, and the calls of Own).
 	Rounds int
+	// Own are tools that are counted on their own, each with its own number of calls, and not against Calls or
+	// Bytes: a tool that acts on what was read can still be called when the reads are spent.
+	Own map[string]int
 	// MaxTokens bounds one answer (default 1500).
 	MaxTokens int
 }
@@ -94,6 +101,9 @@ func (l Limits) withDefaults() Limits {
 	}
 	if l.Rounds <= 0 {
 		l.Rounds = l.Calls + 2
+		for _, n := range l.Own {
+			l.Rounds += n
+		}
 	}
 	if l.MaxTokens <= 0 {
 		l.MaxTokens = 1500
@@ -134,6 +144,12 @@ Write short plain answers. Name resources by their exact address in backticks.`
 // It returns the messages it added to history and what it sent. A model that asks
 // for a tool that is not offered is told so and nothing runs.
 func Run(ctx context.Context, p Provider, tools Tools, history []Message, lim Limits, emit func(Event)) ([]Message, []Sent, error) {
+	return RunWith(ctx, p, System, tools, history, lim, emit)
+}
+
+// RunWith is Run with another instruction for the model than System, for a caller
+// whose tools do another job. The loop and its limits are the same.
+func RunWith(ctx context.Context, p Provider, system string, tools Tools, history []Message, lim Limits, emit func(Event)) ([]Message, []Sent, error) {
 	lim = lim.withDefaults()
 	defs := tools.Defs()
 	known := map[string]bool{}
@@ -142,9 +158,13 @@ func Run(ctx context.Context, p Provider, tools Tools, history []Message, lim Li
 	}
 	var added []Message
 	var ledger []Sent
-	calls, bytes := 0, 0
+	calls, read, own := 0, 0, map[string]int{}
+	spent := "too many tool calls for one question; answer with what you have"
+	if len(lim.Own) > 0 {
+		spent = "too many reads for one question; " + ownLeft(lim.Own) + ", then answer with what you have"
+	}
 	for range lim.Rounds {
-		resp, err := p.Complete(ctx, Request{System: System, Messages: append(append([]Message{}, history...), added...), Tools: defs, MaxTokens: lim.MaxTokens})
+		resp, err := p.Complete(ctx, Request{System: system, Messages: append(append([]Message{}, history...), added...), Tools: defs, MaxTokens: lim.MaxTokens})
 		if err != nil {
 			return added, ledger, err
 		}
@@ -158,24 +178,38 @@ func Run(ctx context.Context, p Provider, tools Tools, history []Message, lim Li
 			return added, ledger, nil
 		}
 		var results []Result
-		for _, c := range resp.Calls {
+		for i, c := range resp.Calls {
 			r := Result{ID: c.ID, Name: c.Name}
+			whole := len(bytes.TrimSpace(c.Args)) == 0 || json.Valid(c.Args)
+			if !whole {
+				added[len(added)-1].Calls[i].Args = json.RawMessage("{}") // a provider takes back only whole arguments
+			}
 			switch {
 			case !known[c.Name]:
 				r.Error = "no such tool: " + c.Name
-			case calls >= lim.Calls:
-				r.Error = "too many tool calls for one question; answer with what you have"
-			case bytes >= lim.Bytes:
+			case !whole || resp.Cut && i == len(resp.Calls)-1:
+				r.Error = fmt.Sprintf("this call was cut off at the length limit of an answer (%d tokens) and did not run; send less in one call", lim.MaxTokens)
+			case lim.Own[c.Name] > 0 && own[c.Name] >= lim.Own[c.Name]:
+				r.Error = fmt.Sprintf("%s was called %d times for one question; answer with what you have", c.Name, own[c.Name])
+			case lim.Own[c.Name] == 0 && calls >= lim.Calls:
+				r.Error = spent
+			case lim.Own[c.Name] == 0 && read >= lim.Bytes:
 				r.Error = "enough has been read for one question; answer with what you have"
 			default:
-				calls++
+				if lim.Own[c.Name] > 0 {
+					own[c.Name]++
+				} else {
+					calls++
+				}
 				emit(Event{Type: "read", Tool: c.Name, Args: string(c.Args)})
 				body, err := tools.Call(ctx, c.Name, c.Args)
 				if err != nil {
 					r.Error = err.Error()
 				} else {
 					r.Body = body
-					bytes += len(body)
+					if lim.Own[c.Name] == 0 {
+						read += len(body)
+					}
 				}
 			}
 			ledger = append(ledger, Sent{Tool: c.Name, Args: c.Args, Body: r.Body, Error: r.Error, Bytes: len(r.Body) + len(r.Error)})
@@ -184,4 +218,14 @@ func Run(ctx context.Context, p Provider, tools Tools, history []Message, lim Li
 		added = append(added, Message{Role: "tool", Results: results})
 	}
 	return added, ledger, fmt.Errorf("the model kept asking for tools; stopped after %d rounds", lim.Rounds)
+}
+
+// ownLeft names the tools that can still be called when the reads are spent.
+func ownLeft(own map[string]int) string {
+	var names []string
+	for n := range own {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return "you can still call " + strings.Join(names, " and ")
 }

@@ -219,22 +219,7 @@ func safeArg(s string) bool {
 // adoptFor answers GET /api/adopt: the snippet and the commands for one object of
 // a discovery's last run.
 func (m *model) adoptFor(name, key string) (*Adopt, bool) {
-	if m.disc == nil {
-		return nil, false
-	}
-	v := m.disc.report.View(name)
-	if v == nil {
-		return nil, false
-	}
-	var item *engine.DiscoveredItem
-	for i := range v.Items {
-		// The page names an object by the key it was sent, which the document
-		// shows masked and without control characters.
-		if v.Items[i].Status != engine.Managed && clipName(v.Items[i].Key) == key {
-			item = &v.Items[i]
-			break
-		}
-	}
+	v, item := m.discovered(name, key)
 	if item == nil {
 		return nil, false
 	}
@@ -243,7 +228,11 @@ func (m *model) adoptFor(name, key string) (*Adopt, bool) {
 		root = &config.Root{}
 	}
 	snippet := engine.FormatCUE(engine.AdoptSnippet(root, v, item.Listed, ""))
-	out := &Adopt{Discovery: clipName(name), Key: clipName(item.Key), ID: clipName(item.ID), Status: string(item.Status), Snippet: m.scrubTags(snippet)}
+	out := &Adopt{Discovery: clipName(name), Key: clipName(item.Key), ID: clipName(item.ID), Status: string(item.Status), Snippet: m.scrubTags(snippet), Type: v.Type}
+	// the drawing board draws the object as a resource of this type and provider (rule 14)
+	if p, ok := root.ProviderPath(v.ProviderKey); ok && root.Environment == "" {
+		out.Provider = p.String()
+	}
 	if item.Status == engine.Unmanaged {
 		out.Ack = m.scrubTags(engine.FormatCUE(engine.AckEntry(name, []string{engine.EscapeGlob(item.ID)}, nil, "<why>")))
 	}
@@ -260,6 +249,24 @@ func (m *model) adoptFor(name, key string) (*Adopt, bool) {
 		SuggestionStep{Kind: "note", Text: "To write the resource with the attributes the object has, ask the provider for it:"},
 		SuggestionStep{Kind: "command", Text: "pravo discover adopt " + n + " " + id + " --read"})
 	return out, true
+}
+
+// discovered is an object of the last run of a discovery that nothing manages, by the key the page was sent (masked and
+// without control characters, as the document shows it), and the view of its discovery.
+func (m *model) discovered(name, key string) (*engine.DiscoveryView, *engine.DiscoveredItem) {
+	if m.disc == nil {
+		return nil, nil
+	}
+	v := m.disc.report.View(name)
+	if v == nil {
+		return nil, nil
+	}
+	for i := range v.Items {
+		if v.Items[i].Status != engine.Managed && clipName(v.Items[i].Key) == key {
+			return v, &v.Items[i]
+		}
+	}
+	return v, nil
 }
 
 func (s *Server) adopt(w http.ResponseWriter, r *http.Request, m *model) {

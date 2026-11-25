@@ -1,4 +1,4 @@
-// The client of the JSON contract in internal/serve/api.go. The page sends GET requests, and three POSTs: a plan file dropped on the studio, which the server judges and writes nowhere, a question to the chat, which only reads (README rule 12), and the environment to read, which changes what the server loads and writes nothing.
+// The client of the JSON contract in internal/serve/api.go. The page sends GET requests, the POSTs of the drawing board (README rule 14: a check writes nothing; a save and a plan exist with --edit only), and three more POSTs: a plan file dropped on the studio, which the server judges and writes nowhere, a question to the chat, which only reads (README rule 12), and the environment to read, which changes what the server loads and writes nothing.
 
 export class Unauthorized extends Error {
   constructor() { super('unauthorized'); this.name = 'Unauthorized'; }
@@ -85,6 +85,66 @@ export async function switchEnvironment(name) {
   if (!r.ok) throw Object.assign(new Error((j && j.error) || r.statusText || `status ${r.status}`), { status: r.status });
   return j;
 }
+// board is what the drawing board draws with: the providers and templates, the file it suggests, and whether it can save and plan (--edit).
+export const board = () => get('/api/board');
+// boardTypes finds what the board can draw that answers the words of the bar: a page of hits in a group of kinds (all
+// of them when group is empty), from offset on, with how many there are in each group.
+export const boardTypes = (q, group, offset, signal) => get('/api/board/types?q=' + encodeURIComponent(q || '') + (group ? '&group=' + encodeURIComponent(group) : '') + (offset ? '&offset=' + offset : ''), signal);
+// boardType is the form of a kind of thing: a type of a provider schema, a value pravo reads for itself, or a template.
+export const boardType = (kind, type, provider) => get('/api/board/type?' + (kind === 'template' ? 'template=' + encodeURIComponent(type)
+  : 'kind=' + encodeURIComponent(kind || 'resource') + '&type=' + encodeURIComponent(type || '') + '&provider=' + encodeURIComponent(provider || '')));
+// boardEdit reads a resource of the specification as the pen of the board can change it: its fields as written, the
+// form of its type, and the digest of its file. reason says why it cannot be changed on the board, when it cannot.
+export const boardEdit = (addr) => get('/api/board/edit?addr=' + encodeURIComponent(addr));
+// boardPost sends the drawing to be checked, or saved (with --edit). A refusal that carries a check says why in err.check.
+export async function boardPost(path, draft) {
+  let r;
+  try { r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(draft), credentials: 'same-origin' }); } catch { throw new Unreachable(); }
+  if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
+  let j = null;
+  try { j = await r.json(); } catch { /* not JSON */ }
+  if (!r.ok) throw Object.assign(new Error((j && j.error) || (j && j.problems && j.problems.length && j.problems[0].message) || r.statusText || `status ${r.status}`), { status: r.status, check: j && j.state ? j : null });
+  return j;
+}
+// boardPlan runs a plan of the specification with the drawing in it (with --edit). The server streams lines of JSON: steps, then
+// the result or an error; onLine sees each, and the last is returned.
+export const boardPlan = (draft, onLine) => boardRun('/api/board/plan', draft, onLine);
+// boardApply applies the plan of the board that a ticket names (with --apply): steps, then the result, as a plan streams.
+export const boardApply = (ticket, onLine) => boardRun('/api/board/apply', { ticket }, onLine);
+// boardStart brings a Terraform state onto the board as pravo shadow does (with --edit, into a state that holds nothing):
+// { place } that the server reads, or { state } that the person chose. It streams as a plan does: a step, then the result.
+export const boardStart = (body, onLine) => boardRun('/api/board/start', body, onLine);
+
+async function boardRun(path, body, onLine) {
+  let r;
+  try { r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' }); } catch { throw new Unreachable(); }
+  if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
+  if (!r.ok) {
+    let j = null;
+    try { j = await r.json(); } catch { /* not JSON */ }
+    throw Object.assign(new Error((j && j.error) || (j && j.problems && j.problems.length && j.problems[0].message) || r.statusText || `status ${r.status}`), { status: r.status });
+  }
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', last = null;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (value) buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).trim();
+      buf = buf.slice(i + 1);
+      if (!line) continue;
+      let j;
+      try { j = JSON.parse(line); } catch { continue; }
+      last = j;
+      if (onLine) onLine(j);
+    }
+    if (done) break;
+  }
+  if (!last || !(last.done || last.error)) throw new Error('the run ended without a result');
+  return last;
+}
 // traces lists the runs that pravo recorded in the project; a server that does not know them has none.
 export const traces = () => get('/api/traces').catch((err) => { if (err && err.status === 404) return { version: 1, dir: '.pravo/traces', traces: [] }; throw err; });
 // trace is the spans of one run.
@@ -118,10 +178,15 @@ export function events(onChange, onState) {
 
 export const chatConfig = () => get('/api/chat/config').catch((err) => { if (err && err.status === 404) return { enabled: false }; throw err; });
 
-// askChat sends the conversation and calls onEvent for each event of the answer: read, text, done or error. It resolves when the stream ends.
-export async function askChat(messages, context, onEvent, signal) {
+// askChat sends the conversation and calls onEvent for each event of the answer: read, text, done or error, and with the
+// drawing board open (board is its drawing and the proposal that waits) a proposal. It resolves when the stream ends.
+export const askChat = (messages, context, board, onEvent, signal) => postEvents('/api/chat', { messages, context, board: board || undefined }, onEvent, signal);
+
+
+// postEvents sends a POST whose answer is a stream of server-sent events.
+async function postEvents(path, body, onEvent, signal) {
   let r;
-  try { r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', credentials: 'same-origin', body: JSON.stringify({ messages, context }), signal }); } catch (err) { if (err && err.name === 'AbortError') throw err; throw new Unreachable(); }
+  try { r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', credentials: 'same-origin', body: JSON.stringify(body), signal }); } catch (err) { if (err && err.name === 'AbortError') throw err; throw new Unreachable(); }
   if (r.status === 401) { if (authHandler) authHandler(); throw new Unauthorized(); }
   if (!r.ok) {
     let msg = r.statusText || `status ${r.status}`;

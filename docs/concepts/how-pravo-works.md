@@ -354,7 +354,7 @@ A run writes to the state and prints to the terminal, and it leaves two more thi
 | `pravo promote ENV` | 1 to 4, then 6 and 7 | Reads the notes of the environments that ENV follows, signs a promotion into its state, then applies as `pravo apply --env ENV`. |
 | `pravo environments` | 1 and 2 | Reads the record and the newest note of the state of each environment, without a key, and starts no provider. |
 | `pravo discover` | 1 and 2 | Runs the discoveries of the specification through their providers and writes what each found to the state. No plan is made. |
-| `pravo serve` | 1 and 2 | Reads the state, the stored plans, the policies, the discoveries and the recorded runs, and serves them. It starts no provider and writes nothing. |
+| `pravo serve` | 1 and 2 | Reads the state, the stored plans, the policies, the discoveries and the recorded runs, and serves them. It starts no provider and writes nothing, unless `--edit` lets its drawing board save a new file and plan it. |
 
 ## What each stage touches
 

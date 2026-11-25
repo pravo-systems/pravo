@@ -17,7 +17,8 @@ import (
 
 // The chat is README rule 12. It reads through the same handlers as the page, with
 // the token of the run, so that a value reaches a model only as the page would show
-// it. Its tools are listed here and in no other place; none writes.
+// it. Its tools are listed here, and with the drawing of the board in board_ask.go
+// (rule 14); none writes.
 
 // ChatOptions turns the chat on. Nil in Options means it is off: the routes do not
 // exist and the page draws no control.
@@ -58,6 +59,9 @@ type ChatRequest struct {
 		Plan string `json:"plan"`
 		View string `json:"view"`
 	} `json:"context"`
+	// Board is the drawing board, when it is open: the model then also reads the types and forms of the board and can
+	// draw a proposal onto it (see board_ask.go).
+	Board *ChatBoard `json:"board,omitempty"`
 }
 
 // ChatTurn is a question or an answer.
@@ -105,9 +109,12 @@ func chatToolNames() []string {
 // serverTools is the chat.Tools of a server.
 type serverTools struct{ s *Server }
 
-func (serverTools) Defs() []chat.ToolDef {
+func (serverTools) Defs() []chat.ToolDef { return specDefs(chatTools) }
+
+// specDefs describes tools that are GETs of the page to a model.
+func specDefs(specs []chatToolSpec) []chat.ToolDef {
 	var defs []chat.ToolDef
-	for _, t := range chatTools {
+	for _, t := range specs {
 		props := map[string]any{}
 		var req []string
 		for _, p := range t.params {
@@ -126,7 +133,13 @@ func (serverTools) Defs() []chat.ToolDef {
 }
 
 func (t serverTools) Call(ctx context.Context, name string, args json.RawMessage) (string, error) {
-	for _, spec := range chatTools {
+	return t.s.callSpec(ctx, chatTools, name, args)
+}
+
+// callSpec runs a tool that is a GET of the page: its arguments become the query, and the answer is what the page would
+// get, cut to a size a model can take.
+func (s *Server) callSpec(ctx context.Context, specs []chatToolSpec, name string, args json.RawMessage) (string, error) {
+	for _, spec := range specs {
 		if spec.name != name {
 			continue
 		}
@@ -158,7 +171,7 @@ func (t serverTools) Call(ctx context.Context, name string, args json.RawMessage
 				return "", fmt.Errorf("%s needs %q", name, p[0])
 			}
 		}
-		body, status, err := t.s.readAPI(ctx, spec.path, q)
+		body, status, err := s.readAPI(ctx, spec.path, q)
 		if err != nil {
 			return "", err
 		}
@@ -275,8 +288,8 @@ func (s *Server) chatConfig(w http.ResponseWriter) {
 }
 
 // chatHandler answers one question as a stream of events: a "read" for each tool as
-// it is called, then "text" and "done" with everything that was sent to the model,
-// or "error". It is the one request of the page that talks to another host, and
+// it is called, with the drawing a "proposal" when the model drew one, then "text"
+// and "done" with everything that was sent to the model, or "error". It is the one request of the page that talks to another host, and
 // reads nothing that the page's own requests do not read.
 func (s *Server) chatHandler(w http.ResponseWriter, r *http.Request) {
 	c := s.opts.Chat
@@ -294,7 +307,7 @@ func (s *Server) chatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req ChatRequest
-	dec := json.NewDecoder(io.LimitReader(r.Body, maxChatBody+1))
+	dec := json.NewDecoder(io.LimitReader(r.Body, maxChatBody+maxBoardBody+1)) // the conversation, and the drawing
 	if err := dec.Decode(&req); err != nil || dec.More() {
 		writeError(w, http.StatusBadRequest, "the body is not a question")
 		return
@@ -304,6 +317,12 @@ func (s *Server) chatHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	run, err := s.chatRunOf(&req)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	hist[len(hist)-1].Text += run.tail
 	if s.chatActive.Add(1) > maxChatActive {
 		s.chatActive.Add(-1)
 		writeError(w, http.StatusServiceUnavailable, "too many questions at once")
@@ -319,14 +338,22 @@ func (s *Server) chatHandler(w http.ResponseWriter, r *http.Request) {
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
-	emit := func(e chat.Event) {
+	send := func(e chatEvent) {
 		data, _ := json.Marshal(e)
 		fmt.Fprintf(w, "data: %s\n\n", data)
 		fl.Flush()
 	}
-	_, _, err = chat.Run(r.Context(), c.Provider, serverTools{s}, hist, chat.Limits{}, emit)
+	emit := func(e chat.Event) {
+		if e.Type == "text" && run.board != nil {
+			if p := run.board.proposal(); p != nil {
+				send(chatEvent{Event: chat.Event{Type: "proposal"}, Proposal: p})
+			}
+		}
+		send(chatEvent{Event: e})
+	}
+	_, _, err = chat.RunWith(r.Context(), c.Provider, run.system, run.tools, hist, run.lim, emit)
 	if err != nil {
-		emit(chat.Event{Type: "error", Text: err.Error()})
+		send(chatEvent{Event: chat.Event{Type: "error", Text: err.Error()}})
 	}
 }
 

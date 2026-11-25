@@ -56,6 +56,54 @@ func TestRunBoundsTheCalls(t *testing.T) {
 	}
 }
 
+type actTools struct{ fixedTools }
+
+func (f *actTools) Defs() []ToolDef {
+	return append(f.fixedTools.Defs(), ToolDef{Name: "act", Description: "d", Schema: map[string]any{"type": "object"}})
+}
+
+// A tool with its own count can still be called when the reads are spent, as many times as its own count allows.
+func TestRunCountsOwnToolsApart(t *testing.T) {
+	tools := &actTools{}
+	look, act := Call{ID: "l", Name: "look"}, Call{ID: "a", Name: "act"}
+	p := &Script{Replies: []Response{
+		{Calls: []Call{look, look, look}},
+		{Calls: []Call{act, act, act}},
+		{Text: "done"},
+	}}
+	_, sent, err := Run(context.Background(), p, tools, nil, Limits{Calls: 2, Own: map[string]int{"act": 2}}, func(Event) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(tools.ran, ","); got != "look,look,act,act" {
+		t.Errorf("ran %s", got)
+	}
+	if !strings.Contains(sent[2].Error, "you can still call act") || !strings.Contains(sent[5].Error, "act was called 2 times") {
+		t.Errorf("sent %+v", sent)
+	}
+}
+
+// A call cut off at the length of an answer does not run and is not counted, and the history takes back whole arguments.
+func TestRunRefusesACutCall(t *testing.T) {
+	tools := &actTools{}
+	p := &Script{Replies: []Response{
+		{Calls: []Call{{ID: "a", Name: "act", Args: json.RawMessage(`{"items":[{"lab`)}}, Cut: true},
+		{Calls: []Call{{ID: "b", Name: "act", Args: json.RawMessage(`{}`)}}, Cut: true},
+		{Calls: []Call{{ID: "c", Name: "act", Args: json.RawMessage(`{}`)}}},
+		{Text: "done"},
+	}}
+	added, sent, err := Run(context.Background(), p, tools, nil, Limits{Own: map[string]int{"act": 1}, MaxTokens: 100}, func(Event) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tools.ran) != 1 || !strings.Contains(sent[0].Error, "cut off at the length limit of an answer (100 tokens)") || !strings.Contains(sent[1].Error, "cut off") || sent[2].Error != "" {
+		t.Errorf("ran %v, sent %+v", tools.ran, sent)
+	}
+	if string(added[0].Calls[0].Args) != "{}" {
+		t.Errorf("history keeps %s", added[0].Calls[0].Args)
+	}
+}
+
 func TestAnthropicRoundTrip(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-api-key") != "k" || r.URL.Path != "/v1/messages" {

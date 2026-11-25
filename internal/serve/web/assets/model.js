@@ -97,6 +97,8 @@ export function buildModel(graph, plans) {
   for (const e of g.edges || []) {
     const a = nodes.get(e.dependency), b = nodes.get(e.dependent);
     if (!a || !b || a === b) continue;
+    // a wire that the board offers is drawn, and is no dependency yet
+    if (e.offer) { edges.push({ a: a.addr, b: b.addr, offer: true }); continue; }
     a.used.push(b.addr);
     b.deps.push(a.addr);
     edges.push({ a: a.addr, b: b.addr });
@@ -169,7 +171,8 @@ export const clusterId = (modPath, n) => 'c:' + modPath + '|' + n.mode + '|' + n
 function groupsOf(ns) {
   const groups = new Map();
   for (const n of ns.nodes) {
-    const k = n.mode + '|' + n.type;
+    // a thing on the drawing board is never folded into a group of its siblings: it is being worked on
+    const k = n.draft ? 'draft|' + n.addr : n.mode + '|' + n.type;
     let a = groups.get(k);
     if (!a) groups.set(k, (a = []));
     a.push(n);
@@ -242,10 +245,10 @@ export function buildItems(model, collapsed, clusters) {
   for (const e of model.edges) {
     const a = rep.get(e.a), b = rep.get(e.b);
     if (!a || !b || a === b) continue;
-    const k = a + '>' + b;
+    const k = a + '>' + b + (e.offer ? '~' : '');
     const m = merged.get(k);
     if (m) m.n++;
-    else merged.set(k, { key: k, a, b, n: 1 });
+    else merged.set(k, e.offer ? { key: k, a, b, n: 1, offer: true } : { key: k, a, b, n: 1 });
   }
   return { root, items, order, rep, edges: [...merged.values()] };
 }

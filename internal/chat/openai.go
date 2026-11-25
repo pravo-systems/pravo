@@ -62,6 +62,7 @@ func (o *openai) Complete(ctx context.Context, r Request) (Response, error) {
 					} `json:"function"`
 				} `json:"tool_calls"`
 			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
 	}
 	hdr := map[string]string{}
@@ -75,6 +76,7 @@ func (o *openai) Complete(ctx context.Context, r Request) (Response, error) {
 	if len(out.Choices) > 0 {
 		m := out.Choices[0].Message
 		resp.Text = m.Content
+		resp.Cut = out.Choices[0].FinishReason == "length"
 		for _, c := range m.ToolCalls {
 			resp.Calls = append(resp.Calls, Call{ID: c.ID, Name: c.Function.Name, Args: json.RawMessage(c.Function.Arguments)})
 		}

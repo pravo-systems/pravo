@@ -16,6 +16,7 @@ export const FOOTER = 'This page replays the runs that the state recorded. It ru
 const LISTED = 40; // changes of a run listed before the button that shows the rest
 const PLAY_MS = [150, 900]; // the time of a step while it plays: the whole film takes about fourteen seconds, within these bounds
 const BAR_MAX = 38; // the tallest bar of the timeline, in pixels
+const TICK_COLOUR = { add: 'green', change: 'amber', replace: 'amber', remove: 'red', move: 'blue' }; // the colour of a mark under the timeline, as the caption names it
 
 // sizeFor is the class of a cell by how many there are: the glyph of an action shows at the full size only.
 const sizeFor = (n) => (n <= 400 ? '' : n <= 1500 ? ' tiny' : ' tiny micro');
@@ -224,6 +225,7 @@ export class TimeLapseView {
     e.bars = act.map((n, i) => h('i', { class: 'tl-bar', style: `height: ${Math.round(3 + (BAR_MAX - 3) * Math.sqrt(n / top))}px`, 'aria-hidden': 'true', title: `Run ${i + 1}: ${plural(n, 'resource')} written`, data: { i: String(i + 1) } }));
     e.ticks = m.steps.map(() => h('i', { class: 'tl-tick', 'aria-hidden': 'true' }));
     e.tickrow = h('div', { class: 'tl-ticks', 'aria-hidden': 'true' }, e.ticks);
+    e.tickcap = h('p', { class: 'tl-tickcap', hidden: true });
     e.strip = h('div', { class: 'tl-strip', role: 'slider', tabIndex: 0, 'aria-label': 'Run', 'aria-valuemin': '0', 'aria-valuemax': String(m.steps.length) }, e.bars);
     e.strip.addEventListener('pointerdown', (ev) => this.scrub(ev));
     e.strip.addEventListener('keydown', (ev) => this.key(ev));
@@ -243,7 +245,7 @@ export class TimeLapseView {
         h('div', { class: 'tl-deck-b' }, e.strip, e.tickrow),
         h('div', { class: 'tl-deck-f' },
           h('div', { class: 'tl-btns' }, e.back, e.play, e.next),
-          h('p', { class: 'tl-deck-k' }, 'One bar for each run, as tall as the resources it wrote. Green bars have happened, the bright one is on screen. Click or drag to pick a run.'))),
+          h('div', { class: 'tl-deck-k' }, h('p', null, 'One bar for each run, as tall as the resources it wrote. Green bars have happened, the bright one is on screen. Click or drag to pick a run.'), e.tickcap))),
       older,
       e.changes,
       e.runs);
@@ -307,8 +309,18 @@ export class TimeLapseView {
   drawTicks() {
     const e = this.els, m = this.model;
     const mine = new Map(((this.sel && m.touches.get(this.sel)) || []).map((t) => [t.step, t.action]));
-    e.ticks.forEach((t, k) => { const a = mine.get(k + 1); t.className = 'tl-tick' + (a ? ' on ' + CLASS[a] : ''); });
+    e.ticks.forEach((t, k) => {
+      const a = mine.get(k + 1);
+      t.className = 'tl-tick' + (a ? ' on ' + CLASS[a] : '');
+      if (a) t.title = `Run ${k + 1}: ${WORD[a]}`; else t.removeAttribute('title');
+    });
     e.tickrow.classList.toggle('on', mine.size > 0);
+    clear(e.tickcap);
+    e.tickcap.hidden = mine.size === 0;
+    if (!mine.size) return;
+    const seen = new Set(mine.values());
+    const key = ORDER.filter((a) => seen.has(a)).map((a) => `${TICK_COLOUR[a]} ${WORD[a]}`).join(', ');
+    e.tickcap.append('Marks under the bars: the runs that wrote ', h('code', null, this.sel), `. ${key[0].toUpperCase()}${key.slice(1)}.`);
   }
 
   // drawRel says what the outlines mean when a resource is picked: what it depends on and what depends on it, as the state records them now.

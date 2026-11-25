@@ -118,6 +118,9 @@ type Options struct {
 	Token string
 	// Chat turns the read-only chat on (README rule 12). Nil is off.
 	Chat *ChatOptions
+	// Board turns on the writes of the drawing board (README rule 14): saving the drawing as a new file, and planning.
+	// Nil leaves the board drawing and checking in memory, with the code to copy.
+	Board *BoardOptions
 	// Environments reads the promotion flow of a specification that declares $environments: what the
 	// state of each environment runs and how the release of the directory stands there. It
 	// opens the states without a key and writes nothing. Nil leaves the page without it.
@@ -141,6 +144,10 @@ type Server struct {
 	cookie  string
 	schemas *cacheStore
 	watch   *watcher
+
+	// boardMu orders the writes of the board, and boardPlanning is set while a plan of the board runs.
+	boardMu       sync.Mutex
+	boardPlanning atomic.Bool
 
 	// buildMu orders the builds of models, and guards spec, plan and failedAt.
 	buildMu     sync.Mutex
@@ -369,7 +376,11 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// The studio takes a plan file that a person drops on it, the chat a question, and the page the environment to read:
 	// the requests that are not a GET. None of them writes anything.
-	if r.Method == http.MethodPost && (r.URL.Path == "/api/studio/plan" || r.URL.Path == "/api/chat" || r.URL.Path == "/api/environment") {
+	// The board sends a drawing to check, and with --edit to save or to plan (rule 14), with --apply the ticket of a plan
+	// it made to apply, and with --edit a Terraform state to start from. A question to the chat may carry the drawing; the
+	// chat then can draw a proposal, which writes nothing.
+	if r.Method == http.MethodPost && (r.URL.Path == "/api/studio/plan" || r.URL.Path == "/api/chat" || r.URL.Path == "/api/environment" ||
+		r.URL.Path == "/api/board/check" || r.URL.Path == "/api/board/save" || r.URL.Path == "/api/board/plan" || r.URL.Path == "/api/board/apply" || r.URL.Path == "/api/board/start") {
 		s.api(w, r)
 		return
 	}
@@ -470,7 +481,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	case "/api/trace":
 		s.trace(w, r)
 		return
-	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/secrets", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan", "/api/templates", "/api/templates/try", "/api/templates/refs", "/api/templates/choices", "/api/templates/entities", "/api/environments", "/api/environment", "/api/timelapse":
+	case "/api/graph", "/api/detail", "/api/source", "/api/search", "/api/fields", "/api/plans", "/api/plan", "/api/access", "/api/discovery", "/api/adopt", "/api/policies", "/api/secrets", "/api/studio", "/api/studio/try", "/api/studio/doc", "/api/studio/plan", "/api/templates", "/api/templates/try", "/api/templates/refs", "/api/templates/choices", "/api/templates/entities", "/api/environments", "/api/environment", "/api/timelapse", "/api/board", "/api/board/types", "/api/board/type", "/api/board/edit", "/api/board/check", "/api/board/save", "/api/board/plan", "/api/board/apply", "/api/board/start":
 	default:
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -523,6 +534,8 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		s.templateChoicesHandler(w, r, m)
 	case "/api/templates/entities":
 		s.templateEntitiesHandler(w, r, m)
+	case "/api/board", "/api/board/types", "/api/board/type", "/api/board/edit", "/api/board/check", "/api/board/save", "/api/board/plan", "/api/board/apply", "/api/board/start":
+		s.boardRoute(w, r, m)
 	case "/api/adopt":
 		s.adopt(w, r, m)
 	case "/api/plan":

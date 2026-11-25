@@ -81,7 +81,8 @@ function declGlyph(x, y, part, words) {
 
 // what an item shows: when it changes the element is built again
 function itemSig(x, ctx) {
-  if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, pvClass(providerOf(x.n.type, x.n.provider)), ctx.hasPlan, x.look, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0].join('|');
+  if (x.kind === 'node') return [x.n.name, x.n.type, x.n.action, x.n.drifted, x.n.gone, x.n.locked, x.n.sensitive, x.n.presence, x.n.mode, pvClass(providerOf(x.n.type, x.n.provider)), ctx.hasPlan, x.look, (x.n.plans || []).join(','), x.n.overlap ? 1 : 0,
+    x.n.draft || x.n.boardEdit ? 'd' + x.n.incomplete + (x.n.adopts ? 'a' : '') + (x.n.proposed ? 'g' : '') + (x.n.boardEdit || '') + (x.n.foldInto || '') + (x.n.sockets || []).map((k) => k.name + (k.required ? '!' : '') + (k.wired ? '+' : '')).join(',') : '', x.n.boardAction || ''].join('|');
   if (x.kind === 'ctl') return [x.shown, x.total].join('|');
   const a = x.agg;
   const pi = plansIn(x, ctx);
@@ -107,6 +108,10 @@ export function nodeClasses(n, ctx) {
   if (isEnv(n)) c += ' m-env';
   if (isSecret(n)) c += ' m-secret';
   if (n.overlap) c += ' overlap';
+  if (n.draft) c += ' draft' + (n.incomplete ? ' incomplete' : '');
+  if (n.proposed) c += ' proposed';
+  if (n.boardEdit) c += ' bedit b-' + n.boardEdit + (n.incomplete ? ' incomplete' : '');
+  if (n.boardAction && !ctx.hasPlan) c += ' stamped';
   return c;
 }
 
@@ -134,13 +139,17 @@ export function plansIn(it, ctx) {
 
 export function describeNode(n, ctx) {
   const bits = [isOut(n) ? `${n.name}, output` : `${n.name}, ${n.type}`];
+  if (n.draft) bits.push(n.incomplete ? `drawn, ${n.incomplete} to fill` : 'drawn');
+  if (n.boardEdit === 'change' || n.boardEdit === 'remove') bits.push(n.boardEdit === 'remove' ? 'draft: delete' : 'draft: edit');
+  if (n.boardEdit === 'fold') bits.push(`draft: fold into ${n.foldInto || 'a template'}`);
+  if (n.boardAction && !(ctx && ctx.hasPlan)) bits.push('the plan of the board: ' + n.boardAction);
   if (n.action) bits.push(n.action === 'no-op' ? 'no change planned' : 'plan: ' + n.action);
   if ((n.plans || []).length) bits.push(`${n.overlap ? 'overlap: ' : ''}changed by ${authorsOf(n, ctx || {}).map((p) => `${p.id} of ${p.author}`).join(', ')}`);
   if (n.drifted) bits.push('drifted');
   if (n.gone) bits.push('gone');
   if (n.locked) bits.push('locked');
   if (n.sensitive) bits.push(isOut(n) ? 'sensitive, the value is withheld' : `${n.sensitive} sensitive values`);
-  if (n.presence === 'spec') bits.push('declared only');
+  if (n.presence === 'spec' && !n.draft) bits.push('declared only');
   if (n.presence === 'state') bits.push('orphan');
   return bits.join(', ');
 }
@@ -637,7 +646,7 @@ export class GraphView {
     if (n.drifted && !n.gone) marks.push('drift');
     if (n.gone) marks.push('gone');
     if (n.presence === 'state') marks.push('orphan');
-    if (n.presence === 'spec' && n.mode === 'managed') marks.push('decl');
+    if (n.presence === 'spec' && n.mode === 'managed' && !n.draft) marks.push('decl');
     const act = actionOf(n.action);
     const badge = !!(act && act.glyph);
     const pv = providerOf(n.type, n.provider);
@@ -670,10 +679,36 @@ export class GraphView {
     if (kind) inn.append(this.kindBadge(kind, H));
     // with a plan loaded the node says its action in a word, on the bottom edge, as well as in the glyph of its badge
     if (badge && this.ctx.hasPlan && n.action !== 'no-op' && W >= 190) inn.append(this.actionWord(act, W, H));
+    // the stamp of a plan of the drawing board: the action in a word, put down as the sweep passes the column of the node
+    const stamp = !this.ctx.hasPlan && actionOf(n.boardAction);
+    if (stamp && n.boardAction !== 'no-op') { const aw = this.actionWord(stamp, W, H); aw.classList.add('stamp'); inn.append(aw); }
+    if (n.draft || n.boardEdit) this.draftMarks(n, inn, W, H);
     const aus = this.authorBadges(authorsOf(n, this.ctx), W);
     if (aus) inn.append(aus);
     g.append(inn);
     return g;
+  }
+
+  // draftMarks are what a thing on the drawing board carries: the word draft on its top edge, and its sockets on its left
+  // edge, a square for each field that takes a wire: amber when it needs one and has none, filled when it is wired
+  draftMarks(n, inn, W, H) {
+    // a resource of the specification that the drawing has not changed yet carries its sockets and no word
+    const word = n.proposed ? (n.boardEdit === 'remove' ? 'proposal · delete' : n.boardEdit ? 'proposal · edit' : 'proposal') : n.boardEdit ? { change: 'draft · edit', remove: 'draft · delete', fold: 'fold · ' + (n.foldInto || 'template') }[n.boardEdit] : n.template ? 'draft · template' : n.adopts ? 'draft · adopts' : 'draft';
+    if (word) {
+      const w = 12 + word.length * 5.8;
+      // on the top edge at the left: the stamp of a plan hangs at the right of the bottom edge of the node above
+      const t = s('g', { class: 'dt', transform: 'translate(15 0)' });
+      t.append(s('rect', { class: 'dtr', x: 0, y: -7, width: w, height: 14, rx: 0 }), s('text', { class: 'dtt', x: w / 2, y: 3.4 }, word));
+      inn.append(t);
+    }
+    const socks = n.sockets || [];
+    const step = H / (socks.length + 1);
+    socks.forEach((k, i) => {
+      const y = step * (i + 1);
+      const g = s('g', { class: 'sock' + (k.required ? ' req' : '') + (k.wired ? ' on' : ''), 'data-sock': k.name, transform: `translate(0 ${y.toFixed(1)})`, role: 'button', 'aria-label': `${k.name}${k.wired ? ', wired' : k.required ? ', needs a wire' : ''}` });
+      g.append(s('rect', { class: 'sh', x: -9, y: -7, width: 18, height: 14 }), s('rect', { class: 'sk', x: -4, y: -4, width: 8, height: 8, rx: 0 }), s('title', null, k.name + (k.wired ? ' (wired)' : k.required ? ' needs a wire' : '')));
+      inn.append(g);
+    });
   }
 
   // actionWord hangs on the bottom edge at the right of a node that the loaded plan changes: the word of its action
@@ -884,7 +919,7 @@ export class GraphView {
   }
 
   createEdge(e) {
-    const path = s('path', { class: 'ge', 'data-key': e.key });
+    const path = s('path', { class: 'ge' + (e.offer ? ' offer' : ''), 'data-key': e.key });
     return { path, label: null, pts: null, e, hot: null };
   }
 
@@ -1062,6 +1097,14 @@ export class GraphView {
     this._tipHide = clearTip;
   }
 
+  // screenBox is where an item is drawn, in pixels of the canvas, or null when it is not laid out
+  screenBox(id) {
+    const p = this.lay && this.lay.pos.get(id);
+    if (!p) return null;
+    const { x, y, k } = this.view;
+    return { x: p.x * k + x, y: p.y * k + y, w: p.w * k, h: p.h * k };
+  }
+
   showTip(id) {
     let content, box;
     if (id.startsWith('lane:')) {
@@ -1107,7 +1150,8 @@ export class GraphView {
     else if (n.drifted) chips.push(h('span', { class: 'gchip drift' }, 'drifted'));
     if (n.locked) chips.push(h('span', { class: 'gchip hold' }, 'locked'));
     if (n.presence === 'state') chips.push(h('span', { class: 'gchip gone' }, 'orphan'));
-    if (n.presence === 'spec') chips.push(h('span', { class: 'gchip skip' }, isO ? 'not published yet' : 'declared only'));
+    if (n.draft) chips.push(h('span', { class: 'gchip skip' }, n.incomplete ? `drawn · ${n.incomplete} to fill` : 'drawn, not saved'));
+    else if (n.presence === 'spec') chips.push(h('span', { class: 'gchip skip' }, isO ? 'not published yet' : 'declared only'));
     if (n.overlap) chips.push(h('span', { class: 'gchip ovl' }, 'overlap'));
     if (chips.length) out.push(h('div', { class: 'gtip-row' }, chips));
     const authors = authorsOf(n, this.ctx);
@@ -1321,6 +1365,8 @@ export class GraphView {
     const pts = new Map();
     let down = null, pinch = null;
     el.addEventListener('wheel', (ev) => {
+      // a panel over the graph that scrolls (the list of the bar, the code) scrolls with the wheel
+      if (ev.target.closest && ev.target.closest('.bd-hits, .bd-code, .bd-start')) return;
       ev.preventDefault();
       if (this.camTween) { cancelAnimationFrame(this.camTween); this.camTween = null; }
       const r = el.getBoundingClientRect();
@@ -1416,6 +1462,12 @@ export class GraphView {
       const i = fx.dataset.facet.indexOf(':');
       this.cb.onFacet(fx.dataset.facet.slice(0, i), fx.dataset.facet.slice(i + 1), !!(ev && ev.shiftKey));
       return;
+    }
+    // a socket of a thing on the drawing board opens what it can be wired to
+    const sock = target.closest && target.closest('[data-sock]');
+    if (sock && this.cb.onSocket) {
+      const it = this.vis.items.get(sock.closest('[data-id]').dataset.id);
+      if (it && it.kind === 'node') { this.cb.onSocket(it.n.addr, sock.dataset.sock, ev); return; }
     }
     const act = target.closest && target.closest('[data-act]');
     const el = target.closest && target.closest('[data-id]');

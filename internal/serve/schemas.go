@@ -3,6 +3,7 @@ package serve
 import (
 	"encoding/json"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -41,6 +42,17 @@ func (p ProviderSchemas) Type(mode, typ string) *schema.Schema {
 
 // Provider implements Schemas.
 func (p ProviderSchemas) Provider() *schema.Schema { return p.PS.Provider }
+
+// TypesOf lists the types of a mode ("managed", "data" or "ephemeral"), sorted.
+func (p ProviderSchemas) TypesOf(mode string) []string {
+	switch mode {
+	case "data":
+		return p.PS.SortedDataSourceNames()
+	case "ephemeral":
+		return p.PS.SortedEphemeralNames()
+	}
+	return p.PS.SortedResourceNames()
+}
 
 // cacheStore reads the schema cache lazily. The cache of a large provider is
 // tens of megabytes of JSON, so a file is split into the schemas of its types
@@ -143,15 +155,20 @@ func (c *cacheStore) lookupPack(path string) (Schemas, bool) {
 	return p.schemas, true
 }
 
-// Type implements Schemas.
-func (f *cacheFile) Type(mode, typ string) *schema.Schema {
-	which := 0
+// cacheWhich is the index in cacheFile.types of the types of a mode.
+func cacheWhich(mode string) int {
 	switch mode {
 	case "data":
-		which = 1
+		return 1
 	case "ephemeral":
-		which = 2
+		return 2
 	}
+	return 0
+}
+
+// Type implements Schemas.
+func (f *cacheFile) Type(mode, typ string) *schema.Schema {
+	which := cacheWhich(mode)
 	key := mode + "/" + typ
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -170,6 +187,17 @@ func (f *cacheFile) Type(mode, typ string) *schema.Schema {
 	}
 	f.decoded[key] = s
 	return s
+}
+
+// TypesOf lists the types of a mode ("managed", "data" or "ephemeral"), sorted.
+func (f *cacheFile) TypesOf(mode string) []string {
+	which := cacheWhich(mode)
+	out := make([]string, 0, len(f.types[which]))
+	for t := range f.types[which] {
+		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // Provider implements Schemas.
