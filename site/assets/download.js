@@ -24,7 +24,7 @@
     if (!a) return;
     btn.href = a.url;
     btn.firstChild.nodeValue = "Download for " + OS[os] + " ";
-    note.textContent = "Version " + rel.version + ", " + ARCH[arch] + " (" + arch + "), " + mb(a.size) + ". Checksums are in SHA256SUMS on the release page.";
+    note.textContent = ARCH[arch] + " (" + arch + "), " + mb(a.size) + ". Checksums are in SHA256SUMS on the release page.";
     var line = os === "windows" ? "irm https://pravo.systems/install.ps1 | iex" : "curl -fsSL https://pravo.systems/install.sh | sh";
     cmd.textContent = line;
     box.querySelector(".copy").setAttribute("data-copy", line);
