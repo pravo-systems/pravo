@@ -64,8 +64,9 @@ func (e *Engine) checkWhole(ctx context.Context, plan *Plan, sc *applyScope) err
 		return nil
 	}
 	w := &wholeCheck{diffs: map[string]*savedDiff{}}
-	refresh := e.Opts.Refresh
-	e.Opts.Refresh = RefreshNone
+	// The check says nothing of its own: what it opens or reads is said by the apply.
+	refresh, progress, event := e.Opts.Refresh, e.Opts.Progress, e.Opts.Event
+	e.Opts.Refresh, e.Opts.Progress, e.Opts.Event = RefreshNone, func(string, ...any) {}, nil
 	leave := e.enterApply(plan, sc)
 	e.mu.Lock()
 	e.check = w
@@ -76,7 +77,7 @@ func (e *Engine) checkWhole(ctx context.Context, plan *Plan, sc *applyScope) err
 	e.check = nil
 	e.mu.Unlock()
 	leave()
-	e.Opts.Refresh = refresh
+	e.Opts.Refresh, e.Opts.Progress, e.Opts.Event = refresh, progress, event
 	switch {
 	case len(w.diffs) > 0:
 		done(nil)
