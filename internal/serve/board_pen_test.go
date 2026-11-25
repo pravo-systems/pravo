@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -157,7 +158,7 @@ func TestBoardChangesAResourceWhereItIsWritten(t *testing.T) {
 	if err != nil || string(got) != strings.Replace(fc.Text, `"••••••••"`, `"s3cret"`, 1) || saved.File != "" || len(saved.Changed) != 1 || saved.Changed[0] != "cache.cue" {
 		t.Fatalf("saved %+v: %v\n%s", saved, err, got)
 	}
-	if fi, _ := os.Stat(filepath.Join(p.dir, "cache.cue")); fi.Mode().Perm() != 0o640 {
+	if fi, _ := os.Stat(filepath.Join(p.dir, "cache.cue")); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o640 { // Windows keeps no Unix mode
 		t.Errorf("mode: %v", fi.Mode())
 	}
 	if _, err := os.Lstat(filepath.Join(p.dir, "board.cue")); err == nil {
