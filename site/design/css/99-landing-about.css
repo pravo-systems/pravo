@@ -1,0 +1,24 @@
+/* ==========================================================================
+   99 landing: the drawing of the about band.
+   ========================================================================== */
+
+/* about: a control room in ink, the empty screen and the chairs, fills the right of the band that has
+   little text. The picture is ink on transparent: the layer takes the ink of the theme, and its left
+   third is faded out in the file, so nothing runs under the text. It loads after the page has (the
+   script at the end of the band sets --m-about), wipes in when the band is reached, and is left out
+   where the text has no room beside it. */
+:root { --art: #1c2a4a; --art-a: .5; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --art: #9fb2d2; --art-a: .42; } }
+:root[data-theme="dark"] { --art: #9fb2d2; --art-a: .42; }
+.about-band { position: relative; overflow: clip; --cr: calc(max(0px, (100vw - 84rem) / 2) + 43rem); }
+.about-band > .wrap { position: relative; z-index: 1; }
+.about-band::after {
+  content: ""; position: absolute; z-index: 0; pointer-events: none; right: -2%; top: 50%; translate: 0 -50%;
+  width: min(calc((102vw - var(--cr) - 3rem) / .72), calc((100svh - 3.5rem) * 1.75), 80rem); aspect-ratio: 2000 / 1116;
+  background: var(--art); opacity: var(--art-a); mask: var(--m-about) 0 0 / 100% 100% no-repeat;
+  transition: clip-path 1.8s var(--ease); clip-path: inset(0);
+}
+html.js .about-band:not(.in)::after { clip-path: inset(0 100% 0 0); }
+@media (prefers-reduced-motion: reduce) { .about-band::after { transition: none !important; clip-path: none !important; } }
+@media (max-width: 67.99rem) { .about-band::after { display: none; } }
+@media print { .about-band::after { display: none; } }
