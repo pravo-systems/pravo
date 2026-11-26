@@ -192,6 +192,8 @@ The graph can live in an S3 bucket or in any store that speaks the S3 API. The l
 | `endpoint` | Service URL of an S3-compatible store. Implies path-style addressing. |
 | `path_style` | Forces path-style addressing: `host/bucket/key`. |
 | `profile` | A profile of the shared AWS configuration to open the bucket with, in place of `AWS_PROFILE`. With `$environments`, each environment can name its own, so that a run reads the state of another environment with that environment's credentials. |
+| `role_arn` | An IAM role to assume to open the bucket, as an ARN. The role is assumed with the credentials of the `profile` or of the AWS chain, and renewed before it expires. With `$environments`, each environment can name its own. |
+| `external_id`, `session_name` | The external ID that the trust policy of the role asks for, and the name of the role session, which shows in CloudTrail (default `pravo`). Both need `role_arn`. |
 | `snapshot` | `false` keeps pravo from reading the state through `snapshot.json`, an object that holds a copy of every resource, which makes opening a state with thousands of resources one read and a listing. Default: `true`. See [State format](state-format.md). |
 | `access_key`, `secret_key` | Static credentials, used when both are set. They are stored in the configuration. |
 

@@ -339,6 +339,8 @@ func TestStateBackendFields(t *testing.T) {
 		"unknown backend":      `$settings: state: {backend: "gcs", bucket: "b"}`,
 		"local path with s3":   `$settings: state: {backend: "s3", bucket: "b", path: "x"}`,
 		"s3 field without s3":  `$settings: state: {path: "s", profile: "p"}`,
+		"role without s3":      `$settings: state: {path: "s", role_arn: "arn:aws:iam::1:role/r"}`,
+		"external id no role":  `$settings: state: {backend: "s3", bucket: "b", external_id: "x"}`,
 		"http without a url":   `$settings: state: backend: "http"`,
 		"http field with s3":   `$settings: state: {backend: "s3", bucket: "b", url: "https://x"}`,
 		"s3 field with http":   `$settings: state: {backend: "http", url: "https://x", bucket: "b"}`,

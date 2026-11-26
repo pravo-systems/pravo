@@ -21,8 +21,10 @@ import (
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/logging"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
@@ -47,6 +49,9 @@ type S3Config struct {
 	// Profile selects a shared-configuration profile; credentials otherwise
 	// come from the usual chain (environment, shared files, instance role).
 	Profile string
+	// RoleARN is an IAM role to assume with the credentials found above, with
+	// the ExternalID and SessionName (default "pravo") of the assumption.
+	RoleARN, ExternalID, SessionName string
 	// AccessKey and SecretKey, when both set, are used directly.
 	AccessKey, SecretKey, SessionToken string
 }
@@ -263,6 +268,18 @@ func NewS3Backend(ctx context.Context, cfg S3Config) (*S3Backend, error) {
 	}
 	if ac.Region == "" {
 		ac.Region = "us-east-1"
+	}
+	if cfg.RoleARN != "" {
+		name := cfg.SessionName
+		if name == "" {
+			name = "pravo"
+		}
+		ac.Credentials = aws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(sts.NewFromConfig(ac), cfg.RoleARN, func(o *stscreds.AssumeRoleOptions) {
+			o.RoleSessionName = name
+			if cfg.ExternalID != "" {
+				o.ExternalID = aws.String(cfg.ExternalID)
+			}
+		}))
 	}
 	client := s3.NewFromConfig(ac, func(o *s3.Options) {
 		o.HTTPClient = tracedHTTP{ac.HTTPClient}

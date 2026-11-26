@@ -322,6 +322,9 @@ package pravo
 	path_style?: bool
 	snapshot?:   bool
 	profile?:    string
+	role_arn?:     string
+	external_id?:  string
+	session_name?: string
 	access_key?: string
 	secret_key?: string
 	url?:        string
@@ -358,6 +361,15 @@ package pravo
 	// with. With $environments, each environment can name its own, so that one
 	// run can read the state of another environment with its own credentials.
 	profile?: string
+	// An IAM role to assume to open the bucket, as an ARN. The role is assumed
+	// with the credentials that the profile or the AWS chain gives. With
+	// $environments, each environment can name its own.
+	role_arn?: string
+	// The external ID the role's trust policy asks for. Needs role_arn.
+	external_id?: string
+	// The name of the role session, which shows in CloudTrail. Needs role_arn.
+	// Default pravo.
+	session_name?: string
 	// Static credentials. Prefer the environment or a profile: these end up
 	// in the configuration.
 	access_key?: string

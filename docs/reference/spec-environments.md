@@ -73,10 +73,11 @@ pravo keeps no current environment. Each command evaluates the specification wit
 |---|---|
 | `state` | A state of its own: `path: "state/\($environment.$name)"` or `prefix: "app/\($environment.$name)"`. Two environments with one state are refused. |
 | `state.profile` | The AWS profile that the bucket of this environment is opened with. |
+| `state.role_arn` | The IAM role that the bucket of this environment is opened as. |
 | `state.token_env` | The environment variable that holds the token of an HTTP state server. |
 | `access.dir` | The directory of the readers file, so that a writer of staging is not a writer of prod. |
 
-The names of a profile and of a variable are settings; a credential is not. [Settings](spec-settings.md) describes each one.
+The names of a profile, of a role and of a variable are settings; a credential is not. [Settings](spec-settings.md) describes each one.
 
 A [`pravo.#RemoteOutputs`](spec-env.md#remote-outputs) reads the state of another root. Write `$environment.$name` into its location, and each environment reads the outputs of the same environment there: `state: path: "../network/state/\($environment.$name)"`.
 
