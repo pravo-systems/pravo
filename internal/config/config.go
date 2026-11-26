@@ -1083,6 +1083,26 @@ func tagWithin(v cue.Value, depth int) string {
 // parseState reads a state location, as it appears in $settings.state and in
 // a pravo.#RemoteOutputs: the s3 settings, or a local directory path. label
 // names it in errors.
+// checkS3Fields refuses the settings of the s3 backend with another backend.
+func checkS3Fields(sb cue.Value, st StateConfig, label string) error {
+	if st.Backend != "s3" {
+		for _, f := range []string{"bucket", "prefix", "region", "endpoint", "profile", "role_arn", "external_id", "session_name", "access_key", "secret_key", "path_style", "snapshot"} {
+			if sb.LookupPath(cue.ParsePath(f)).Exists() {
+				return fmt.Errorf("%s.%s belongs to the s3 backend: set backend: \"s3\", or remove it", label, f)
+			}
+		}
+	}
+	return nil
+}
+
+// checkRole refuses an external ID or a session name with no role to qualify.
+func checkRole(st StateConfig, label string) error {
+	if st.Backend == "s3" && st.RoleARN == "" && (st.ExternalID != "" || st.SessionName != "") {
+		return fmt.Errorf("%s.external_id and %s.session_name qualify role_arn: set role_arn, or remove them", label, label)
+	}
+	return nil
+}
+
 func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 	var st StateConfig
 	var path string
@@ -1146,12 +1166,8 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 		// A bucket can only mean the s3 backend.
 		st.Backend = "s3"
 	}
-	if st.Backend != "s3" {
-		for _, f := range []string{"bucket", "prefix", "region", "endpoint", "profile", "role_arn", "external_id", "session_name", "access_key", "secret_key", "path_style", "snapshot"} {
-			if sb.LookupPath(cue.ParsePath(f)).Exists() {
-				return st, "", fmt.Errorf("%s.%s belongs to the s3 backend: set backend: \"s3\", or remove it", label, f)
-			}
-		}
+	if err := checkS3Fields(sb, st, label); err != nil {
+		return st, "", err
 	}
 	if st.Backend != "http" {
 		for _, f := range []string{"url", "token", "username", "password", "token_env"} {
@@ -1163,8 +1179,8 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 	if st.Remote() && sb.LookupPath(cue.ParsePath("path")).Exists() {
 		return st, "", fmt.Errorf("%s.path belongs to the local backend: remove it, or remove backend: %q", label, st.Backend)
 	}
-	if st.Backend == "s3" && st.RoleARN == "" && (st.ExternalID != "" || st.SessionName != "") {
-		return st, "", fmt.Errorf("%s.external_id and %s.session_name qualify role_arn: set role_arn, or remove them", label, label)
+	if err := checkRole(st, label); err != nil {
+		return st, "", err
 	}
 	if st.Backend == "s3" && st.Bucket == "" {
 		return st, "", fmt.Errorf("%s.bucket is required when backend is s3", label)
