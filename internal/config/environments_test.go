@@ -274,3 +274,22 @@ out: "\($environment.$name)-\($environment.workers)"
 		t.Fatalf("a row of the wrong type: %v", err)
 	}
 }
+
+// Each environment can name the role its bucket is opened as.
+func TestEnvironmentStateRole(t *testing.T) {
+	dir := writeFiles(t, map[string]string{"main.cue": `package app
+
+$environments: {
+	staging: {$default: true, role: "arn:aws:iam::1:role/stg"}
+	prod:    {$after: "staging", role: "arn:aws:iam::2:role/prd"}
+}
+$settings: state: {backend: "s3", bucket: "acme-state", prefix: "app/\($environment.$name)", role_arn: $environment.role, external_id: "x", session_name: "pravo-ci"}
+`})
+	r, err := Load(dir, LoadOptions{Tags: []string{"env=prod"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.State.RoleARN != "arn:aws:iam::2:role/prd" || r.State.ExternalID != "x" || r.State.SessionName != "pravo-ci" {
+		t.Errorf("%+v", r.State)
+	}
+}

@@ -440,7 +440,7 @@ The state graph lives in a backend. A backend stores objects by key, reads them,
 | Backend | `$settings.state` | Location |
 |---|---|---|
 | local | `path: "state/prod"` | A directory, relative to the root. The default is `pravo.state`. A path that names a file is an error. |
-| s3 | `backend: "s3"`, `bucket`, and optionally `prefix`, `region`, `endpoint`, `path_style`, `profile`, `access_key`, `secret_key` | Objects in a bucket that must exist, below an optional prefix. |
+| s3 | `backend: "s3"`, `bucket`, and optionally `prefix`, `region`, `endpoint`, `path_style`, `profile`, `role_arn`, `external_id`, `session_name`, `access_key`, `secret_key` | Objects in a bucket that must exist, below an optional prefix. |
 
 ```cue title="main.cue"
 $settings: pravo.#Settings & {state: pravo.#S3State & {
