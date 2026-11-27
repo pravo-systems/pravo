@@ -10,7 +10,7 @@ List the providers a root resolves, print a provider's schema, pin archive hashe
 |---|---|
 | Synopsis | `pravo providers [--json] [-t key=value] [-T]` |
 | | `pravo providers schema LOCAL_NAME [-t key=value] [-T]` |
-| | `pravo providers lock [--platforms os_arch,...] [-t key=value] [-T]` |
+| | `pravo providers lock [--platforms os_arch,...] [--binaries] [-t key=value] [-T]` |
 | | `pravo providers copy SOURCE VERSION oci://HOST/PATH/TYPE [--platforms os_arch,...]` |
 | | `pravo providers mirror oci://HOST/PATH` |
 | Changes infrastructure | No. |
@@ -116,6 +116,8 @@ To read one type, use [`pravo schema`](schema.md).
 ### pravo providers lock
 
 `init` pins the archive hash of the platform it runs on. A CI runner of another platform then installs a provider whose hash is not in the lock file. `lock` adds the hashes for the other platforms from the checksums that the provider source states. It downloads nothing. A hash that is already pinned and differs is an error.
+
+`init` also pins the digest of the provider executable that it unpacked, the `binary:<os>_<arch>` line, for its own platform only, so the first `init` on another kind of machine changes the lock file. `--binaries` writes those lines for the other platforms too. The digest cannot be read from the listing, so for each platform that has no line `lock` downloads the archive, checks it against the hash pinned for that platform, reads the executable out of it and deletes the archive. A provider is a few hundred megabytes for each platform. A line that is there is left as it is.
 
 ```sh
 pravo providers lock

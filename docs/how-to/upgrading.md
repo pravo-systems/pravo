@@ -139,7 +139,7 @@ An empty plan shows that the upgrade changed nothing in the real world. A plan w
 
 ## 5. Pin every platform
 
-A provider archive differs per platform, so the lock file keeps one hash per `<os>_<arch>`. `pravo init` records the hash for the platform it installs for. A Linux runner then has no hash to check against. `pravo providers lock` adds the others from what the source states. It downloads nothing.
+A provider archive differs per platform, so the lock file keeps one hash per `<os>_<arch>`. `pravo init` records the hash for the platform it installs for. A Linux runner then has no hash to check against. `pravo providers lock` adds the others from what the source states. It downloads nothing. To also pin the digest of each platform's executable, so that the first `pravo init` on a Mac does not change the lock file, pass `--binaries`; that downloads one archive for each other platform.
 
 ```sh run
 pravo providers lock

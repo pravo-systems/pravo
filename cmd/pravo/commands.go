@@ -1105,14 +1105,22 @@ func providersSchemaCmd(rt *runContext) *cobra.Command {
 // providersLockCmd is "pravo providers lock".
 func providersLockCmd(rt *runContext) *cobra.Command {
 	var lockPlats string
+	var binaries bool
 	lk := &cobra.Command{
 		Use:   "lock",
 		Short: "Pin the archive hashes of the locked providers for more platforms",
 		Long: `Record in pravo.lock.cue the sha256 of each locked provider's archive for
 other platforms, so that a machine of another kind (a Linux CI runner when you
 work on a Mac) installs the same bytes and rejects any others. The hashes are
-the ones the provider's source states; nothing is downloaded. A hash that is
-already pinned and differs is an error.
+the ones the provider's source states; nothing is downloaded for them. A hash
+that is already pinned and differs is an error.
+
+With --binaries it also pins the digest of the provider's executable for each
+platform (the "binary:" lines, which "pravo init" writes only for the platform it
+runs on), so that the first init on another kind of machine does not change the
+lock file. For that it downloads the archive of each platform that has no such
+line yet, checks it against the hash pinned for it, reads the executable out of
+it, and deletes the archive. Without --binaries nothing is downloaded.
 
 Platforms default to linux and darwin on amd64 and arm64.`,
 		Args: noArgs,
@@ -1147,14 +1155,39 @@ Platforms default to linux and darwin on amd64 and arm64.`,
 					e.Hashes[p.String()] = sum
 				}
 			}
+			pinned := 0
+			if binaries {
+				for _, rp := range s.providers.Resolved {
+					e, ok := s.lock.Providers[rp.Req.Source.String()]
+					if !ok || rp.Req.Path != "" || rp.Reattached() {
+						continue
+					}
+					for _, p := range list {
+						key := engine.BinaryHashKey(p.String())
+						if _, ok := e.Hashes[key]; ok {
+							continue
+						}
+						d, err := s.reg.BinaryDigest(cmd.Context(), rp.Req.Source, e.Version, p, e.Hashes[p.String()], func(m string) { rt.out.Println(m) })
+						if err != nil {
+							return err
+						}
+						e.Hashes[key] = d
+						pinned++
+					}
+				}
+			}
 			if err := pravo.WriteLock(s.lock, s.root.Dir); err != nil {
 				return err
 			}
 			rt.out.Printf("Pinned %d platforms in %s\n", len(list), engine.LockFileName)
+			if pinned > 0 {
+				rt.out.Printf("Pinned %s of the provider executables\n", plural(pinned, "digest", "digests"))
+			}
 			return nil
 		},
 	}
 	addTagFlags(rt, lk)
+	lk.Flags().BoolVar(&binaries, "binaries", false, "also pin the digest of each platform's executable (the binary: lines): downloads the archive of each platform that has none")
 	lk.Flags().StringVar(&lockPlats, "platforms", "", "comma-separated os_arch list (default linux_amd64,linux_arm64,darwin_arm64,darwin_amd64)")
 	return lk
 }

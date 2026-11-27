@@ -756,6 +756,78 @@ func (c *Client) Install(ctx context.Context, src Source, ver string, progress f
 	return nil, fmt.Errorf("installing %s %s into %s: %w", src.Display(), ver, dir, last)
 }
 
+// BinaryDigest is the "sha256:<hex>" of the provider executable inside the archive of one
+// version for plat, the digest an install on that platform would record for the unpacked
+// file. It downloads the archive, which is checked against the source and against pinned
+// (the "sha256:<hex>" the lock file holds for the archive, or "" for none), reads the
+// executable out of it without unpacking the rest, and removes the archive.
+func (c *Client) BinaryDigest(ctx context.Context, src Source, ver string, plat Platform, pinned string, progress func(string)) (string, error) {
+	parent := filepath.Dir(c.ProviderDir(src, ver))
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		return "", err
+	}
+	sweepStale(parent)
+	stage, err := os.MkdirTemp(parent, ".install-*")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(stage)
+	archive, sum, _, err := c.archive(ctx, src, ver, plat, stage, progress)
+	if err != nil {
+		return "", err
+	}
+	if pinned != "" && "sha256:"+sum != pinned {
+		return "", fmt.Errorf("%s v%s for %s: the archive is sha256:%s, but the lock file pins %s", src.Display(), ver, plat, sum, clean(pinned))
+	}
+	d, err := archiveBinaryDigest(archive, src.Type)
+	if err != nil {
+		return "", fmt.Errorf("%s v%s for %s: %w", src.Display(), ver, plat, err)
+	}
+	return d, nil
+}
+
+// archiveBinaryDigest hashes the provider executable in the zip archive: the first file at
+// the top, by name, that is called terraform-provider-TYPE...; the one that FindBinary
+// finds in the unpacked directory.
+func archiveBinaryDigest(archive, typ string) (string, error) {
+	r, err := zip.OpenReader(archive)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+	if len(r.File) > maxZipEntries {
+		return "", fmt.Errorf("the archive has %d entries; a provider package has at most %d", len(r.File), maxZipEntries)
+	}
+	prefix := "terraform-provider-" + typ
+	var found *zip.File
+	for _, f := range r.File {
+		name := f.Name
+		if strings.Contains(name, "/") || !strings.HasPrefix(name, prefix) || strings.HasSuffix(name, ".zip") || !f.Mode().IsRegular() {
+			continue
+		}
+		if found == nil || name < found.Name {
+			found = f
+		}
+	}
+	if found == nil {
+		return "", fmt.Errorf("the archive did not contain a %s executable", prefix)
+	}
+	rc, err := found.Open()
+	if err != nil {
+		return "", err
+	}
+	defer rc.Close()
+	h := sha256.New()
+	n, err := io.Copy(h, io.LimitReader(rc, maxUnzippedFile+1))
+	if err != nil {
+		return "", err
+	}
+	if n > maxUnzippedFile {
+		return "", fmt.Errorf("%q unpacks to more than %d MB", clean(found.Name), maxUnzippedFile>>20)
+	}
+	return "sha256:" + hex.EncodeToString(h.Sum(nil)), nil
+}
+
 // Checksum returns the sha256 of the archive of one provider version for plat,
 // as the source states it, without downloading the archive.
 func (c *Client) Checksum(ctx context.Context, src Source, ver string, plat Platform) (string, error) {
