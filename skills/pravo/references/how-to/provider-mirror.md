@@ -43,6 +43,7 @@ Output:
 
 ```text
 Pinned 4 platforms in pravo.lock.cue
+Pinned 3 digests of the provider executables
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed. [txn <txn>]
 ```
 

@@ -139,7 +139,7 @@ An empty plan shows that the upgrade changed nothing in the real world. A plan w
 
 ## 5. Pin every platform
 
-A provider archive differs per platform, so the lock file keeps one hash per `<os>_<arch>`. `pravo init` records the hash for the platform it installs for. A Linux runner then has no hash to check against. `pravo providers lock` adds the others from what the source states. It downloads nothing.
+A provider archive differs per platform, so the lock file keeps one hash per `<os>_<arch>`. `pravo init` records the hash for the platform it installs for. A Linux runner then has no hash to check against. `pravo providers lock` adds the others from what the source states. It also downloads the archive of each other platform once, to pin the digest of its executable, so that the first `pravo init` on a Mac does not change the lock file; `--no-binaries` skips that.
 
 ```sh run
 pravo providers lock
@@ -148,15 +148,19 @@ sed -n '/^providers/,/^}/p' pravo.lock.cue
 
 ```text out
 Pinned 4 platforms in pravo.lock.cue
+Pinned 3 digests of the provider executables
 providers: "registry.opentofu.org/hashicorp/random": {
 	version:     "3.7.2"
 	constraints: ">= 3.6, <= 3.7.2"
 	hashes: {
-		"binary:linux_amd64": "sha256:add7d1c31d626d9769ba1773e5188657b8642579159696f6fcd2afc1262ba668"
-		"darwin_amd64":       "sha256:d5b5fc881ccc41b268f952dae303501d6ec9f9d24ee11fe2fa56eed7478e15d0"
-		"darwin_arm64":       "sha256:c71f18b0cb5d55a103ea81e346fb56db15b144459123f1be1b0209cffc1deb4e"
-		"linux_amd64":        "sha256:9b0ac4c1d8e36a86b59ced94fa517ae9b015b1d044b3455465cc6f0eab70915d"
-		"linux_arm64":        "sha256:519319ed8f4312ed76519652ad6cd9f98bc75cf4ec7990a5684c072cf5dd0a5d"
+		"binary:darwin_amd64": "sha256:9477b7df2916b183686a4a8b6e1be96e78f4ec0a48427d922cf000b3a0002c64"
+		"binary:darwin_arm64": "sha256:b9521ac4cbad3ab294b03b74f46a669df72b85df45bef920ef933c0d7dd572a7"
+		"binary:linux_amd64":  "sha256:add7d1c31d626d9769ba1773e5188657b8642579159696f6fcd2afc1262ba668"
+		"binary:linux_arm64":  "sha256:232200045ec9534a751fd20977572a1caf05d1cc07f7fcdbd5603e7f98534b57"
+		"darwin_amd64":        "sha256:d5b5fc881ccc41b268f952dae303501d6ec9f9d24ee11fe2fa56eed7478e15d0"
+		"darwin_arm64":        "sha256:c71f18b0cb5d55a103ea81e346fb56db15b144459123f1be1b0209cffc1deb4e"
+		"linux_amd64":         "sha256:9b0ac4c1d8e36a86b59ced94fa517ae9b015b1d044b3455465cc6f0eab70915d"
+		"linux_arm64":         "sha256:519319ed8f4312ed76519652ad6cd9f98bc75cf4ec7990a5684c072cf5dd0a5d"
 	}
 }
 ```

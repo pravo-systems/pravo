@@ -121,3 +121,30 @@ func TestConcurrentInstallsAllSucceed(t *testing.T) {
 		}
 	}
 }
+
+// BinaryDigest is the digest of the executable that an install would unpack, and it refuses an
+// archive that is not the one the lock file pins.
+func TestBinaryDigestHashesTheExecutableAndChecksThePin(t *testing.T) {
+	z := providerZip(t, "the executable")
+	cl, src := installServer(t, z)
+	archive := sha256.Sum256(z)
+	pin := "sha256:" + hex.EncodeToString(archive[:])
+	exe := sha256.Sum256([]byte("the executable"))
+	want := "sha256:" + hex.EncodeToString(exe[:])
+	plat := CurrentPlatform()
+
+	got, err := cl.BinaryDigest(context.Background(), src, "1.0.0", plat, pin, nil)
+	if err != nil || got != want {
+		t.Fatalf("BinaryDigest = %q, %v; want %q", got, err, want)
+	}
+	if got, err = cl.BinaryDigest(context.Background(), src, "1.0.0", plat, "", nil); err != nil || got != want {
+		t.Errorf("without a pin: %q, %v", got, err)
+	}
+	if _, err = cl.BinaryDigest(context.Background(), src, "1.0.0", plat, "sha256:"+strings.Repeat("0", 64), nil); err == nil || !strings.Contains(err.Error(), "pins") {
+		t.Errorf("a wrong pin: %v", err)
+	}
+	// Nothing is left behind.
+	if ents, _ := os.ReadDir(filepath.Dir(cl.ProviderDir(src, "1.0.0"))); len(ents) > 0 {
+		t.Errorf("left behind: %v", ents)
+	}
+}

@@ -424,7 +424,7 @@ The key is the registry address of the provider, host included. A provider archi
 
 A later `pravo init` installs exactly the locked versions. When it downloads an archive and the lock pins a hash for the platform, the archive must match it. A mismatch is an error and leaves nothing installed. A platform with no hash gets the hash of what was downloaded. `pravo init -upgrade` ignores the lock and chooses the newest versions that satisfy the constraints.
 
-`pravo providers lock` pins the hashes of other platforms, such as the Linux runners of a CI system when you work on a Mac. The hashes come from the registry's listing. Nothing is downloaded.
+`pravo providers lock` pins the hashes of other platforms, such as the Linux runners of a CI system when you work on a Mac. The hashes come from the registry's listing, and nothing is downloaded for them. It also pins the digest of the provider executable for each platform, the `binary:` lines that `pravo init` writes only for its own platform, so that the first `init` on another kind of machine leaves the lock file as it is. For those it downloads the archive of each platform, checks it against the pinned hash and keeps nothing; `--no-binaries` skips them.
 
 `pravo providers` lists the providers of the root with their versions and where their binaries are.
 
