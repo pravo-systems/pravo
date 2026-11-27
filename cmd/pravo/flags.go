@@ -9,7 +9,10 @@ import "github.com/pravo-systems/pravo/internal/ui"
 type rootFlags struct {
 	Dir     string // -C: run as if started in this directory
 	NoColor bool
-	Verbose int
+	// Progress is --progress: auto, live or plain. It says whether an apply is drawn
+	// as a live view or printed as lines.
+	Progress string
+	Verbose  int
 	// Tags and SysTags select the tags of the specification (-t, -T).
 	Tags    []string
 	SysTags bool

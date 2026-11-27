@@ -184,10 +184,8 @@ func (s *session) engine(rt *runContext, opts engine.Options) *engine.Engine {
 	if opts.Memo == nil {
 		opts.Memo = planMemo(environment(), s.root)
 	}
-	if rt.flags.JSON && streamEvents && opts.Event == nil {
-		// Only commands that change things stream events; plan-like
-		// commands print a single document.
-		opts.Event = func(ev engine.Event) { emitLine(ev) }
+	if streamEvents && opts.Event == nil {
+		showEvents(rt, &opts)
 	}
 	return s.ws.Engine(opts)
 }

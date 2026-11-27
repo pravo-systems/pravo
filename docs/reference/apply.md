@@ -140,6 +140,12 @@ The plan comes first, as for `pravo plan`. The progress lines carry the address.
 
 Any answer but `yes` cancels. Nothing changes.
 
+### The live view
+
+On a terminal, `apply` and `destroy` do not print the `Creating...` and `Creation complete` lines. They draw one row for each resource when its change ends, with what was done, how long it took and the end of its id. Below the rows, a block that is redrawn in place lists the changes in flight with a spinner and their time, and a bar counts the resources done against the resources the plan changes. A change that fails gets a row marked `✗`, and the error follows when the apply ends. The view never prints an attribute of a resource.
+
+The view is for a person at a terminal. Pipes, files, CI, `TERM=dumb`, `-v`, `--json` and `--markdown` get the lines above, and so does a Windows console that does not read escape sequences. `--progress=live` or `--progress=plain`, or `PRAVO_PROGRESS`, chooses instead of `auto`.
+
 ### Change the specification
 
 Narrow `base` and add `solo`. The plan replaces `base` and `port`, and creates `solo`.

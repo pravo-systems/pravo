@@ -845,11 +845,9 @@ func applyStored(rt *runContext, cmd *cobra.Command, ref, refresh string, full b
 		Tune: func(o *engine.Options) {
 			s.readersInto(rt, o)
 			o.AllowCreate = allowCreate
+			showEvents(rt, o)
 		},
 		Selected: func(id string, selected, left int) { reportSelected(rt, id, selected, left) },
-	}
-	if rt.flags.JSON {
-		o.Event = func(ev engine.Event) { emitLine(ev) }
 	}
 	res, err := s.ws.ApplyStored(ctx, ref, o)
 	if webhook != "" && (err != nil || res != nil && !res.NothingLeft) {

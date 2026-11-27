@@ -12,7 +12,7 @@ internal/config/discover.go Root.register 148
 internal/config/providers.go Root.resolveProviders 136
 internal/config/providers.go ScanProviders 104
 internal/convert/fromtf.go fillValue 105
-internal/engine/apply.go Engine.applyRun 103
+internal/engine/apply.go Engine.applyRun 102
 internal/engine/engine.go Engine.planRun 102
 internal/engine/graph.go Engine.run 106
 internal/engine/orphans.go inReverse 120

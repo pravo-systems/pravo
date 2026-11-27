@@ -53,7 +53,7 @@ func Wanted(get func(string) string) bool {
 		}
 	}
 	switch strings.ToLower(get("PRAVO_PROGRESS")) {
-	case "off", "false", "0", "no", "none":
+	case "off", "false", "0", "no", "none", "plain":
 		return false
 	}
 	return true

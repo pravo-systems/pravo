@@ -774,6 +774,9 @@ func (e *Engine) runTaskInner(ctx context.Context, r *config.Resource, apply boo
 	}
 	if apply {
 		final, err = e.applyTask(ctx, r, v)
+		if err != nil {
+			e.failed(r.Address(), err)
+		}
 	} else {
 		final, err = e.planTask(ctx, r, v)
 	}

@@ -237,6 +237,7 @@ func (e *Engine) destroyOrphans(ctx context.Context, plan *Plan) (int, error) {
 		e.step("destroy", ch.Addr, "start", idOf(ch, ch.Prior), time.Time{}, "%s: Destroying... %s", ch.Addr, idSuffix(ch, ch.Prior))
 		nullV := tftypes.NewValue(ch.Schema.Block.Type(), nil)
 		if _, err := e.applyChange(ctx, prov, ch, ch.Prior, nullV, nullV, ch.PriorPrivate); err != nil {
+			e.failed(ch.Addr, err)
 			return err
 		}
 		before := 0

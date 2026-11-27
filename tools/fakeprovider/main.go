@@ -28,7 +28,8 @@
 // The objects that exist are kept in the directory that FAKEPROVIDER_DIR names, in
 // catalog.json, a list of {"id", "name", "region"} and, for a bucket, "type":
 // "demo_bucket". Applying a demo_server adds an object to it. The file "fail", when it exists, makes a list fail with its
-// contents, and every list adds a line to "calls". Without the variable the
+// contents, and every list adds a line to "calls". FAKEPROVIDER_APPLY_MS makes an apply
+// take time, and FAKEPROVIDER_FAIL, a list of names, makes their applies fail. Without the variable the
 // provider keeps its objects in memory, for as long as it runs.
 package main
 
@@ -40,8 +41,10 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6/tf6server"
@@ -323,6 +326,9 @@ func (p *provider) ApplyResourceChange(_ context.Context, req *tfprotov6.ApplyRe
 	}
 	var name string
 	_ = m[nameAttr(req.TypeName)].As(&name)
+	if err := slow(name); err != nil {
+		return &tfprotov6.ApplyResourceChangeResponse{NewState: req.PriorState, Diagnostics: []*tfprotov6.Diagnostic{{Severity: tfprotov6.DiagnosticSeverityError, Summary: "The cloud refused the request", Detail: err.Error()}}}, nil
+	}
 	if !m["id"].IsKnown() || m["id"].IsNull() {
 		m["id"] = tftypes.NewValue(tftypes.String, "srv-"+name)
 	}
@@ -471,4 +477,30 @@ func (p *provider) ListResource(_ context.Context, req *tfprotov6.ListResourceRe
 			}
 		}
 	}}, nil
+}
+
+// slow makes an apply take time and, for a name that FAKEPROVIDER_FAIL lists, fail: for
+// trying how a run looks while it works. FAKEPROVIDER_APPLY_MS is the time of the
+// quickest apply in milliseconds; the others take up to ten times as long, by name, so
+// that the same names are slow on every run.
+func slow(name string) error {
+	for _, f := range strings.Split(os.Getenv("FAKEPROVIDER_FAIL"), ",") {
+		if f != "" && f == name {
+			time.Sleep(time.Second)
+			return fmt.Errorf("the quota for %s is used up", name)
+		}
+	}
+	ms, _ := strconv.Atoi(os.Getenv("FAKEPROVIDER_APPLY_MS"))
+	if ms <= 0 {
+		return nil
+	}
+	h := 0
+	for _, r := range name {
+		h = h*31 + int(r)
+	}
+	if h < 0 {
+		h = -h
+	}
+	time.Sleep(time.Duration(ms*(1+h%10)) * time.Millisecond)
+	return nil
 }
