@@ -340,6 +340,8 @@ func TestStateBackendFields(t *testing.T) {
 		"local path with s3":   `$settings: state: {backend: "s3", bucket: "b", path: "x"}`,
 		"s3 field without s3":  `$settings: state: {path: "s", profile: "p"}`,
 		"role without s3":      `$settings: state: {path: "s", role_arn: "arn:aws:iam::1:role/r"}`,
+		"account without s3":   `$settings: state: {path: "s", account: "111111111111"}`,
+		"account malformed":    `$settings: state: {backend: "s3", bucket: "b", account: "12"}`,
 		"external id no role":  `$settings: state: {backend: "s3", bucket: "b", external_id: "x"}`,
 		"http without a url":   `$settings: state: backend: "http"`,
 		"http field with s3":   `$settings: state: {backend: "s3", bucket: "b", url: "https://x"}`,

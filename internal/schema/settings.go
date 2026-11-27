@@ -325,6 +325,7 @@ package pravo
 	role_arn?:     string
 	external_id?:  string
 	session_name?: string
+	account?:      string
 	access_key?: string
 	secret_key?: string
 	url?:        string
@@ -370,6 +371,10 @@ package pravo
 	// The name of the role session, which shows in CloudTrail. Needs role_arn.
 	// Default pravo.
 	session_name?: string
+	// The AWS account, as a 12-digit ID, that the credentials must belong to.
+	// Before the state is opened, sts:GetCallerIdentity is called, and a
+	// different account, or a failed call, refuses.
+	account?: =~"^[0-9]{12}$"
 	// Static credentials. Prefer the environment or a profile: these end up
 	// in the configuration.
 	access_key?: string

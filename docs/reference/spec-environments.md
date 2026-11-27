@@ -74,6 +74,7 @@ pravo keeps no current environment. Each command evaluates the specification wit
 | `state` | A state of its own: `path: "state/\($environment.$name)"` or `prefix: "app/\($environment.$name)"`. Two environments with one state are refused. |
 | `state.profile` | The AWS profile that the bucket of this environment is opened with. |
 | `state.role_arn` | The IAM role that the bucket of this environment is opened as. |
+| `state.account` | The AWS account that the credentials of this environment must belong to. |
 | `state.token_env` | The environment variable that holds the token of an HTTP state server. |
 | `access.dir` | The directory of the readers file, so that a writer of staging is not a writer of prod. |
 
