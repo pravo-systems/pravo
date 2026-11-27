@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/filelock"
@@ -23,15 +24,30 @@ import (
 // holds whole: it is split into shares, and any K of N rebuild it. Its public key
 // and the threshold are in .pravo/access/recovery.txt, committed next to the
 // readers file, so that writers can tell a state whose recovery was taken out of
-// the bucket. The shares are written once, to recovery-shares/, and are not
-// committed.
+// the bucket. The shares are written once, to recovery-shares/ or the directory
+// that --shares-dir names, and are not committed.
 
 // recoveryFileName is the name of the file in the access directory.
 const recoveryFileName = "recovery.txt"
 
-// recoverySharesDir is the directory the shares are written to, relative to the
-// working directory.
+// recoverySharesDir is the directory the shares are written to when --shares-dir
+// is not given, relative to the working directory.
 const recoverySharesDir = "recovery-shares"
+
+const sharesDirUsage = "directory the recovery shares are written to (default recovery-shares)"
+
+// sharesDir is the directory the shares of this run go to.
+func sharesDir(rt *runContext) string {
+	if rt.flags.SharesDir != "" {
+		return rt.flags.SharesDir
+	}
+	return recoverySharesDir
+}
+
+// addSharesDirFlag adds --shares-dir to a command that can write shares.
+func addSharesDirFlag(rt *runContext, f *pflag.FlagSet) {
+	f.StringVar(&rt.flags.SharesDir, "shares-dir", "", sharesDirUsage)
+}
 
 // maxRecoveryFileSize is the most that is read of a recovery file or a share file.
 const maxRecoveryFileSize = 4 << 10
@@ -166,10 +182,11 @@ func shareName(s protect.Share) string {
 	return fmt.Sprintf("share-%d-of-%d.txt", s.Index, s.N)
 }
 
-// sharesDirFree is nil when recovery-shares/ holds no share.
-func sharesDirFree() error {
-	if old, _ := filepath.Glob(filepath.Join(recoverySharesDir, "share-*-of-*.txt")); len(old) > 0 {
-		return fmt.Errorf("%s already holds shares (%s). Move them away first: two sets of shares must not be mixed. Shares that you are using now belong elsewhere.", recoverySharesDir, filepath.Base(old[0]))
+// sharesDirFree is nil when the shares directory holds no share.
+func sharesDirFree(rt *runContext) error {
+	dir := sharesDir(rt)
+	if old, _ := filepath.Glob(filepath.Join(dir, "share-*-of-*.txt")); len(old) > 0 {
+		return fmt.Errorf("%s already holds shares (%s). Move them away first, or name another directory with --shares-dir: two sets of shares must not be mixed. Shares that you are using now belong elsewhere.", dir, filepath.Base(old[0]))
 	}
 	return nil
 }
@@ -179,18 +196,19 @@ func fileMissing(p string) bool {
 	return errors.Is(err, os.ErrNotExist)
 }
 
-// writeShares writes the share files to recovery-shares/, with mode 0600, and
+// writeShares writes the share files to the shares directory, with mode 0600, and
 // returns a function that removes what it wrote. It refuses to go on when the
 // directory already holds a share, so that two sets are never mixed.
-func writeShares(shares []protect.Share) (remove func(), err error) {
-	if err := sharesDirFree(); err != nil {
+func writeShares(rt *runContext, shares []protect.Share) (remove func(), err error) {
+	if err := sharesDirFree(rt); err != nil {
 		return nil, err
 	}
-	if err := protect.EnsurePrivateDir(recoverySharesDir); err != nil {
+	dir := sharesDir(rt)
+	if err := protect.EnsurePrivateDir(dir); err != nil {
 		return nil, err
 	}
 	// A repository that holds the directory must not commit it by git add -A.
-	if p := filepath.Join(recoverySharesDir, ".gitignore"); fileMissing(p) {
+	if p := filepath.Join(dir, ".gitignore"); fileMissing(p) {
 		_ = protect.WritePrivateFile(p, []byte("*\n"), false)
 	}
 	var written []string
@@ -200,7 +218,7 @@ func writeShares(shares []protect.Share) (remove func(), err error) {
 		}
 	}
 	for _, s := range shares {
-		p := filepath.Join(recoverySharesDir, shareName(s))
+		p := filepath.Join(dir, shareName(s))
 		if err := protect.WritePrivateFile(p, s.File(), false); err != nil {
 			remove()
 			return nil, err
@@ -255,7 +273,7 @@ func (p *protectRun) afterFailure(rt *runContext, rec *protect.Recovery, removeS
 	case ok && !stored.Equal(rec):
 		removeShares()
 	case ok:
-		note := fmt.Sprintf("The recovery is already in the state, so its shares stay in %s. Do not delete them.", recoverySharesDir)
+		note := fmt.Sprintf("The recovery is already in the state, so its shares stay in %s. Do not delete them.", sharesDir(rt))
 		if err := writeRecoveryFile(rcf, rec); err != nil {
 			note += fmt.Sprintf(" %s could not be written: write this line to it:\n%s", rcf.shown(), rec.Line())
 		} else {
@@ -263,17 +281,17 @@ func (p *protectRun) afterFailure(rt *runContext, rec *protect.Recovery, removeS
 		}
 		rt.out.Println(rt.out.C(ui.Yellow, note))
 	default:
-		rt.out.Println(rt.out.C(ui.Yellow, fmt.Sprintf("Could not tell whether the recovery was set, so the shares stay in %s. Run pravo protect status, and delete them only if the state has no recovery.", recoverySharesDir)))
+		rt.out.Println(rt.out.C(ui.Yellow, fmt.Sprintf("Could not tell whether the recovery was set, so the shares stay in %s. Run pravo protect status, and delete them only if the state has no recovery.", sharesDir(rt))))
 	}
 }
 
 // recoveryJSON is what --json says of a change of the recovery.
-func recoveryJSON(action string, rec *protect.Recovery, rcf recoveryFile, shares bool) map[string]any {
+func recoveryJSON(rt *runContext, action string, rec *protect.Recovery, rcf recoveryFile, shares bool) map[string]any {
 	m := map[string]any{"action": action}
 	if rec != nil {
 		m["k"], m["n"], m["key"], m["file"] = rec.K, rec.N, rec.Key.String(), rcf.Path
 		if shares {
-			m["shares"] = recoverySharesDir
+			m["shares"] = sharesDir(rt)
 		}
 	}
 	return m
@@ -283,7 +301,11 @@ func recoveryJSON(action string, rec *protect.Recovery, rcf recoveryFile, shares
 func printShares(rt *runContext, rec *protect.Recovery, shares []protect.Share, rcf recoveryFile) {
 	rt.out.Println()
 	rt.out.Printf("Recovery: %d shares written (any %d rebuild the recovery key):\n", rec.N, rec.K)
-	rt.out.Printf("  ./%s/%s  …  %s\n", recoverySharesDir, shareName(shares[0]), shareName(shares[len(shares)-1]))
+	dir := sharesDir(rt)
+	if !filepath.IsAbs(dir) {
+		dir = "./" + dir
+	}
+	rt.out.Printf("  %s/%s  …  %s\n", strings.TrimSuffix(dir, "/"), shareName(shares[0]), shareName(shares[len(shares)-1]))
 	rt.out.Println("Do not commit them. Give each to a different person, offline. They are written once.")
 	rt.out.Println("Commit the recovery recipient with the readers file:")
 	rt.out.Printf("  %s\n", rcf.shown())
@@ -328,6 +350,7 @@ when the readers file is missing or invalid.`,
 	f.StringVar(&newSpec, "recovery", "", "also make a new recovery key, as K/N, and replace this one")
 	f.BoolVar(&all, "all", false, "seal every record, the outputs and the stored plans again under the new key")
 	f.BoolVar(&yes, "yes", false, "do not ask for confirmation")
+	addSharesDirFlag(rt, f)
 	return cmd
 }
 
@@ -372,7 +395,7 @@ func (p *protectRun) recover(rt *runContext, files []string, newSpec string, all
 	defer rr.id.Close()
 	if rr.newRec != nil {
 		// Before the prompt: the shares in use are often in the very directory the new ones go to.
-		if err := sharesDirFree(); err != nil {
+		if err := sharesDirFree(rt); err != nil {
 			return err
 		}
 	}
@@ -520,7 +543,7 @@ func (rr *recoverRun) rewrap(rt *runContext, all bool) (res pravo.RewrapResult, 
 	p, newRec := rr.p, rr.newRec
 	var removeShares func()
 	if newRec != nil {
-		if removeShares, err = writeShares(rr.newShares); err != nil {
+		if removeShares, err = writeShares(rt, rr.newShares); err != nil {
 			return res, rcf, began, err
 		}
 	}
@@ -564,7 +587,7 @@ func (rr *recoverRun) report(rt *runContext, res pravo.RewrapResult, rcf recover
 			j["roles"] = map[string]any{"version": 1, "pin": rolesInfo.Pin, "admin": rolesInfo.Admin}
 		}
 		if newRec != nil {
-			j["recovery"] = recoveryJSON("replaced", newRec, rcf, true)
+			j["recovery"] = recoveryJSON(rt, "replaced", newRec, rcf, true)
 		}
 		return emitJSON(j)
 	}

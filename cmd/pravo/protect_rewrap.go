@@ -63,6 +63,7 @@ It needs an identity that is a reader of the state, and the readers file.
 	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask before a recovery is replaced or removed")
 	cmd.Flags().StringArrayVar(&readd, "readd", nil, "NAME of a former key that the readers file lists again, and that you mean to add back")
 	cmd.Flags().BoolVar(&allowNoAdmin, "allow-no-admin", false, "allow a change that leaves no admin among the readers")
+	addSharesDirFlag(rt, cmd.Flags())
 	return cmd
 }
 
@@ -169,7 +170,7 @@ func (p *protectRun) rewrap(rt *runContext, all bool, recoverySpec string, remov
 	}
 	var removeShares func()
 	if pl.newRec != nil {
-		if removeShares, err = writeShares(pl.shares); err != nil {
+		if removeShares, err = writeShares(rt, pl.shares); err != nil {
 			return err
 		}
 	}
@@ -282,7 +283,7 @@ func settleRecoveryFiles(rt *runContext, pl *rewrapPlan) (note func(), j map[str
 		if err := writeRecoveryFile(rcf, pl.newRec); err != nil {
 			return nil, nil, fmt.Errorf("the new recovery is in the state, but %s could not be written: %w. Write this line to it:\n%s", rcf.shown(), err, pl.newRec.Line())
 		}
-		j = recoveryJSON("set", pl.newRec, rcf, true)
+		j = recoveryJSON(rt, "set", pl.newRec, rcf, true)
 		if pl.replacing {
 			j["action"] = "replaced"
 		}
@@ -293,7 +294,7 @@ func settleRecoveryFiles(rt *runContext, pl *rewrapPlan) (note func(), j map[str
 			}
 		}
 	case pl.fromFile:
-		j = recoveryJSON("from_file", pl.setRec, rcf, false)
+		j = recoveryJSON(rt, "from_file", pl.setRec, rcf, false)
 		note = func() {
 			rt.out.Printf("Recovery recipient set from %s: key %s, any %d of %d shares rebuild its key.\n", rcf.shown(), pl.setRec.Key.Short(), pl.setRec.K, pl.setRec.N)
 		}
@@ -301,7 +302,7 @@ func settleRecoveryFiles(rt *runContext, pl *rewrapPlan) (note func(), j map[str
 		if err := os.Remove(rcf.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, nil, err
 		}
-		j = recoveryJSON("removed", nil, rcf, false)
+		j = recoveryJSON(rt, "removed", nil, rcf, false)
 		note = func() {
 			if pl.removing {
 				rt.out.Printf("Recovery removed. Commit the deletion of %s, and destroy the shares.\n", rcf.shown())

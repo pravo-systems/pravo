@@ -86,6 +86,7 @@ The format is the layout, and it only goes up. Whether the state is sealed is a 
 | `--allow-running` | `protect roles` | Store roles that demote or remove a key whose apply is still running. Without it the command stops with exit code 4. What the running transaction writes afterwards stays refused; see [A key that is applying](roles.md). |
 | `--yes` | `protect init`, `protect recover`, `protect rewrap`, `protect roles`, `protect unseal` | Do not ask for confirmation. `rewrap` asks only before it replaces or removes a recovery recipient, since that makes the shares that were given out worth nothing. |
 | `--recovery K/N` | `protect init`, `protect rewrap`, `protect recover` | Set a recovery recipient, or replace it: a new key is split into N shares, any K of which rebuild it. `2/3` to `20/20`; K is at least 2. |
+| `--shares-dir DIR` | `protect init`, `protect rewrap`, `protect recover` | The directory the recovery shares are written to, in place of `recovery-shares/`. It is made when it is missing, with mode 0700; one that exists is left as it is. A directory that already holds shares is refused. |
 | `--remove-recovery` | `protect rewrap` | Take the recovery recipient out of the state, and delete the recovery file. |
 | `--share FILE` | `protect recover`, `protect unseal` | A share file. Give it once for each share. For `unseal` the shares open the state in place of an identity. |
 | `--remove-files` | `protect unseal` | Also delete the readers file and the recovery file of the repository, which tell writers to expect a sealed state. |
@@ -175,7 +176,7 @@ A recovery recipient is one more reader of a sealed state whose key nobody holds
 
 | Where | What |
 |---|---|
-| `recovery-shares/share-I-of-N.txt` | One share each, with mode 0600, in the directory where the command ran. They are written once. Give each to a different person, offline, and do not commit them. A directory that already holds shares is refused, so that two sets are not mixed, and it gets a `.gitignore` that ignores everything in it. |
+| `recovery-shares/share-I-of-N.txt` | One share each, with mode 0600, in `recovery-shares/` in the directory where the command ran, or in the directory that `--shares-dir` names. They are written once. Give each to a different person, offline, and do not commit them. A directory that already holds shares is refused, so that two sets are not mixed (name another with `--shares-dir`), and it gets a `.gitignore` that ignores everything in it. |
 | `.pravo/access/recovery.txt` | The public key and the threshold, `x25519:BASE64URL K/N`, with comments and blank lines allowed. Commit it. It sits in the access directory next to the readers file. |
 | `meta.json` | The key and the threshold under `sealed.recovery`, and a lock named `recovery` in every group. The readers file may not use the name `recovery`. |
 
