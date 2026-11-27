@@ -136,7 +136,7 @@ One task each, for a reader who knows the basics.
 
 | File | Covers | Size |
 |---|---|---|
-| [how-to/upgrading.md](how-to/upgrading.md) | Replace the pravo binary, move a provider to a newer version through the lock file, pin the archives of every platform and review the plan that follows. | 10 KB |
+| [how-to/upgrading.md](how-to/upgrading.md) | Replace the pravo binary, move a provider to a newer version through the lock file, pin the archives of every platform and review the plan that follows. | 9 KB |
 
 ### Observe
 
@@ -188,7 +188,7 @@ One task each, for a reader who knows the basics.
 | [how-to/share-code-between-roots.md](how-to/share-code-between-roots.md) | Keep shared definitions in one repository, run one root per environment and see how a change to shared code reaches every root. | 9 KB |
 | [how-to/publishing-a-module.md](how-to/publishing-a-module.md) | Put shared definitions in a CUE module of their own, try them from an example, and publish a version to a registry that other repositories fetch. | 9 KB |
 | [how-to/using-a-module.md](how-to/using-a-module.md) | Add a published CUE module to a root, lock it, read an upgrade before you take it and know what happens in CI and offline. | 9 KB |
-| [how-to/providers-from-a-registry.md](how-to/providers-from-a-registry.md) | Copy a provider into a container registry, install it from there and move a root that has resources to the copy without touching them. | 9 KB |
+| [how-to/providers-from-a-registry.md](how-to/providers-from-a-registry.md) | Copy a provider into a container registry, install it from there and move a root that has resources to the copy without touching them. | 8 KB |
 | [how-to/provider-mirror.md](how-to/provider-mirror.md) | Fill a container registry with the providers a lock file pins, and read their archives from there while nothing else about the providers changes. | 8 KB |
 
 ## Learn

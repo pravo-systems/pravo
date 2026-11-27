@@ -1105,7 +1105,7 @@ func providersSchemaCmd(rt *runContext) *cobra.Command {
 // providersLockCmd is "pravo providers lock".
 func providersLockCmd(rt *runContext) *cobra.Command {
 	var lockPlats string
-	var noBinaries bool
+	var binaries bool
 	lk := &cobra.Command{
 		Use:   "lock",
 		Short: "Pin the archive hashes of the locked providers for more platforms",
@@ -1115,12 +1115,12 @@ work on a Mac) installs the same bytes and rejects any others. The hashes are
 the ones the provider's source states; nothing is downloaded for them. A hash
 that is already pinned and differs is an error.
 
-It also pins the digest of the provider's executable for each platform (the
-"binary:" lines, which "pravo init" writes only for the platform it runs on), so
-that the first init on another kind of machine does not change the lock file.
-For that it downloads the archive of each platform that has no such line yet,
-checks it against the hash pinned for it, reads the executable out of it, and
-deletes the archive. --no-binaries skips this and downloads nothing.
+With --binaries it also pins the digest of the provider's executable for each
+platform (the "binary:" lines, which "pravo init" writes only for the platform it
+runs on), so that the first init on another kind of machine does not change the
+lock file. For that it downloads the archive of each platform that has no such
+line yet, checks it against the hash pinned for it, reads the executable out of
+it, and deletes the archive. Without --binaries nothing is downloaded.
 
 Platforms default to linux and darwin on amd64 and arm64.`,
 		Args: noArgs,
@@ -1155,8 +1155,8 @@ Platforms default to linux and darwin on amd64 and arm64.`,
 					e.Hashes[p.String()] = sum
 				}
 			}
-			binaries := 0
-			if !noBinaries {
+			pinned := 0
+			if binaries {
 				for _, rp := range s.providers.Resolved {
 					e, ok := s.lock.Providers[rp.Req.Source.String()]
 					if !ok || rp.Req.Path != "" || rp.Reattached() {
@@ -1172,7 +1172,7 @@ Platforms default to linux and darwin on amd64 and arm64.`,
 							return err
 						}
 						e.Hashes[key] = d
-						binaries++
+						pinned++
 					}
 				}
 			}
@@ -1180,14 +1180,14 @@ Platforms default to linux and darwin on amd64 and arm64.`,
 				return err
 			}
 			rt.out.Printf("Pinned %d platforms in %s\n", len(list), engine.LockFileName)
-			if binaries > 0 {
-				rt.out.Printf("Pinned %s of the provider executables\n", plural(binaries, "digest", "digests"))
+			if pinned > 0 {
+				rt.out.Printf("Pinned %s of the provider executables\n", plural(pinned, "digest", "digests"))
 			}
 			return nil
 		},
 	}
 	addTagFlags(rt, lk)
-	lk.Flags().BoolVar(&noBinaries, "no-binaries", false, "pin the archive hashes only: download nothing, and write no binary: lines")
+	lk.Flags().BoolVar(&binaries, "binaries", false, "also pin the digest of each platform's executable (the binary: lines): downloads the archive of each platform that has none")
 	lk.Flags().StringVar(&lockPlats, "platforms", "", "comma-separated os_arch list (default linux_amd64,linux_arm64,darwin_arm64,darwin_amd64)")
 	return lk
 }

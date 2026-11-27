@@ -18,7 +18,7 @@ normalize:
 |---|---|
 | Synopsis | `pravo providers [--json] [-t key=value] [-T]` |
 | | `pravo providers schema LOCAL_NAME [-t key=value] [-T]` |
-| | `pravo providers lock [--platforms os_arch,...] [--no-binaries] [-t key=value] [-T]` |
+| | `pravo providers lock [--platforms os_arch,...] [--binaries] [-t key=value] [-T]` |
 | | `pravo providers copy SOURCE VERSION oci://HOST/PATH/TYPE [--platforms os_arch,...]` |
 | | `pravo providers mirror oci://HOST/PATH` |
 | Changes infrastructure | No. |
@@ -115,9 +115,9 @@ To read one type, use [`pravo schema`](schema.md).
 
 ### pravo providers lock
 
-`init` pins the archive hash of the platform it runs on, and the digest of the provider executable that it unpacked (the `binary:<os>_<arch>` line). A CI runner of another platform then installs a provider whose hash is not in the lock file, and the first `init` on another kind of machine would change the lock file. `lock` adds the archive hashes for the other platforms from the checksums that the provider source states, and nothing is downloaded for them. A hash that is already pinned and differs is an error.
+`init` pins the archive hash of the platform it runs on. A CI runner of another platform then installs a provider whose hash is not in the lock file. `lock` adds the hashes for the other platforms from the checksums that the provider source states. It downloads nothing. A hash that is already pinned and differs is an error.
 
-For the `binary:` lines, `lock` downloads the archive of each platform that has none, checks it against the hash pinned for that platform, reads the executable out of it and deletes the archive. A provider is a few hundred megabytes for each platform. A line that is there is left as it is. `--no-binaries` pins the archive hashes only, and downloads nothing.
+`init` also pins the digest of the provider executable that it unpacked, the `binary:<os>_<arch>` line, for its own platform only, so the first `init` on another kind of machine changes the lock file. `--binaries` writes those lines for the other platforms too. The digest cannot be read from the listing, so for each platform that has no line `lock` downloads the archive, checks it against the hash pinned for that platform, reads the executable out of it and deletes the archive. A provider is a few hundred megabytes for each platform. A line that is there is left as it is.
 
 ```sh run
 pravo providers lock
@@ -126,7 +126,6 @@ grep -o '"[a-z]*_[a-z0-9]*"' pravo.lock.cue | sort -u
 
 ```text out
 Pinned 4 platforms in pravo.lock.cue
-Pinned 6 digests of the provider executables
 "darwin_amd64"
 "darwin_arm64"
 "linux_amd64"

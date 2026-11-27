@@ -189,19 +189,15 @@ sed -n '/^providers: "oci/,/^}/p' pravo.lock.cue
 
 ```text out
 Pinned 4 platforms in pravo.lock.cue
-Pinned 3 digests of the provider executables
 providers: "oci://localhost:5001/acme/providers/random": {
 	version:     "3.9.1"
 	constraints: "~> 3.6"
 	hashes: {
-		"binary:darwin_amd64": "sha256:8fd3ba8c7849f0ca407aeb9da8895e615d58c0987565dd2e99fb7310409c6478"
-		"binary:darwin_arm64": "sha256:1a397ad0610467d51eeb7c6f571e00bb3ce258efb1f429d2f3e1a3e892738c19"
-		"binary:linux_amd64":  "sha256:d8de21d2fc126adcd0bb9582755700809698594f7c9d9417aafb61996c82372d"
-		"binary:linux_arm64":  "sha256:3dcb72e97b17e36d0451ab40d061d4642959da7e57d72e07d834e0eda0f491e3"
-		"darwin_amd64":        "sha256:aaa51d905b0e80a28e02f9bee2cf6c91ffade7389d77ab9198aa12809ed04955"
-		"darwin_arm64":        "sha256:a2259540854d5f699c36b89244fb202ebb2c219b64669a51072687d04fb47152"
-		"linux_amd64":         "sha256:624fb6ed552abc34a5aaac41e76a373da65ac08e524b09b672f29c60e6ac896a"
-		"linux_arm64":         "sha256:09aaf19b0d22726d2378e0e89fbbefc183494d7bd585759d6c4e69ba50951a2f"
+		"binary:linux_amd64": "sha256:d8de21d2fc126adcd0bb9582755700809698594f7c9d9417aafb61996c82372d"
+		"darwin_amd64":       "sha256:aaa51d905b0e80a28e02f9bee2cf6c91ffade7389d77ab9198aa12809ed04955"
+		"darwin_arm64":       "sha256:a2259540854d5f699c36b89244fb202ebb2c219b64669a51072687d04fb47152"
+		"linux_amd64":        "sha256:624fb6ed552abc34a5aaac41e76a373da65ac08e524b09b672f29c60e6ac896a"
+		"linux_arm64":        "sha256:09aaf19b0d22726d2378e0e89fbbefc183494d7bd585759d6c4e69ba50951a2f"
 	}
 }
 ```

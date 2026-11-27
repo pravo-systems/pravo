@@ -72,17 +72,17 @@ func TestProvidersLockPinsTheExecutablesOfEveryPlatform(t *testing.T) {
 		return strings.Join(strings.Fields(string(b)), " ") // the columns are padded
 	}
 
-	// --no-binaries pins the archives and nothing else.
-	if out, code := runPravo(t, rt, dir, "providers", "lock", "--no-binaries", "--platforms", strings.Join(plats, ",")); code != 0 {
-		t.Fatalf("providers lock --no-binaries: exit %d\n%s", code, out)
+	// Without --binaries the archives are pinned and nothing else.
+	if out, code := runPravo(t, rt, dir, "providers", "lock", "--platforms", strings.Join(plats, ",")); code != 0 {
+		t.Fatalf("providers lock: exit %d\n%s", code, out)
 	}
 	// An init writes the line of the platform it runs on, and that stays as it was.
 	for _, p := range plats {
 		if p != runtime.GOOS+"_"+runtime.GOARCH && strings.Contains(lockText(), `"binary:`+p+`"`) {
-			t.Errorf("--no-binaries wrote the binary line of %s:\n%s", p, lockText())
+			t.Errorf("providers lock without --binaries wrote the binary line of %s:\n%s", p, lockText())
 		}
 	}
-	out, code := runPravo(t, rt, dir, "providers", "lock", "--platforms", strings.Join(plats, ","))
+	out, code := runPravo(t, rt, dir, "providers", "lock", "--binaries", "--platforms", strings.Join(plats, ","))
 	if code != 0 {
 		t.Fatalf("providers lock: exit %d\n%s", code, out)
 	}
@@ -102,9 +102,9 @@ func TestProvidersLockPinsTheExecutablesOfEveryPlatform(t *testing.T) {
 			}
 		}
 	}
-	// A second run finds the lines and downloads nothing: the text does not change.
+	// A second run with --binaries finds the lines and downloads nothing: the text does not change.
 	before := lockText()
-	if out, code := runPravo(t, rt, dir, "providers", "lock", "--platforms", strings.Join(plats, ",")); code != 0 || strings.Contains(out, "digests of the provider executables") {
+	if out, code := runPravo(t, rt, dir, "providers", "lock", "--binaries", "--platforms", strings.Join(plats, ",")); code != 0 || strings.Contains(out, "digests of the provider executables") {
 		t.Errorf("second run: exit %d\n%s", code, out)
 	}
 	if lockText() != before {
