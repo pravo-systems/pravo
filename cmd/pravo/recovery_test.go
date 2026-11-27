@@ -147,8 +147,16 @@ func TestProtectInitWithARecovery(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
-		if !strings.Contains(text, `"shares": "`+filepath.ToSlash(other)) && !strings.Contains(text, other) {
-			t.Errorf("the JSON does not name %s:\n%s", other, text)
+		var out struct {
+			Recovery struct {
+				Shares string `json:"shares"`
+			} `json:"recovery"`
+		}
+		if err := json.Unmarshal([]byte(text), &out); err != nil {
+			t.Fatalf("not JSON: %v\n%s", err, text)
+		}
+		if filepath.Clean(out.Recovery.Shares) != filepath.Clean(other) {
+			t.Errorf("the JSON names %q, not %s:\n%s", out.Recovery.Shares, other, text)
 		}
 		for i := 1; i <= 3; i++ {
 			if _, err := os.Stat(filepath.Join(other, "share-"+string(rune('0'+i))+"-of-3.txt")); err != nil {
