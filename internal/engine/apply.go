@@ -152,6 +152,7 @@ func (e *Engine) applyTask(ctx context.Context, r *config.Resource, v cue.Value)
 			return tftypes.Value{}, err
 		}
 	case ActionReplace:
+		e.emit(Event{Kind: "replace", Addr: ch.Addr, Phase: "start", ID: idOf(ch, ch.Prior), View: true})
 		replace := e.replaceInPlace
 		if ch.CreateBeforeDestroy {
 			replace = e.replaceCreateFirst
@@ -614,8 +615,7 @@ func (e *Engine) applyRun(ctx context.Context, plan *Plan) (*ApplyResult, error)
 	if err := e.startApply(plan, locked); err != nil {
 		return fail(err)
 	}
-	e.held = held
-	defer func() { e.held = nil }()
+	defer e.holding(held, plan)()
 	defer e.register(ctx, held)()
 	if !e.Opts.Destroy {
 		if err := e.commitImports(plan); err != nil {
@@ -1504,5 +1504,32 @@ func (e *Engine) inheritCBD(ch *Change) {
 			ch.CreateBeforeDestroy = true
 			return
 		}
+	}
+}
+
+// changing counts the resources an apply of the plan creates, updates, replaces or
+// destroys: what a view of the apply counts its progress against.
+func (p *Plan) changing() int {
+	n := 0
+	for _, ch := range p.Changes {
+		if ch.Mode != "managed" || !ch.writes() {
+			continue
+		}
+		switch ch.Action {
+		case ActionCreate, ActionUpdate, ActionReplace, ActionDelete:
+			n++
+		}
+	}
+	return n
+}
+
+// holding notes the locks of the apply and tells a view that it has started. The
+// function it returns is the end of both.
+func (e *Engine) holding(held *heldLocks, plan *Plan) func() {
+	e.held = held
+	e.emit(Event{Kind: "apply", Phase: "start", Total: plan.changing(), View: true})
+	return func() {
+		e.held = nil
+		e.emit(Event{Kind: "apply", Phase: "end", View: true})
 	}
 }

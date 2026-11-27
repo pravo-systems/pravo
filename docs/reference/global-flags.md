@@ -26,6 +26,7 @@ These flags belong to the command `pravo` and every subcommand accepts them.
 |---|---|---|
 | `-C`, `--chdir DIR` | none | Run as if started in `DIR`. Relative paths in other flags, such as `--out`, are relative to `DIR`. |
 | `--no-color` | off | Do not colour the output. Colour is used only on a terminal. |
+| `--progress MODE` | `$PRAVO_PROGRESS`, else `auto` | How `apply` and `destroy` show their work. `auto` draws a live view on a terminal and prints lines elsewhere, `live` draws it always and `plain` prints lines always. See [The live view](apply.md#the-live-view). |
 | `-v` | off | Log what pravo decides and does to stderr. See [The debug log](#the-debug-log). |
 | `-vv` | off | Finer detail, and the log of the providers. |
 | `--json` | off | Machine-readable output on stdout, progress on stderr. See [JSON](#json). |
@@ -157,8 +158,9 @@ Error: open missing.plan: no such file or directory
 |---|---|
 | `time` | When the event happened, in UTC. |
 | `kind` | `refresh`, `read`, `open`, `call`, `create`, `update`, `replace`, `destroy`, `lock`, `note`, `plan` or `apply`. |
-| `phase` | `start`, `done`, `skip` or `error`. |
+| `phase` | `start`, `done`, `skip`, `error` or `end`. |
 | `addr`, `message`, `id`, `elapsed_ms`, `trace_id` | The address of the resource, the line a person reads, the provider id, the duration in milliseconds, and the trace id (each if set). |
+| `total` | On the event of kind `apply` and phase `start`, how many resources the apply creates, updates, replaces or destroys. |
 | `txn` | The transaction. |
 
 The event of kind `plan` carries the plan document. The last event, of kind `apply`, has `added`, `changed`, `destroyed`, `policies`, `outputs`, `planfile` and `remaining`, and `deferred` when the plan [deferred changes to the next plan](../concepts/plans.md#changes-deferred-to-the-next-plan); the plan of those changes that the apply makes afterwards follows, with the events of its apply. `policies` lists the policy versions the apply wrote, each with `name`, `seq` and `change` (`new`, `changed` or `removed`), and is an empty list when it wrote none. An apply of a plan stored in the state has `plan`, the id, in place of `planfile`. [`pravo apply`](apply.md#json) shows events.
@@ -257,6 +259,7 @@ Copying a recording, or keeping it in version control, does not keep the modes. 
 | `GOGC` | The setting of Go's garbage collector. When it is unset, pravo runs with 400: the collector runs less often, and a command takes less time and more memory. `GOGC=100` is the default of Go. |
 | `PRAVO_NO_PRUNE` | When set, the generated provider packages are loaded whole. A run loads them without the types that the specification does not use. See [Providers](../concepts/providers.md#the-generated-package). |
 | `PRAVO_S3_PROBE` | `off` skips the check that an S3 store honours conditional requests. See [S3-compatible stores](s3-stores.md). |
+| `PRAVO_PROGRESS` | The value of `--progress` when the flag is absent. `off` and `none` mean `plain`. |
 | `PRAVO_ACTOR`, `PRAVO_REASON` | The values of `--actor` and `--reason` when the flags are absent. |
 | `PRAVO_ACCESS_DIR` | The directory of the readers file of a sealed state, in place of `.pravo/access`. The flag `--access-dir` of [`pravo protect`](protect.md) wins. |
 | `PRAVO_IDENTITY` | The identity that opens a sealed state: the contents of an identity file, when the value starts with `{`, or the path of one. It is read once and removed from the environment, and providers never receive it. For a CI job, see [`pravo id new --ci`](id.md#id-new). |

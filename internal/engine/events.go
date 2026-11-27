@@ -16,8 +16,12 @@ type Event struct {
 	Message string    `json:"message,omitempty"`
 	ID      string    `json:"id,omitempty"` // provider id of the resource, when known
 	Elapsed int64     `json:"elapsed_ms,omitempty"`
-	Txn     string    `json:"txn,omitempty"`
-	TraceID string    `json:"trace_id,omitempty"`
+	Total   int       `json:"total,omitempty"` // on the start of an apply: how many resources it changes
+	// View marks an event that is for a view of the apply on a terminal: the start and the
+	// end of an apply, and the start of a replacement. The JSON stream does not carry it.
+	View    bool   `json:"-"`
+	Txn     string `json:"txn,omitempty"`
+	TraceID string `json:"trace_id,omitempty"`
 }
 
 // emit sends an event to the configured sink, if any.
@@ -76,4 +80,14 @@ func WithCode(code ExitCode, err error) error {
 		return nil
 	}
 	return &CodedError{Code: code, Err: err}
+}
+
+// failed reports that the change of a resource ended in an error, so that a view of
+// the apply can say which resource it was.
+func (e *Engine) failed(addr string, err error) {
+	kind := "apply"
+	if ch := e.changeFor(addr); ch != nil {
+		kind = string(ch.Action)
+	}
+	e.emit(Event{Kind: kind, Addr: addr, Phase: "error", Message: err.Error()})
 }

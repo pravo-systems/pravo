@@ -14,7 +14,7 @@ One page for each command and each part of the specification, tables first.
 |---|---|---|
 | [reference/init.md](reference/init.md) | Install the providers a root needs, write the lock file and generate the CUE packages that a specification imports. | 10 KB |
 | [reference/plan.md](reference/plan.md) | Show the actions that apply takes. A plan changes no infrastructure, and it can be saved, stored in the state, judged by a policy and applied later. | 36 KB |
-| [reference/apply.md](reference/apply.md) | Plan, ask for confirmation and apply, or apply a saved plan or a plan stored in the state exactly as it was reviewed, in whole or in closed parts. | 34 KB |
+| [reference/apply.md](reference/apply.md) | Plan, ask for confirmation and apply, or apply a saved plan or a plan stored in the state exactly as it was reviewed, in whole or in closed parts. | 35 KB |
 | [reference/destroy.md](reference/destroy.md) | Destroy every resource recorded in the state, dependents first, after a plan and a confirmation. | 8 KB |
 | [reference/show.md](reference/show.md) | Print a saved plan or a plan stored in the state, with the time, the command and the actor that made it, and a warning when it cannot be applied. | 10 KB |
 | [reference/output.md](reference/output.md) | Print the output values that the last apply recorded in the state, as CUE or as JSON. | 4 KB |
@@ -36,7 +36,7 @@ One page for each command and each part of the specification, tables first.
 | [reference/environments.md](reference/environments.md) | Show what the state of each environment runs and how the release of this directory stands there, compare two environments, and record the place of a state in the promotion flow. | 9 KB |
 | [reference/promote.md](reference/promote.md) | Bring the release that the environments before one run into it, apply it there, withdraw a promotion or waive the check. Flags, checks, roles and exit codes. | 11 KB |
 | [reference/version.md](reference/version.md) | Print the version of pravo and the version of CUE that is built into it. | 2 KB |
-| [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 18 KB |
+| [reference/global-flags.md](reference/global-flags.md) | The flags every pravo command accepts, the flags several commands share, the debug log, JSON output, the environment variables and where the exit codes are listed. | 19 KB |
 | [reference/shadow.md](reference/shadow.md) | Decompile an OpenTofu or Terraform state into a specification that plans clean, keep it beside the Terraform root, hand the objects over, or write them back. | 19 KB |
 | [reference/template.md](reference/template.md) | List the templates of a specification and make the CUE of a new instance from the command line, checked against the specification and the policies in force, as the viewer's wizard does. Flags, the JSON documents and exit codes. | 6 KB |
 

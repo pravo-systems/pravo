@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/pravo-systems/pravo/internal/applyview"
 	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/engine"
 	"github.com/pravo-systems/pravo/internal/env"
@@ -349,7 +350,7 @@ func newRootCmd(rt *runContext) *cobra.Command {
 			if answersOnStdout(cmd) {
 				rt.out.Warnings = os.Stderr
 			}
-			if spinner != nil && rt.flags.Verbose == 0 && showsProgress(cmd) {
+			if spinner != nil && rt.flags.Verbose == 0 && showsProgress(cmd) && progressMode(rt) != applyview.Plain {
 				// The status line gives way to whatever the command prints.
 				rt.out.Out = spinner.Guard(rt.out.Out)
 				spinner.Start(!colourOff(rt.flags.NoColor))
@@ -371,6 +372,7 @@ func newRootCmd(rt *runContext) *cobra.Command {
 	pf := cmd.PersistentFlags()
 	pf.StringVarP(&rt.flags.Dir, "chdir", "C", "", "run as if started in this directory")
 	pf.BoolVar(&rt.flags.NoColor, "no-color", false, "disable coloured output")
+	pf.StringVar(&rt.flags.Progress, "progress", "", "how apply shows its work: auto (a live view on a terminal, lines elsewhere), live or plain ($PRAVO_PROGRESS)")
 	pf.CountVarP(&rt.flags.Verbose, "verbose", "v", "log what pravo decides and does to stderr; -vv adds finer detail and the providers' own log ($PRAVO_LOG=debug|trace)")
 	pf.BoolVar(&rt.flags.JSON, "json", false, "machine-readable output on stdout (progress goes to stderr)")
 	pf.StringVar(&rt.flags.Actor, "actor", "", "a label for who is acting, recorded on transactions, locks and plans; not verified ($PRAVO_ACTOR)")

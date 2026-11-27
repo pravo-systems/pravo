@@ -277,6 +277,7 @@ Global Flags:
       --identity string               name of the identity to read a sealed state with; overrides $PRAVO_IDENTITY
       --json                          machine-readable output on stdout (progress goes to stderr)
       --no-color                      disable coloured output
+      --progress string               how apply shows its work: auto (a live view on a terminal, lines elsewhere), live or plain ($PRAVO_PROGRESS)
       --provider-mirror stringArray   download provider archives from a container registry: oci://host/path reads namespace/type from host/path/namespace/type, and SOURCE=oci://host/path/type gives one source its repository; repeatable ($PRAVO_PROVIDER_MIRROR, comma-separated)
       --reason string                 why; recorded on transactions and plans ($PRAVO_REASON)
   -v, --verbose count                 log what pravo decides and does to stderr; -vv adds finer detail and the providers' own log ($PRAVO_LOG=debug|trace)
