@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -17,7 +18,11 @@ func zipWithExecutable(t *testing.T, typ, ver, body string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	hdr := &zip.FileHeader{Name: "terraform-provider-" + typ + "_v" + ver, Method: zip.Deflate}
+	name := "terraform-provider-" + typ + "_v" + ver
+	if runtime.GOOS == "windows" {
+		name += ".exe" // the program of a Windows archive is named so
+	}
+	hdr := &zip.FileHeader{Name: name, Method: zip.Deflate}
 	hdr.SetMode(0o755)
 	w, err := zw.CreateHeader(hdr)
 	if err != nil {
@@ -37,6 +42,9 @@ func TestProvidersLockPinsTheExecutablesOfEveryPlatform(t *testing.T) {
 	rt := &runContext{}
 	host := ociRegistry(t)
 	plats := []string{"linux_amd64", "darwin_arm64"}
+	if host := runtime.GOOS + "_" + runtime.GOARCH; !slices.Contains(plats, host) {
+		plats = append(plats, host) // providers lock always covers the platform it runs on
+	}
 	archives := map[string][]byte{}
 	want := map[string]string{}
 	for _, p := range plats {
