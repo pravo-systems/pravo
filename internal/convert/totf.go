@@ -108,6 +108,15 @@ func (c *Converter) unknownOrNull(path string, v cue.Value, t tftypes.Type) tfty
 		}
 		c.fail(err)
 	}
+	if info.SelfRef && v.Exists() {
+		// A value that is read from the task itself and has none yet is not null: it
+		// is not known, and it is no dependency that would settle it.
+		where := ""
+		if pos := v.Pos(); pos.IsValid() {
+			where = fmt.Sprintf(" (at %s)", pos)
+		}
+		c.fail(fmt.Errorf("%s: value is read from the task itself, %s, which has no value for it yet%s", path, c.Self, where))
+	}
 	return tftypes.NewValue(t, nil)
 }
 

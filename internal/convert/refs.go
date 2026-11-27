@@ -43,6 +43,9 @@ type Memo interface {
 type InertField struct {
 	Followed   bool
 	Incomplete *cue.Path
+	// SelfRef is set when the expression refers to the task it is part of: such a
+	// reference is no dependency, but the value it stands for is not known either.
+	SelfRef bool
 }
 
 // ResolverFunc is a Resolver whose tasks all sit at the paths the function
@@ -68,6 +71,9 @@ type RefInfo struct {
 	// Incomplete is set when the expression refers to a value outside any
 	// task that is itself not concrete (for example an unset @tag field).
 	Incomplete *cue.Path
+	// SelfRef is set when the expression refers to the task it is part of: such a
+	// reference is no dependency, but the value it stands for is not known either.
+	SelfRef bool
 }
 
 // Alias is a path holding a copy of a task body (for example
@@ -139,7 +145,7 @@ func analyse(v cue.Value, resolve Resolver, self *cue.Path, deep bool) RefInfo {
 	a := &analysis{
 		resolve: resolve, self: self, deep: deep,
 		seen: map[string]bool{}, tasks: map[string]bool{}, aliasSeen: map[string]bool{},
-		scanned: map[ast.Node]bool{}, letSeen: map[*ast.LetClause]bool{}, loopSeen: map[*ast.ForClause]bool{},
+		scanned: map[ast.Node]bool{}, letSeen: map[letRead]bool{}, loopSeen: map[*ast.ForClause]bool{},
 	}
 	if m, ok := resolve.(Memo); ok {
 		a.inert = m.InertFields()
@@ -169,7 +175,7 @@ type analysis struct {
 	// letSeen holds the lets whose expression has been read: a let that names a
 	// task, or a value built from tasks, is a dependency on them wherever it is
 	// used, and one that is used twice is read once.
-	letSeen  map[*ast.LetClause]bool
+	letSeen  map[letRead]bool
 	loopSeen map[*ast.ForClause]bool
 	// loc is the plain field being followed, nil while the body of the task is
 	// read. Names in the syntax of a let that the field uses are looked up from
@@ -196,6 +202,7 @@ func (a *analysis) scope() *cue.Path {
 func (a *analysis) addTask(task, alias cue.Path) {
 	a.touched++
 	if a.self != nil && task.String() == a.self.String() {
+		a.info.SelfRef = true
 		return
 	}
 	if !a.tasks[task.String()] {
@@ -226,12 +233,25 @@ func (a *analysis) follow(p cue.Path, depth int) bool {
 }
 
 // scanSyntax reads the tasks that the syntax at node names.
-func (a *analysis) scanSyntax(node ast.Node) {
+//
+// suffix is what the use of the syntax goes on to select from it: the syntax of a let
+// that is a name, or a name and selectors, is read as that name and those selectors
+// followed by the suffix, so that a task is read at the attribute that the user of the
+// let names and not as a whole.
+func (a *analysis) scanSyntax(node ast.Node, suffix []cue.Selector) {
 	var anc []cue.Selector
 	if sc := a.scope(); sc != nil {
 		anc = sc.Selectors()
 	}
-	sc := &refScan{resolve: a.resolve, anc: anc, add: a.addTask, follow: func(p cue.Path) bool { return a.follow(p, 0) }, local: map[string]bool{}, let: a.scanLet, loop: a.loopVariable}
+	sc := &refScan{resolve: a.resolve, anc: anc, add: a.addTask, follow: func(p cue.Path) bool { return a.follow(p, 0) }, local: map[string]bool{}, let: a.scanLet, letAt: a.scanLetAt, loop: a.loopVariable}
+	if len(suffix) > 0 {
+		if e, ok := node.(ast.Expr); ok {
+			if head, sels, dyn := refChain(e); head != nil && len(dyn) == 0 {
+				sc.reference(head, append(append([]cue.Selector{}, sels...), suffix...))
+				return
+			}
+		}
+	}
 	ast.Walk(node, sc.visit, nil)
 }
 
@@ -251,16 +271,29 @@ func (a *analysis) loopVariable(rd LoopRead) {
 	}
 	if fc := rd.Clause; fc.Source != nil && !a.loopSeen[fc] {
 		a.loopSeen[fc] = true
-		a.scanSyntax(fc.Source)
+		a.scanSyntax(fc.Source, nil)
 	}
 }
 
-func (a *analysis) scanLet(lc *ast.LetClause) {
-	if a.letSeen[lc] || lc.Expr == nil {
+func (a *analysis) scanLet(lc *ast.LetClause) { a.scanLetAt(lc, nil) }
+
+// letRead is one way a let was read: the let and the selectors that were taken from it.
+type letRead struct {
+	lc   *ast.LetClause
+	sels string
+}
+
+// scanLetAt reads the expression of lc, used as lc.sels.
+func (a *analysis) scanLetAt(lc *ast.LetClause, sels []cue.Selector) {
+	if lc.Expr == nil {
 		return
 	}
-	a.letSeen[lc] = true
-	a.scanSyntax(lc.Expr)
+	key := letRead{lc, cue.MakePath(sels...).String()}
+	if a.letSeen[key] {
+		return
+	}
+	a.letSeen[key] = true
+	a.scanSyntax(lc.Expr, sels)
 }
 
 // walk visits v. A value that is a reference has operands, the container
@@ -278,7 +311,7 @@ func (a *analysis) walk(v cue.Value, depth int, nav bool) {
 	// depend on what its dependency depends on. The expression of the let
 	// is read instead.
 	if lc := letReference(v.Source()); lc != nil {
-		a.scanLet(lc)
+		a.scanLetAt(lc, letSelectors(v.Source()))
 		return
 	}
 	// A loop variable that the resolver knows the element of stands for that
@@ -298,7 +331,7 @@ func (a *analysis) walk(v cue.Value, depth int, nav bool) {
 	if fc := loopReference(v.Source()); fc != nil && fc.Source != nil {
 		if !a.loopSeen[fc] {
 			a.loopSeen[fc] = true
-			a.scanSyntax(fc.Source)
+			a.scanSyntax(fc.Source, nil)
 		}
 		return
 	}
@@ -505,9 +538,14 @@ func IsConcrete(v cue.Value) bool {
 }
 
 // Default returns v with defaults applied where possible.
+//
+// A value that has no default is returned as it is: what Default makes of it no
+// longer remembers the reference it was written as, and with it the tasks it names.
 func Default(v cue.Value) cue.Value {
-	d, _ := v.Default()
-	return d
+	if d, ok := v.Default(); ok {
+		return d
+	}
+	return v
 }
 
 // IncompleteError returns a descriptive error for a non-concrete value that
@@ -588,6 +626,8 @@ type refScan struct {
 	// let reads the expression of a let that was declared outside the syntax
 	// being scanned, when the syntax uses its name.
 	let func(*ast.LetClause)
+	// letAt is let for a use that takes selectors from the let, when it is set.
+	letAt func(*ast.LetClause, []cue.Selector)
 	// clauses holds the for clauses of the syntax being scanned, and loop reads
 	// a variable that a for clause outside it binds: the variable of the loop
 	// that makes the task, read in a condition or in a comprehension of its
@@ -678,12 +718,14 @@ func (s *refScan) reference(head *ast.Ident, sels []cue.Selector) {
 		return
 	}
 	if lc := letOf(head); lc != nil {
-		if s.let != nil {
+		if s.letAt != nil {
+			s.letAt(lc, sels)
+		} else if s.let != nil {
 			s.let(lc)
 		}
 		return
 	}
-	first, last, ok := scopeRange(head, len(s.anc))
+	first, last, ok := scopeRange(head, s.anc, s.resolve)
 	if !ok {
 		return
 	}
@@ -838,6 +880,22 @@ func letReference(n ast.Node) *ast.LetClause {
 	}
 }
 
+// letSelectors returns the selectors that the use of a let takes from it: id for
+// _x.id. They are none where the selectors cannot be read.
+func letSelectors(n ast.Node) []cue.Selector {
+	if f, ok := n.(*ast.Field); ok {
+		n = f.Value
+	}
+	e, ok := n.(ast.Expr)
+	if !ok {
+		return nil
+	}
+	if _, sels, dyn := refChain(e); len(dyn) == 0 {
+		return sels
+	}
+	return nil
+}
+
 // loopReference returns the for clause that binds the name that src is, or
 // that src is the value of a field of; nil if src is not such a name.
 func loopReference(src ast.Node) *ast.ForClause {
@@ -902,7 +960,7 @@ func LoopContainer(fc *ast.ForClause, self cue.Path, resolve Resolver) (cue.Path
 		return cue.Path{}, false
 	}
 	anc := self.Selectors()
-	first, last, ok := scopeRange(head, len(anc))
+	first, last, ok := scopeRange(head, anc, resolve)
 	if !ok {
 		return cue.Path{}, false
 	}
@@ -929,11 +987,16 @@ func LoopContainer(fc *ast.ForClause, self cue.Path, resolve Resolver) (cue.Path
 }
 
 // scopeRange gives the structs around a task in which the name head is looked
-// up, as indexes into the selectors of the task from the innermost (first) to
+// up, as indexes into the selectors anc of the task from the innermost (first) to
 // the outermost (last); see refScan.reference. ok is false for a name that is no
 // field: an import.
-func scopeRange(head *ast.Ident, depth int) (first, last int, ok bool) {
-	first, last = max(depth-1, 0), 0
+//
+// The parser has bound the name to the struct that declares it (head.Node). Where
+// that struct is found among the ones around the task, it is the only one the name
+// is looked up in: a field of the same name in a struct nearer the task does not
+// take the name of a let that was declared further out.
+func scopeRange(head *ast.Ident, anc []cue.Selector, resolve Resolver) (first, last int, ok bool) {
+	first, last = max(len(anc)-1, 0), 0
 	switch head.Scope.(type) {
 	case *ast.ImportSpec, *ast.ForClause:
 		return 0, 0, false
@@ -945,7 +1008,43 @@ func scopeRange(head *ast.Ident, depth int) (first, last int, ok bool) {
 	if _, isImport := head.Node.(*ast.ImportSpec); isImport {
 		return 0, 0, false
 	}
+	if n, found := declaringDepth(head.Node, anc, resolve); found && n >= last && n <= first {
+		return n, n, true
+	}
 	return first, last, true
+}
+
+// declaringDepth finds the struct that decl is among the structs around a task: the
+// number of selectors of anc that lead to it, 0 for the file. It is the deepest one
+// whose declaration, in the file that decl is from, spans the position of decl. It
+// is not found when decl is not a struct or a file, or lies in no such declaration
+// (a body that is instantiated from a definition declared elsewhere).
+func declaringDepth(decl ast.Node, anc []cue.Selector, resolve Resolver) (int, bool) {
+	if resolve == nil {
+		return 0, false
+	}
+	switch decl.(type) {
+	case *ast.File:
+		return 0, true
+	case *ast.StructLit:
+	default:
+		return 0, false
+	}
+	pos := decl.Pos()
+	if !pos.IsValid() {
+		return 0, false
+	}
+	for n := len(anc); n >= 1; n-- {
+		f, ok := resolve.Value(cue.MakePath(anc[:n]...)).Source().(*ast.Field)
+		if !ok || f == nil {
+			continue
+		}
+		start, end := f.Pos(), f.End()
+		if start.File() == pos.File() && start.IsValid() && end.IsValid() && start.Offset() <= pos.Offset() && pos.Offset() < end.Offset() {
+			return n, true
+		}
+	}
+	return 0, false
 }
 
 // shadowedName returns the name that a struct literal in the syntax of v
