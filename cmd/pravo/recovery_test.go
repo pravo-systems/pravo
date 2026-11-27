@@ -137,6 +137,36 @@ func TestProtectInitWithARecovery(t *testing.T) {
 		if code == 0 || !strings.Contains(text, "recovery-shares already holds shares") {
 			t.Fatalf("exit %d\n%s", code, text)
 		}
+		if !strings.Contains(text, "--shares-dir") {
+			t.Errorf("the refusal does not name --shares-dir:\n%s", text)
+		}
+	})
+	t.Run("another directory takes a second set", func(t *testing.T) {
+		other := filepath.Join(t.TempDir(), "shares")
+		text, code := runPravo(t, rt, e.dir, "--json", "protect", "rewrap", "--recovery", "2/3", "--yes", "--shares-dir", other)
+		if code != 0 {
+			t.Fatalf("exit %d\n%s", code, text)
+		}
+		if !strings.Contains(text, `"shares": "`+filepath.ToSlash(other)) && !strings.Contains(text, other) {
+			t.Errorf("the JSON does not name %s:\n%s", other, text)
+		}
+		for i := 1; i <= 3; i++ {
+			if _, err := os.Stat(filepath.Join(other, "share-"+string(rune('0'+i))+"-of-3.txt")); err != nil {
+				t.Errorf("share %d is not in the chosen directory: %v", i, err)
+			}
+		}
+		if b, err := os.ReadFile(filepath.Join(other, ".gitignore")); err != nil || string(b) != "*\n" {
+			t.Errorf(".gitignore in the chosen directory: %q, %v", b, err)
+		}
+		// The default directory still holds the first set, untouched.
+		if _, err := os.Stat(filepath.Join(e.dir, "recovery-shares", "share-1-of-3.txt")); err != nil {
+			t.Errorf("the first set is gone: %v", err)
+		}
+		// A directory that holds a set is refused again, wherever it is.
+		text, code = runPravo(t, rt, e.dir, "protect", "rewrap", "--recovery", "2/3", "--yes", "--shares-dir", other)
+		if code == 0 || !strings.Contains(text, other+" already holds shares") {
+			t.Errorf("a second set in the chosen directory: exit %d\n%s", code, text)
+		}
 	})
 }
 

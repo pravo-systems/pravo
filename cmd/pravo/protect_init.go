@@ -60,6 +60,7 @@ is not on the readers file, 6 when the readers file is missing or invalid.`,
 	f.BoolVar(&yes, "yes", false, "do not ask for confirmation")
 	f.BoolVar(&allowLocal, "allow-local", false, "accept a state in a local directory that only you use")
 	f.StringVar(&recovery, "recovery", "", "also set a recovery recipient, as K/N: N shares, any K rebuild its key")
+	addSharesDirFlag(rt, f)
 	return cmd
 }
 
@@ -159,7 +160,7 @@ func (p *protectRun) init(rt *runContext, yes, allowLocal, force bool, recoveryS
 	// leave a recovery lock that nobody can open.
 	var removeShares func()
 	if rec != nil {
-		if removeShares, err = writeShares(shares); err != nil {
+		if removeShares, err = writeShares(rt, shares); err != nil {
 			return err
 		}
 	}

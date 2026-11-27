@@ -33,6 +33,9 @@ type rootFlags struct {
 	// AccessDir is the --access-dir flag of the commands that read the readers
 	// file.
 	AccessDir string
+	// SharesDir is the --shares-dir flag of the commands that set a recovery: the
+	// directory the shares are written to.
+	SharesDir string
 }
 
 // runContext is what a command that runs works with: its flags and the printer of its output.
