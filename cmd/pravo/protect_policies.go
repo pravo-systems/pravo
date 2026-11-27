@@ -32,7 +32,7 @@ the state. Removing a policy on purpose is not this: remove it from the specific
 apply, as an admin.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			p, err := newProtectRun(rt, cmd)
+			p, err := newProtectRunFull(rt, cmd)
 			if err != nil {
 				return err
 			}

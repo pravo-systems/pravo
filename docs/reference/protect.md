@@ -37,6 +37,7 @@ keywords: "encrypt seal secrets readers access rewrap state encryption recovery 
 | Synopsis | `pravo protect check`, `pravo protect init --encrypt`, `pravo protect status`, `pravo protect rewrap`, `pravo protect roles`, `pravo protect recover`, `pravo protect unseal`, `pravo protect gc` |
 | Changes infrastructure | No. |
 | Reads | The state, `.pravo/access/readers.txt` in the repository, and the identity of the person who runs the command. |
+| Before `pravo init` | They read only `$settings` of the specification, so they run in a checkout whose specification imports provider packages that `pravo init` has not generated yet. `protect policies` is the exception: it reads the policies, so it loads the whole specification. |
 | Writes | `protect init`, `protect rewrap`, `protect roles`, `protect recover`, `protect unseal` and `protect gc` write the state; `protect roles` also adds the `roles-genesis` line to the readers file; `protect unseal --remove-files` also deletes the readers file and the recovery file of the repository; a command that sets a recovery also writes `recovery-shares/` and `.pravo/access/recovery.txt`; `gc` writes the object `gc/marks.json` as well. `check` and `status` write nothing, and so does `gc --dry-run`. |
 | Prints | One line for each check, then a verdict. For `gc`, what it deleted and dropped. |
 | Taught in | [Seal the state to a list of readers](../how-to/seal-the-state.md) and [Lab 3](../learn/lab3-the-leaked-bucket.md). |
