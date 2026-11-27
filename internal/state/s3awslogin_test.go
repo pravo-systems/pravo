@@ -132,7 +132,8 @@ func TestS3CredentialProcessSourceProfileAssumesTheRole(t *testing.T) {
 	if err := os.WriteFile(script, []byte("#!/bin/sh\nprintf '%s' '"+out+"'\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	cfg := "[profile org-sdk]\ncredential_process = " + script + "\nregion = us-east-1\n\n" +
+	// The path is quoted for sh, with exec in front: the AWS library strips quotes that surround the whole value.
+	cfg := "[profile org-sdk]\ncredential_process = exec '" + script + "'\nregion = us-east-1\n\n" +
 		"[profile prod]\nrole_arn = " + orgRole + "\nsource_profile = org-sdk\nregion = us-east-1\n"
 	if err := os.WriteFile(os.Getenv("AWS_CONFIG_FILE"), []byte(cfg), 0o600); err != nil {
 		t.Fatal(err)
