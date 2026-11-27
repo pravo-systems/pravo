@@ -66,7 +66,21 @@ type protectRun struct {
 	rf   readersFile
 }
 
+// newProtectRun reads only $settings: the commands need where the state is and where the
+// readers file is, so they run before pravo init, when the specification imports provider
+// packages that init generates. When the settings cannot be read on their own, the whole
+// specification is loaded, which says what is wrong.
 func newProtectRun(rt *runContext, cmd *cobra.Command) (*protectRun, error) {
+	root, err := config.LoadSettingsWith(".", config.LoadOptions{Tags: rt.flags.Tags, SysTags: rt.flags.SysTags, Env: environment()})
+	if err != nil {
+		return newProtectRunFull(rt, cmd)
+	}
+	return &protectRun{ctx: cmd.Context(), root: root, rf: readersOf(rt, root)}, nil
+}
+
+// newProtectRunFull loads the whole specification, for a command that reads more than
+// the settings of it (protect policies reads the policies).
+func newProtectRunFull(rt *runContext, cmd *cobra.Command) (*protectRun, error) {
 	root, err := loadRoot(rt)
 	if err != nil {
 		return nil, err
