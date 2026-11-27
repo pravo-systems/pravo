@@ -245,8 +245,10 @@ type StateConfig struct {
 	RoleARN     string
 	ExternalID  string
 	SessionName string
-	AccessKey   string
-	SecretKey   string
+	// Account is the 12-digit AWS account the credentials must belong to.
+	Account   string
+	AccessKey string
+	SecretKey string
 	// URL, Token, Username and Password belong to the http backend.
 	URL      string
 	Token    string
@@ -1086,7 +1088,7 @@ func tagWithin(v cue.Value, depth int) string {
 // checkS3Fields refuses the settings of the s3 backend with another backend.
 func checkS3Fields(sb cue.Value, st StateConfig, label string) error {
 	if st.Backend != "s3" {
-		for _, f := range []string{"bucket", "prefix", "region", "endpoint", "profile", "role_arn", "external_id", "session_name", "access_key", "secret_key", "path_style", "snapshot"} {
+		for _, f := range []string{"bucket", "prefix", "region", "endpoint", "profile", "role_arn", "external_id", "session_name", "account", "access_key", "secret_key", "path_style", "snapshot"} {
 			if sb.LookupPath(cue.ParsePath(f)).Exists() {
 				return fmt.Errorf("%s.%s belongs to the s3 backend: set backend: \"s3\", or remove it", label, f)
 			}
@@ -1095,10 +1097,13 @@ func checkS3Fields(sb cue.Value, st StateConfig, label string) error {
 	return nil
 }
 
-// checkRole refuses an external ID or a session name with no role to qualify.
+// checkRole refuses an external ID or a session name with no role to qualify, and an account that is not 12 digits.
 func checkRole(st StateConfig, label string) error {
 	if st.Backend == "s3" && st.RoleARN == "" && (st.ExternalID != "" || st.SessionName != "") {
 		return fmt.Errorf("%s.external_id and %s.session_name qualify role_arn: set role_arn, or remove them", label, label)
+	}
+	if st.Backend == "s3" && st.Account != "" && !ValidAccount(st.Account) {
+		return fmt.Errorf("%s.account %q is not a 12-digit AWS account ID", label, st.Account)
 	}
 	return nil
 }
@@ -1135,7 +1140,7 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 	var err error
 	fields := map[string]*string{
 		"backend": &st.Backend, "bucket": &st.Bucket, "prefix": &st.Prefix, "region": &st.Region,
-		"endpoint": &st.Endpoint, "profile": &st.Profile, "role_arn": &st.RoleARN, "external_id": &st.ExternalID, "session_name": &st.SessionName, "access_key": &st.AccessKey, "secret_key": &st.SecretKey,
+		"endpoint": &st.Endpoint, "profile": &st.Profile, "role_arn": &st.RoleARN, "external_id": &st.ExternalID, "session_name": &st.SessionName, "account": &st.Account, "access_key": &st.AccessKey, "secret_key": &st.SecretKey,
 		"url": &st.URL, "token": &st.Token, "username": &st.Username, "password": &st.Password, "token_env": &st.TokenEnv,
 	}
 	for name, dst := range fields {
@@ -1200,4 +1205,17 @@ func parseState(sb cue.Value, label string) (StateConfig, string, error) {
 		}
 	}
 	return st, path, nil
+}
+
+// ValidAccount reports whether s is 12 digits, as an AWS account ID is.
+func ValidAccount(s string) bool {
+	if len(s) != 12 {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }

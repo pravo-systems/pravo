@@ -29,6 +29,7 @@ import (
 	"github.com/aws/smithy-go/logging"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 
+	"github.com/pravo-systems/pravo/internal/config"
 	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 )
 
@@ -52,6 +53,11 @@ type S3Config struct {
 	// RoleARN is an IAM role to assume with the credentials found above, with
 	// the ExternalID and SessionName (default "pravo") of the assumption.
 	RoleARN, ExternalID, SessionName string
+	// Account, when set, is the 12-digit AWS account that the credentials must
+	// belong to. The caller is looked up with sts:GetCallerIdentity before any
+	// request to the bucket, and a different account, or a failed lookup,
+	// refuses the connection.
+	Account string
 	// AccessKey and SecretKey, when both set, are used directly.
 	AccessKey, SecretKey, SessionToken string
 }
@@ -234,6 +240,9 @@ func NewS3Backend(ctx context.Context, cfg S3Config) (*S3Backend, error) {
 	if cfg.Bucket == "" {
 		return nil, errors.New("$settings.state.bucket is required for the s3 backend")
 	}
+	if cfg.Account != "" && !config.ValidAccount(cfg.Account) {
+		return nil, fmt.Errorf("$settings.state.account %q is not a 12-digit AWS account ID", cfg.Account)
+	}
 	httpClient := awshttp.NewBuildableClient().WithTransportOptions(func(t *http.Transport) {
 		if t.MaxIdleConns < idleConns {
 			t.MaxIdleConns = idleConns
@@ -280,6 +289,11 @@ func NewS3Backend(ctx context.Context, cfg S3Config) (*S3Backend, error) {
 				o.ExternalID = aws.String(cfg.ExternalID)
 			}
 		}))
+	}
+	if cfg.Account != "" {
+		if err := checkAccount(ctx, ac, cfg.Account); err != nil {
+			return nil, err
+		}
 	}
 	client := s3.NewFromConfig(ac, func(o *s3.Options) {
 		o.HTTPClient = tracedHTTP{ac.HTTPClient}
