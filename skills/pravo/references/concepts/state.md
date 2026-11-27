@@ -438,6 +438,34 @@ Every property of the local store holds in a bucket. Each node is one object, wr
 
 `pravo state pull DIR` copies the configured graph into a local directory. `pravo state push DIR` copies a local directory into the configured backend, objects, transaction log, stored plans and secrets included.
 
+### Signing in with `aws login` through a role
+
+A profile that you signed in to with `aws login` works when it is used on its own. It does not work as the `source_profile` of a role profile:
+
+```ini
+[profile org]
+login_session = arn:aws:sts::111111111111:assumed-role/SomeRole/someone
+
+[profile prod]
+role_arn       = arn:aws:iam::222222222222:role/OrganizationAccountAccessRole
+source_profile = org
+```
+
+With `profile: "prod"`, or `AWS_PROFILE=prod`, the AWS library refuses the pair, and Pravo stops with an error that begins `failed to load assume role ... of profile org` and goes on to name the role and the profile. The library reads the keys of a `login_session` profile when you name it, but its check of a `source_profile` has no case for that kind of profile, so it takes `org` for a profile without keys. The AWS CLI reads the same file without trouble. The AWS provider for OpenTofu reads it with the same library and stops in the same way, so Pravo gives the same hint when a provider fails with that message.
+
+Pravo does not retry, and does not fall back to another identity. The way around it is a profile that gets its keys from the CLI, used as the source:
+
+```ini
+[profile org-sdk]
+credential_process = aws configure export-credentials --profile org --format process
+
+[profile prod]
+role_arn       = arn:aws:iam::222222222222:role/OrganizationAccountAccessRole
+source_profile = org-sdk
+```
+
+`aws configure export-credentials` prints the keys of the `org` session in the form that `credential_process` reads, so the session you signed in to is the one that is used. The `org-sdk` profile is only a way to hand it to the library. Once AWS ships a library that reads a sign-in session as a `source_profile`, delete the `org-sdk` profile and point `source_profile` back at `org`.
+
 ## Cost follows the change
 
 The state keeps one record for each resource, and the record names the resources it depends on. A command does not have to read, plan or lock the estate to find what a change affects. Four parts of the design make the work of a command follow the change and not the number of records.
