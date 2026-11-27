@@ -264,6 +264,9 @@ func NewS3Backend(ctx context.Context, cfg S3Config) (*S3Backend, error) {
 	}
 	ac, err := awsconfig.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
+		if hint := AWSSourceProfileHint(err); hint != "" {
+			return nil, fmt.Errorf("loading AWS configuration: %w\n  %s", err, hint)
+		}
 		return nil, fmt.Errorf("loading AWS configuration: %w", err)
 	}
 	if ac.Region == "" {

@@ -26,6 +26,7 @@ import (
 	"github.com/pravo-systems/pravo/internal/plugin/netcap"
 	"github.com/pravo-systems/pravo/internal/registry"
 	"github.com/pravo-systems/pravo/internal/schema"
+	"github.com/pravo-systems/pravo/internal/state"
 	"github.com/pravo-systems/pravo/internal/telemetry"
 )
 
@@ -735,6 +736,9 @@ func (m *Providers) configure(ctx context.Context, inst *instance, local string)
 		return fmt.Errorf("configuring provider %s: %w", inst.key, err)
 	}
 	if err := diags.Err(); err != nil {
+		if hint := state.AWSSourceProfileHintFromText(err.Error()); hint != "" {
+			return fmt.Errorf("configuring provider %s: %w\n  %s", inst.key, err, hint)
+		}
 		return fmt.Errorf("configuring provider %s: %w", inst.key, err)
 	}
 	return nil
